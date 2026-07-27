@@ -23,5 +23,10 @@
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "@fullcalendar/react@7.0.2": true,
+    "@fullcalendar/timegrid@6.1.21": true,
+    "@fullcalendar/core@7.0.2": true
   }
 }

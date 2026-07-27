@@ -64,6 +64,7 @@ const TABS = [
   },
 ];
 
+// Placeholder data - for Supabase eto
 const BOOKINGS = {
   "Pending Bookings": [],
   "In-Transit": [],
@@ -85,7 +86,7 @@ function KPIGrid({ onNavigate }: { onNavigate: (name: string) => void }) {
           <button
             key={tab.name}
             onClick={() => onNavigate(tab.name)}
-            className="p-5 rounded-2xl shadow-sm bg-white border border-gray-100 hover:border-blue-400 transition-all flex items-center space-x-4 text-left w-full"
+            className="p-5 rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex items-center space-x-4 text-left w-full"
           >
             <div
               className={`w-14 h-14 rounded-full ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
@@ -114,6 +115,7 @@ function FeedTable({ tabConfig, bookings }: any) {
           {tabConfig.name} Feed
         </h3>
       </div>
+      {/* overflow-x-auto ensures horizontal scrolling on tiny mobile screens */}
       <div className="overflow-x-auto min-h-75">
         {bookings.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
@@ -121,7 +123,7 @@ function FeedTable({ tabConfig, bookings }: any) {
             <p>No data found.</p>
           </div>
         ) : (
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-125">
             <tbody className="divide-y divide-gray-50 text-sm">
               {bookings.map((b: any) => (
                 <tr key={b.orderId} className="hover:bg-gray-50">
@@ -161,11 +163,21 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="p-8 w-full">
-      {/* Header with action buttons */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
-        <div className="flex space-x-3">
+    <div className="p-4 md:p-8 w-full max-w-7xl mx-auto">
+      {/* THIS IS THE UPDATED HEADER: 
+        Uses flex-col on mobile so buttons stack under the title, 
+        and sm:flex-row on larger screens to sit side-by-side. 
+      */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
+
+          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+            Track pending bookings, in-transit deliveries, completed trips, and
+            foul trips at a glance.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
           <button className="px-5 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200">
             + On-Call Booking
           </button>
@@ -178,7 +190,7 @@ export default function AdminDashboardPage() {
       {/* KPI Cards act as Navigation Buttons */}
       <KPIGrid onNavigate={handleNavigate} />
 
-      {/* 2x2 Responsive Grid */}
+      {/* 2x2 Responsive Grid for Data Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
         {TABS.map((tab) => (
           <div
