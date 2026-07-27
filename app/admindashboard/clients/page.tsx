@@ -40,25 +40,38 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={() =>
-            alert(
-              `Backend not connected yet. Add new ${activeTab.slice(0, -1)} modal will open here!`,
-            )
-          }
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 text-sm whitespace-nowrap"
-        >
-          <UserPlus className="w-4 h-4 shrink-0" />
-          <span>
-            Add New{" "}
-            {activeTab === "Clients"
-              ? "Client"
-              : activeTab === "Partners"
-                ? "Partner"
-                : "Personnel"}
-          </span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+          {activeTab === "Clients" && (
+            <button
+              onClick={() => alert("Add new Client modal will open here!")}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>Add Client</span>
+            </button>
+          )}
+
+          {activeTab === "Partners" && (
+            <button
+              onClick={() => alert("Add new Partner modal will open here!")}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>Add Partner</span>
+            </button>
+          )}
+
+          {activeTab === "On-Call" && (
+            <button
+              onClick={() => alert("Add new On-Call modal will open here!")}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>Add On-Call</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Content Container Card */}

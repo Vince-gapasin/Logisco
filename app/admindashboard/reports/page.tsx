@@ -138,7 +138,7 @@ export default function ReportsForecastingPage() {
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       <div className="space-y-6">
         {/* ========================================== */}
-        {/* HEADER SECTION                             */}
+        {/* HEADER SECTION                            */}
         {/* ========================================== */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -150,14 +150,18 @@ export default function ReportsForecastingPage() {
               generate demand forecasts.
             </p>
           </div>
-          <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 shadow-sm transition-all duration-200 text-sm whitespace-nowrap">
-            <TrendingUp className="w-4 h-4 shrink-0" />
-            <span>Forecasting</span>
-          </button>
+
+          {/* Action Button:*/}
+          <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+            <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap">
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span>Forecasting</span>
+            </button>
+          </div>
         </div>
 
         {/* ========================================== */}
-        {/* FILTER SECTION                             */}
+        {/* FILTER SECTION                            */}
         {/* ========================================== */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
@@ -208,7 +212,7 @@ export default function ReportsForecastingPage() {
         </div>
 
         {/* ========================================== */}
-        {/* SUMMARY CARDS SECTION                      */}
+        {/* SUMMARY CARDS SECTION                     */}
         {/* ========================================== */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Total Historical Records */}

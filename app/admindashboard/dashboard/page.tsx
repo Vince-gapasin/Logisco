@@ -164,10 +164,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="p-4 md:p-8 w-full max-w-7xl mx-auto">
-      {/* THIS IS THE UPDATED HEADER: 
-        Uses flex-col on mobile so buttons stack under the title, 
-        and sm:flex-row on larger screens to sit side-by-side. 
-      */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
@@ -177,11 +174,13 @@ export default function AdminDashboardPage() {
             foul trips at a glance.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button className="px-5 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200">
+
+        {/* BUTTON GROUP: Compact fixed width (sm:w-40) to prevent it from feeling too wide */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+          <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200 whitespace-nowrap">
             + On-Call Booking
           </button>
-          <button className="px-5 py-2.5 bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200">
+          <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200 whitespace-nowrap">
             + New Booking
           </button>
         </div>

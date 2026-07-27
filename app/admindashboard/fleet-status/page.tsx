@@ -20,15 +20,18 @@ export default function FleetStatusPage() {
           </p>
         </div>
 
-        <button
-          onClick={() =>
-            alert("Add new truck modal/form will open here once configured!")
-          }
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 shadow-sm transition-all duration-200 text-sm whitespace-nowrap"
-        >
-          <Truck className="w-4 h-4 shrink-0" />
-          <span>Add Truck</span>
-        </button>
+        {/* Action Button: */}
+        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+          <button
+            onClick={() =>
+              alert("Add new truck modal/form will open here once configured!")
+            }
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap"
+          >
+            <Truck className="w-4 h-4 shrink-0" />
+            <span>Add Truck</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Container Card */}
