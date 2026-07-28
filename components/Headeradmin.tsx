@@ -14,7 +14,6 @@ export default function Header({ isOpen, setIsOpen }: HeaderProps) {
     <header className="h-16 bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
       {/* Search Input Bar & Conditional Hamburger Trigger */}
       <div className="flex items-center gap-3 w-full max-w-md">
-        {/* Only show hamburger button in header when sidebar is CLOSED */}
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}

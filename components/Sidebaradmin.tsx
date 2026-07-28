@@ -28,11 +28,9 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   // State to manage the Logout Modal popup visibility
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
-  // Helper to close sidebar after clicking a link on mobile screen widths
+  // Helper to close sidebar after clicking any navigation link
   const closeSidebar = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setIsOpen(false);
-    }
+    setIsOpen(false);
   };
 
   const getLinkClass = (path: string) => {
@@ -46,27 +44,25 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   // Handler for confirming logout action
   const handleConfirmLogout = () => {
-    // Add your signout logic here (e.g., supabase.auth.signOut())
     setIsLogoutModalOpen(false);
+    setIsOpen(false);
     router.push("/"); // Redirect user to home/login page after logout
   };
 
   return (
     <>
-      {/* MOBILE DARK BACKDROP OVERLAY */}
+      {/* DARK BACKDROP OVERLAY (Active on all screen sizes when sidebar is open) */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/60 z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* THE SIDEBAR ASIDE */}
+      {/* THE SIDEBAR ASIDE (Pure Overlay Drawer Behavior across all devices) */}
       <aside
-        className={`fixed md:relative inset-y-0 left-0 z-50 w-64 bg-[#000517] text-white flex flex-col h-full shadow-2xl shrink-0 transition-transform duration-300 ease-in-out ${
-          isOpen
-            ? "translate-x-0"
-            : "-translate-x-full md:w-0 md:overflow-hidden"
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000517] text-white flex flex-col h-full shadow-2xl shrink-0 transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* X Close Button at the top-right corner inside the sidebar */}

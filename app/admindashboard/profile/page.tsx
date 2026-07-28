@@ -89,18 +89,18 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        {/* Action Buttons*/}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => setIsEmailModalOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200 whitespace-nowrap"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
           >
             <Mail className="w-4 h-4 shrink-0" />
             <span>Change Email</span>
           </button>
           <button
             onClick={() => setIsPasswordModalOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200 whitespace-nowrap"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
           >
             <Lock className="w-4 h-4 shrink-0" />
             <span>Change Password</span>

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   FileText,
   Truck,
+  AlertCircle,
 } from "lucide-react";
 
 // ==========================================
@@ -64,7 +65,7 @@ const TABS = [
   },
 ];
 
-// Placeholder data - for Supabase eto
+// Placeholder data
 const BOOKINGS = {
   "Pending Bookings": [],
   "In-Transit": [],
@@ -110,12 +111,23 @@ function FeedTable({ tabConfig, bookings }: any) {
   const styles = COLOR_STYLES[tabConfig.color as keyof typeof COLOR_STYLES];
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full">
-      <div className="px-6 py-5 border-b border-gray-100">
-        <h3 className="text-lg font-bold text-slate-800">
-          {tabConfig.name} Feed
-        </h3>
+      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div
+            className={`w-9 h-9 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.iconText}`}
+          >
+            <tabConfig.icon className="w-5 h-5" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-800">
+            {tabConfig.name} Feed
+          </h3>
+        </div>
+        <span
+          className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs font-bold`}
+        >
+          {bookings.length} Total
+        </span>
       </div>
-      {/* overflow-x-auto ensures horizontal scrolling on tiny mobile screens */}
       <div className="overflow-x-auto min-h-75">
         {bookings.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
@@ -168,25 +180,36 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
-
           <p className="text-xs sm:text-sm text-slate-700 mt-1">
             Track pending bookings, in-transit deliveries, completed trips, and
             foul trips at a glance.
           </p>
         </div>
 
-        {/* BUTTON GROUP: Compact fixed width (sm:w-40) to prevent it from feeling too wide */}
+        {/* BUTTON GROUP */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
-          <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200 whitespace-nowrap">
+          <button
+            onClick={() =>
+              alert(
+                "On-Call Booking form/workflow will be configured separately.",
+              )
+            }
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200 whitespace-nowrap"
+          >
             + On-Call Booking
           </button>
-          <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200 whitespace-nowrap">
+          <button
+            onClick={() =>
+              alert("New Booking form/workflow will be configured separately.")
+            }
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-700 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-blue-200 whitespace-nowrap"
+          >
             + New Booking
           </button>
         </div>
       </div>
 
-      {/* KPI Cards act as Navigation Buttons */}
+      {/* KPI Cards with Semantic Status Icons and Counts */}
       <KPIGrid onNavigate={handleNavigate} />
 
       {/* 2x2 Responsive Grid for Data Feeds */}

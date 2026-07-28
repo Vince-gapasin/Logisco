@@ -1,3 +1,4 @@
+// File: app/admindashboard/calendar/page.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -8,13 +9,10 @@ import {
   Clock,
   Calendar as CalendarIcon,
   Filter,
-  Menu,
-  X,
 } from "lucide-react";
 
 export default function CalendarPage() {
   const [currentMonth] = useState("August 2026");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0); // For mobile single-day view
 
   const miniWeekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -46,33 +44,10 @@ export default function CalendarPage() {
 
   return (
     <div className="flex h-screen lg:h-[calc(100vh-4rem)] w-full bg-white text-slate-800 overflow-hidden font-sans relative">
-      {/* Mobile Sidebar Backdrop */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
       {/* ========================================== */}
-      {/* LEFT SIDEBAR (Responsive Drawer)           */}
+      {/* PAGE MINI-CALENDAR PANE (Inline inside page)*/}
       {/* ========================================== */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-80 border-r border-gray-200 flex flex-col p-5 bg-white lg:bg-gray-50/40 h-full overflow-y-auto transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static ${
-          isSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
-        }`}
-      >
-        {/* Mobile Close Button */}
-        <div className="flex items-center justify-between lg:hidden mb-4">
-          <span className="font-bold text-slate-800">Menu</span>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-slate-500 hover:bg-gray-100"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
+      <div className="hidden lg:flex w-80 border-r border-gray-200 flex-col p-5 bg-gray-50/40 h-full overflow-y-auto shrink-0">
         {/* Mini Calendar Header & Grid */}
         <div className="mb-6 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -153,22 +128,15 @@ export default function CalendarPage() {
             </div>
           </button>
         </div>
-      </aside>
+      </div>
 
       {/* ========================================== */}
-      {/* MAIN CALENDAR VIEW (This is already Responsive)            */}
+      {/* MAIN CALENDAR VIEW                        */}
       {/* ========================================== */}
       <main className="flex flex-col flex-1 h-full w-full bg-white relative overflow-hidden">
         {/* Calendar Toolbar / Controls */}
         <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-gray-200 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg text-slate-600 hover:bg-gray-100 lg:hidden"
-              aria-label="Open Sidebar"
-            >
-              <Menu size={20} />
-            </button>
             <h1 className="text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
               <CalendarIcon className="text-blue-600 shrink-0" size={22} />
               <span className="truncate">{currentMonth}</span>
@@ -185,7 +153,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* ================= MOBILE VIEW (Single Day View + Nav for the mini calendar and the 2 buttons) ================= */}
+        {/* ================= MOBILE VIEW (Single Day View) ================= */}
         <div className="flex lg:hidden flex-col flex-1 overflow-hidden">
           {/* Mobile Day Navigation Bar */}
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">

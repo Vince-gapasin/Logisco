@@ -9,21 +9,30 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Open by default on desktop load
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
-      {/* Sidebar Component */}
+    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans relative">
+      {/* Global Admin Sidebar (Overlay Drawer) */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      {/* Right Side Container (Header + Main Content) */}
-      <div className="flex flex-col flex-1 w-full overflow-hidden transition-all duration-300">
-        {/* Header (Only renders the hamburger button when the sidebar is CLOSED) */}
+      {/* Right Side Container (Header + Main Content Area) */}
+      <div className="flex flex-col flex-1 w-full overflow-hidden">
+        {/* Header */}
         <Header isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
         {/* Dynamic Main Page Content */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          {React.Children.map(children, (child) => {
+            if (React.isValidElement(child)) {
+              return React.cloneElement(child as React.ReactElement<any>, {
+                isOpen: isSidebarOpen,
+                setIsOpen: setIsSidebarOpen,
+              });
+            }
+            return child;
+          })}
+        </main>
       </div>
     </div>
   );
