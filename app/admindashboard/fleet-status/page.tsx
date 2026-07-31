@@ -44,7 +44,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
   if (!isOpen) return null;
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -57,11 +57,14 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    if (!formData.plateNumber.trim()) newErrors.plateNumber = "Plate number is required.";
+    if (!formData.plateNumber.trim())
+      newErrors.plateNumber = "Plate number is required.";
     if (!formData.truckType) newErrors.truckType = "Type of truck is required.";
-    if (!formData.truckModel.trim()) newErrors.truckModel = "Truck model is required.";
+    if (!formData.truckModel.trim())
+      newErrors.truckModel = "Truck model is required.";
     if (!formData.capacity.trim()) newErrors.capacity = "Capacity is required.";
-    if (!formData.lastChecked) newErrors.lastChecked = "Last checked date is required.";
+    if (!formData.lastChecked)
+      newErrors.lastChecked = "Last checked date is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -94,7 +97,6 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto">
-        
         {/* MODAL TITLE BANNER */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
@@ -110,18 +112,22 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
         </div>
 
         {/* MODAL FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+        >
           {/* TRUCK INFORMATION SECTION */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-               Truck Information
+              Truck Information
             </div>
-            
+
             {/* Two-column responsive grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Plate Number *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Plate Number *
+                </label>
                 <input
                   type="text"
                   name="plateNumber"
@@ -130,18 +136,26 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.plateNumber && <p className="text-red-500 text-[11px] mt-1">{errors.plateNumber}</p>}
+                {errors.plateNumber && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.plateNumber}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Type of Truck *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Type of Truck *
+                </label>
                 <select
                   name="truckType"
                   value={formData.truckType}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select truck type</option>
+                  <option value="" disabled>
+                    Select truck type
+                  </option>
                   <option value="Closed Van">Closed Van</option>
                   <option value="Wing Van">Wing Van</option>
                   <option value="Dry Van">Dry Van</option>
@@ -154,11 +168,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
                   <option value="Pickup Truck">Pickup Truck</option>
                   <option value="Other">Other</option>
                 </select>
-                {errors.truckType && <p className="text-red-500 text-[11px] mt-1">{errors.truckType}</p>}
+                {errors.truckType && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.truckType}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Truck Model *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Truck Model *
+                </label>
                 <input
                   type="text"
                   name="truckModel"
@@ -167,11 +187,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.truckModel && <p className="text-red-500 text-[11px] mt-1">{errors.truckModel}</p>}
+                {errors.truckModel && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.truckModel}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Capacity *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Capacity *
+                </label>
                 <input
                   type="text"
                   name="capacity"
@@ -180,11 +206,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.capacity && <p className="text-red-500 text-[11px] mt-1">{errors.capacity}</p>}
+                {errors.capacity && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.capacity}
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">Last Checked (MM/DD/YYYY) *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Checked (MM/DD/YYYY) *
+                </label>
                 <input
                   type="date"
                   name="lastChecked"
@@ -192,7 +224,11 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastChecked ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.lastChecked && <p className="text-red-500 text-[11px] mt-1">{errors.lastChecked}</p>}
+                {errors.lastChecked && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.lastChecked}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -215,7 +251,6 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
               Add Truck
             </button>
           </div>
-
         </form>
       </div>
     </div>
@@ -239,7 +274,7 @@ export default function FleetStatusPage() {
     (truck) =>
       truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase())
+      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
@@ -256,12 +291,11 @@ export default function FleetStatusPage() {
           </p>
         </div>
 
-        {/* Action Button */}
+        {/* Action Button: Exact styling from first code snippet (bg-blue-700 hover:bg-black) */}
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           <button
             onClick={() => setIsModalOpen(true)}
-            style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap hover:opacity-95"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap"
           >
             <Truck className="w-4 h-4 shrink-0" />
             <span>Add Truck</span>
@@ -287,7 +321,7 @@ export default function FleetStatusPage() {
 
         {/* 3-Column Data Table Structure with Horizontal Scrolling Protection */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[650px]">
+          <table className="w-full text-left border-collapse min-w-162.5">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th className="py-3.5 px-4 sm:px-6">Plate Number</th>
@@ -298,9 +332,15 @@ export default function FleetStatusPage() {
             <tbody>
               {filteredTrucks.length > 0 ? (
                 filteredTrucks.map((truck) => (
-                  <tr key={truck.id} className="border-b border-slate-100 hover:bg-slate-50/50 text-sm text-slate-800">
+                  <tr
+                    key={truck.id}
+                    className="border-b border-slate-100 hover:bg-slate-50/50 text-sm text-slate-800"
+                  >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
-                      {truck.plateNumber} <span className="text-xs text-slate-500 font-normal">({truck.truckType})</span>
+                      {truck.plateNumber}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        ({truck.truckType})
+                      </span>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6">{truck.lastChecked}</td>
                     <td className="py-3.5 px-4 sm:px-6">
@@ -321,7 +361,8 @@ export default function FleetStatusPage() {
                         No trucks found
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Truck records will appear here once added via the form or connected to your backend database.
+                        Truck records will appear here once added via the form
+                        or connected to your backend database.
                       </p>
                     </div>
                   </td>

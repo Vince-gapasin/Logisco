@@ -4,7 +4,14 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Search, UserPlus, FileText, Filter, ChevronDown, X } from "lucide-react";
+import {
+  Search,
+  UserPlus,
+  FileText,
+  Filter,
+  ChevronDown,
+  X,
+} from "lucide-react";
 
 type RoleType = "Admin" | "Coordinator" | "Mechanic" | "Driver" | "Helper";
 
@@ -53,7 +60,11 @@ interface EmployeeModalProps {
   onSubmitSuccess: (record: EmployeeRecord) => void;
 }
 
-function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps) {
+function EmployeeModal({
+  isOpen,
+  onClose,
+  onSubmitSuccess,
+}: EmployeeModalProps) {
   const [formData, setFormData] = useState({
     firstName: "",
     middleName: "",
@@ -89,7 +100,9 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
   if (!isOpen) return null;
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => {
     const { name, value, files } = e.target as HTMLInputElement;
     if (name === "certificates" && files) {
@@ -106,35 +119,53 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    // Validate all required fields and dropdowns
-    if (!formData.firstName.trim()) newErrors.firstName = "First name is required.";
-    if (!formData.middleName.trim()) newErrors.middleName = "Middle name is required.";
-    if (!formData.lastName.trim()) newErrors.lastName = "Last name is required.";
+    if (!formData.firstName.trim())
+      newErrors.firstName = "First name is required.";
+    if (!formData.middleName.trim())
+      newErrors.middleName = "Middle name is required.";
+    if (!formData.lastName.trim())
+      newErrors.lastName = "Last name is required.";
     if (!formData.gender) newErrors.gender = "Gender is required.";
     if (!formData.birthdate) newErrors.birthdate = "Birthdate is required.";
     if (!formData.address.trim()) newErrors.address = "Address is required.";
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim()) newErrors.emailAddress = "Email address is required.";
+    if (!formData.contactNumber.trim())
+      newErrors.contactNumber = "Contact number is required.";
+    if (!formData.emailAddress.trim())
+      newErrors.emailAddress = "Email address is required.";
     if (!formData.bloodType) newErrors.bloodType = "Blood type is required.";
-    if (!formData.nationality.trim()) newErrors.nationality = "Nationality is required.";
+    if (!formData.nationality.trim())
+      newErrors.nationality = "Nationality is required.";
     if (!formData.region.trim()) newErrors.region = "Region is required.";
     if (!formData.role) newErrors.role = "Role is required.";
-    if (!formData.dateEmployed) newErrors.dateEmployed = "Date employed is required.";
+    if (!formData.dateEmployed)
+      newErrors.dateEmployed = "Date employed is required.";
 
-    // Conditional driver validation
     if (formData.role === "Driver") {
-      if (!formData.driverLicenseType.trim()) newErrors.driverLicenseType = "Driver license type is required.";
-      if (!formData.licenseNumber.trim()) newErrors.licenseNumber = "License number is required.";
-      if (!formData.licenseExpirationDate) newErrors.licenseExpirationDate = "License expiration date is required.";
-      if (!formData.drivingExperience.toString().trim()) newErrors.drivingExperience = "Driving experience is required.";
+      if (!formData.driverLicenseType.trim())
+        newErrors.driverLicenseType = "Driver license type is required.";
+      if (!formData.licenseNumber.trim())
+        newErrors.licenseNumber = "License number is required.";
+      if (!formData.licenseExpirationDate)
+        newErrors.licenseExpirationDate =
+          "License expiration date is required.";
+      if (!formData.drivingExperience.toString().trim())
+        newErrors.drivingExperience = "Driving experience is required.";
     }
 
-    if (!formData.healthCondition.trim()) newErrors.healthCondition = "Health condition is required.";
-    if (!formData.drugTestStatus) newErrors.drugTestStatus = "Drug test status is required.";
-    if (!formData.lastMedicalCheckup) newErrors.lastMedicalCheckup = "Last medical check-up date is required.";
-    if (!formData.emergencyContactPerson.trim()) newErrors.emergencyContactPerson = "Emergency contact person is required.";
-    if (!formData.emergencyContactNumber.trim()) newErrors.emergencyContactNumber = "Emergency contact number is required.";
-    if (!formData.relationship.trim()) newErrors.relationship = "Relationship is required.";
+    if (!formData.healthCondition.trim())
+      newErrors.healthCondition = "Health condition is required.";
+    if (!formData.drugTestStatus)
+      newErrors.drugTestStatus = "Drug test status is required.";
+    if (!formData.lastMedicalCheckup)
+      newErrors.lastMedicalCheckup = "Last medical check-up date is required.";
+    if (!formData.emergencyContactPerson.trim())
+      newErrors.emergencyContactPerson =
+        "Emergency contact person is required.";
+    if (!formData.emergencyContactNumber.trim())
+      newErrors.emergencyContactNumber =
+        "Emergency contact number is required.";
+    if (!formData.relationship.trim())
+      newErrors.relationship = "Relationship is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -185,8 +216,6 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto">
-        
-        {/* MODAL TITLE BANNER */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
             New Employee Form
@@ -200,17 +229,19 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
           </button>
         </div>
 
-        {/* MODAL FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          
-          {/* 1. PERSONAL INFORMATION */}
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+        >
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Personal Information
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">First Name</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  First Name
+                </label>
                 <input
                   type="text"
                   name="firstName"
@@ -219,10 +250,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.firstName && <p className="text-red-500 text-[11px] mt-1">{errors.firstName}</p>}
+                {errors.firstName && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.firstName}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Middle Name</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Middle Name
+                </label>
                 <input
                   type="text"
                   name="middleName"
@@ -231,10 +268,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.middleName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.middleName && <p className="text-red-500 text-[11px] mt-1">{errors.middleName}</p>}
+                {errors.middleName && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.middleName}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Last Name</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Name
+                </label>
                 <input
                   type="text"
                   name="lastName"
@@ -243,36 +286,52 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.lastName && <p className="text-red-500 text-[11px] mt-1">{errors.lastName}</p>}
+                {errors.lastName && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.lastName}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Suffix (optional)</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Suffix (optional)
+                </label>
                 <input
                   type="text"
                   name="suffix"
                   placeholder="e.g. Jr., III"
                   value={formData.suffix}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Gender</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Gender
+                </label>
                 <select
                   name="gender"
                   value={formData.gender}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.gender ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select gender</option>
+                  <option value="" disabled>
+                    Select gender
+                  </option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
-                {errors.gender && <p className="text-red-500 text-[11px] mt-1">{errors.gender}</p>}
+                {errors.gender && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.gender}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Birthdate</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Birthdate
+                </label>
                 <input
                   type="date"
                   name="birthdate"
@@ -280,10 +339,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.birthdate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.birthdate && <p className="text-red-500 text-[11px] mt-1">{errors.birthdate}</p>}
+                {errors.birthdate && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.birthdate}
+                  </p>
+                )}
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">Address</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Address
+                </label>
                 <input
                   type="text"
                   name="address"
@@ -292,10 +357,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.address && <p className="text-red-500 text-[11px] mt-1">{errors.address}</p>}
+                {errors.address && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.address}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Number</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Contact Number
+                </label>
                 <input
                   type="text"
                   name="contactNumber"
@@ -304,10 +375,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
+                {errors.contactNumber && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.contactNumber}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Email Address</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Email Address
+                </label>
                 <input
                   type="email"
                   name="emailAddress"
@@ -316,17 +393,25 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.emailAddress && <p className="text-red-500 text-[11px] mt-1">{errors.emailAddress}</p>}
+                {errors.emailAddress && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.emailAddress}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Blood Type</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Blood Type
+                </label>
                 <select
                   name="bloodType"
                   value={formData.bloodType}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.bloodType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select blood type</option>
+                  <option value="" disabled>
+                    Select blood type
+                  </option>
                   <option value="A+">A+</option>
                   <option value="A-">A-</option>
                   <option value="B+">B+</option>
@@ -336,10 +421,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   <option value="O+">O+</option>
                   <option value="O-">O-</option>
                 </select>
-                {errors.bloodType && <p className="text-red-500 text-[11px] mt-1">{errors.bloodType}</p>}
+                {errors.bloodType && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.bloodType}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Nationality</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Nationality
+                </label>
                 <input
                   type="text"
                   name="nationality"
@@ -348,10 +439,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.nationality ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.nationality && <p className="text-red-500 text-[11px] mt-1">{errors.nationality}</p>}
+                {errors.nationality && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.nationality}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Region</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Region
+                </label>
                 <input
                   type="text"
                   name="region"
@@ -360,36 +457,47 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.region ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.region && <p className="text-red-500 text-[11px] mt-1">{errors.region}</p>}
+                {errors.region && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.region}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 2. EMPLOYEE DETAILS */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               2. Employee Details
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Role</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Role
+                </label>
                 <select
                   name="role"
                   value={formData.role}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.role ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select role</option>
+                  <option value="" disabled>
+                    Select role
+                  </option>
                   <option value="Admin">Admin</option>
                   <option value="Coordinator">Coordinator</option>
                   <option value="Mechanic">Mechanic</option>
                   <option value="Driver">Driver</option>
                   <option value="Helper">Helper</option>
                 </select>
-                {errors.role && <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>}
+                {errors.role && (
+                  <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Date Employed</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Date Employed
+                </label>
                 <input
                   type="date"
                   name="dateEmployed"
@@ -397,12 +505,15 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.dateEmployed ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.dateEmployed && <p className="text-red-500 text-[11px] mt-1">{errors.dateEmployed}</p>}
+                {errors.dateEmployed && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.dateEmployed}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 3. DRIVER INFORMATION (Conditional) */}
           {formData.role === "Driver" && (
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
@@ -410,7 +521,9 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver License Type</label>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver License Type
+                  </label>
                   <input
                     type="text"
                     name="driverLicenseType"
@@ -419,10 +532,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                     onChange={handleInputChange}
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
-                  {errors.driverLicenseType && <p className="text-red-500 text-[11px] mt-1">{errors.driverLicenseType}</p>}
+                  {errors.driverLicenseType && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.driverLicenseType}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">License Number</label>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    License Number
+                  </label>
                   <input
                     type="text"
                     name="licenseNumber"
@@ -431,10 +550,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                     onChange={handleInputChange}
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
-                  {errors.licenseNumber && <p className="text-red-500 text-[11px] mt-1">{errors.licenseNumber}</p>}
+                  {errors.licenseNumber && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.licenseNumber}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">License Expiration Date</label>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    License Expiration Date
+                  </label>
                   <input
                     type="date"
                     name="licenseExpirationDate"
@@ -442,10 +567,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                     onChange={handleInputChange}
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseExpirationDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
-                  {errors.licenseExpirationDate && <p className="text-red-500 text-[11px] mt-1">{errors.licenseExpirationDate}</p>}
+                  {errors.licenseExpirationDate && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.licenseExpirationDate}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driving Experience (Years)</label>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driving Experience (Years)
+                  </label>
                   <input
                     type="number"
                     name="drivingExperience"
@@ -454,20 +585,25 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                     onChange={handleInputChange}
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
-                  {errors.drivingExperience && <p className="text-red-500 text-[11px] mt-1">{errors.drivingExperience}</p>}
+                  {errors.drivingExperience && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.drivingExperience}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* 4. HEALTH & EMERGENCY INFORMATION */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               4. Health & Emergency Information
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Health Condition</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Health Condition
+                </label>
                 <input
                   type="text"
                   name="healthCondition"
@@ -476,25 +612,39 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.healthCondition ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.healthCondition && <p className="text-red-500 text-[11px] mt-1">{errors.healthCondition}</p>}
+                {errors.healthCondition && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.healthCondition}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Drug Test Status</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Drug Test Status
+                </label>
                 <select
                   name="drugTestStatus"
                   value={formData.drugTestStatus}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drugTestStatus ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select status</option>
+                  <option value="" disabled>
+                    Select status
+                  </option>
                   <option value="Passed">Passed</option>
                   <option value="Failed">Failed</option>
                   <option value="Pending">Pending</option>
                 </select>
-                {errors.drugTestStatus && <p className="text-red-500 text-[11px] mt-1">{errors.drugTestStatus}</p>}
+                {errors.drugTestStatus && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.drugTestStatus}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Last Medical Check-up</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Medical Check-up
+                </label>
                 <input
                   type="date"
                   name="lastMedicalCheckup"
@@ -502,10 +652,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastMedicalCheckup ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.lastMedicalCheckup && <p className="text-red-500 text-[11px] mt-1">{errors.lastMedicalCheckup}</p>}
+                {errors.lastMedicalCheckup && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.lastMedicalCheckup}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Emergency Contact Person</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Emergency Contact Person
+                </label>
                 <input
                   type="text"
                   name="emergencyContactPerson"
@@ -514,10 +670,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emergencyContactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.emergencyContactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.emergencyContactPerson}</p>}
+                {errors.emergencyContactPerson && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.emergencyContactPerson}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Emergency Contact Number</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Emergency Contact Number
+                </label>
                 <input
                   type="text"
                   name="emergencyContactNumber"
@@ -526,10 +688,16 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emergencyContactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.emergencyContactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.emergencyContactNumber}</p>}
+                {errors.emergencyContactNumber && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.emergencyContactNumber}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Relationship</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Relationship
+                </label>
                 <input
                   type="text"
                   name="relationship"
@@ -538,30 +706,37 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.relationship ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.relationship && <p className="text-red-500 text-[11px] mt-1">{errors.relationship}</p>}
+                {errors.relationship && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.relationship}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 5. OTHER INFORMATION */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               5. Other Information
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">Skills / Specialization</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Skills / Specialization
+                </label>
                 <textarea
                   name="skills"
                   rows={2}
                   placeholder="Enter skills or specializations..."
                   value={formData.skills}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Upload Certificates (PDF, JPG, PNG, DOCX)</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Upload Certificates (PDF, JPG, PNG, DOCX)
+                </label>
                 <input
                   type="file"
                   name="certificates"
@@ -571,20 +746,21 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Other Remarks</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Other Remarks
+                </label>
                 <textarea
                   name="remarks"
                   rows={2}
                   placeholder="Any additional remarks..."
                   value={formData.remarks}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
           </div>
 
-          {/* MODAL ACTION BUTTONS */}
           <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
@@ -602,7 +778,6 @@ function EmployeeModal({ isOpen, onClose, onSubmitSuccess }: EmployeeModalProps)
               Add Employee
             </button>
           </div>
-
         </form>
       </div>
     </div>
@@ -654,7 +829,8 @@ export default function EmployeesPage() {
       emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.contactNumber.includes(searchTerm);
-    const matchesRole = selectedRole === "All Roles" || emp.role === selectedRole;
+    const matchesRole =
+      selectedRole === "All Roles" || emp.role === selectedRole;
     return matchesSearch && matchesRole;
   });
 
@@ -672,14 +848,16 @@ export default function EmployeesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-white font-semibold rounded-xl px-5 py-2.5 shadow-sm transition-all duration-200 text-sm whitespace-nowrap hover:opacity-95"
-        >
-          <UserPlus className="w-4 h-4 shrink-0" />
-          <span>Add Employee</span>
-        </button>
+        {/* Action Button: Exact styling from first code snippet (bg-blue-700 hover:bg-black) */}
+        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+          >
+            <UserPlus className="w-4 h-4 shrink-0" />
+            <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Container Card */}
@@ -757,7 +935,7 @@ export default function EmployeesPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[750px]">
+          <table className="w-full text-left border-collapse min-w-187.5">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th className="py-3.5 px-4 sm:px-6">Name</th>
@@ -770,9 +948,14 @@ export default function EmployeesPage() {
             <tbody>
               {filteredEmployees.length > 0 ? (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50/50 text-sm text-slate-800">
+                  <tr
+                    key={emp.id}
+                    className="border-b border-slate-100 hover:bg-slate-50/50 text-sm text-slate-800"
+                  >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
-                      {emp.firstName} {emp.middleName ? `${emp.middleName[0]}. ` : ""}{emp.lastName} {emp.suffix}
+                      {emp.firstName}{" "}
+                      {emp.middleName ? `${emp.middleName[0]}. ` : ""}
+                      {emp.lastName} {emp.suffix}
                     </td>
                     <td className="py-3.5 px-4 sm:px-6">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
@@ -802,8 +985,9 @@ export default function EmployeesPage() {
                           : ""}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Staff listings and employee profiles will appear here once
-                        connected to your backend database or added via the form.
+                        Staff listings and employee profiles will appear here
+                        once connected to your backend database or added via the
+                        form.
                       </p>
                     </div>
                   </td>

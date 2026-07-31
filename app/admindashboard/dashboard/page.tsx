@@ -169,7 +169,6 @@ function OnCallBookingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
-        
         {/* MODAL TITLE BANNER */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
@@ -303,7 +302,9 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select priority level</option>
+                  <option value="" disabled>
+                    Select priority level
+                  </option>
                   <option value="Standard">Standard</option>
                   <option value="Urgent">Urgent / Rush</option>
                   <option value="High Priority">High Priority</option>
@@ -455,7 +456,9 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select truck</option>
+                  <option value="" disabled>
+                    Select truck
+                  </option>
                   <option value="ABC-1234">ABC-1234 (Closed Van)</option>
                   <option value="XYZ-5678">XYZ-5678 (Wing Van)</option>
                 </select>
@@ -475,7 +478,9 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>Select driver</option>
+                  <option value="" disabled>
+                    Select driver
+                  </option>
                   <option value="Juan Dela Cruz">Juan Dela Cruz</option>
                   <option value="Pedro Santos">Pedro Santos</option>
                 </select>
@@ -493,7 +498,7 @@ function OnCallBookingModal({
                   name="helper1"
                   value={formData.helper1}
                   onChange={handleChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
                   <option value="">Select helper</option>
                   <option value="Mark Reyes">Mark Reyes</option>
@@ -507,7 +512,7 @@ function OnCallBookingModal({
                   name="helper2"
                   value={formData.helper2}
                   onChange={handleChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
                 >
                   <option value="">Select helper</option>
                   <option value="John Doe">John Doe</option>
