@@ -10,6 +10,7 @@ import {
   FileText,
   Truck,
   X,
+  Search,
 } from "lucide-react";
 
 // ==========================================
@@ -66,12 +67,128 @@ const TABS = [
 ];
 
 // Placeholder data
-const BOOKINGS = {
+const BOOKINGS: { [key: string]: any[] } = {
   "Pending Bookings": [],
   "In-Transit": [],
   Completed: [],
   "Foul Trip": [],
 };
+
+// ==========================================
+// NEW BOOKING MODAL COMPONENT (UPDATED)
+// ==========================================
+
+interface NewBookingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectClient?: (clientName: string) => void;
+}
+
+const SAMPLE_CLIENTS = [
+  "Bonchon",
+  "Bon pho",
+  "Jollibee",
+  "McDonald's",
+  "KFC",
+  "Mang Inasal",
+];
+
+function NewBookingModal({
+  isOpen,
+  onClose,
+  onSelectClient,
+}: NewBookingModalProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  if (!isOpen) return null;
+
+  // Filter clients based on search term
+  const filteredClients = searchTerm.trim()
+    ? SAMPLE_CLIENTS.filter((client) =>
+        client.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    : [];
+
+  const handleClose = () => {
+    setSearchTerm("");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center">
+        {/* Close Button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Modal Title */}
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6 tracking-tight">
+          New Booking
+        </h2>
+
+        {/* Search Input (Resized to be smaller) */}
+        <div className="relative w-full max-w-md mb-5">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search client name..."
+            className="w-full bg-white border border-slate-300 rounded-full pl-4 pr-10 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+          />
+          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        </div>
+
+        {/* Dynamic Search Results Table (Resized to match) */}
+        {filteredClients.length > 0 && (
+          <div className="w-full max-w-md mb-6 animate-fade-in">
+            <div className="text-left font-bold text-slate-800 text-xs mb-1.5 ml-1">
+              Results
+            </div>
+            <div className="border border-slate-300 rounded-lg overflow-hidden shadow-sm">
+              <table className="w-full text-left border-collapse bg-white">
+                <tbody className="divide-y divide-slate-200">
+                  {filteredClients.map((client, index) => (
+                    <tr
+                      key={client}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="w-10 text-center py-2 border-r border-slate-200 text-slate-800 text-sm font-medium">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-2 text-slate-800 text-sm">
+                        {client}
+                      </td>
+                      <td className="w-20 text-center border-l border-slate-200">
+                        <button
+                          onClick={() => {
+                            if (onSelectClient) onSelectClient(client);
+                            alert(`Selected: ${client}`);
+                          }}
+                          className="text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
+                        >
+                          Select
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Action Button (Fallback for New Clients) */}
+        <button className="mt-2 bg-blue-600 hover:bg-black px-6 py-2.5 text-white font-bold rounded-lg text-sm shadow-md transition-colors duration-200 w-full sm:w-auto">
+          Create Booking for New Client
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ==========================================
 // ON-CALL BOOKING MODAL COMPONENT
@@ -112,6 +229,12 @@ function OnCallBookingModal({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialFormState);
+    setErrors({});
+    onClose();
+  };
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -176,7 +299,7 @@ function OnCallBookingModal({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -196,7 +319,7 @@ function OnCallBookingModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Company / Client Name *
+                  Company Name / Client Name *
                 </label>
                 <input
                   type="text"
@@ -221,7 +344,7 @@ function OnCallBookingModal({
                   name="contactPerson"
                   value={formData.contactPerson}
                   onChange={handleChange}
-                  placeholder="e.g., Arki Lim"
+                  placeholder="e.g., Juan Dela Cruz"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactPerson && (
@@ -372,7 +495,7 @@ function OnCallBookingModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Quantity *
+                  Quantity (if applicable)
                 </label>
                 <input
                   type="text"
@@ -492,7 +615,7 @@ function OnCallBookingModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Helper #1 (Optional)
+                  Helper #1
                 </label>
                 <select
                   name="helper1"
@@ -528,28 +651,28 @@ function OnCallBookingModal({
             </div>
             <textarea
               name="notes"
-              rows={2}
+              rows={5}
               value={formData.notes}
               onChange={handleChange}
               placeholder="Add special delivery instructions, gate pass codes, or handling notes here..."
-              className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="w-full min-h-30 resize-y bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
             />
           </div>
 
           {/* MODAL ACTION BUTTONS */}
-          <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-36 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Assign Booking
             </button>
@@ -569,7 +692,7 @@ function KPIGrid({ onNavigate }: { onNavigate: (name: string) => void }) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {TABS.map((tab) => {
         const styles = COLOR_STYLES[tab.color as keyof typeof COLOR_STYLES];
-        const count = BOOKINGS[tab.name as keyof typeof BOOKINGS]?.length ?? 0;
+        const count = BOOKINGS[tab.name]?.length ?? 0;
         return (
           <button
             key={tab.name}
@@ -655,6 +778,7 @@ export default function AdminDashboardPage() {
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const [isOnCallModalOpen, setIsOnCallModalOpen] = useState(false);
+  const [isNewBookingModalOpen, setIsNewBookingModalOpen] = useState(false);
 
   const handleNavigate = (tabName: string) => {
     sectionRefs.current[tabName]?.scrollIntoView({
@@ -686,16 +810,13 @@ export default function AdminDashboardPage() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => setIsOnCallModalOpen(true)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-black transition-colors duration-200 shadow-md shadow-green-200 whitespace-nowrap"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
           >
             + On-Call Booking
           </button>
           <button
-            onClick={() =>
-              alert("New Booking form/workflow will be configured separately.")
-            }
-            style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center text-white text-sm font-semibold rounded-xl hover:opacity-95 transition-all duration-200 shadow-md whitespace-nowrap"
+            onClick={() => setIsNewBookingModalOpen(true)}
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
           >
             + New Booking
           </button>
@@ -715,10 +836,7 @@ export default function AdminDashboardPage() {
             }}
             className="scroll-mt-6"
           >
-            <FeedTable
-              tabConfig={tab}
-              bookings={BOOKINGS[tab.name as keyof typeof BOOKINGS]}
-            />
+            <FeedTable tabConfig={tab} bookings={BOOKINGS[tab.name]} />
           </div>
         ))}
       </div>
@@ -728,6 +846,12 @@ export default function AdminDashboardPage() {
         isOpen={isOnCallModalOpen}
         onClose={() => setIsOnCallModalOpen(false)}
         onSubmitSuccess={handleModalSubmit}
+      />
+
+      {/* NEW BOOKING MODAL */}
+      <NewBookingModal
+        isOpen={isNewBookingModalOpen}
+        onClose={() => setIsNewBookingModalOpen(false)}
       />
     </div>
   );

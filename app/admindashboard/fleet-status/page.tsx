@@ -6,10 +6,6 @@
 import React, { useState } from "react";
 import { Search, Truck, FileText, X } from "lucide-react";
 
-// ==========================================
-// TYPESCRIPT INTERFACE
-// ==========================================
-
 export interface TruckRecord {
   id: string | number;
   plateNumber: string;
@@ -17,12 +13,8 @@ export interface TruckRecord {
   truckModel: string;
   capacity: string;
   lastChecked: string;
-  status: string; // Defaults to "Operational"
+  status: string;
 }
-
-// ==========================================
-// NEW TRUCK FORM MODAL COMPONENT
-// ==========================================
 
 interface TruckModalProps {
   isOpen: boolean;
@@ -31,17 +23,24 @@ interface TruckModalProps {
 }
 
 function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
-  const [formData, setFormData] = useState({
+  const initialTruckState = {
     plateNumber: "",
     truckType: "",
     truckModel: "",
     capacity: "",
     lastChecked: "",
-  });
+  };
 
+  const [formData, setFormData] = useState(initialTruckState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialTruckState);
+    setErrors({});
+    onClose();
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -82,14 +81,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
     };
 
     onSubmitSuccess(newRecord);
-    // Reset form
-    setFormData({
-      plateNumber: "",
-      truckType: "",
-      truckModel: "",
-      capacity: "",
-      lastChecked: "",
-    });
+    setFormData(initialTruckState);
     setErrors({});
     onClose();
   };
@@ -97,32 +89,28 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto">
-        {/* MODAL TITLE BANNER */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
             New Truck Form
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* MODAL FORM */}
         <form
           onSubmit={handleSubmit}
           className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
         >
-          {/* TRUCK INFORMATION SECTION */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               Truck Information
             </div>
 
-            {/* Two-column responsive grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -233,20 +221,19 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
             </div>
           </div>
 
-          {/* MODAL ACTION BUTTONS */}
-          <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Add Truck
             </button>
@@ -256,10 +243,6 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess }: TruckModalProps) {
     </div>
   );
 }
-
-// ==========================================
-// MAIN FLEET STATUS PAGE COMPONENT
-// ==========================================
 
 export default function FleetStatusPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -279,7 +262,6 @@ export default function FleetStatusPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -291,7 +273,6 @@ export default function FleetStatusPage() {
           </p>
         </div>
 
-        {/* Action Button: Exact styling from first code snippet (bg-blue-700 hover:bg-black) */}
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           <button
             onClick={() => setIsModalOpen(true)}
@@ -303,9 +284,7 @@ export default function FleetStatusPage() {
         </div>
       </div>
 
-      {/* Main Content Container Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        {/* Search Bar Container */}
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-white">
           <div className="relative w-full sm:w-96">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -319,7 +298,6 @@ export default function FleetStatusPage() {
           </div>
         </div>
 
-        {/* 3-Column Data Table Structure with Horizontal Scrolling Protection */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-162.5">
             <thead>
@@ -372,7 +350,6 @@ export default function FleetStatusPage() {
           </table>
         </div>
 
-        {/* Pagination Footer */}
         <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
           <span>Showing {filteredTrucks.length} entries</span>
           <div className="flex items-center gap-2">
@@ -392,7 +369,6 @@ export default function FleetStatusPage() {
         </div>
       </div>
 
-      {/* TRUCK FORM MODAL */}
       <TruckModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

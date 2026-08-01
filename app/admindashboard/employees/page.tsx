@@ -65,7 +65,7 @@ function EmployeeModal({
   onClose,
   onSubmitSuccess,
 }: EmployeeModalProps) {
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     firstName: "",
     middleName: "",
     lastName: "",
@@ -93,11 +93,18 @@ function EmployeeModal({
     skills: "",
     certificates: null as File | null,
     remarks: "",
-  });
+  };
 
+  const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialFormState);
+    setErrors({});
+    onClose();
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -140,11 +147,12 @@ function EmployeeModal({
     if (!formData.dateEmployed)
       newErrors.dateEmployed = "Date employed is required.";
 
+    // Conditional Driver Information validation (strictly required if role is Driver, optional otherwise)
     if (formData.role === "Driver") {
-      if (!formData.driverLicenseType.trim())
-        newErrors.driverLicenseType = "Driver license type is required.";
       if (!formData.licenseNumber.trim())
-        newErrors.licenseNumber = "License number is required.";
+        newErrors.licenseNumber = "Driver's license number is required.";
+      if (!formData.driverLicenseType.trim())
+        newErrors.driverLicenseType = "License type / restriction is required.";
       if (!formData.licenseExpirationDate)
         newErrors.licenseExpirationDate =
           "License expiration date is required.";
@@ -180,35 +188,7 @@ function EmployeeModal({
     };
 
     onSubmitSuccess(newRecord);
-    setFormData({
-      firstName: "",
-      middleName: "",
-      lastName: "",
-      suffix: "",
-      gender: "",
-      birthdate: "",
-      address: "",
-      contactNumber: "",
-      emailAddress: "",
-      bloodType: "",
-      nationality: "Filipino",
-      region: "",
-      role: "",
-      dateEmployed: "",
-      driverLicenseType: "",
-      licenseNumber: "",
-      licenseExpirationDate: "",
-      drivingExperience: "",
-      healthCondition: "",
-      drugTestStatus: "",
-      lastMedicalCheckup: "",
-      emergencyContactPerson: "",
-      emergencyContactNumber: "",
-      relationship: "",
-      skills: "",
-      certificates: null,
-      remarks: "",
-    });
+    setFormData(initialFormState);
     setErrors({});
     onClose();
   };
@@ -222,7 +202,7 @@ function EmployeeModal({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -233,6 +213,7 @@ function EmployeeModal({
           onSubmit={handleSubmit}
           className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
         >
+          {/* 1. Personal Information */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Personal Information
@@ -466,6 +447,7 @@ function EmployeeModal({
             </div>
           </div>
 
+          {/* 2. Employee Details */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               2. Employee Details
@@ -514,87 +496,87 @@ function EmployeeModal({
             </div>
           </div>
 
-          {formData.role === "Driver" && (
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                3. Driver Information
+          {/* 3. Driver Information (if applicable) */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. Driver Information (if applicable)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's License No.
+                </label>
+                <input
+                  type="text"
+                  name="licenseNumber"
+                  placeholder="Enter driver's license number"
+                  value={formData.licenseNumber}
+                  onChange={handleInputChange}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                />
+                {errors.licenseNumber && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.licenseNumber}
+                  </p>
+                )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver License Type
-                  </label>
-                  <input
-                    type="text"
-                    name="driverLicenseType"
-                    placeholder="e.g. Professional (Rest 1, 2, 3)"
-                    value={formData.driverLicenseType}
-                    onChange={handleInputChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.driverLicenseType && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.driverLicenseType}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    License Number
-                  </label>
-                  <input
-                    type="text"
-                    name="licenseNumber"
-                    placeholder="Enter license number"
-                    value={formData.licenseNumber}
-                    onChange={handleInputChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.licenseNumber && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.licenseNumber}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    License Expiration Date
-                  </label>
-                  <input
-                    type="date"
-                    name="licenseExpirationDate"
-                    value={formData.licenseExpirationDate}
-                    onChange={handleInputChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseExpirationDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.licenseExpirationDate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.licenseExpirationDate}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driving Experience (Years)
-                  </label>
-                  <input
-                    type="number"
-                    name="drivingExperience"
-                    placeholder="e.g. 5"
-                    value={formData.drivingExperience}
-                    onChange={handleInputChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.drivingExperience && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.drivingExperience}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  License Type / Restriction
+                </label>
+                <input
+                  type="text"
+                  name="driverLicenseType"
+                  placeholder="e.g. Professional / 123"
+                  value={formData.driverLicenseType}
+                  onChange={handleInputChange}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                />
+                {errors.driverLicenseType && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.driverLicenseType}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  License Expiration Date
+                </label>
+                <input
+                  type="date"
+                  name="licenseExpirationDate"
+                  value={formData.licenseExpirationDate}
+                  onChange={handleInputChange}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseExpirationDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                />
+                {errors.licenseExpirationDate && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.licenseExpirationDate}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driving Experience (Years)
+                </label>
+                <input
+                  type="number"
+                  name="drivingExperience"
+                  placeholder="Enter years of experience"
+                  value={formData.drivingExperience}
+                  onChange={handleInputChange}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                />
+                {errors.drivingExperience && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.drivingExperience}
+                  </p>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
+          {/* 4. Health & Emergency Information */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               4. Health & Emergency Information
@@ -715,6 +697,7 @@ function EmployeeModal({
             </div>
           </div>
 
+          {/* 5. Other Information */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               5. Other Information
@@ -761,19 +744,19 @@ function EmployeeModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Add Employee
             </button>
@@ -848,7 +831,7 @@ export default function EmployeesPage() {
           </p>
         </div>
 
-        {/* Action Button: Exact styling from first code snippet (bg-blue-700 hover:bg-black) */}
+        {/* Action Button */}
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           <button
             onClick={() => setIsModalOpen(true)}

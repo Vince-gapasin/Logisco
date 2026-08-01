@@ -8,10 +8,6 @@ import { UserPlus, Search, FileText, X, Plus, Trash2 } from "lucide-react";
 
 type TabType = "Clients" | "Partners" | "On-Call";
 
-// ==========================================
-// TYPESCRIPT INTERFACES
-// ==========================================
-
 interface PickupAddress {
   warehouseName: string;
   warehouseAddress: string;
@@ -76,13 +72,15 @@ export function ClientModal({
   onClose,
   onSubmitSuccess,
 }: ClientModalProps) {
-  const [formData, setFormData] = useState({
+  const initialClientState = {
     name: "",
     contactName: "",
     contactNumber: "",
     emailAddress: "",
     businessAddress: "",
-  });
+  };
+
+  const [formData, setFormData] = useState(initialClientState);
 
   const [pickupList, setPickupList] = useState<PickupAddress[]>([
     {
@@ -108,6 +106,29 @@ export function ClientModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialClientState);
+    setPickupList([
+      {
+        warehouseName: "",
+        warehouseAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+      },
+    ]);
+    setDeliveryList([
+      {
+        branchName: "",
+        deliveryAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+      },
+    ]);
+    setDeleteConfirm({});
+    setErrors({});
+    onClose();
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -242,13 +263,7 @@ export function ClientModal({
     };
 
     onSubmitSuccess(newRecord);
-    setFormData({
-      name: "",
-      contactName: "",
-      contactNumber: "",
-      emailAddress: "",
-      businessAddress: "",
-    });
+    setFormData(initialClientState);
     setPickupList([
       {
         warehouseName: "",
@@ -278,7 +293,7 @@ export function ClientModal({
             New Client Form
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -296,7 +311,7 @@ export function ClientModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Client Name
+                  Client or Company Name
                 </label>
                 <input
                   type="text"
@@ -312,7 +327,7 @@ export function ClientModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Contact Name
+                  Contact Person
                 </label>
                 <input
                   type="text"
@@ -791,19 +806,19 @@ export function ClientModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Add Client
             </button>
@@ -829,18 +844,25 @@ export function PartnerModal({
   onClose,
   onSubmitSuccess,
 }: PartnerModalProps) {
-  const [formData, setFormData] = useState({
+  const initialPartnerState = {
     name: "",
     contractType: "",
     contactPerson: "",
     contactNumber: "",
     emailAddress: "",
     businessAddress: "",
-  });
+  };
 
+  const [formData, setFormData] = useState(initialPartnerState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialPartnerState);
+    setErrors({});
+    onClose();
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -857,7 +879,7 @@ export function PartnerModal({
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim())
-      newErrors.name = "Owner/Company name is required.";
+      newErrors.name = "Owner Name/Company name is required.";
     if (!formData.contractType.trim())
       newErrors.contractType = "Type of contract is required.";
     if (!formData.contactPerson.trim())
@@ -886,14 +908,7 @@ export function PartnerModal({
     };
 
     onSubmitSuccess(newRecord);
-    setFormData({
-      name: "",
-      contractType: "",
-      contactPerson: "",
-      contactNumber: "",
-      emailAddress: "",
-      businessAddress: "",
-    });
+    setFormData(initialPartnerState);
     setErrors({});
     onClose();
   };
@@ -906,7 +921,7 @@ export function PartnerModal({
             Add new Partners
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -1046,19 +1061,19 @@ export function PartnerModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Add partners
             </button>
@@ -1084,17 +1099,24 @@ export function OnCallModal({
   onClose,
   onSubmitSuccess,
 }: OnCallModalProps) {
-  const [formData, setFormData] = useState({
+  const initialOnCallState = {
     name: "",
     contactPerson: "",
     contactNumber: "",
     emailAddress: "",
     address: "",
-  });
+  };
 
+  const [formData, setFormData] = useState(initialOnCallState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   if (!isOpen) return null;
+
+  const handleCloseModal = () => {
+    setFormData(initialOnCallState);
+    setErrors({});
+    onClose();
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -1134,13 +1156,7 @@ export function OnCallModal({
     };
 
     onSubmitSuccess(newRecord);
-    setFormData({
-      name: "",
-      contactPerson: "",
-      contactNumber: "",
-      emailAddress: "",
-      address: "",
-    });
+    setFormData(initialOnCallState);
     setErrors({});
     onClose();
   };
@@ -1153,7 +1169,7 @@ export function OnCallModal({
             New On-Call Personnel Form
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -1171,7 +1187,7 @@ export function OnCallModal({
 
             <div>
               <label className="block text-xs font-medium text-black mb-1">
-                Company/Owner Name
+                Company Name/Owner Name
               </label>
               <input
                 type="text"
@@ -1264,19 +1280,19 @@ export function OnCallModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-32 py-2 text-white font-semibold rounded-xl text-xs shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Add Personnel
             </button>
@@ -1429,7 +1445,7 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        {/* Action Buttons with exact original styling and hover:bg-black */}
+        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
           {activeTab === "Clients" && (
             <button
