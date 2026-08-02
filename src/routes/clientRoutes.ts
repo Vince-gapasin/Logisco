@@ -18,7 +18,11 @@ router.get('/api/clients', async (req: Request, res: Response) => {
   }
 });
 
-// ADD A NEW CLIENT
+// Inside src/routes/clientRoutes.ts
+
+// Helper function to generate a readable ID (e.g., CLI-3091)
+const generateClientCode = () => `CLI-${Math.floor(1000 + Math.random() * 9000)}`;
+
 router.post('/api/clients', async (req: Request, res: Response) => {
   try {
     const { clientName, contactPerson, contactNumber, address, contractStart, contractEnd, businessAdd, emailAdd } = req.body;
@@ -27,7 +31,6 @@ router.post('/api/clients', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Client Name and Contact Person are required.' });
     }
 
-    // Auto-generate dates if none are provided
     const today = new Date();
     const nextYear = new Date();
     nextYear.setFullYear(today.getFullYear() + 1);
@@ -35,14 +38,15 @@ router.post('/api/clients', async (req: Request, res: Response) => {
     const { data: newClient, error } = await supabase
       .from('Client')
       .insert([{ 
-        company: clientName,             // Maps to DB 'company'
-        contactName: contactPerson,      // Maps to DB 'contactName'
-        contact: contactNumber,          // Maps to DB 'contact'
-        branchLoc: address,              // Maps to DB 'branchLoc'
-        businessAdd: businessAdd || '',  // NEW FIELD: Team member addition
-        emailAdd: emailAdd || '',        // NEW FIELD: Team member addition
-        contractType: 'Regular',         // Injects required ENUM
-        status: 'Active',                // Injects required ENUM
+        clientCode: generateClientCode(), // INJECT THE READABLE ID HERE
+        company: clientName,             
+        contactName: contactPerson,      
+        contact: contactNumber,          
+        branchLoc: address,              
+        businessAdd: businessAdd || '',  
+        emailAdd: emailAdd || '',        
+        contractType: 'Regular',         
+        status: 'Active',                
         contractStart: contractStart || today.toISOString().split('T')[0],
         contractEnd: contractEnd || nextYear.toISOString().split('T')[0],
         isActive: true 

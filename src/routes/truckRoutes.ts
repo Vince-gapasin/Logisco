@@ -18,7 +18,11 @@ router.get('/api/trucks', async (req: Request, res: Response) => {
   }
 });
 
-// ADD A NEW TRUCK
+// Inside src/routes/truckRoutes.ts
+
+// Helper function to generate a readable ID (e.g., TRK-8924)
+const generateTruckCode = () => `TRK-${Math.floor(1000 + Math.random() * 9000)}`;
+
 router.post('/api/trucks', async (req: Request, res: Response) => {
   try {
     const { plateNumber, capacity, truckType, subconID, model } = req.body;
@@ -30,11 +34,12 @@ router.post('/api/trucks', async (req: Request, res: Response) => {
     const { data: newTruck, error } = await supabase
       .from('Truck')
       .insert([{ 
+        truckCode: generateTruckCode(), // INJECT THE READABLE ID HERE
         plateNumber, 
         capacity, 
         truckType, 
         subconID: subconID || null,
-        model: model || '',             // NEW FIELD: Team member addition
+        model: model || '',             
         truckStatus: 'Available', 
         isActive: true 
       }])
