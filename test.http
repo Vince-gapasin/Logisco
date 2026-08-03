@@ -115,3 +115,49 @@ Content-Type: image/jpeg
 
 < ./path/to/local/test-image.jpg
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### ==========================================
+### TEST: DUAL-ID GENERATION & NEW FIELDS
+### ==========================================
+
+POST http://localhost:3001/api/clients
+Content-Type: application/json
+
+{
+  "clientName": "Dual-ID Logistics Corp",
+  "contactPerson": "Jane Doe",
+  "contactNumber": "09198765432",
+  "address": "Quezon City",
+  "businessAdd": "456 Corporate Ave, QC",
+  "emailAdd": "jane@dualidlogistics.com"
+}
+
+### ==========================================
+### TEST: DUAL-ID & NEW FIELDS FOR TRUCKS
+### ==========================================
+
+POST http://localhost:3001/api/trucks
+Content-Type: application/json
+
+{
+  "plateNumber": "DUAL-8821",
+  "capacity": 5500,
+  "truckType": "Box",
+  "model": "Isuzu Forward 2024"
+}
+
+### ==========================================
+### TEST: DUAL-ID FOR STAFF
+### ==========================================
+
+POST http://localhost:3001/api/staff
+Content-Type: application/json
+
+{
+  "employeeName": "Carlos Mendoza",
+  "role": "Driver",
+  "availability": "Available",
+  "healthStatus": "Fit to Work",
+  "address": "Makati City",
+  "contact": "09171234567"
+}
