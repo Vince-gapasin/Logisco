@@ -925,7 +925,7 @@ export default function EmployeesPage() {
                 <th className="py-3.5 px-4 sm:px-6">Role</th>
                 <th className="py-3.5 px-4 sm:px-6">Address</th>
                 <th className="py-3.5 px-4 sm:px-6">Contact Number</th>
-                <th className="py-3.5 px-4 sm:px-6">Health Status</th>
+                <th className="py-3.5 px-4 sm:px-6">Status</th>
               </tr>
             </thead>
             <tbody>
