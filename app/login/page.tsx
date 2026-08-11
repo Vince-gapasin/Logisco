@@ -71,14 +71,37 @@ export default function LoginPage() {
       setIsLoading(false);
 
       if (user) {
-        // Save session if Auto-login / Remember Me is checked
-        if (rememberMe) {
-          localStorage.setItem("logisco_user_session", JSON.stringify(user));
+        // 1. Intercept and determine the correct route based on database role
+        let targetRoute = "/";
+        const role = user.role ? user.role.toLowerCase() : "";
+
+        if (role === "admin") {
+          targetRoute = "/admindashboard/dashboard";
+        } else if (role === "coordinator") {
+          targetRoute = "/coordinator";
+        } else if (role === "driver") {
+          targetRoute = "/driver"; 
+        } else if (role === "mechanic") {
+          targetRoute = "/mechanic";
+        } else if (role === "helper") {
+          targetRoute = "/helper";
         } else {
-          sessionStorage.setItem("logisco_user_session", JSON.stringify(user));
+          // Fallback if role is missing, we check if the email has admin
+          targetRoute = email.includes("admin") ? "/admindashboard/dashboard" : "/dashboard";
         }
 
-        router.push(user.route);
+        // 2. Update the user object with the correct route before saving the session
+        const updatedUser = { ...user, route: targetRoute };
+
+        // 3. Save session if Auto-login / Remember Me is checked
+        if (rememberMe) {
+          localStorage.setItem("logisco_user_session", JSON.stringify(updatedUser));
+        } else {
+          sessionStorage.setItem("logisco_user_session", JSON.stringify(updatedUser));
+        }
+
+        // 4. Send them to their specific dashboard!
+        router.push(targetRoute);
       } else {
         setError("Invalid email or password credentials.");
       }

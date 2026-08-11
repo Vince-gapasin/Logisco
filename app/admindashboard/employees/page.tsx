@@ -12,6 +12,7 @@ import {
   ChevronDown,
   X,
 } from "lucide-react";
+import axios from "axios";
 
 type RoleType = "Admin" | "Coordinator" | "Mechanic" | "Driver" | "Helper";
 
@@ -779,6 +780,52 @@ export default function EmployeesPage() {
 
   const [employeeList, setEmployeeList] = useState<EmployeeRecord[]>([]);
 
+  // ==========================================
+  // LIVE DATABASE CONNECTION (AXIOS)
+  // ==========================================
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+        const response = await axios.get(`${API_URL}/api/employees`);
+
+        // Map the backend Supabase data to match your frontend's EmployeeRecord interface
+        const liveData = response.data.map((emp: any) => {
+          
+          // Split the database 'employeeName' into First and Last name for the UI table
+          const nameParts = emp.employeeName ? emp.employeeName.split(" ") : ["Unknown"];
+          const fName = nameParts[0];
+          const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+          return {
+            id: emp.employeeID,
+            firstName: fName,
+            middleName: "",
+            lastName: lName,
+            role: emp.role,
+            address: emp.address || "No address provided",
+            contactNumber: emp.contact || "No contact",
+            healthCondition: emp.healthStatus || "Fit to Work",
+            status: emp.isActive ? "Active" : "Inactive",
+            
+            // Fill required UI fields with default blanks until we update the DB later
+            gender: "N/A", birthdate: "", emailAddress: "", bloodType: "", 
+            nationality: "Filipino", region: "", dateEmployed: "", 
+            drugTestStatus: "Pending", lastMedicalCheckup: "", emergencyContactPerson: "", 
+            emergencyContactNumber: "", relationship: "", skills: "", remarks: ""
+          };
+        });
+
+        // Inject the live database records into the UI!
+        setEmployeeList(liveData);
+      } catch (error) {
+        console.error("Failed to fetch employees from backend:", error);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const roles = [
@@ -803,8 +850,34 @@ export default function EmployeesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleModalSubmit = (newRecord: EmployeeRecord) => {
-    setEmployeeList((prev) => [newRecord, ...prev]);
+  const handleModalSubmit = async (newRecord: EmployeeRecord) => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+      
+      // 1. Send the form data to your new Express POST route!
+      const response = await axios.post(`${API_URL}/api/employees`, newRecord);
+      
+      // 2. Grab the actual database record that Express sends back
+      const savedDbEmployee = response.data;
+
+      // 3. Format the database record so the UI table can display it
+      const nameParts = savedDbEmployee.employeeName.split(" ");
+      
+      const uiRecord: EmployeeRecord = {
+        ...newRecord, // Keeps the extra UI fields temporarily
+        id: savedDbEmployee.employeeID,
+        firstName: nameParts[0],
+        lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
+        status: savedDbEmployee.isActive ? "Active" : "Inactive"
+      };
+
+      // 4. Update the screen immediately without needing a page refresh!
+      setEmployeeList((prev) => [uiRecord, ...prev]);
+      
+    } catch (error) {
+      console.error("Failed to save employee to backend:", error);
+      alert("Error saving employee to database. Check your frontend console (F12).");
+    }
   };
 
   const filteredEmployees = employeeList.filter((emp) => {
