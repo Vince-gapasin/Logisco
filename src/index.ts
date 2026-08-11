@@ -5,6 +5,7 @@ import multer from 'multer';
 
 // 1. Import your Routes
 import authController from './controllers/authController';
+import employeeController from './controllers/employeeController';
 import bookingRoutes from './routes/bookingRoutes';
 import staffRoutes from './routes/staffRoutes';
 import dispatchRoutes from './routes/dispatchRoutes';
@@ -39,6 +40,7 @@ app.use(maintenanceRoutes);
 app.use(subcontractorRoutes);
 app.use(podRoutes);
 app.use('/api/auth', authController);
+app.use('/api/employees', employeeController);
 
 // (Legacy Endpoint) Proof of Delivery Upload
 app.post('/api/upload-pod', upload.single('podImage'), async (req: Request, res: Response) => {

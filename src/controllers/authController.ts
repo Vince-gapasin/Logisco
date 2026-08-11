@@ -50,24 +50,40 @@ router.post('/register', async (req: Request, res: Response): Promise<any> => {
 });
 
 // ==========================================
-// 2. LOGIN EXISTING USER
+// LOGIN ROUTE (UPGRADED WITH ROLE FETCHING)
 // ==========================================
 router.post('/login', async (req: Request, res: Response): Promise<any> => {
-  const { email, password } = req.body;
-
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { email, password } = req.body;
+
+    // 1. Check Layer 1: Verify credentials in the Auth Vault
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) return res.status(401).json({ error: error.message });
+    if (authError) {
+      return res.status(401).json({ error: authError.message });
+    }
 
-    return res.status(200).json({ 
-      message: "Login successful!", 
-      session: data.session 
+    // 2. Check Layer 2: Grab their official HR profile using their unique Auth ID
+    const { data: employeeData, error: empError } = await supabase
+      .from('Employee')
+      .select('*')
+      .eq('auth_id', authData.user?.id)
+      .single(); // We only expect one match
+
+    // 3. Package it ALL together and send it to Next.js
+    return res.status(200).json({
+      message: "Login successful",
+      token: authData.session?.access_token,
+      email: authData.user?.email,
+      role: employeeData ? employeeData.role : null, // Next.js needs this!
+      employeeId: employeeData ? employeeData.employeeID : null
     });
-  } catch (err) {
+
+  } catch (err: any) {
+    console.error("Login Error:", err);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });

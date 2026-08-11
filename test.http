@@ -161,3 +161,42 @@ Content-Type: application/json
   "address": "Makati City",
   "contact": "09171234567"
 }
+
+
+### Register a Test Coordinator
+POST http://localhost:3001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "coordinator@logisco.com",
+  "password": "Password123!",
+  "employeeName": "Vince Test",
+  "role": "Coordinator",
+  "address": "Calamba, Laguna",
+  "contact": "09123456789"
+}
+
+### Register an Admin
+POST http://localhost:3001/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@logisco.com",
+  "password": "Password123!",
+  "employeeName": "Admin User",
+  "role": "Admin",
+  "address": "Calamba, Laguna",
+  "contact": "09123456789"
+}
+
+### Get All Employees
+GET http://localhost:3001/api/employees
+
+### Test the Upgraded Login
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@logisco.com",
+  "password": "Password123!"
+}
