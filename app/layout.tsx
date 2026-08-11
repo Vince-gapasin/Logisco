@@ -27,12 +27,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* ADDED: bg-midnight-950 to make the whole app dark blue by default.
-        ADDED: text-midnight-50 to make all text soft-white by default.
-      */}
-      <body className="min-h-full flex flex-col bg-midnight-950 text-midnight-50">
-        {children}
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
