@@ -30,7 +30,7 @@ interface EmployeeRecord {
   emailAddress: string;
   bloodType: string;
   nationality: string;
-  region: string;
+  religion: string;
   dateEmployed: string;
   // Driver specific
   driverLicenseType?: string;
@@ -78,7 +78,7 @@ function EmployeeModal({
     emailAddress: "",
     bloodType: "",
     nationality: "Filipino",
-    region: "",
+    religion: "",
     role: "" as RoleType | "",
     dateEmployed: "",
     driverLicenseType: "",
@@ -143,7 +143,7 @@ function EmployeeModal({
     if (!formData.bloodType) newErrors.bloodType = "Blood type is required.";
     if (!formData.nationality.trim())
       newErrors.nationality = "Nationality is required.";
-    if (!formData.region.trim()) newErrors.region = "Region is required.";
+    if (!formData.religion.trim()) newErrors.religion = "Religion is required.";
     if (!formData.role) newErrors.role = "Role is required.";
     if (!formData.dateEmployed)
       newErrors.dateEmployed = "Date employed is required.";
@@ -429,19 +429,19 @@ function EmployeeModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Region
+                  Religion
                 </label>
                 <input
                   type="text"
-                  name="region"
-                  placeholder="Enter region / province"
-                  value={formData.region}
+                  name="religion"
+                  placeholder="Enter religion"
+                  value={formData.religion}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.region ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.religion ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.region && (
+                {errors.religion && (
                   <p className="text-red-500 text-[11px] mt-1">
-                    {errors.region}
+                    {errors.religion}
                   </p>
                 )}
               </div>
@@ -786,16 +786,19 @@ export default function EmployeesPage() {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+        const API_URL =
+          process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
         const response = await axios.get(`${API_URL}/api/employees`);
 
         // Map the backend Supabase data to match your frontend's EmployeeRecord interface
         const liveData = response.data.map((emp: any) => {
-          
           // Split the database 'employeeName' into First and Last name for the UI table
-          const nameParts = emp.employeeName ? emp.employeeName.split(" ") : ["Unknown"];
+          const nameParts = emp.employeeName
+            ? emp.employeeName.split(" ")
+            : ["Unknown"];
           const fName = nameParts[0];
-          const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+          const lName =
+            nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
           return {
             id: emp.employeeID,
@@ -807,12 +810,22 @@ export default function EmployeesPage() {
             contactNumber: emp.contact || "No contact",
             healthCondition: emp.healthStatus || "Fit to Work",
             status: emp.isActive ? "Active" : "Inactive",
-            
+
             // Fill required UI fields with default blanks until we update the DB later
-            gender: "N/A", birthdate: "", emailAddress: "", bloodType: "", 
-            nationality: "Filipino", region: "", dateEmployed: "", 
-            drugTestStatus: "Pending", lastMedicalCheckup: "", emergencyContactPerson: "", 
-            emergencyContactNumber: "", relationship: "", skills: "", remarks: ""
+            gender: "N/A",
+            birthdate: "",
+            emailAddress: "",
+            bloodType: "",
+            nationality: "Filipino",
+            religion: "",
+            dateEmployed: "",
+            drugTestStatus: "Pending",
+            lastMedicalCheckup: "",
+            emergencyContactPerson: "",
+            emergencyContactNumber: "",
+            relationship: "",
+            skills: "",
+            remarks: "",
           };
         });
 
@@ -852,31 +865,33 @@ export default function EmployeesPage() {
 
   const handleModalSubmit = async (newRecord: EmployeeRecord) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
-      
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+
       // 1. Send the form data to your new Express POST route!
       const response = await axios.post(`${API_URL}/api/employees`, newRecord);
-      
+
       // 2. Grab the actual database record that Express sends back
       const savedDbEmployee = response.data;
 
       // 3. Format the database record so the UI table can display it
       const nameParts = savedDbEmployee.employeeName.split(" ");
-      
+
       const uiRecord: EmployeeRecord = {
         ...newRecord, // Keeps the extra UI fields temporarily
         id: savedDbEmployee.employeeID,
         firstName: nameParts[0],
         lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
-        status: savedDbEmployee.isActive ? "Active" : "Inactive"
+        status: savedDbEmployee.isActive ? "Active" : "Inactive",
       };
 
       // 4. Update the screen immediately without needing a page refresh!
       setEmployeeList((prev) => [uiRecord, ...prev]);
-      
     } catch (error) {
       console.error("Failed to save employee to backend:", error);
-      alert("Error saving employee to database. Check your frontend console (F12).");
+      alert(
+        "Error saving employee to database. Check your frontend console (F12).",
+      );
     }
   };
 
