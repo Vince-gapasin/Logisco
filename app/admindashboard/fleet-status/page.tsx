@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { Search, Truck, FileText, X } from "lucide-react";
+import axios from "axios";
 
 export interface TruckRecord {
   id: string | number;
@@ -249,8 +250,71 @@ export default function FleetStatusPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
 
-  const handleModalSubmit = (newRecord: TruckRecord) => {
-    setTruckList((prev) => [newRecord, ...prev]);
+ // ==========================================
+  // LIVE DATABASE CONNECTION (FETCH TRUCKS)
+  // ==========================================
+  React.useEffect(() => {
+    const fetchTrucks = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+        const response = await axios.get(`${API_URL}/api/trucks`);
+
+        // THE BULLETPROOF FIX: Check if the array is hiding inside a 'data' property
+        const backendData = response.data.data || response.data; 
+
+        let liveData: TruckRecord[] = [];
+        
+        // Now we check 'backendData' instead of 'response.data'
+        if (Array.isArray(backendData)) {
+          liveData = backendData.map((dbTruck: any) => ({
+            id: dbTruck.truckID || dbTruck.id,
+            plateNumber: dbTruck.plateNumber,
+            truckType: dbTruck.truckType || dbTruck.type, 
+            truckModel: dbTruck.model,
+            capacity: dbTruck.capacity,
+            lastChecked: dbTruck.lastMaintenance,
+            status: dbTruck.status || "Operational"
+          }));
+        } else {
+          console.warn("Expected an array from backend, got:", response.data);
+        }
+
+        setTruckList(liveData);
+      } catch (error) {
+        console.error("Failed to fetch trucks:", error);
+      }
+    };
+
+    fetchTrucks();
+  }, []);
+
+  // ==========================================
+  // LIVE DATABASE CONNECTION (ADD TRUCK)
+  // ==========================================
+  const handleModalSubmit = async (newRecord: TruckRecord) => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+      
+      // Send the modal data to Express
+      const response = await axios.post(`${API_URL}/api/trucks`, newRecord);
+      const dbTruck = response.data;
+
+      // Update the UI immediately with the real Database ID
+      const uiRecord: TruckRecord = {
+        ...newRecord,
+        id: dbTruck.truckID || dbTruck.id,
+      };
+
+      setTruckList((prev) => [uiRecord, ...prev]);
+    } catch (error: any) {
+      console.error("Failed to save truck:", error);
+      
+      // Extract the exact error message from the backend response
+      const serverMsg = error.response?.data?.error || error.response?.data?.details || error.message;
+      
+      // Throw it right in our face!
+      alert(`🚨 BACKEND REJECTED IT 🚨\n\nReason: ${serverMsg}\n\nCheck the spelling of your data!`);
+    }
   };
 
   const filteredTrucks = truckList.filter(
