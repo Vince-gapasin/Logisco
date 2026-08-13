@@ -1,0 +1,117 @@
+### 1. Get All Active Staff (GET)
+GET http://localhost:3001/api/staff
+
+### ---------------------------------------------------------
+
+### 2. Add a New Staff Member (POST)
+POST http://localhost:3001/api/staff
+Content-Type: application/json
+
+{
+  "employeeName": "Maria Santos",
+  "role": "Coordinator",
+  "availability": "Available",
+  "healthStatus": "Fit to Work",
+  "address": "Manila",
+  "contact": "09987654321"
+}
+
+### ---------------------------------------------------------
+
+### 3. Edit Staff Details (PUT)
+# (Replace the UUID with an actual employeeID from your database or from the POST response above)
+PUT http://localhost:3001/api/staff/67cb7fe4-0b86-4877-9265-340da75a271a
+Content-Type: application/json
+
+{
+  "availability": "On Leave",
+  "contact": "09111222333"
+}
+
+### ---------------------------------------------------------
+
+### 4. Deactivate Staff / Soft Delete (DELETE)
+# (Replace the UUID with an actual employeeID)
+DELETE http://localhost:3001/api/staff/67cb7fe4-0b86-4877-9265-340da75a271a
+
+### ---------------------------------------------------------
+
+### 5. Add a New Truck (POST)
+POST http://localhost:3001/api/trucks
+Content-Type: application/json
+
+{
+  "plateNumber": "XYZ-9876",
+  "truckType": "Box",
+  "capacity": 4000,
+  "truckStatus": "Available"
+}
+
+### ---------------------------------------------------------
+
+### 6. Get All Active Trucks (GET)
+GET http://localhost:3001/api/trucks
+
+### ---------------------------------------------------------
+### CLIENT MANAGEMENT API
+### ---------------------------------------------------------
+
+### 7. Add a New Client (POST)
+POST http://localhost:3001/api/clients
+Content-Type: application/json
+
+{
+  "clientName": "Acme Manufacturing",
+  "contactPerson": "John Doe",
+  "contactNumber": "09123456789",
+  "address": "Makati City",
+  "contractStart": "2026-08-01",
+  "contractEnd": "2027-08-01"
+}
+
+### 8. Get All Active Clients (GET)
+GET http://localhost:3001/api/clients
+
+
+### ---------------------------------------------------------
+### SUBCONTRACTOR API
+### ---------------------------------------------------------
+
+### 9. Add a New Subcontractor (POST)
+POST http://localhost:3001/api/subcontractors
+Content-Type: application/json
+
+{
+  "companyName": "FastTrack Logistics",
+  "contactPerson": "Jane Smith",
+  "contactNumber": "09876543210"
+}
+
+### 10. Get All Active Subcontractors (GET)
+GET http://localhost:3001/api/subcontractors
+
+
+### ---------------------------------------------------------
+### MAINTENANCE API
+### ---------------------------------------------------------
+
+### 11. Get All Maintenance Logs (GET)
+GET http://localhost:3001/api/maintenance
+
+### Note: To test the Maintenance POST request, you will need to copy 
+### an actual 'truckID' and 'mechanicID' from your database, as Supabase 
+### will reject fake IDs due to strict foreign key relations!
+
+### Complete a Delivery
+POST http://localhost:3001/api/dispatch/YOUR_DISPATCH_ID_HERE/complete
+
+### Upload Proof of Delivery (Multipart Form)
+POST http://localhost:3001/api/dispatch/YOUR_DISPATCH_ID/pod
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="podImage"; filename="delivery_receipt.jpg"
+Content-Type: image/jpeg
+
+< ./path/to/local/test-image.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
