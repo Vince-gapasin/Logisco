@@ -14,6 +14,7 @@ import clientRoutes from './routes/clientRoutes';
 import maintenanceRoutes from './routes/maintenanceRoutes';
 import subcontractorRoutes from './routes/subcontractorRoutes';
 import podRoutes from './routes/podRoutes';
+import truckController from './controllers/truckController';
 
 // 2. Import your Background Worker
 import { startDwellTimeMonitor } from './workers/dwellTimeMonitor';
@@ -41,6 +42,7 @@ app.use(subcontractorRoutes);
 app.use(podRoutes);
 app.use('/api/auth', authController);
 app.use('/api/employees', employeeController);
+app.use('/api/trucks', truckController);
 
 // (Legacy Endpoint) Proof of Delivery Upload
 app.post('/api/upload-pod', upload.single('podImage'), async (req: Request, res: Response) => {

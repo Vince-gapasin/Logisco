@@ -200,3 +200,18 @@ Content-Type: application/json
   "email": "admin@logisco.com",
   "password": "Password123!"
 }
+
+### Test Truck POST
+POST http://localhost:3001/api/trucks
+Content-Type: application/json
+
+{
+  "plateNumber": "TEST-7777",
+  "truckType": "Closed Van",
+  "truckModel": "Isuzu",
+  "capacity": "4000",
+  "lastChecked": "2024-05-10"
+}
+
+### Test Fetch Trucks
+GET http://localhost:3001/api/trucks
