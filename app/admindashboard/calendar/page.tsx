@@ -59,9 +59,9 @@ export default function CalendarPage() {
       {/* 1. MINI-CALENDAR & ACTIONS SIDEBAR (Drawer on Mobile, Inline on Desktop) */}
       {/* ========================================== */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-80 border-r border-gray-200 flex flex-col p-5 bg-white lg:bg-gray-50/40 h-full overflow-y-auto shrink-0 transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-20 w-80 border-r border-gray-200 flex flex-col p-5 bg-white lg:bg-gray-50/40 h-full overflow-y-auto shrink-0 transition-transform duration-300 ease-in-out ${
           isMiniSidebarOpen
-            ? "translate-x-0 shadow-2xl"
+            ? "translate-x-0 shadow-2xl z-40"
             : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -164,7 +164,7 @@ export default function CalendarPage() {
       </aside>
 
       {/* ========================================== */}
-      {/* 2. MAIN CALENDAR VIEW CANVAS               */}
+      {/* 2. MAIN CALENDAR VIEW CANVAS              */}
       {/* ========================================== */}
       <main className="flex flex-col flex-1 min-w-0 bg-white relative">
         {/* Calendar Toolbar / Controls */}
@@ -251,7 +251,7 @@ export default function CalendarPage() {
 
         {/* ================= DESKTOP VIEW (7-Column Weekly Grid with min-width guard) ================= */}
         <div className="hidden lg:flex flex-1 flex-col overflow-x-auto bg-white relative">
-          <div className="min-w-[750px] flex flex-col flex-1">
+          <div className="min-w-187.5 flex flex-col flex-1">
             {/* Sticky Days Header */}
             <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20">
               <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50"></div>
