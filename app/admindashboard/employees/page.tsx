@@ -11,6 +11,11 @@ import {
   Filter,
   ChevronDown,
   X,
+  Edit3,
+  Trash2,
+  ArrowLeft,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import axios from "axios";
 
@@ -52,19 +57,21 @@ interface EmployeeRecord {
 }
 
 // ==========================================
-// EMPLOYEE MODAL COMPONENT
+// EMPLOYEE MODAL COMPONENT (Add / Edit)
 // ==========================================
 
 interface EmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: (record: EmployeeRecord) => void;
+  editData?: EmployeeRecord | null;
 }
 
 function EmployeeModal({
   isOpen,
   onClose,
   onSubmitSuccess,
+  editData,
 }: EmployeeModalProps) {
   const initialFormState = {
     firstName: "",
@@ -77,7 +84,7 @@ function EmployeeModal({
     contactNumber: "",
     emailAddress: "",
     bloodType: "",
-    nationality: "",
+    nationality: "Filipino",
     religion: "",
     role: "" as RoleType | "",
     dateEmployed: "",
@@ -98,6 +105,49 @@ function EmployeeModal({
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Auto-populate form if editData is provided
+  useEffect(() => {
+    if (editData) {
+      setFormData({
+        firstName: editData.firstName || "",
+        middleName: editData.middleName || "",
+        lastName: editData.lastName || "",
+        suffix: editData.suffix || "",
+        gender: editData.gender || "",
+        birthdate: editData.birthdate ? editData.birthdate.split("T")[0] : "",
+        address: editData.address || "",
+        contactNumber: editData.contactNumber || "",
+        emailAddress: editData.emailAddress || "",
+        bloodType: editData.bloodType || "",
+        nationality: editData.nationality || "Filipino",
+        religion: editData.religion || "",
+        role: editData.role || "",
+        dateEmployed: editData.dateEmployed
+          ? editData.dateEmployed.split("T")[0]
+          : "",
+        driverLicenseType: editData.driverLicenseType || "",
+        licenseNumber: editData.licenseNumber || "",
+        licenseExpirationDate: editData.licenseExpirationDate
+          ? editData.licenseExpirationDate.split("T")[0]
+          : "",
+        drivingExperience: editData.drivingExperience || "",
+        healthCondition: editData.healthCondition || "",
+        drugTestStatus: editData.drugTestStatus || "",
+        lastMedicalCheckup: editData.lastMedicalCheckup
+          ? editData.lastMedicalCheckup.split("T")[0]
+          : "",
+        emergencyContactPerson: editData.emergencyContactPerson || "",
+        emergencyContactNumber: editData.emergencyContactNumber || "",
+        relationship: editData.relationship || "",
+        skills: editData.skills || "",
+        certificates: null,
+        remarks: editData.remarks || "",
+      });
+    } else {
+      setFormData(initialFormState);
+    }
+  }, [editData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -127,7 +177,6 @@ function EmployeeModal({
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    // ESSENTIAL FIELDS (INCLUDING ADDRESS & HEALTH CONDITION)
     if (!formData.firstName.trim())
       newErrors.firstName = "First name is required.";
     if (!formData.middleName.trim())
@@ -143,7 +192,6 @@ function EmployeeModal({
     if (!formData.healthCondition.trim())
       newErrors.healthCondition = "Health condition is required.";
 
-    // Conditional Driver Information validation (strictly required if role is Driver)
     if (formData.role === "Driver") {
       if (!formData.licenseNumber.trim())
         newErrors.licenseNumber = "Driver's license number is required.";
@@ -161,14 +209,14 @@ function EmployeeModal({
       return;
     }
 
-    const newRecord: EmployeeRecord = {
-      id: Date.now(),
+    const updatedRecord: EmployeeRecord = {
+      id: editData ? editData.id : Date.now(),
       ...formData,
       role: formData.role as RoleType,
       status: "Active",
     };
 
-    onSubmitSuccess(newRecord);
+    onSubmitSuccess(updatedRecord);
     setFormData(initialFormState);
     setErrors({});
     onClose();
@@ -179,7 +227,7 @@ function EmployeeModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            New Employee Form
+            {editData ? "Edit Employee Record" : "New Employee Form"}
           </h2>
           <button
             type="button"
@@ -684,11 +732,414 @@ function EmployeeModal({
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
-              Add Employee
+              {editData ? "Save Changes" : "Add Employee"}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ==========================================
+// EMPLOYEE INFORMATION DETAIL VIEW
+// ==========================================
+
+interface EmployeeDetailViewProps {
+  employee: EmployeeRecord;
+  onBack: () => void;
+  onEdit: (emp: EmployeeRecord) => void;
+  onDelete: (id: string | number) => void;
+}
+
+function EmployeeDetailView({
+  employee,
+  onBack,
+  onEdit,
+  onDelete,
+}: EmployeeDetailViewProps) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+      {/* Header with Back button and Action buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            title="Back to Directory"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Employee Information Record
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              Complete profile retrieved directly from Supabase database.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onEdit(employee)}
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>Edit Employee</span>
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Container mimicking Add Employee Form layout structure */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        {/* Profile Summary Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
+              {employee.firstName ? employee.firstName[0] : "E"}
+              {employee.lastName ? employee.lastName[0] : ""}
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                {employee.firstName} {employee.middleName} {employee.lastName}{" "}
+                {employee.suffix}
+              </h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {employee.role}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  {employee.status || "Active"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Read-only Form Layout matching Add Employee Form */}
+        <div className="space-y-6 text-sm text-slate-900">
+          {/* 1. Personal Information */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              1. Personal Information
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  First Name
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.firstName || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Middle Name
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.middleName || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Name
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.lastName || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Suffix (optional)
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.suffix || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Gender
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.gender || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Birthdate
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.birthdate
+                    ? new Date(employee.birthdate).toLocaleDateString()
+                    : "N/A"}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-black mb-1">
+                  Address
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.address || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Contact Number
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.contactNumber || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Email Address
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.emailAddress || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Blood Type
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.bloodType || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Nationality
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.nationality || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Religion
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.religion || "N/A"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Employee Details */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              2. Employee Details
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Role
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.role || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Date Employed
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.dateEmployed
+                    ? new Date(employee.dateEmployed).toLocaleDateString()
+                    : "N/A"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Driver Information */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. Driver Information (if applicable)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's License No.
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.licenseNumber || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  License Type / Restriction
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.driverLicenseType || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  License Expiration Date
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.licenseExpirationDate
+                    ? new Date(
+                        employee.licenseExpirationDate,
+                      ).toLocaleDateString()
+                    : "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driving Experience (Years)
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.drivingExperience
+                    ? `${employee.drivingExperience} years`
+                    : "N/A"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Health & Emergency Information */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              4. Health & Emergency Information
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Health Condition
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.healthCondition || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Drug Test Status
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.drugTestStatus || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Medical Check-up
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.lastMedicalCheckup
+                    ? new Date(employee.lastMedicalCheckup).toLocaleDateString()
+                    : "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Emergency Contact Person
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.emergencyContactPerson || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Emergency Contact Number
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.emergencyContactNumber || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Relationship
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {employee.relationship || "N/A"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Other Information */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              5. Other Information
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-black mb-1">
+                  Skills / Specialization
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12">
+                  {employee.skills || "No skills specified."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Certificates Record
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  No certificate uploaded or available
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Other Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12">
+                  {employee.remarks || "No additional remarks."}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Delete Employee Record
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 mb-6">
+              Are you sure you want to delete{" "}
+              <strong className="text-slate-900">
+                {employee.firstName} {employee.lastName}
+              </strong>
+              ? This will permanently remove the record from Supabase.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(employee.id);
+                  setShowDeleteModal(false);
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -702,7 +1153,12 @@ export default function EmployeesPage() {
   const [selectedRole, setSelectedRole] = useState("All Roles");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const [isLoading, setIsLoading] = useState(true); // Loading state added here
+  const [selectedEmployee, setSelectedEmployee] =
+    useState<EmployeeRecord | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(
+    null,
+  );
   const [employeeList, setEmployeeList] = useState<EmployeeRecord[]>([]);
 
   // === Pagination States ===
@@ -717,61 +1173,124 @@ export default function EmployeesPage() {
   // ==========================================
   // LIVE DATABASE CONNECTION (AXIOS)
   // ==========================================
+  const fetchEmployees = async () => {
+    setIsLoading(true); // Start Loading
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+      const response = await axios.get(`${API_URL}/api/employees`);
+
+      const liveData = response.data.map((emp: any) => {
+        const nameParts = emp.employeeName
+          ? emp.employeeName.split(" ")
+          : ["Unknown"];
+        const fName = nameParts[0];
+        const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+        return {
+          id: emp.employeeID,
+          firstName: fName,
+          middleName: emp.middleName || "",
+          lastName: lName,
+          suffix: emp.suffix || "",
+          role: emp.role,
+          address: emp.address || "No address provided",
+          contactNumber: emp.contact || "No contact",
+          healthCondition: emp.healthStatus || "Fit to Work",
+          status: emp.isActive ? "Active" : "Inactive",
+
+          gender: emp.gender || "N/A",
+          birthdate: emp.birthdate || "",
+          emailAddress: emp.emailAddress || "",
+          bloodType: emp.bloodType || "",
+          nationality: emp.nationality || "Filipino",
+          religion: emp.religion || "",
+          dateEmployed: emp.dateEmployed || "",
+          driverLicenseType: emp.driverLicenseType || "",
+          licenseNumber: emp.licenseNumber || "",
+          licenseExpirationDate: emp.licenseExpirationDate || "",
+          drivingExperience: emp.drivingExperience || "",
+          drugTestStatus: emp.drugTestStatus || "Pending",
+          lastMedicalCheckup: emp.lastMedicalCheckup || "",
+          emergencyContactPerson: emp.emergencyContactPerson || "",
+          emergencyContactNumber: emp.emergencyContactNumber || "",
+          relationship: emp.relationship || "",
+          skills: emp.skills || "",
+          remarks: emp.remarks || "",
+        };
+      });
+
+      setEmployeeList(liveData);
+    } catch (error) {
+      console.error("Failed to fetch employees from backend:", error);
+    } finally {
+      setIsLoading(false); // End Loading
+    }
+  };
+
   useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        const API_URL =
-          process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
-        const response = await axios.get(`${API_URL}/api/employees`);
-
-        // Map the backend Supabase data to match your frontend's EmployeeRecord interface
-        const liveData = response.data.map((emp: any) => {
-          // Split the database 'employeeName' into First and Last name for the UI table
-          const nameParts = emp.employeeName
-            ? emp.employeeName.split(" ")
-            : ["Unknown"];
-          const fName = nameParts[0];
-          const lName =
-            nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-          return {
-            id: emp.employeeID,
-            firstName: fName,
-            middleName: "",
-            lastName: lName,
-            role: emp.role,
-            address: emp.address || "No address provided",
-            contactNumber: emp.contact || "No contact",
-            healthCondition: emp.healthStatus || "Fit to Work",
-            status: emp.isActive ? "Active" : "Inactive",
-
-            // Fill required UI fields with default blanks until we update the DB later
-            gender: "N/A",
-            birthdate: "",
-            emailAddress: "",
-            bloodType: "",
-            nationality: "",
-            religion: "",
-            dateEmployed: "",
-            drugTestStatus: "Pending",
-            lastMedicalCheckup: "",
-            emergencyContactPerson: "",
-            emergencyContactNumber: "",
-            relationship: "",
-            skills: "",
-            remarks: "",
-          };
-        });
-
-        // Inject the live database records into the UI!
-        setEmployeeList(liveData);
-      } catch (error) {
-        console.error("Failed to fetch employees from backend:", error);
-      }
-    };
-
     fetchEmployees();
   }, []);
+
+  const handleRowClick = async (id: string | number) => {
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+
+      // ✅ 1. FETCH EXACT RECORD FROM DATABASE
+      const response = await axios.get(`${API_URL}/api/employees/${id}`);
+      const emp = response.data;
+
+      const nameParts = emp.employeeName
+        ? emp.employeeName.split(" ")
+        : ["Unknown"];
+      const fName = nameParts[0];
+      const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      // ✅ 2. MAP ONLY TO SPECIFIC DATA STORED IN DATABASE (No local hardcoded fallbacks besides standard 'N/A' empty states)
+      const fullRecord: EmployeeRecord = {
+        id: emp.employeeID,
+        firstName: fName,
+        middleName: emp.middleName || "",
+        lastName: lName,
+        suffix: emp.suffix || "",
+        role: emp.role,
+        gender: emp.gender || "",
+        birthdate: emp.birthdate || "",
+        address: emp.address || "",
+        contactNumber: emp.contact || "",
+        emailAddress: emp.emailAddress || "",
+        bloodType: emp.bloodType || "",
+        nationality: emp.nationality || "",
+        religion: emp.religion || "",
+        dateEmployed: emp.dateEmployed || "",
+        driverLicenseType: emp.driverLicenseType || "",
+        licenseNumber: emp.licenseNumber || "",
+        licenseExpirationDate: emp.licenseExpirationDate || "",
+        drivingExperience: emp.drivingExperience || "",
+        healthCondition: emp.healthStatus || "",
+        drugTestStatus: emp.drugTestStatus || "",
+        lastMedicalCheckup: emp.lastMedicalCheckup || "",
+        emergencyContactPerson: emp.emergencyContactPerson || "",
+        emergencyContactNumber: emp.emergencyContactNumber || "",
+        relationship: emp.relationship || "",
+        skills: emp.skills || "",
+        remarks: emp.remarks || "",
+        status: emp.isActive ? "Active" : "Inactive",
+      };
+
+      // ✅ 3. PASS LIVE RECORD TO DETAIL VIEW
+      setSelectedEmployee(fullRecord);
+    } catch (error) {
+      console.error(
+        "Failed to fetch complete employee record from Supabase:",
+        error,
+      );
+      // Fallback only if the network fails so UI doesn't crash completely
+      const localEmp = employeeList.find((e) => e.id === id);
+      if (localEmp) setSelectedEmployee(localEmp);
+    }
+  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -797,35 +1316,47 @@ export default function EmployeesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleModalSubmit = async (newRecord: EmployeeRecord) => {
+  const handleModalSubmit = async (record: EmployeeRecord) => {
     try {
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
-      // 1. Send the form data to your new Express POST route!
-      const response = await axios.post(`${API_URL}/api/employees`, newRecord);
+      if (editingEmployee) {
+        // 1. Update Existing
+        await axios.put(`${API_URL}/api/employees/${record.id}`, record);
+        setEditingEmployee(null);
+      } else {
+        // 2. Add New
+        await axios.post(`${API_URL}/api/employees`, record);
+      }
 
-      // 2. Grab the actual database record that Express sends back
-      const savedDbEmployee = response.data;
+      // Refresh list to stay synced
+      await fetchEmployees();
+      setIsModalOpen(false);
 
-      // 3. Format the database record so the UI table can display it
-      const nameParts = savedDbEmployee.employeeName.split(" ");
-
-      const uiRecord: EmployeeRecord = {
-        ...newRecord, // Keeps the extra UI fields temporarily
-        id: savedDbEmployee.employeeID,
-        firstName: nameParts[0],
-        lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
-        status: savedDbEmployee.isActive ? "Active" : "Inactive",
-      };
-
-      // 4. Update the screen immediately without needing a page refresh!
-      setEmployeeList((prev) => [uiRecord, ...prev]);
+      if (selectedEmployee) {
+        // If we were looking at the detail page, refresh it
+        await handleRowClick(record.id);
+      }
     } catch (error) {
       console.error("Failed to save employee to backend:", error);
       alert(
         "Error saving employee to database. Check your frontend console (F12).",
       );
+    }
+  };
+
+  const handleDeleteEmployee = async (id: string | number) => {
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+      await axios.delete(`${API_URL}/api/employees/${id}`);
+
+      setSelectedEmployee(null);
+      await fetchEmployees();
+    } catch (error) {
+      console.error("Failed to delete employee from Supabase:", error);
+      alert("Error deleting employee. Please try again.");
     }
   };
 
@@ -848,6 +1379,33 @@ export default function EmployeesPage() {
   // 3. Slice exactly 10 entries for the current page
   const currentEmployees = filteredEmployees.slice(startIndex, endIndex);
 
+  // === RENDER DETAIL VIEW IF AN EMPLOYEE IS SELECTED ===
+  if (selectedEmployee) {
+    return (
+      <>
+        <EmployeeDetailView
+          employee={selectedEmployee}
+          onBack={() => setSelectedEmployee(null)}
+          onEdit={(emp) => {
+            setEditingEmployee(emp);
+            setIsModalOpen(true);
+          }}
+          onDelete={handleDeleteEmployee}
+        />
+        <EmployeeModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setEditingEmployee(null);
+          }}
+          onSubmitSuccess={handleModalSubmit}
+          editData={editingEmployee}
+        />
+      </>
+    );
+  }
+
+  // === RENDER MAIN DIRECTORY LIST ===
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       {/* Page Header */}
@@ -865,7 +1423,10 @@ export default function EmployeesPage() {
         {/* Action Button */}
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingEmployee(null);
+              setIsModalOpen(true);
+            }}
             className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
           >
             <UserPlus className="w-4 h-4 shrink-0" />
@@ -960,17 +1521,29 @@ export default function EmployeesPage() {
               </tr>
             </thead>
             <tbody>
-              {currentEmployees.length > 0 ? (
-                // Use currentEmployees instead of filteredEmployees here!
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="py-16 sm:py-20 text-center">
+                    <div className="flex flex-col items-center justify-center px-4">
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
+                      <p className="text-slate-900 font-medium text-sm">
+                        Loading records...
+                      </p>
+                      <p className="text-slate-600 text-xs mt-1">
+                        Please wait while we fetch the employee directory.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : currentEmployees.length > 0 ? (
                 currentEmployees.map((emp) => (
                   <tr
                     key={emp.id}
-                    className="border-b border-slate-100 hover:bg-slate-50/50 text-sm text-slate-800"
+                    onClick={() => handleRowClick(emp.id)}
+                    className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
+                    title="Click to view complete employee record"
                   >
-                    <td
-                      className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate"
-                      title={`${emp.firstName} ${emp.middleName ? `${emp.middleName[0]}. ` : ""}${emp.lastName} ${emp.suffix || ""}`}
-                    >
+                    <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
                       {emp.firstName}{" "}
                       {emp.middleName ? `${emp.middleName[0]}. ` : ""}
                       {emp.lastName} {emp.suffix}
@@ -1063,8 +1636,12 @@ export default function EmployeesPage() {
 
       <EmployeeModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingEmployee(null);
+        }}
         onSubmitSuccess={handleModalSubmit}
+        editData={editingEmployee}
       />
     </div>
   );
