@@ -9,19 +9,20 @@ import employeeController from './controllers/employeeController';
 import bookingRoutes from './routes/bookingRoutes';
 import staffRoutes from './routes/staffRoutes';
 import dispatchRoutes from './routes/dispatchRoutes';
-import truckRoutes from './routes/truckRoutes';
 import clientRoutes from './routes/clientRoutes';
 import maintenanceRoutes from './routes/maintenanceRoutes';
 import subcontractorRoutes from './routes/subcontractorRoutes';
 import podRoutes from './routes/podRoutes';
-import truckController from './controllers/truckController';
+
+// 👇 THIS IS THE ONLY TRUCK FILE NOW
+import truckController from './controllers/truckController'; 
 
 // 2. Import your Background Worker
 import { startDwellTimeMonitor } from './workers/dwellTimeMonitor';
 
 dotenv.config();
 
-// 3. Initialize the Express 'app' (This fixes your error!)
+// 3. Initialize the Express 'app'
 const app = express();
 
 // Middleware
@@ -35,18 +36,20 @@ const upload = multer({ storage: multer.memoryStorage() });
 app.use(bookingRoutes);
 app.use(staffRoutes);
 app.use(dispatchRoutes);
-app.use(truckRoutes);
+// ❌ (Deleted app.use(truckRoutes) from here!)
 app.use(clientRoutes);
 app.use(maintenanceRoutes);
 app.use(subcontractorRoutes);
 app.use(podRoutes);
+
 app.use('/api/auth', authController);
 app.use('/api/employees', employeeController);
+
+// 👇 Express will now ONLY use our perfect code!
 app.use('/api/trucks', truckController);
 
 // (Legacy Endpoint) Proof of Delivery Upload
 app.post('/api/upload-pod', upload.single('podImage'), async (req: Request, res: Response) => {
-  // We keep this here until we move it to a mediaRoutes.ts file
   res.status(200).json({ message: "POD endpoint ready" });
 });
 
