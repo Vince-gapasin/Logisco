@@ -60,7 +60,7 @@ function TruckModal({
         plateNumber: editData.plateNumber || "",
         truckType: editData.truckType || "",
         truckModel: editData.truckModel || "",
-        capacity: editData.capacity || "",
+        capacity: editData.capacity ? String(editData.capacity) : "",
         lastChecked: editData.lastChecked
           ? editData.lastChecked.split("T")[0]
           : "",
@@ -97,7 +97,7 @@ function TruckModal({
     if (!formData.truckType) newErrors.truckType = "Type of truck is required.";
     if (!formData.truckModel.trim())
       newErrors.truckModel = "Truck model is required.";
-    if (!formData.capacity.trim()) newErrors.capacity = "Capacity is required.";
+    if (!String(formData.capacity).trim()) newErrors.capacity = "Capacity is required.";
     if (!formData.lastChecked)
       newErrors.lastChecked = "Last checked date is required.";
 
@@ -471,41 +471,41 @@ export default function FleetStatusPage() {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // ==========================================
+ // ==========================================
   // LIVE DATABASE CONNECTION (FETCH TRUCKS)
   // ==========================================
   useEffect(() => {
     const fetchTrucks = async () => {
-      setIsLoading(true); // Ensure loading is true before fetch
+      setIsLoading(true);
       try {
-        const API_URL =
-          process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
         const response = await axios.get(`${API_URL}/api/trucks`);
 
-        // THE BULLETPROOF FIX: Check if the array is hiding inside a 'data' property
         const backendData = response.data.data || response.data;
         let liveData: TruckRecord[] = [];
 
-        // Now we check 'backendData' instead of 'response.data'
         if (Array.isArray(backendData)) {
-          liveData = backendData.map((dbTruck: any) => ({
-            id: dbTruck.truckID || dbTruck.id,
-            plateNumber: dbTruck.plateNumber,
-            truckType: dbTruck.truckType || dbTruck.type,
-            truckModel: dbTruck.model,
-            capacity: dbTruck.capacity,
-            lastChecked: dbTruck.lastMaintenance,
-            status: dbTruck.status || "Operational",
+          liveData = backendData.map((dbTruck: any, index: number) => ({
+            // 1. Fix the React Key Warning (Grabs truckID, falls back to secure random key)
+            id: dbTruck.truckID || crypto.randomUUID(), 
+            plateNumber: dbTruck.plateNumber || "N/A",
+            truckType: dbTruck.truckType || "N/A",
+            truckModel: dbTruck.model || "N/A",
+            capacity: dbTruck.capacity ? String(dbTruck.capacity) : "",
+            
+            // 2. Map the exact DB column (lastChecked)
+            lastChecked: dbTruck.lastChecked ? dbTruck.lastChecked.split("T")[0] : "",
+            
+            // 3. Map the exact DB column (truckStatus)
+            status: dbTruck.truckStatus || "Operational", 
           }));
-        } else {
-          console.warn("Expected an array from backend, got:", response.data);
         }
 
         setTruckList(liveData);
       } catch (error) {
         console.error("Failed to fetch trucks:", error);
       } finally {
-        setIsLoading(false); // Stop loading regardless of success/fail
+        setIsLoading(false);
       }
     };
 
@@ -530,46 +530,50 @@ export default function FleetStatusPage() {
 
   const handleModalSubmit = async (record: TruckRecord) => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+      // 1. FORCING the Express Port (Bypass Next.js completely)
+      const API_URL = "http://localhost:3001";
 
-      // Send the modal data to Express
       if (editingTruck) {
-        // 🚀 Connect EDIT endpoint here
-        setTruckList((prev) =>
-          prev.map((t) => (t.id === record.id ? record : t)),
-        );
+        // 2. The 404 Protector: Ensure the ID actually exists
+        if (!record.id) {
+          alert("🚨 Bug Caught: The Truck ID is missing! Cannot update.");
+          return;
+        }
 
+        // 3. Frontend Logging (So we can see exactly what URL it tries to hit)
+        console.log(`[FRONTEND] 🟡 Sending PUT to: ${API_URL}/api/trucks/${record.id}`);
+        
+        await axios.put(`${API_URL}/api/trucks/${record.id}`, record);
+        
+        setTruckList((prev) => prev.map((t) => (t.id === record.id ? record : t)));
         if (selectedTruck && selectedTruck.id === record.id) {
           setSelectedTruck(record);
         }
         setEditingTruck(null);
       } else {
+        console.log(`[FRONTEND] 🟢 Sending POST to: ${API_URL}/api/trucks`);
         const response = await axios.post(`${API_URL}/api/trucks`, record);
+        
         const dbTruck = response.data;
-
-        // Update the UI immediately with the real Database ID
-        const uiRecord: TruckRecord = {
-          ...record,
-          id: dbTruck.truckID || dbTruck.id,
-        };
+        // Make sure we grab the newly created truckID from Postgres!
+        const uiRecord: TruckRecord = { ...record, id: dbTruck?.truckID || dbTruck?.id || Date.now() };
         setTruckList((prev) => [uiRecord, ...prev]);
       }
-
       setIsModalOpen(false);
     } catch (error: any) {
       console.error("Failed to save truck:", error);
-      const serverMsg =
-        error.response?.data?.error ||
-        error.response?.data?.details ||
-        error.message;
-      alert(`🚨 BACKEND REJECTED IT 🚨\n\nReason: ${serverMsg}`);
+      const serverMsg = error.response?.data?.error || error.response?.data?.details || error.message;
+      alert(`🚨 FAILED 🚨\n\nReason: ${serverMsg}`);
     }
   };
 
   const handleDeleteTruck = async (id: string | number) => {
     try {
-      // 🚀 FOR TEAMMATE: Connect DELETE endpoint here
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      
+      // 🚀 THE FIX: Actually send the DELETE request to the backend
+      await axios.delete(`${API_URL}/api/trucks/${id}`);
+      
       setTruckList((prev) => prev.filter((t) => t.id !== id));
       setSelectedTruck(null);
     } catch (error) {
@@ -689,9 +693,9 @@ export default function FleetStatusPage() {
                 </tr>
               ) : currentTrucks.length > 0 ? (
                 // Populated Data View
-                currentTrucks.map((truck) => (
+                currentTrucks.map((truck, index) => (
                   <tr
-                    key={truck.id}
+                    key={truck.id || index}
                     onClick={() => handleRowClick(truck.id)}
                     className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
                     title="Click to view complete truck record"
