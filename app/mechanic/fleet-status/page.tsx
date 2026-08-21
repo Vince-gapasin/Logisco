@@ -820,10 +820,10 @@ export default function MechanicFleetStatusPage({
                             e.stopPropagation();
                             setStatusConfirmTruck(truck);
                           }}
-                          className={`w-36 h-8 inline-flex items-center justify-center text-xs font-semibold rounded-md border cursor-pointer transition-all shadow-xs ${
+                          className={`w-30 h-8 inline-flex items-center justify-center text-xs font-semibold rounded-md border cursor-pointer transition-all shadow-xs ${
                             truck.status === "Operational"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/80"
-                              : "bg-amber-50 text-amber-700 border-amber-200/80 hover:bg-amber-100/80"
+                              ? "bg-emerald-300 text-emerald-900 border-emerald-900/80 hover:bg-emerald-600/80"
+                              : "bg-amber-300 text-amber-900 border-amber-900/80 hover:bg-amber-600/80"
                           }`}
                         >
                           {truck.status}

@@ -823,13 +823,13 @@ export default function MechanicHistoryLogsPage() {
                         </span>
                       </div>
                       <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
-                        <span className="font-medium text-slate-700 mr-1">
+                        <div className="font-medium text-slate-700">
                           {log.mechanicName}{" "}
                           {log.additionalMechanic
                             ? `& ${log.additionalMechanic}`
                             : ""}
-                        </span>
-                        • {log.issue}
+                        </div>
+                        <div className="mt-0.5">{log.issue}</div>
                       </div>
                     </td>
 
