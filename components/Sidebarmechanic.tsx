@@ -1,5 +1,5 @@
 // ==========================================
-// LOGISCO - ADMIN SIDEBAR
+// LOGISCO - MECHANIC SIDEBAR
 // ==========================================
 "use client";
 
@@ -7,14 +7,11 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  Users,
   Truck,
-  UserSquare2,
   MapPin,
+  Wrench,
   FileText,
   LogOut,
-  Calendar,
   X,
   AlertTriangle,
 } from "lucide-react";
@@ -24,7 +21,7 @@ interface SidebarProps {
   setIsOpen: (open: boolean) => void;
 }
 
-export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -91,66 +88,24 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         <div className="relative z-10 flex flex-col items-center justify-center py-8 border-b border-slate-950 mt-6 px-4 text-center">
           <div className="w-18 h-18 bg-black border border-slate-900 rounded-2xl mb-3 overflow-hidden shadow-inner flex items-center justify-center">
             <img
-              src="https://api.dicebear.com/7.x/initials/svg?seed=Joanne"
-              alt="Profile"
+              src="https://api.dicebear.com/7.x/initials/svg?seed=JD"
+              alt="Mechanic Profile"
               className="w-full h-full object-cover bg-slate-200"
             />
           </div>
           <h2 className="font-bold text-base tracking-wide text-[#f0f4ff]">
-            JOANNE PATERNO
+            JUAN DELA CRUZ
           </h2>
           <p className="text-[#8ba4d5] text-[11px] font-semibold tracking-[0.2em] mt-0.5">
-            ADMINISTRATOR
+            MECHANIC
           </p>
         </div>
 
         {/* Navigation Menu */}
         <nav className="relative z-10 flex-1 px-4 py-5 space-y-1.5 overflow-y-auto">
           <Link
-            href="/admindashboard/dashboard"
-            className={getLinkClass("/admindashboard/dashboard")}
-            onClick={closeSidebar}
-          >
-            <LayoutDashboard className="w-5 h-5 mr-3 shrink-0" />
-            <span>Dashboard</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/calendar"
-            className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
-              pathname === "/admindashboard/calendar"
-                ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
-                : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
-            }`}
-            onClick={closeSidebar}
-          >
-            <div className="flex items-center">
-              <Calendar className="w-5 h-5 mr-3 shrink-0" />
-              <span>Calendar</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/admindashboard/clients"
-            className={getLinkClass("/admindashboard/clients")}
-            onClick={closeSidebar}
-          >
-            <Users className="w-5 h-5 mr-3 shrink-0" />
-            <span>Clients & Partners</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/employees"
-            className={getLinkClass("/admindashboard/employees")}
-            onClick={closeSidebar}
-          >
-            <UserSquare2 className="w-5 h-5 mr-3 shrink-0" />
-            <span>Employee Directory</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/fleet-status"
-            className={getLinkClass("/admindashboard/fleet-status")}
+            href="/mechanic/fleet-status"
+            className={getLinkClass("/mechanic/fleet-status")}
             onClick={closeSidebar}
           >
             <Truck className="w-5 h-5 mr-3 shrink-0" />
@@ -158,8 +113,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           </Link>
 
           <Link
-            href="/admindashboard/fleet-tracking"
-            className={getLinkClass("/admindashboard/fleet-tracking")}
+            href="/mechanic/fleet-tracking"
+            className={getLinkClass("/mechanic/fleet-tracking")}
             onClick={closeSidebar}
           >
             <MapPin className="w-5 h-5 mr-3 shrink-0" />
@@ -167,12 +122,12 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           </Link>
 
           <Link
-            href="/admindashboard/reports"
-            className={getLinkClass("/admindashboard/reports")}
+            href="/mechanic/history-logs"
+            className={getLinkClass("/mechanic/history-logs")}
             onClick={closeSidebar}
           >
             <FileText className="w-5 h-5 mr-3 shrink-0" />
-            <span>Reports & Forecast</span>
+            <span>History Logs</span>
           </Link>
         </nav>
 
@@ -203,7 +158,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             </h3>
             <p className="text-sm text-[#8ba4d5] text-center mb-6">
               Are you sure you want to end your current session? You will need
-              to log back in to access the admin portal.
+              to log back in to access the mechanic portal.
             </p>
 
             {/* Action Buttons */}

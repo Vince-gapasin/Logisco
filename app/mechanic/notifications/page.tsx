@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import {
   Bell,
-  FileText,
+  Wrench,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -17,72 +17,45 @@ interface Notification {
   title: string;
   message: string;
   time: string;
-  type: "approval" | "warning" | "success" | "system" | "reminder";
+  type: "assignment" | "warning" | "success" | "system" | "reminder";
   isRead: boolean;
 }
 
-export default function AdminNotificationsPage() {
-  // Mock data tailored for the Admin role
+export default function MechanicNotificationsPage() {
+  // Mock data tailored for the Mechanic role
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: 1,
-      title: "Forecast Alert Below Normal",
+      title: "Reminder",
       message:
-        "Your MLR forecast for August 2026 shows a -12.5% variance. Review the latest forecast insights and take action to mitigate potential shortfall.",
-      time: "2 mins ago",
-      type: "warning",
+        "Please update the truck status and record it in the maintenance log if the vehicle is already operational.",
+      time: "Just now",
+      type: "reminder",
       isRead: false,
     },
     {
       id: 2,
-      title: "Emergency: Fleet Breakdown",
+      title: "New Repair Assignment",
       message:
-        "Truck XYZ-9876 reported transmission failure on NLEX. Coordinator has been notified for recovery protocols.",
-      time: "30 mins ago",
-      type: "warning",
+        "You have been assigned to diagnose engine issues on Truck ABC-1234 (Wing Van).",
+      time: "10 mins ago",
+      type: "assignment",
       isRead: false,
     },
     {
       id: 3,
-      title: "Crew Assignment Declined",
+      title: "Emergency: Breakdown Reported",
       message:
-        "Booking Shakey's Tarlac: Not all assigned crew members confirmed the assignment. Please assign replacements.",
-      time: "1 hour ago",
+        "Truck XYZ-9876 reported transmission failure on NLEX. Stand by for recovery protocols.",
+      time: "2 hours ago",
       type: "warning",
       isRead: false,
     },
     {
       id: 4,
-      title: "Backload Delivery",
-      message:
-        "A backload delivery report has been submitted. View details to confirm report.",
-      time: "1.5 hours ago",
-      type: "approval",
-      isRead: false,
-    },
-    {
-      id: 5,
-      title: "Delivery Completed",
-      message:
-        "Trip #1024 has been successfully delivered and marked complete by Driver Juan Dela Cruz.",
-      time: "2 hours ago",
-      type: "success",
-      isRead: false,
-    },
-    {
-      id: 6,
-      title: "ASSIGN CREW NOW",
-      message:
-        "Order ID 0912 is approaching its scheduled date. Assign a crew to proceed.",
-      time: "3 hours ago",
-      type: "reminder",
-      isRead: false,
-    },
-    {
-      id: 7,
       title: "System Update",
       message:
-        "The LOGISCO admin database will undergo a scheduled backup tomorrow at 2:00 AM. Expect minor delays.",
+        "The LOGISCO mechanic portal will undergo scheduled maintenance tomorrow at 1:00 AM.",
       time: "1 day ago",
       type: "system",
       isRead: true,
@@ -108,8 +81,8 @@ export default function AdminNotificationsPage() {
   // Helper function to render the correct icon and color based on notification type
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "approval":
-        return <FileText className="w-5 h-5 text-blue-600" />;
+      case "assignment":
+        return <Wrench className="w-5 h-5 text-blue-600" />;
       case "warning":
         return <AlertTriangle className="w-5 h-5 text-red-600" />;
       case "success":
@@ -123,7 +96,7 @@ export default function AdminNotificationsPage() {
 
   const getIconBg = (type: string) => {
     switch (type) {
-      case "approval":
+      case "assignment":
         return "bg-blue-50 border-blue-100";
       case "warning":
         return "bg-red-50 border-red-100";
@@ -151,7 +124,7 @@ export default function AdminNotificationsPage() {
             )}
           </h1>
           <p className="text-slate-600 text-sm mt-1">
-            System alerts, administrative updates, and pending approvals.
+            System alerts, dispatch updates, and repair assignments.
           </p>
         </div>
 
