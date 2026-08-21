@@ -9,7 +9,8 @@ import employeeController from './controllers/employeeController';
 import bookingRoutes from './routes/bookingRoutes';
 import staffRoutes from './routes/staffRoutes';
 import dispatchRoutes from './routes/dispatchRoutes';
-import clientRoutes from './routes/clientRoutes';
+import clientController from './controllers/clientController';
+import partnerController from './controllers/partnerController';
 import maintenanceRoutes from './routes/maintenanceRoutes';
 import subcontractorRoutes from './routes/subcontractorRoutes';
 import podRoutes from './routes/podRoutes';
@@ -37,7 +38,6 @@ app.use(bookingRoutes);
 app.use(staffRoutes);
 app.use(dispatchRoutes);
 // ❌ (Deleted app.use(truckRoutes) from here!)
-app.use(clientRoutes);
 app.use(maintenanceRoutes);
 app.use(subcontractorRoutes);
 app.use(podRoutes);
@@ -47,6 +47,8 @@ app.use('/api/employees', employeeController);
 
 // 👇 Express will now ONLY use our perfect code!
 app.use('/api/trucks', truckController);
+app.use('/api/clients', clientController);
+app.use('/api/partners', partnerController);
 
 // (Legacy Endpoint) Proof of Delivery Upload
 app.post('/api/upload-pod', upload.single('podImage'), async (req: Request, res: Response) => {
