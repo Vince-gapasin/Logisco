@@ -3,8 +3,9 @@
 // ==========================================
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserPlus, Search, FileText, X, Plus, Trash2 } from "lucide-react";
+import axios from "axios"; 
 
 type TabType = "Clients" | "Partners" | "On-Call";
 
@@ -246,6 +247,7 @@ export function ClientModal({
     });
 
     if (Object.keys(newErrors).length > 0) {
+      console.warn("🚨 Frontend Validation Failed!", newErrors);
       setErrors(newErrors);
       return;
     }
@@ -263,26 +265,7 @@ export function ClientModal({
     };
 
     onSubmitSuccess(newRecord);
-    setFormData(initialClientState);
-    setPickupList([
-      {
-        warehouseName: "",
-        warehouseAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-      },
-    ]);
-    setDeliveryList([
-      {
-        branchName: "",
-        deliveryAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-      },
-    ]);
-    setDeleteConfirm({});
-    setErrors({});
-    onClose();
+    handleCloseModal(); 
   };
 
   return (
@@ -968,13 +951,9 @@ export function PartnerModal({
                   <option value="" disabled>
                     Select type of contract
                   </option>
-                  <option value="Long-Term Contract">Long-Term Contract</option>
-                  <option value="Short-Term Contract">
-                    Short-Term Contract
-                  </option>
-                  <option value="Per Delivery">Per Delivery</option>
-                  <option value="On-Demand">On-Demand</option>
-                  <option value="Subcontract">Subcontract</option>
+                  <option value="Regular">Regular</option>
+                  <option value="On-Call">On-Call</option>
+                  <option value="Seasonal">Seasonal</option>
                 </select>
                 {errors.contractType && (
                   <p className="text-red-500 text-[11px] mt-1">
@@ -1407,29 +1386,191 @@ export default function ClientsPage() {
     "On-Call": [],
   });
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  // 🚀 FETCH EXISTING CLIENTS AND PARTNERS ON PAGE LOAD
+  useEffect(() => {
+    const fetchClientsAndPartners = async () => {
+      try {
+        // Fetch Clients & On-Call (both from the Client table!)
+        const clientRes = await axios.get(`${API_URL}/api/clients`);
+        const mappedClients: ClientRecord[] = [];
+        const mappedOnCall: OnCallRecord[] = [];
+
+        clientRes.data.forEach((c: any) => {
+          if (c.contractType === "On-Call") {
+            mappedOnCall.push({
+              id: c.clientID,
+              name: c.company,
+              status: c.status,
+              contactPerson: c.contactName,
+              contactNumber: c.contact,
+              emailAddress: c.emailAdd,
+              address: c.businessAdd
+            });
+          } else {
+            mappedClients.push({
+              id: c.clientID,
+              name: c.company,
+              status: c.status,
+              contactPerson: c.contactName,
+              contactNumber: c.contact,
+              emailAddress: c.emailAdd,
+              businessAddress: c.businessAdd
+            });
+          }
+        });
+
+        // Fetch Partners (from SubContractor table)
+        const partnerRes = await axios.get(`${API_URL}/api/partners`);
+        const mappedPartners: PartnerRecord[] = partnerRes.data.map((p: any) => ({
+          id: p.subConID,
+          name: p.companyName,
+          status: p.isActive ? "Active" : "Inactive",
+          contractType: p.contractType,
+          contactPerson: p.contactName,
+          contactNumber: p.contactNumber,
+          emailAddress: p.emailAddress,
+          businessAddress: p.businessAddress
+        }));
+
+        setDataMap((prev) => ({ 
+          ...prev, 
+          Clients: mappedClients, 
+          Partners: mappedPartners, 
+          "On-Call": mappedOnCall 
+        }));
+      } catch (error) {
+        console.error("Failed to fetch data from Database:", error);
+      }
+    };
+    fetchClientsAndPartners();
+  }, []);
+
   const currentData = dataMap[activeTab].filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const handleClientSubmit = (newRecord: ClientRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      Clients: [newRecord, ...prev.Clients],
-    }));
+  // 🚀 SAVE NEW CLIENT TO DATABASE
+  const handleClientSubmit = async (newRecord: ClientRecord) => {
+    try {
+      console.log("[FRONTEND] 🟢 Sending Client POST to Express...");
+
+      // 1. Format the payload for your Express Sanitizer
+      const payload = {
+        company: newRecord.name,
+        contactName: newRecord.contactPerson,
+        contact: newRecord.contactNumber,
+        emailAdd: newRecord.emailAddress,
+        businessAdd: newRecord.businessAddress,
+        contractType: "Regular", 
+        status: "Active"          
+      };
+
+      // 2. Save the Client
+      const clientResponse = await axios.post(`${API_URL}/api/clients`, payload);
+      const savedClient = clientResponse.data;
+      
+      console.log("[FRONTEND] ✅ Client Saved:", savedClient);
+
+      // 3. Save all the Warehouses (Pickup Addresses) automatically!
+      if (newRecord.pickupAddresses && newRecord.pickupAddresses.length > 0) {
+        for (const pickup of newRecord.pickupAddresses) {
+           await axios.post(`${API_URL}/api/clients/${savedClient.clientID}/warehouses`, {
+              whName: pickup.warehouseName,
+              warehouseLoc: pickup.warehouseAddress,
+              contactPerson: pickup.contactPerson,
+              contactNum: pickup.contactNumber
+           });
+        }
+        console.log("[FRONTEND] ✅ Warehouses Saved!");
+      }
+
+      // 4. Save ALL Branches (Deliveries)
+      if (newRecord.deliveryAddresses && newRecord.deliveryAddresses.length > 0) {
+        for (const branch of newRecord.deliveryAddresses) {
+           await axios.post(`${API_URL}/api/clients/${savedClient.clientID}/branches`, {
+              branchName: branch.branchName,
+              deliveryAddress: branch.deliveryAddress,
+              contactPerson: branch.contactPerson,
+              contactNumber: branch.contactNumber
+           });
+        }
+        console.log("[FRONTEND] ✅ Branches Saved!");
+      }
+
+      // 5. Update the UI
+      setDataMap((prev) => ({
+        ...prev,
+        Clients: [{ ...newRecord, id: savedClient.clientID }, ...prev.Clients],
+      }));
+
+      alert("Client, Pickups, and Deliveries saved successfully!");
+    } catch (error: any) {
+      console.error("Failed to save client to Database:", error);
+      alert(`🚨 FAILED 🚨\n\nReason: ${error.response?.data?.error || error.message}`);
+    }
   };
 
-  const handlePartnerSubmit = (newRecord: PartnerRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      Partners: [newRecord, ...prev.Partners],
-    }));
+  // 🚀 SAVE NEW PARTNER TO DATABASE
+  const handlePartnerSubmit = async (newRecord: PartnerRecord) => {
+    try {
+      console.log("[FRONTEND] 🟢 Sending Partner POST to Express...");
+
+      const payload = {
+        name: newRecord.name,
+        contractType: newRecord.contractType,
+        contactPerson: newRecord.contactPerson,
+        contactNumber: newRecord.contactNumber,
+        emailAddress: newRecord.emailAddress,
+        businessAddress: newRecord.businessAddress
+      };
+
+      const response = await axios.post(`${API_URL}/api/partners`, payload);
+      const savedPartner = response.data;
+
+      setDataMap((prev) => ({
+        ...prev,
+        Partners: [{ ...newRecord, id: savedPartner.subConID }, ...prev.Partners],
+      }));
+
+      alert("Partner saved successfully!");
+    } catch (error: any) {
+      console.error("Failed to save partner to Database:", error);
+      alert(`🚨 FAILED 🚨\n\nReason: ${error.response?.data?.error || error.message}`);
+    }
   };
 
-  const handleOnCallSubmit = (newRecord: OnCallRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      "On-Call": [newRecord, ...prev["On-Call"]],
-    }));
+  // 🚀 SAVE NEW ON-CALL PERSONNEL TO DATABASE
+  const handleOnCallSubmit = async (newRecord: OnCallRecord) => {
+    try {
+      console.log("[FRONTEND] 🟢 Sending On-Call POST to Client Express...");
+
+      // Package the data for the Client API
+      const payload = {
+        company: newRecord.name,
+        contactName: newRecord.contactPerson,
+        contact: newRecord.contactNumber,
+        emailAdd: newRecord.emailAddress,
+        businessAdd: newRecord.address, 
+        contractType: "On-Call", // 🚀 Hardcode this so the DB knows it is On-Call!
+        status: "Active"
+      };
+
+      const response = await axios.post(`${API_URL}/api/clients`, payload);
+      const savedClient = response.data;
+
+      // Update the UI
+      setDataMap((prev) => ({
+        ...prev,
+        "On-Call": [{ ...newRecord, id: savedClient.clientID }, ...prev["On-Call"]],
+      }));
+
+      alert("On-Call Client saved successfully!");
+    } catch (error: any) {
+      console.error("Failed to save On-Call to Database:", error);
+      alert(`🚨 FAILED 🚨\n\nReason: ${error.response?.data?.error || error.message}`);
+    }
   };
 
   return (
