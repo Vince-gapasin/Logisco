@@ -12,7 +12,7 @@ const sanitizeTruckData = (body: any, isUpdate: boolean = false) => {
   const safePlate = plateNumber ? String(plateNumber).trim() : "UNKNOWN";
   const safeCapacity = capacity ? String(capacity) : "0";
   const numericCapacity = parseFloat(safeCapacity.replace(/[^0-9.]/g, '')) || 0;
-  const formattedDate = lastChecked ? `${String(lastChecked).trim()} 00:00:00` : null;
+ const formattedDate = lastChecked ? String(lastChecked).trim() : null;
 
   let dbTruckType = truckType ? String(truckType).trim() : "Others";
   if (dbTruckType === "Other") dbTruckType = "Others";
