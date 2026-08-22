@@ -22,7 +22,7 @@ export interface TruckRecord {
   truckModel: string;
   capacity: string;
   lastChecked: string;
-  status: "Operational" | "Maintenance";
+  status: string;
 }
 
 // ==========================================
@@ -111,7 +111,7 @@ function TruckModal({
       truckModel: formData.truckModel,
       capacity: formData.capacity,
       lastChecked: formData.lastChecked,
-      status: editData ? editData.status : "Operational",
+      status: editData ? editData.status : "Available",
     };
 
     onSubmitSuccess(updatedRecord);
@@ -351,7 +351,7 @@ function TruckDetailView({
                 </span>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    truck.status === "Operational"
+                    truck.status === "Available"
                       ? "bg-green-100 text-green-700"
                       : "bg-amber-100 text-amber-700"
                   }`}
@@ -460,13 +460,15 @@ interface MechanicFleetStatusProps {
   setIsopen?: (open: boolean) => void;
 }
 
+const API_URL = 'http://localhost:3001/api/trucks';
+
 export default function MechanicFleetStatusPage({
   isOpen,
   setIsopen,
 }: MechanicFleetStatusProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<
-    "All" | "Operational" | "Maintenance"
+    "All" | "Available" | "On Maintenance" | "On Delivery" | "Out of Service"
   >("All");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -486,154 +488,160 @@ export default function MechanicFleetStatusPage({
     setCurrentPage(1);
   }, [searchTerm, selectedFilter]);
 
-  // Mock fleet records for frontend visualization (Supabase-ready)
-  const [fleetList, setFleetList] = useState<TruckRecord[]>([
-    {
-      id: 1,
-      plateNumber: "ABC 1234",
-      truckType: "Wing Van (10 Wheeler)",
-      truckModel: "Isuzu Forward",
-      capacity: "10 Tons",
-      lastChecked: "Aug 19, 2026",
-      status: "Operational",
-    },
-    {
-      id: 2,
-      plateNumber: "XYZ 5678",
-      truckType: "Dump Truck",
-      truckModel: "Hino Profia",
-      capacity: "12 Tons",
-      lastChecked: "Aug 18, 2026",
-      status: "Maintenance",
-    },
-    {
-      id: 3,
-      plateNumber: "DEF 9012",
-      truckType: "Flatbed Truck",
-      truckModel: "Mitsubishi Fuso",
-      capacity: "8 Tons",
-      lastChecked: "Aug 19, 2026",
-      status: "Operational",
-    },
-    {
-      id: 4,
-      plateNumber: "GHI 3456",
-      truckType: "Refrigerated Van",
-      truckModel: "Isuzu NPR",
-      capacity: "5 Tons",
-      lastChecked: "Aug 17, 2026",
-      status: "Operational",
-    },
-    {
-      id: 5,
-      plateNumber: "JKL 7890",
-      truckType: "Cargo Truck",
-      truckModel: "UD Trucks Quester",
-      capacity: "15 Tons",
-      lastChecked: "Aug 16, 2026",
-      status: "Maintenance",
-    },
-    {
-      id: 6,
-      plateNumber: "MNO 2468",
-      truckType: "Wing Van (6 Wheeler)",
-      truckModel: "Fuso Canter",
-      capacity: "4 Tons",
-      lastChecked: "Aug 19, 2026",
-      status: "Operational",
-    },
-    {
-      id: 7,
-      plateNumber: "PQR 1357",
-      truckType: "Pickup Truck",
-      truckModel: "Toyota Hilux",
-      capacity: "1 Ton",
-      lastChecked: "Aug 19, 2026",
-      status: "Operational",
-    },
-    {
-      id: 8,
-      plateNumber: "STU 2468",
-      truckType: "Tanker Truck",
-      truckModel: "Fuso Fighter",
-      capacity: "10 Tons",
-      lastChecked: "Aug 15, 2026",
-      status: "Operational",
-    },
-    {
-      id: 9,
-      plateNumber: "VWX 3579",
-      truckType: "Trailer Truck",
-      truckModel: "Volvo FH16",
-      capacity: "20 Tons",
-      lastChecked: "Aug 14, 2026",
-      status: "Maintenance",
-    },
-    {
-      id: 10,
-      plateNumber: "YZA 4680",
-      truckType: "Closed Van",
-      truckModel: "Isuzu NQR",
-      capacity: "4 Tons",
-      lastChecked: "Aug 12, 2026",
-      status: "Operational",
-    },
-    {
-      id: 11,
-      plateNumber: "BCD 5791",
-      truckType: "Boom Truck",
-      truckModel: "Hino 500",
-      capacity: "8 Tons",
-      lastChecked: "Aug 11, 2026",
-      status: "Operational",
-    },
-  ]);
+  const [fleetList, setFleetList] = useState<TruckRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Handle status update confirmation execution
-  const handleConfirmStatusToggle = () => {
+  // === 1. FETCH DATA FROM BACKEND ===
+  useEffect(() => {
+    fetchTrucks();
+  }, []);
+
+  const fetchTrucks = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error('Failed to fetch');
+      const data = await response.json();
+      
+      // 1. Log the raw data to your browser console to inspect the exact column names
+      console.log("Raw Database Response:", data); 
+      
+      const mappedData = data.map((truck: any) => ({
+        id: truck.truckID || truck.truckid,
+        plateNumber: truck.plateNumber || truck.platenumber,
+        truckType: truck.truckType || truck.trucktype,
+        truckModel: truck.model,
+        capacity: String(truck.capacity),
+        lastChecked: truck.lastChecked || truck.lastchecked,
+        // Fallback: If DB returns null or missing, default to "Operational"
+        status: truck.truckStatus || truck.truckstatus || "Operational" 
+      }));
+      
+      setFleetList(mappedData || []);
+    } catch (error) {
+      console.error('Error fetching trucks:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // === 2. UPDATE STATUS ===
+  const handleConfirmStatusToggle = async () => {
     if (!statusConfirmTruck) return;
-    const nextStatus =
-      statusConfirmTruck.status === "Operational"
-        ? "Maintenance"
-        : "Operational";
+    
+    const nextStatus = statusConfirmTruck.status === "Available" 
+      ? "On Maintenance" 
+      : "Available";
 
-    setFleetList((prev) =>
-      prev.map((truck) =>
-        truck.id === statusConfirmTruck.id
-          ? { ...truck, status: nextStatus }
-          : truck,
-      ),
-    );
+    // 🚀 FIX: Send the FULL record so the backend doesn't overwrite missing fields with "UNKNOWN"
+    const fullPayload = {
+      plateNumber: statusConfirmTruck.plateNumber,
+      truckType: statusConfirmTruck.truckType,
+      truckModel: statusConfirmTruck.truckModel,
+      capacity: statusConfirmTruck.capacity,
+      lastChecked: statusConfirmTruck.lastChecked,
+      status: nextStatus
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/${statusConfirmTruck.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullPayload), 
+      });
+      
+      if (response.ok) {
+        setFleetList((prev) =>
+          prev.map((truck) =>
+            truck.id === statusConfirmTruck.id ? { ...truck, status: nextStatus } : truck
+          )
+        );
+      } else {
+        console.error("Backend rejected the update.");
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
     setStatusConfirmTruck(null);
   };
 
-  const handleModalSubmit = (record: TruckRecord) => {
-    if (editingTruck) {
-      setFleetList((prev) =>
-        prev.map((t) => (t.id === record.id ? record : t)),
-      );
-      if (selectedTruck && selectedTruck.id === record.id) {
-        setSelectedTruck(record);
+  // === 3. ADD OR EDIT TRUCK ===
+  const handleModalSubmit = async (record: TruckRecord) => {
+    try {
+      // Map frontend record back to database columns
+      const dbPayload = {
+        plateNumber: record.plateNumber,
+        truckType: record.truckType,
+        truckModel: record.truckModel, 
+        capacity: record.capacity, 
+        lastChecked: record.lastChecked,
+        status: record.status
+      };
+
+      if (editingTruck) {
+        const response = await fetch(`${API_URL}/${record.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dbPayload),
+        });
+
+        if (response.ok) {
+          setFleetList((prev) => prev.map((t) => (t.id === record.id ? record : t)));
+          if (selectedTruck?.id === record.id) setSelectedTruck(record);
+        }
+      } else {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dbPayload),
+        });
+
+        if (response.ok) {
+          const savedDbRecord = await response.json();
+          // Map the saved record back to frontend format
+          const newTruck: TruckRecord = {
+            id: savedDbRecord.truckID,
+            plateNumber: savedDbRecord.plateNumber,
+            truckType: savedDbRecord.truckType,
+            truckModel: savedDbRecord.model,
+            capacity: String(savedDbRecord.capacity),
+            lastChecked: savedDbRecord.lastChecked,
+            status: savedDbRecord.truckStatus
+          };
+          setFleetList((prev) => [newTruck, ...prev]);
+        }
       }
-      setEditingTruck(null);
-    } else {
-      setFleetList((prev) => [record, ...prev]);
+    } catch (error) {
+      console.error('Error saving truck:', error);
     }
+    
+    setEditingTruck(null);
     setIsModalOpen(false);
   };
 
-  const handleDeleteTruck = (id: string | number) => {
-    setFleetList((prev) => prev.filter((t) => t.id !== id));
-    setSelectedTruck(null);
+  // === 4. DELETE TRUCK ===
+  const handleDeleteTruck = async (id: string | number) => {
+    try {
+      const response = await fetch(`${API_URL}/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setFleetList((prev) => prev.filter((t) => t.id !== id));
+        setSelectedTruck(null);
+      }
+    } catch (error) {
+      console.error('Error deleting truck:', error);
+    }
   };
 
   // Category counts
   const totalCount = fleetList.length;
   const operationalCount = fleetList.filter(
-    (t) => t.status === "Operational",
+    (t) => t.status === "Available",
   ).length;
   const maintenanceCount = fleetList.filter(
-    (t) => t.status === "Maintenance",
+    (t) => t.status === "On Maintenance",
   ).length;
 
   // Filter logic combining search bar and status tabs
@@ -723,9 +731,9 @@ export default function MechanicFleetStatusPage({
               All ({totalCount})
             </button>
             <button
-              onClick={() => setSelectedFilter("Operational")}
+              onClick={() => setSelectedFilter("Available")}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                selectedFilter === "Operational"
+                selectedFilter === "Available"
                   ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/10"
                   : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/70 border border-emerald-200/50"
               }`}
@@ -733,9 +741,9 @@ export default function MechanicFleetStatusPage({
               Operational ({operationalCount})
             </button>
             <button
-              onClick={() => setSelectedFilter("Maintenance")}
+              onClick={() => setSelectedFilter("On Maintenance")}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                selectedFilter === "Maintenance"
+                selectedFilter === "On Maintenance"
                   ? "bg-amber-600 text-white shadow-md shadow-amber-600/10"
                   : "bg-amber-50 text-amber-700 hover:bg-amber-100/70 border border-amber-200/50"
               }`}
@@ -771,7 +779,13 @@ export default function MechanicFleetStatusPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-              {paginatedFleet.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={2} className="py-16 sm:py-20 text-center font-medium text-slate-500">
+                    Loading fleet records...
+                  </td>
+                </tr>
+              ) : paginatedFleet.length === 0 ? (
                 <tr>
                   <td colSpan={2} className="py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
@@ -789,9 +803,9 @@ export default function MechanicFleetStatusPage({
                   </td>
                 </tr>
               ) : (
-                paginatedFleet.map((truck) => (
+                paginatedFleet.map((truck, index) => (
                   <tr
-                    key={truck.id}
+                    key={truck.id || `truck-row-${index}`}
                     onClick={() => setSelectedTruck(truck)}
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                     title="Click to view complete truck record"
@@ -821,7 +835,7 @@ export default function MechanicFleetStatusPage({
                             setStatusConfirmTruck(truck);
                           }}
                           className={`w-30 h-8 inline-flex items-center justify-center text-xs font-semibold rounded-md border cursor-pointer transition-all shadow-xs ${
-                            truck.status === "Operational"
+                            truck.status === "Available"
                               ? "bg-emerald-300 text-emerald-900 border-emerald-900/80 hover:bg-emerald-600/80"
                               : "bg-amber-300 text-amber-900 border-amber-900/80 hover:bg-amber-600/80"
                           }`}
@@ -879,7 +893,7 @@ export default function MechanicFleetStatusPage({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                statusConfirmTruck.status === "Operational"
+                statusConfirmTruck.status === "Available"
                   ? "bg-amber-100 text-amber-600"
                   : "bg-emerald-100 text-emerald-600"
               }`}
@@ -887,12 +901,12 @@ export default function MechanicFleetStatusPage({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              {statusConfirmTruck.status === "Operational"
+              {statusConfirmTruck.status === "Available"
                 ? "Change truck status to Maintenance?"
                 : "Is the maintenance for this truck completed?"}
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-6">
-              {statusConfirmTruck.status === "Operational" ? (
+              {statusConfirmTruck.status === "Available" ? (
                 <>
                   Truck{" "}
                   <strong className="text-slate-900">
@@ -923,14 +937,14 @@ export default function MechanicFleetStatusPage({
                 type="button"
                 onClick={handleConfirmStatusToggle}
                 className={`flex-1 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer ${
-                  statusConfirmTruck.status === "Operational"
+                  statusConfirmTruck.status === "Available"
                     ? "bg-amber-600 hover:bg-amber-700"
                     : "bg-emerald-600 hover:bg-emerald-700"
                 }`}
               >
-                {statusConfirmTruck.status === "Operational"
+                {statusConfirmTruck.status === "Available"
                   ? "Confirm"
-                  : "Mark as Operational"}
+                  : "Mark as Available"}
               </button>
             </div>
           </div>
