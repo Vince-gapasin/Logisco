@@ -4,15 +4,25 @@ import { supabase } from '../supabaseClient'; // Make sure this path is correct 
 const router = Router();
 
 // ==========================================
-// 1. GET ALL EMPLOYEES (Kept your custom sorting)
+// 1. GET ALL EMPLOYEES (Now with Query Filtering!)
 // ==========================================
 router.get('/', async (req: Request, res: Response): Promise<any> => {
   try {
-    // Fetch all active employees from Supabase
-    const { data, error } = await supabase
+    const { role } = req.query; // Look for a ?role= query in the URL
+
+    // 1. Start the base query
+    let query = supabase
       .from('Employee')
       .select('*')
       .order('employeeCode', { ascending: true });
+
+    // 2. If the frontend asked for a specific role, apply the filter
+    if (role) {
+      query = query.eq('role', role);
+    }
+
+    // 3. Execute the query
+    const { data, error } = await query;
 
     if (error) {
       return res.status(400).json({ error: error.message });
