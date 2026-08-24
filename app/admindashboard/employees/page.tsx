@@ -106,6 +106,11 @@ function EmployeeModal({
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [isGenderOpen, setIsGenderOpen] = useState(false);
+  const [isBloodTypeOpen, setIsBloodTypeOpen] = useState(false);
+  const [isRoleOpen, setIsRoleOpen] = useState(false);
+  const [isDrugTestOpen, setIsDrugTestOpen] = useState(false);
+
   // Auto-populate form if editData is provided
   useEffect(() => {
     if (editData) {
@@ -154,13 +159,19 @@ function EmployeeModal({
   const handleCloseModal = () => {
     setFormData(initialFormState);
     setErrors({});
+    setIsGenderOpen(false);
+    setIsBloodTypeOpen(false);
+    setIsRoleOpen(false);
+    setIsDrugTestOpen(false);
     onClose();
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e:
+      | React.ChangeEvent<
+          HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+        >
+      | { target: { name: string; value: any } },
   ) => {
     const { name, value, files } = e.target as HTMLInputElement;
     if (name === "certificates" && files) {
@@ -219,11 +230,15 @@ function EmployeeModal({
     onSubmitSuccess(updatedRecord);
     setFormData(initialFormState);
     setErrors({});
+    setIsGenderOpen(false);
+    setIsBloodTypeOpen(false);
+    setIsRoleOpen(false);
+    setIsDrugTestOpen(false);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
@@ -315,24 +330,66 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
+
+              {/* Gender Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Gender
                 </label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                <div
+                  className={`relative w-full ${isGenderOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select gender
-                  </option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                </select>
+                  {isGenderOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsGenderOpen(false)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsGenderOpen(!isGenderOpen)}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
+                  >
+                    <span
+                      className={
+                        formData.gender ? "text-black" : "text-slate-400"
+                      }
+                    >
+                      {formData.gender || "Select gender"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
+                        isGenderOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isGenderOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {["Male", "Female", "Prefer not to say"].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({
+                              target: { name: "gender", value: opt },
+                            });
+                            setIsGenderOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
+                            formData.gender === opt
+                              ? "bg-blue-50/50 text-blue-700 font-medium"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Birthdate
@@ -399,29 +456,68 @@ function EmployeeModal({
                   </p>
                 )}
               </div>
+
+              {/* Blood Type Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Blood Type
                 </label>
-                <select
-                  name="bloodType"
-                  value={formData.bloodType}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                <div
+                  className={`relative w-full ${isBloodTypeOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select blood type
-                  </option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                </select>
+                  {isBloodTypeOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsBloodTypeOpen(false)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsBloodTypeOpen(!isBloodTypeOpen)}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
+                  >
+                    <span
+                      className={
+                        formData.bloodType ? "text-black" : "text-slate-400"
+                      }
+                    >
+                      {formData.bloodType || "Select blood type"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
+                        isBloodTypeOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isBloodTypeOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(
+                        (opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              handleInputChange({
+                                target: { name: "bloodType", value: opt },
+                              });
+                              setIsBloodTypeOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
+                              formData.bloodType === opt
+                                ? "bg-blue-50/50 text-blue-700 font-medium"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Nationality
@@ -457,25 +553,73 @@ function EmployeeModal({
               2. Employee Details
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Role Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Role *
                 </label>
-                <select
-                  name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.role ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                <div
+                  className={`relative w-full ${isRoleOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select role
-                  </option>
-                  <option value="Admin">Admin</option>
-                  <option value="Coordinator">Coordinator</option>
-                  <option value="Mechanic">Mechanic</option>
-                  <option value="Driver">Driver</option>
-                  <option value="Helper">Helper</option>
-                </select>
+                  {isRoleOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsRoleOpen(false)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsRoleOpen(!isRoleOpen)}
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${
+                      errors.role
+                        ? "border-red-500 bg-red-50/20 text-black"
+                        : "border-slate-300 text-black"
+                    }`}
+                  >
+                    <span
+                      className={
+                        formData.role ? "text-black" : "text-slate-400"
+                      }
+                    >
+                      {formData.role || "Select role"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
+                        isRoleOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isRoleOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {[
+                        "Admin",
+                        "Coordinator",
+                        "Mechanic",
+                        "Driver",
+                        "Helper",
+                      ].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({
+                              target: { name: "role", value: opt },
+                            });
+                            setIsRoleOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
+                            formData.role === opt
+                              ? "bg-blue-50/50 text-blue-700 font-medium"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {errors.role && (
                   <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>
                 )}
@@ -599,24 +743,68 @@ function EmployeeModal({
                   </p>
                 )}
               </div>
+
+              {/* Drug Test Status Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Drug Test Status
                 </label>
-                <select
-                  name="drugTestStatus"
-                  value={formData.drugTestStatus}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                <div
+                  className={`relative w-full ${isDrugTestOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select status
-                  </option>
-                  <option value="Passed">Passed</option>
-                  <option value="Failed">Failed</option>
-                  <option value="Pending">Pending</option>
-                </select>
+                  {isDrugTestOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDrugTestOpen(false)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsDrugTestOpen(!isDrugTestOpen)}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
+                  >
+                    <span
+                      className={
+                        formData.drugTestStatus
+                          ? "text-black"
+                          : "text-slate-400"
+                      }
+                    >
+                      {formData.drugTestStatus || "Select status"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
+                        isDrugTestOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isDrugTestOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {["Passed", "Failed", "Pending"].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({
+                              target: { name: "drugTestStatus", value: opt },
+                            });
+                            setIsDrugTestOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
+                            formData.drugTestStatus === opt
+                              ? "bg-blue-50/50 text-blue-700 font-medium"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Last Medical Check-up
@@ -1153,13 +1341,23 @@ export default function EmployeesPage() {
   const [selectedRole, setSelectedRole] = useState("All Roles");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Loading state added here
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeRecord | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(
     null,
   );
   const [employeeList, setEmployeeList] = useState<EmployeeRecord[]>([]);
+
+  // === TOAST NOTIFICATION STATE ===
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // === Pagination States ===
   const [currentPage, setCurrentPage] = useState(1);
@@ -1174,7 +1372,7 @@ export default function EmployeesPage() {
   // LIVE DATABASE CONNECTION (AXIOS)
   // ==========================================
   const fetchEmployees = async () => {
-    setIsLoading(true); // Start Loading
+    setIsLoading(true);
     try {
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
@@ -1224,7 +1422,7 @@ export default function EmployeesPage() {
     } catch (error) {
       console.error("Failed to fetch employees from backend:", error);
     } finally {
-      setIsLoading(false); // End Loading
+      setIsLoading(false);
     }
   };
 
@@ -1237,7 +1435,6 @@ export default function EmployeesPage() {
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
-      // ✅ 1. FETCH EXACT RECORD FROM DATABASE
       const response = await axios.get(`${API_URL}/api/employees/${id}`);
       const emp = response.data;
 
@@ -1247,7 +1444,6 @@ export default function EmployeesPage() {
       const fName = nameParts[0];
       const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-      // ✅ 2. MAP ONLY TO SPECIFIC DATA STORED IN DATABASE (No local hardcoded fallbacks besides standard 'N/A' empty states)
       const fullRecord: EmployeeRecord = {
         id: emp.employeeID,
         firstName: fName,
@@ -1279,14 +1475,12 @@ export default function EmployeesPage() {
         status: emp.isActive ? "Active" : "Inactive",
       };
 
-      // ✅ 3. PASS LIVE RECORD TO DETAIL VIEW
       setSelectedEmployee(fullRecord);
     } catch (error) {
       console.error(
         "Failed to fetch complete employee record from Supabase:",
         error,
       );
-      // Fallback only if the network fails so UI doesn't crash completely
       const localEmp = employeeList.find((e) => e.id === id);
       if (localEmp) setSelectedEmployee(localEmp);
     }
@@ -1318,30 +1512,89 @@ export default function EmployeesPage() {
 
   const handleModalSubmit = async (record: EmployeeRecord) => {
     try {
+      // Check if fields were modified during an edit
+      if (editingEmployee) {
+        const originalBirthdate = editingEmployee.birthdate
+          ? editingEmployee.birthdate.split("T")[0]
+          : "";
+        const originalDateEmployed = editingEmployee.dateEmployed
+          ? editingEmployee.dateEmployed.split("T")[0]
+          : "";
+        const originalLicenseExp = editingEmployee.licenseExpirationDate
+          ? editingEmployee.licenseExpirationDate.split("T")[0]
+          : "";
+        const originalMedCheck = editingEmployee.lastMedicalCheckup
+          ? editingEmployee.lastMedicalCheckup.split("T")[0]
+          : "";
+
+        const isChanged =
+          record.firstName !== editingEmployee.firstName ||
+          record.middleName !== editingEmployee.middleName ||
+          record.lastName !== editingEmployee.lastName ||
+          record.suffix !== (editingEmployee.suffix || "") ||
+          record.role !== editingEmployee.role ||
+          record.gender !== (editingEmployee.gender || "") ||
+          record.birthdate !== originalBirthdate ||
+          record.address !== editingEmployee.address ||
+          record.contactNumber !== editingEmployee.contactNumber ||
+          record.emailAddress !== editingEmployee.emailAddress ||
+          record.bloodType !== (editingEmployee.bloodType || "") ||
+          record.nationality !== (editingEmployee.nationality || "") ||
+          record.religion !== (editingEmployee.religion || "") ||
+          record.dateEmployed !== originalDateEmployed ||
+          record.driverLicenseType !==
+            (editingEmployee.driverLicenseType || "") ||
+          record.licenseNumber !== (editingEmployee.licenseNumber || "") ||
+          record.licenseExpirationDate !== originalLicenseExp ||
+          String(record.drivingExperience || "") !==
+            String(editingEmployee.drivingExperience || "") ||
+          record.healthCondition !== editingEmployee.healthCondition ||
+          record.drugTestStatus !== (editingEmployee.drugTestStatus || "") ||
+          record.lastMedicalCheckup !== originalMedCheck ||
+          record.emergencyContactPerson !==
+            (editingEmployee.emergencyContactPerson || "") ||
+          record.emergencyContactNumber !==
+            (editingEmployee.emergencyContactNumber || "") ||
+          record.relationship !== (editingEmployee.relationship || "") ||
+          record.skills !== (editingEmployee.skills || "") ||
+          record.remarks !== (editingEmployee.remarks || "") ||
+          Boolean(record.certificates);
+
+        if (!isChanged) {
+          setToastMessage("No changes were made.");
+          setEditingEmployee(null);
+          setIsModalOpen(false);
+          return;
+        }
+      }
+
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
       if (editingEmployee) {
-        // 1. Update Existing
         await axios.put(`${API_URL}/api/employees/${record.id}`, record);
         setEditingEmployee(null);
+        setToastMessage("Changes saved successfully.");
       } else {
-        // 2. Add New
         await axios.post(`${API_URL}/api/employees`, record);
+        setToastMessage("Employee added successfully.");
       }
 
-      // Refresh list to stay synced
       await fetchEmployees();
       setIsModalOpen(false);
 
       if (selectedEmployee) {
-        // If we were looking at the detail page, refresh it
         await handleRowClick(record.id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save employee to backend:", error);
+      const serverMsg =
+        error.response?.data?.error ||
+        error.response?.data?.details ||
+        error.message;
+      setToastMessage("Error saving employee.");
       alert(
-        "Error saving employee to database. Check your frontend console (F12).",
+        `Error saving employee to database. Check your frontend console (F12).\nReason: ${serverMsg}`,
       );
     }
   };
@@ -1353,9 +1606,11 @@ export default function EmployeesPage() {
       await axios.delete(`${API_URL}/api/employees/${id}`);
 
       setSelectedEmployee(null);
+      setToastMessage("Employee deleted successfully.");
       await fetchEmployees();
     } catch (error) {
       console.error("Failed to delete employee from Supabase:", error);
+      setToastMessage("Error deleting employee.");
       alert("Error deleting employee. Please try again.");
     }
   };
@@ -1401,13 +1656,61 @@ export default function EmployeesPage() {
           onSubmitSuccess={handleModalSubmit}
           editData={editingEmployee}
         />
+
+        {/* ================= SUCCESS/INFO NOTIFICATION TOAST ================= */}
+        {toastMessage && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+            <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+              <div
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                  toastMessage?.toLowerCase().includes("error")
+                    ? "bg-red-500"
+                    : toastMessage === "No changes were made."
+                      ? "bg-blue-500"
+                      : "bg-emerald-500"
+                }`}
+              >
+                {toastMessage === "No changes were made." ? (
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </div>
+              {toastMessage}
+            </div>
+          </div>
+        )}
       </>
     );
   }
 
   // === RENDER MAIN DIRECTORY LIST ===
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
@@ -1427,7 +1730,7 @@ export default function EmployeesPage() {
               setEditingEmployee(null);
               setIsModalOpen(true);
             }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
           >
             <UserPlus className="w-4 h-4 shrink-0" />
             <span>Add Employee</span>
@@ -1462,7 +1765,7 @@ export default function EmployeesPage() {
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full sm:w-auto inline-flex items-center justify-between gap-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium rounded-xl px-4 py-2.5 text-sm transition-all duration-200"
+                className="w-full sm:w-auto inline-flex items-center justify-between gap-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium rounded-xl px-4 py-2.5 text-sm transition-all duration-200 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-slate-500 shrink-0" />
@@ -1490,7 +1793,7 @@ export default function EmployeesPage() {
                           setSelectedRole(role);
                           setIsDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
                           isSelected
                             ? "bg-blue-50 text-blue-600 font-semibold"
                             : "text-slate-700 hover:bg-slate-50"
@@ -1608,11 +1911,11 @@ export default function EmployeesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || isLoading}
               className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === 1
+                currentPage === 1 || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
+                  : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               }`}
             >
               Previous
@@ -1621,11 +1924,13 @@ export default function EmployeesPage() {
               onClick={() =>
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
-              disabled={currentPage === totalPages || totalPages === 0}
+              disabled={
+                currentPage === totalPages || totalPages === 0 || isLoading
+              }
               className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === totalPages || totalPages === 0
+                currentPage === totalPages || totalPages === 0 || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
+                  : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               }`}
             >
               Next
@@ -1643,6 +1948,54 @@ export default function EmployeesPage() {
         onSubmitSuccess={handleModalSubmit}
         editData={editingEmployee}
       />
+
+      {/* ================= SUCCESS/INFO NOTIFICATION TOAST ================= */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+            <div
+              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                toastMessage?.toLowerCase().includes("error")
+                  ? "bg-red-500"
+                  : toastMessage === "No changes were made."
+                    ? "bg-blue-500"
+                    : "bg-emerald-500"
+              }`}
+            >
+              {toastMessage === "No changes were made." ? (
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
