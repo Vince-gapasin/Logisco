@@ -74,6 +74,23 @@ const getStatusStyles = (status: string) => {
   }
 };
 
+// Utility mapper to format timestamptz for display only (prevents local timezone shifts)
+const formatDisplayDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC", // Forces UTC parsing to prevent day-shifting
+    }).format(date);
+  } catch (error) {
+    // Fallback just in case the string is malformed
+    return dateString;
+  }
+};
+
 // ==========================================
 // TRUCK MODAL COMPONENT (Add / Edit)
 // ==========================================
@@ -351,7 +368,7 @@ function TruckModal({
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-black mb-1">
-                  Last Checked (MM/DD/YYYY) *
+                  Last Checked (MM/DD/YYYY)
                 </label>
                 <input
                   type="date"
@@ -518,7 +535,7 @@ function TruckDetailView({
                   Last Checked
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.lastChecked || "N/A"}
+                  {formatDisplayDate(truck.lastChecked) || "N/A"}
                 </div>
               </div>
             </div>
@@ -931,7 +948,8 @@ export default function FleetStatusPage() {
                               </span>
                             </div>
                             <div className="text-xs text-slate-500 mt-1">
-                              Last Checked: {truck.lastChecked}
+                              Last Checked:{" "}
+                              {formatDisplayDate(truck.lastChecked)}
                             </div>
                           </td>
 

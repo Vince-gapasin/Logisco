@@ -72,6 +72,23 @@ const getStatusStyles = (status: string) => {
   }
 };
 
+// Utility mapper to format timestamptz for display only (prevents local timezone shifts)
+const formatDisplayDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC", // Forces UTC parsing to prevent day-shifting
+    }).format(date);
+  } catch (error) {
+    // Fallback just in case the string is malformed
+    return dateString;
+  }
+};
+
 // ==========================================
 // TRUCK MODAL COMPONENT (Add / Edit)
 // ==========================================
@@ -515,7 +532,7 @@ function TruckDetailView({
                   Last Checked
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.lastChecked || "N/A"}
+                  {formatDisplayDate(truck.lastChecked) || "N/A"}
                 </div>
               </div>
             </div>
@@ -835,7 +852,7 @@ export default function MechanicFleetStatusPage({
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                 Fleet Status (Mechanic Portal)
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-700 mt-1">
                 Monitor truck diagnostic health, asset availability, and
                 maintenance conditions.
               </p>
@@ -982,10 +999,10 @@ export default function MechanicFleetStatusPage({
                               </span>
                             </div>
                             <div className="text-xs text-slate-500 mt-1">
-                              Last Checked: {truck.lastChecked}
+                              Last Checked:{" "}
+                              {formatDisplayDate(truck.lastChecked)}
                             </div>
                           </td>
-
                           {/* Dropdown Status Selection Button */}
                           <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                             <div
