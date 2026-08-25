@@ -89,11 +89,10 @@ export default function LoginPage() {
         } else if (role === "driver") {
           targetRoute = "/driver";
         } else if (role === "mechanic") {
-          targetRoute = "/mechanic";
+          targetRoute = "/mechanic"; 
         } else if (role === "helper") {
           targetRoute = "/helper";
         } else {
-          // Fallback if role is missing, we check if the email has admin
           targetRoute = email.includes("admin")
             ? "/admindashboard/dashboard"
             : "/dashboard";
