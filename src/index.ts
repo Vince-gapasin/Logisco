@@ -14,6 +14,7 @@ import partnerController from './controllers/partnerController';
 import maintenanceRoutes from './routes/maintenanceRoutes';
 import subcontractorRoutes from './routes/subcontractorRoutes';
 import podRoutes from './routes/podRoutes';
+import orderController from './controllers/orderController';
 
 // 👇 THIS IS THE ONLY TRUCK FILE NOW
 import truckController from './controllers/truckController'; 
@@ -49,6 +50,7 @@ app.use('/api/employees', employeeController);
 app.use('/api/trucks', truckController);
 app.use('/api/clients', clientController);
 app.use('/api/partners', partnerController);
+app.use('/api/orders', orderController);
 
 // (Legacy Endpoint) Proof of Delivery Upload
 app.post('/api/upload-pod', upload.single('podImage'), async (req: Request, res: Response) => {
