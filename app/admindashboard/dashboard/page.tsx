@@ -2,7 +2,8 @@
 // MAIN DASHBOARD PAGE FOR ADMIN USERS
 // ==========================================
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
+import axios from "axios";
 import {
   Clock,
   CheckCircle2,
@@ -66,46 +67,30 @@ const TABS = [
   },
 ];
 
-// Placeholder data
-const BOOKINGS: { [key: string]: any[] } = {
-  "Pending Bookings": [],
-  "In-Transit": [],
-  Completed: [],
-  "Foul Trip": [],
-};
-
 // ==========================================
-// NEW BOOKING MODAL COMPONENT (UPDATED)
+// CLIENT SEARCH MODAL (For "New Booking")
 // ==========================================
 
-interface NewBookingModalProps {
+interface ClientSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectClient?: (clientName: string) => void;
+  clients: any[]; 
+  onSelectClient: (clientID: string) => void;
 }
 
-const SAMPLE_CLIENTS = [
-  "Bonchon",
-  "Bon pho",
-  "Jollibee",
-  "McDonald's",
-  "KFC",
-  "Mang Inasal",
-];
-
-function NewBookingModal({
+function ClientSearchModal({
   isOpen,
   onClose,
+  clients,
   onSelectClient,
-}: NewBookingModalProps) {
+}: ClientSearchModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
   if (!isOpen) return null;
 
-  // Filter clients based on search term
   const filteredClients = searchTerm.trim()
-    ? SAMPLE_CLIENTS.filter((client) =>
-        client.toLowerCase().includes(searchTerm.toLowerCase()),
+    ? clients.filter((client) =>
+        client.company.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     : [];
 
@@ -117,7 +102,6 @@ function NewBookingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center">
-        {/* Close Button */}
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -125,12 +109,10 @@ function NewBookingModal({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Modal Title */}
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6 tracking-tight">
-          New Booking
+          Select Registered Client
         </h2>
 
-        {/* Search Input (Resized to be smaller) */}
         <div className="relative w-full max-w-md mb-5">
           <input
             type="text"
@@ -142,7 +124,6 @@ function NewBookingModal({
           <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         </div>
 
-        {/* Dynamic Search Results Table (Resized to match) */}
         {filteredClients.length > 0 && (
           <div className="w-full max-w-md mb-6 animate-fade-in">
             <div className="text-left font-bold text-slate-800 text-xs mb-1.5 ml-1">
@@ -153,21 +134,18 @@ function NewBookingModal({
                 <tbody className="divide-y divide-slate-200">
                   {filteredClients.map((client, index) => (
                     <tr
-                      key={client}
+                      key={client.clientID}
                       className="hover:bg-slate-50 transition-colors"
                     >
                       <td className="w-10 text-center py-2 border-r border-slate-200 text-slate-800 text-sm font-medium">
                         {index + 1}
                       </td>
                       <td className="px-3 py-2 text-slate-800 text-sm">
-                        {client}
+                        {client.company}
                       </td>
                       <td className="w-20 text-center border-l border-slate-200">
                         <button
-                          onClick={() => {
-                            if (onSelectClient) onSelectClient(client);
-                            alert(`Selected: ${client}`);
-                          }}
+                          onClick={() => onSelectClient(client.clientID)}
                           className="text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
                         >
                           Select
@@ -181,9 +159,10 @@ function NewBookingModal({
           </div>
         )}
 
-        {/* Action Button (Fallback for New Clients) */}
-        <button className="mt-2 bg-blue-600 hover:bg-black px-6 py-2.5 text-white font-bold rounded-lg text-sm shadow-md transition-colors duration-200 w-full sm:w-auto">
-          Create Booking for New Client
+        <button 
+          onClick={handleClose}
+          className="mt-2 bg-slate-200 hover:bg-slate-300 px-6 py-2.5 text-slate-700 font-bold rounded-lg text-sm shadow-sm transition-colors w-full sm:w-auto">
+          Cancel Search
         </button>
       </div>
     </div>
@@ -191,21 +170,33 @@ function NewBookingModal({
 }
 
 // ==========================================
-// ON-CALL BOOKING MODAL COMPONENT
+// UNIVERSAL BOOKING MODAL (RESTORED UI FIELDS)
 // ==========================================
 
-interface OnCallBookingModalProps {
+interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  clients: any[]; 
+  trucks: any[]; 
+  drivers: any[]; 
+  helpers: any[]; 
+  preSelectedClientID?: string;
   onSubmitSuccess: (data: any) => void;
 }
 
-function OnCallBookingModal({
+function BookingModal({
   isOpen,
   onClose,
+  clients,
+  trucks,
+  drivers,
+  helpers,
+  preSelectedClientID,
   onSubmitSuccess,
-}: OnCallBookingModalProps) {
+}: BookingModalProps) {
+  
   const initialFormState = {
+    clientID: "",
     clientName: "",
     contactPerson: "",
     contactNumber: "",
@@ -228,18 +219,29 @@ function OnCallBookingModal({
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  useEffect(() => {
+    if (isOpen) {
+      if (preSelectedClientID) {
+        const client = clients.find(c => c.clientID === preSelectedClientID);
+        setFormData({
+          ...initialFormState,
+          clientID: preSelectedClientID,
+          clientName: client ? client.company : "",
+          contactPerson: client ? client.contactName : "",
+          contactNumber: client ? client.contact : ""
+        });
+      } else {
+        setFormData(initialFormState);
+      }
+      setErrors({});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, preSelectedClientID]);
+
   if (!isOpen) return null;
 
-  const handleCloseModal = () => {
-    setFormData(initialFormState);
-    setErrors({});
-    onClose();
-  };
-
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -252,30 +254,20 @@ function OnCallBookingModal({
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.clientName.trim())
-      newErrors.clientName = "Client / Company Name is required.";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim())
-      newErrors.contactNumber = "Contact number is required.";
-    if (!formData.requestDate)
-      newErrors.requestDate = "Request date is required.";
-    if (!formData.deliverySchedule)
-      newErrors.deliverySchedule = "Delivery schedule is required.";
+    // Restore your original validation!
+    if (!formData.clientName.trim()) newErrors.clientName = "Client / Company Name is required.";
+    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
+    if (!formData.requestDate) newErrors.requestDate = "Request date is required.";
+    if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
     if (!formData.pickupTime) newErrors.pickupTime = "Pickup time is required.";
-    if (!formData.deliveryTime)
-      newErrors.deliveryTime = "Delivery time is required.";
-    if (!formData.priorityLevel)
-      newErrors.priorityLevel = "Priority level is required.";
-    if (!formData.product.trim())
-      newErrors.product = "Product description is required.";
-    if (!formData.quantity.trim()) newErrors.quantity = "Quantity is required.";
-    if (!formData.pickupAddress.trim())
-      newErrors.pickupAddress = "Pickup address is required.";
-    if (!formData.deliveryAddress.trim())
-      newErrors.deliveryAddress = "Delivery address is required.";
-    if (!formData.truckPlate)
-      newErrors.truckPlate = "Truck plate number is required.";
+    if (!formData.deliveryTime) newErrors.deliveryTime = "Delivery time is required.";
+    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
+    if (!formData.product.trim()) newErrors.product = "Product description is required.";
+    if (!formData.quantity.toString().trim()) newErrors.quantity = "Quantity is required.";
+    if (!formData.pickupAddress.trim()) newErrors.pickupAddress = "Pickup address is required.";
+    if (!formData.deliveryAddress.trim()) newErrors.deliveryAddress = "Delivery address is required.";
+    if (!formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
     if (!formData.driver) newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -284,56 +276,57 @@ function OnCallBookingModal({
     }
 
     onSubmitSuccess(formData);
-    setFormData(initialFormState);
-    setErrors({});
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
-        {/* MODAL TITLE BANNER */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            On-Call Booking Form
+            {preSelectedClientID ? "Registered Client Booking" : "On-Call Booking Form"}
           </h2>
           <button
             type="button"
-            onClick={handleCloseModal}
+            onClick={onClose}
             className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* MODAL FORM */}
         <form
           onSubmit={validateAndSubmit}
           className="p-6 space-y-6 overflow-y-auto flex-1 text-sm text-slate-900"
         >
           {/* SECTION 1: CLIENT INFORMATION */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Client Information
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
+              <span>1. Client Information</span>
+              {!preSelectedClientID && (
+                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Walk-in / On-Call</span>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Company Name / Client Name *
                 </label>
-                <input
-                  type="text"
-                  name="clientName"
-                  value={formData.clientName}
-                  onChange={handleChange}
-                  placeholder="e.g., Jollibee - QC Branch"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.clientName && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.clientName}
-                  </p>
+                {preSelectedClientID ? (
+                  <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700">
+                    {formData.clientName}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="clientName"
+                    value={formData.clientName}
+                    onChange={handleChange}
+                    placeholder="e.g., Jollibee - QC Branch"
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
                 )}
+                {errors.clientName && <p className="text-red-500 text-[11px] mt-1">{errors.clientName}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -347,11 +340,7 @@ function OnCallBookingModal({
                   placeholder="e.g., Juan Dela Cruz"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactPerson && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactPerson}
-                  </p>
-                )}
+                {errors.contactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.contactPerson}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -365,16 +354,12 @@ function OnCallBookingModal({
                   placeholder="Enter contact number"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactNumber}
-                  </p>
-                )}
+                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
               </div>
             </div>
           </div>
 
-          {/* SECTION 2: DELIVERY DETAILS */}
+          {/* SECTION 2: DELIVERY DETAILS (100% RESTORED) */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               2. Delivery Details
@@ -392,11 +377,7 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.requestDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.requestDate && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.requestDate}
-                  </p>
-                )}
+                {errors.requestDate && <p className="text-red-500 text-[11px] mt-1">{errors.requestDate}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -409,11 +390,7 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.deliverySchedule && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.deliverySchedule}
-                  </p>
-                )}
+                {errors.deliverySchedule && <p className="text-red-500 text-[11px] mt-1">{errors.deliverySchedule}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -425,18 +402,12 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>
-                    Select priority level
-                  </option>
+                  <option value="" disabled>Select priority level</option>
                   <option value="Standard">Standard</option>
                   <option value="Urgent">Urgent / Rush</option>
                   <option value="High Priority">High Priority</option>
                 </select>
-                {errors.priorityLevel && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.priorityLevel}
-                  </p>
-                )}
+                {errors.priorityLevel && <p className="text-red-500 text-[11px] mt-1">{errors.priorityLevel}</p>}
               </div>
             </div>
 
@@ -452,11 +423,7 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.pickupTime && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.pickupTime}
-                  </p>
-                )}
+                {errors.pickupTime && <p className="text-red-500 text-[11px] mt-1">{errors.pickupTime}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -469,11 +436,7 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.deliveryTime && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.deliveryTime}
-                  </p>
-                )}
+                {errors.deliveryTime && <p className="text-red-500 text-[11px] mt-1">{errors.deliveryTime}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -487,29 +450,21 @@ function OnCallBookingModal({
                   placeholder="e.g., Burger Buns"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.product && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.product}
-                  </p>
-                )}
+                {errors.product && <p className="text-red-500 text-[11px] mt-1">{errors.product}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Quantity (if applicable)
+                  Quantity *
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   name="quantity"
                   value={formData.quantity}
                   onChange={handleChange}
-                  placeholder="e.g., 40 Cases"
+                  placeholder="e.g., 40"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.quantity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.quantity && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.quantity}
-                  </p>
-                )}
+                {errors.quantity && <p className="text-red-500 text-[11px] mt-1">{errors.quantity}</p>}
               </div>
             </div>
 
@@ -526,13 +481,8 @@ function OnCallBookingModal({
                   placeholder="Enter complete pickup address"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.pickupAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.pickupAddress}
-                  </p>
-                )}
+                {errors.pickupAddress && <p className="text-red-500 text-[11px] mt-1">{errors.pickupAddress}</p>}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Delivery Address *
@@ -545,28 +495,17 @@ function OnCallBookingModal({
                   placeholder="Enter complete delivery address"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.deliveryAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.deliveryAddress}
-                  </p>
-                )}
+                {errors.deliveryAddress && <p className="text-red-500 text-[11px] mt-1">{errors.deliveryAddress}</p>}
               </div>
             </div>
           </div>
 
-          {/* SECTION 3: ASSIGN DELIVERY CREW */}
+          {/* SECTION 3: ASSIGN DELIVERY CREW (LIVE FROM DATABASE) */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
               <span className="font-semibold text-black text-sm tracking-wide">
                 3. Assign Delivery Crew & Vehicle
               </span>
-              <button
-                type="button"
-                onClick={() => alert("Fleet Auto-Recommendation triggered!")}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-              >
-                Auto-Recommend Available Resources
-              </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
@@ -579,17 +518,14 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>
-                    Select truck
-                  </option>
-                  <option value="ABC-1234">ABC-1234 (Closed Van)</option>
-                  <option value="XYZ-5678">XYZ-5678 (Wing Van)</option>
+                  <option value="" disabled>Select truck</option>
+                  {trucks.map(t => (
+                    <option key={t.truckID} value={t.truckID}>
+                      {t.plateNumber} ({t.model})
+                    </option>
+                  ))}
                 </select>
-                {errors.truckPlate && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.truckPlate}
-                  </p>
-                )}
+                {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -601,21 +537,18 @@ function OnCallBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  <option value="" disabled>
-                    Select driver
-                  </option>
-                  <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-                  <option value="Pedro Santos">Pedro Santos</option>
+                  <option value="" disabled>Select driver</option>
+                  {drivers.map(d => (
+                    <option key={d.employeeID} value={d.employeeID}>
+                      {d.employeeName}
+                    </option>
+                  ))}
                 </select>
-                {errors.driver && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.driver}
-                  </p>
-                )}
+                {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Helper #1
+                  Helper #1 (Optional)
                 </label>
                 <select
                   name="helper1"
@@ -624,7 +557,11 @@ function OnCallBookingModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
                   <option value="">Select helper</option>
-                  <option value="Mark Reyes">Mark Reyes</option>
+                  {helpers.map(h => (
+                    <option key={h.employeeID} value={h.employeeID}>
+                      {h.employeeName}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -635,10 +572,14 @@ function OnCallBookingModal({
                   name="helper2"
                   value={formData.helper2}
                   onChange={handleChange}
-                  className="w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 border-slate-300"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
                   <option value="">Select helper</option>
-                  <option value="John Doe">John Doe</option>
+                  {helpers.map(h => (
+                    <option key={h.employeeID} value={h.employeeID}>
+                      {h.employeeName}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -663,7 +604,7 @@ function OnCallBookingModal({
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
-              onClick={handleCloseModal}
+              onClick={onClose}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
@@ -674,7 +615,7 @@ function OnCallBookingModal({
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
-              Assign Booking
+              Generate Order
             </button>
           </div>
         </form>
@@ -687,12 +628,12 @@ function OnCallBookingModal({
 // SUB-COMPONENTS
 // ==========================================
 
-function KPIGrid({ onNavigate }: { onNavigate: (name: string) => void }) {
+function KPIGrid({ onNavigate, bookingsData }: { onNavigate: (name: string) => void, bookingsData: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {TABS.map((tab) => {
         const styles = COLOR_STYLES[tab.color as keyof typeof COLOR_STYLES];
-        const count = BOOKINGS[tab.name]?.length ?? 0;
+        const count = bookingsData[tab.name]?.length ?? 0;
         return (
           <button
             key={tab.name}
@@ -719,6 +660,8 @@ function KPIGrid({ onNavigate }: { onNavigate: (name: string) => void }) {
 
 function FeedTable({ tabConfig, bookings }: any) {
   const styles = COLOR_STYLES[tabConfig.color as keyof typeof COLOR_STYLES];
+  const data = bookings || [];
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full">
       <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
@@ -735,11 +678,11 @@ function FeedTable({ tabConfig, bookings }: any) {
         <span
           className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs font-bold`}
         >
-          {bookings.length} Total
+          {data.length} Total
         </span>
       </div>
       <div className="overflow-x-auto min-h-75">
-        {bookings.length === 0 ? (
+        {data.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
             <FileText className="w-12 h-12 mb-2 opacity-20" />
             <p>No data found.</p>
@@ -747,7 +690,7 @@ function FeedTable({ tabConfig, bookings }: any) {
         ) : (
           <table className="w-full text-left min-w-125">
             <tbody className="divide-y divide-gray-50 text-sm">
-              {bookings.map((b: any) => (
+              {data.map((b: any) => (
                 <tr key={b.orderId} className="hover:bg-gray-50">
                   <td className="px-6 py-4 font-bold text-slate-800">
                     {b.orderId}
@@ -777,8 +720,75 @@ function FeedTable({ tabConfig, bookings }: any) {
 export default function AdminDashboardPage() {
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const [isOnCallModalOpen, setIsOnCallModalOpen] = useState(false);
-  const [isNewBookingModalOpen, setIsNewBookingModalOpen] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isClientSearchModalOpen, setIsClientSearchModalOpen] = useState(false);
+  const [selectedClientForBooking, setSelectedClientForBooking] = useState("");
+  
+  // 🚀 STATE FOR DYNAMIC DATA
+  const [clients, setClients] = useState<any[]>([]);
+  const [trucks, setTrucks] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [helpers, setHelpers] = useState<any[]>([]);
+
+  const [bookingsData, setBookingsData] = useState<{ [key: string]: any[] }>({
+    "Pending Bookings": [],
+    "In-Transit": [],
+    Completed: [],
+    "Foul Trip": [],
+  });
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  // 🚀 FETCH ORDERS AND DYNAMICALLY EXTRACT ON-CALL NAMES
+  const fetchOrders = async () => {
+    try {
+      const orderRes = await axios.get(`${API_URL}/api/orders`);
+      
+      const mappedPending = orderRes.data.map((o: any) => {
+        let displayClient = o.Client?.company;
+        
+        // Extract On-Call name saved securely in notes
+        if (!displayClient) {
+          const match = o.notes?.match(/Name:\s*(.*)/);
+          displayClient = match ? `Walk-in: ${match[1]}` : 'Walk-in Customer';
+        }
+
+        return {
+          orderId: o.orderCode,
+          client: displayClient,
+        };
+      });
+
+      setBookingsData(prev => ({
+        ...prev,
+        "Pending Bookings": mappedPending
+      }));
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const clientRes = await axios.get(`${API_URL}/api/clients`);
+        setClients(clientRes.data);
+
+        const truckRes = await axios.get(`${API_URL}/api/trucks`);
+        setTrucks(truckRes.data);
+
+        const empRes = await axios.get(`${API_URL}/api/employees`);
+        const allEmployees = empRes.data;
+        setDrivers(allEmployees.filter((e: any) => e.role === 'Driver' && e.isActive));
+        setHelpers(allEmployees.filter((e: any) => e.role === 'Helper' && e.isActive));
+
+        await fetchOrders(); 
+      } catch (error) {
+        console.error("Failed to fetch initial data:", error);
+      }
+    };
+    fetchDashboardData();
+  }, []);
 
   const handleNavigate = (tabName: string) => {
     sectionRefs.current[tabName]?.scrollIntoView({
@@ -787,16 +797,55 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const handleModalSubmit = (data: any) => {
-    console.log("Submitted On-Call Booking Data:", data);
-    alert(
-      "On-Call Booking successfully created and assigned! (Local state placeholder)",
-    );
+  // 🚀 SUBMIT THE PAYLOAD (Packages extra UI fields perfectly into 'notes')
+  const handleModalSubmit = async (data: any) => {
+    try {
+      console.log("[FRONTEND] 🟢 Sending Order POST to Express...");
+
+      let detailedNotes = "";
+      
+      // If it's an On-Call booking (No UUID), stamp their details!
+      if (!data.clientID) {
+        detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n\n`;
+      }
+
+      detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupAddress} @ ${data.pickupTime}\n`;
+      detailedNotes += `\n[ASSIGNED CREW]\nTruck: ${data.truckPlate}\nDriver: ${data.driver}\nHelper 1: ${data.helper1 || 'None'}\nHelper 2: ${data.helper2 || 'None'}\n`;
+      
+      if (data.notes) {
+        detailedNotes += `\n[NOTES]\n${data.notes}`;
+      }
+
+      const payload = {
+        clientID: data.clientID || null, // Allows null for On-Call
+        notes: detailedNotes,
+        items: [{
+          productName: data.product,
+          productType: "General",
+          quantity: Number(data.quantity) || 1,
+          weightPerItem: 0
+        }],
+        stops: [{
+          branchName: data.deliveryAddress,
+          contactPerson: data.contactPerson,
+          contactNum: data.contactNumber,
+          expectedTime: data.deliveryTime || "12:00:00"
+        }]
+      };
+
+      const res = await axios.post(`${API_URL}/api/orders`, payload);
+      alert(`✅ Order Generated Successfully!\nTracking Code: ${res.data.orderCode}`);
+      
+      await fetchOrders();
+
+    } catch (err: any) {
+      console.error(err);
+      alert(`🚨 FAILED 🚨\n\nReason: ${err.response?.data?.error || err.message}`);
+    }
   };
 
   return (
     <div className="p-4 md:p-8 w-full max-w-7xl mx-auto">
-      {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
@@ -806,16 +855,18 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        {/* BUTTON GROUP */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
           <button
-            onClick={() => setIsOnCallModalOpen(true)}
+            onClick={() => {
+              setSelectedClientForBooking("");
+              setIsBookingModalOpen(true);
+            }}
             className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
           >
             + On-Call Booking
           </button>
           <button
-            onClick={() => setIsNewBookingModalOpen(true)}
+            onClick={() => setIsClientSearchModalOpen(true)}
             className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
           >
             + New Booking
@@ -823,10 +874,8 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <KPIGrid onNavigate={handleNavigate} />
+      <KPIGrid onNavigate={handleNavigate} bookingsData={bookingsData} />
 
-      {/* 2x2 Responsive Grid for Data Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12">
         {TABS.map((tab) => (
           <div
@@ -836,22 +885,32 @@ export default function AdminDashboardPage() {
             }}
             className="scroll-mt-6"
           >
-            <FeedTable tabConfig={tab} bookings={BOOKINGS[tab.name]} />
+            <FeedTable tabConfig={tab} bookings={bookingsData[tab.name]} />
           </div>
         ))}
       </div>
 
-      {/* ON-CALL BOOKING MODAL */}
-      <OnCallBookingModal
-        isOpen={isOnCallModalOpen}
-        onClose={() => setIsOnCallModalOpen(false)}
+      {/* 🚀 THE RESTORED BOOKING FORM */}
+      <BookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        clients={clients}
+        trucks={trucks}
+        drivers={drivers}
+        helpers={helpers}
+        preSelectedClientID={selectedClientForBooking}
         onSubmitSuccess={handleModalSubmit}
       />
 
-      {/* NEW BOOKING MODAL */}
-      <NewBookingModal
-        isOpen={isNewBookingModalOpen}
-        onClose={() => setIsNewBookingModalOpen(false)}
+      <ClientSearchModal
+        isOpen={isClientSearchModalOpen}
+        onClose={() => setIsClientSearchModalOpen(false)}
+        clients={clients}
+        onSelectClient={(clientID) => {
+          setSelectedClientForBooking(clientID);
+          setIsClientSearchModalOpen(false);
+          setIsBookingModalOpen(true); 
+        }}
       />
     </div>
   );
