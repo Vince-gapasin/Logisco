@@ -161,7 +161,7 @@ export function ClientModal({
         },
       ]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editData, isOpen]);
 
   if (!isOpen) return null;
@@ -350,12 +350,12 @@ export function ClientModal({
         >
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Client & Delivery Details
+              1. Client & Information
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Client or Company Name
+                  Company / Client Name
                 </label>
                 <input
                   type="text"
@@ -916,7 +916,7 @@ export function PartnerModal({
     } else {
       setFormData(initialPartnerState);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editData, isOpen]);
 
   if (!isOpen) return null;
@@ -987,7 +987,7 @@ export function PartnerModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            {editData ? "Edit Partner" : "Add new Partners"}
+            {editData ? "Edit Partner" : "Add New Partner"}
           </h2>
           <button
             onClick={handleCloseModal}
@@ -1187,7 +1187,7 @@ export function PartnerModal({
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
-              {editData ? "Save Changes" : "Add partners"}
+              {editData ? "Save Changes" : "Add partner"}
             </button>
           </div>
         </form>
@@ -1622,7 +1622,7 @@ export default function ClientsPage() {
     const fetchClientsAndPartners = async () => {
       try {
         const clientRes = await axios.get(`${API_URL}/api/clients`);
-        
+
         // 🚀 Filter out any leftover On-Call records if they exist in the DB
         const mappedClients: ClientRecord[] = clientRes.data
           .filter((c: any) => c.contractType !== "On-Call")
@@ -1635,12 +1635,14 @@ export default function ClientsPage() {
             emailAddress: c.emailAdd,
             businessAddress: c.businessAdd,
             // 🚀 MAP THE DATABASE RELATIONS TO THE FRONTEND STATE
-            pickupAddresses: (c.Warehouse || c.warehouses || []).map((w: any) => ({
-              warehouseName: w.whName || "",
-              warehouseAddress: w.warehouseLoc || "",
-              contactPerson: w.contactPerson || "",
-              contactNumber: w.contactNum || "",
-            })),
+            pickupAddresses: (c.Warehouse || c.warehouses || []).map(
+              (w: any) => ({
+                warehouseName: w.whName || "",
+                warehouseAddress: w.warehouseLoc || "",
+                contactPerson: w.contactPerson || "",
+                contactNumber: w.contactNum || "",
+              }),
+            ),
             deliveryAddresses: (c.Branch || c.branches || []).map((b: any) => ({
               branchName: b.branchName || "",
               deliveryAddress: b.deliveryAddress || "",

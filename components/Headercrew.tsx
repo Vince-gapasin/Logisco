@@ -12,7 +12,7 @@ interface HeaderProps {
   setIsOpen: (open: boolean) => void;
 }
 
-export default function Headercrew({ isOpen, setIsOpen }: HeaderProps) {
+export default function HeaderCrew({ isOpen, setIsOpen }: HeaderProps) {
   return (
     <header className="h-16 bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
       {/* Search Input Bar & Conditional Hamburger Trigger */}
@@ -47,16 +47,16 @@ export default function Headercrew({ isOpen, setIsOpen }: HeaderProps) {
           <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
         </Link>
 
-        {/* Profile Settings Link/Button */}
+        {/* Profile Settings Link/Button (Aligned with Sebastian Enrille identity) */}
         <Link
           href="/crew/profile"
-          className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition block shrink-0"
+          className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center overflow-hidden border-2 border-slate-100 shadow-inner cursor-pointer hover:opacity-90 transition shrink-0"
           title="Profile Settings"
         >
           <img
-            src="https://api.dicebear.com/7.x/initials/svg?seed=Crew"
-            alt="Crew Avatar"
-            className="w-full h-full object-cover bg-slate-200"
+            src="https://api.dicebear.com/7.x/initials/svg?seed=SE"
+            alt="Sebastian Enrille Avatar"
+            className="w-full h-full object-cover"
           />
         </Link>
       </div>
