@@ -1506,6 +1506,21 @@ function ClientsTable({
   currentData: UnifiedRecord[];
   onRowClick: (record: UnifiedRecord) => void;
 }) {
+  // --- ADDED PAGINATION LOGIC ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Reset to page 1 whenever the search term or tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentData, activeTab]);
+
+  const totalPages = Math.ceil(currentData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = currentData.slice(startIndex, endIndex);
+  // ------------------------------
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="overflow-x-auto">
@@ -1519,8 +1534,9 @@ function ClientsTable({
             </tr>
           </thead>
           <tbody>
-            {currentData.length > 0 ? (
-              currentData.map((item) => (
+            {/* USE paginatedData INSTEAD OF currentData HERE */}
+            {paginatedData.length > 0 ? (
+              paginatedData.map((item) => (
                 <tr
                   key={item.id}
                   onClick={() => onRowClick(item)}
@@ -1566,17 +1582,34 @@ function ClientsTable({
       </div>
 
       <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-normal text-slate-700 bg-white">
-        <span>Showing {currentData.length} entries</span>
+        {/* UPDATED TO SHOW CORRECT PAGINATION COUNTS */}
+        <span>
+          Showing {currentData.length === 0 ? 0 : startIndex + 1} to{" "}
+          {Math.min(endIndex, currentData.length)} of {currentData.length}{" "}
+          entries
+        </span>
         <div className="flex items-center gap-2">
           <button
-            disabled
-            className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 font-medium cursor-not-allowed"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              currentPage === 1
+                ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+            }`}
           >
             Previous
           </button>
           <button
-            disabled
-            className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 font-medium cursor-not-allowed"
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages || totalPages === 0}
+            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              currentPage === totalPages || totalPages === 0
+                ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+            }`}
           >
             Next
           </button>
@@ -1585,7 +1618,6 @@ function ClientsTable({
     </div>
   );
 }
-
 // ==========================================
 // MAIN CLIENTS PAGE COMPONENT
 // ==========================================

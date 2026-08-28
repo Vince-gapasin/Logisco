@@ -61,6 +61,24 @@ export default function ReportsForecastingPage() {
   const [crew, setCrew] = useState(CREW_OPTIONS[0]);
   const [status, setStatus] = useState(STATUS_OPTIONS[0]);
 
+  // ==========================================
+  // ADDED: DATA & PAGINATION STATES
+  // ==========================================
+  const [records, setRecords] = useState<any[]>([]); // Replace 'any' with your actual Report interface later
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Pagination Math
+  const totalPages = Math.ceil(records.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = records.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeframe, month, client, crew, status]);
+
   // Click Outside Handler for Dropdowns
   const dropdownsRef = useRef<HTMLDivElement>(null);
 
@@ -285,41 +303,86 @@ export default function ReportsForecastingPage() {
                 </tr>
               </thead>
 
-              {/* Empty State Body */}
+              {/* Dynamic Body */}
               <tbody>
-                <tr>
-                  <td colSpan={6} className="py-12 sm:py-16 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
-                        <FileText className="w-6 h-6" />
+                {paginatedRecords.length > 0 ? (
+                  paginatedRecords.map((record, idx) => (
+                    <tr
+                      key={record.id || idx}
+                      className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
+                    >
+                      <td className="py-3.5 px-4 sm:px-6">
+                        {record.date || "N/A"}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
+                        {record.orderId || "N/A"}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6">
+                        {record.client || "N/A"}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          {record.status || "N/A"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6">
+                        {record.crew || "N/A"}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 truncate max-w-xs">
+                        {record.remarks || "None"}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-12 sm:py-16 text-center">
+                      <div className="flex flex-col items-center justify-center px-4">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <p className="text-slate-900 font-medium text-sm">
+                          No delivery records found
+                        </p>
+                        <p className="text-slate-600 text-xs mt-1 max-w-sm">
+                          Completed delivery reports will appear here once
+                          connected to your backend database.
+                        </p>
                       </div>
-                      <p className="text-slate-900 font-medium text-sm">
-                        No delivery records found
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Completed delivery reports will appear here once
-                        connected to your backend database.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination Footer - Precisely matching EmployeesPage */}
+          {/* Dynamic Pagination Footer */}
           <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
-            <span>Showing 0 of 0 entries</span>
+            <span>
+              Showing {records.length === 0 ? 0 : startIndex + 1} to{" "}
+              {Math.min(endIndex, records.length)} of {records.length} entries
+            </span>
             <div className="flex items-center gap-2">
               <button
-                disabled
-                className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 cursor-not-allowed"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                  currentPage === 1
+                    ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                    : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                }`}
               >
                 Previous
               </button>
               <button
-                disabled
-                className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 cursor-not-allowed"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                  currentPage === totalPages || totalPages === 0
+                    ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                    : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                }`}
               >
                 Next
               </button>

@@ -80,6 +80,22 @@ const DUMMY_BOOKINGS: { [key: string]: any[] } = {
       helper: "Mark Reyes",
       dateTime: "2026-08-25 08:00 AM",
     },
+    {
+      orderId: "ORD-1002",
+      client: "Bonchon",
+      product: "Frozen Chicken",
+      driver: "Juan Dela Cruz",
+      helper: "Mark Reyes",
+      dateTime: "2026-08-25 08:00 AM",
+    },
+    {
+      orderId: "ORD-1003",
+      client: "Bonchon",
+      product: "Frozen Chicken",
+      driver: "Juan Dela Cruz",
+      helper: "Mark Reyes",
+      dateTime: "2026-08-25 08:00 AM",
+    },
   ],
   "In-Transit": [
     {

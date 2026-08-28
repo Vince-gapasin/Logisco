@@ -3,7 +3,7 @@
 // ==========================================
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   FileText,
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Truck,
   ChevronDown,
+  Upload,
 } from "lucide-react";
 
 // ==========================================
@@ -34,6 +35,7 @@ export interface HistoryLogRecord {
   issue: string;
   remarks: string;
   date: string;
+  photoUrl?: string; // Ready for Supabase storage URL
 }
 
 // DEFINE TYPES FOR DROPDOWNS
@@ -76,6 +78,7 @@ function LogMaintenanceModal({
     additionalMechanicID: "",
     issue: "",
     remarks: "",
+    photoUrl: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -86,6 +89,7 @@ function LogMaintenanceModal({
   const [isAdditionalDropdownOpen, setIsAdditionalDropdownOpen] =
     useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
@@ -97,6 +101,7 @@ function LogMaintenanceModal({
         additionalMechanicID: editData.additionalMechanicID || "",
         issue: editData.issue || "",
         remarks: editData.remarks || "",
+        photoUrl: editData.photoUrl || "",
       });
     } else {
       setFormData(initialFormState);
@@ -123,6 +128,17 @@ function LogMaintenanceModal({
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -154,12 +170,9 @@ function LogMaintenanceModal({
       return;
     }
 
-    // Trigger the save operation in the parent component.
-    // The state-clearing logic is removed here to prevent the UI glitch.
     onSubmitSuccess(formData);
   };
 
-  // Filter out Primary Mechanic from Additional Mechanic options
   const availableAdditionalMechanics = mechanicsOptions.filter(
     (emp) => emp.employeeID !== formData.primaryMechanicID,
   );
@@ -508,6 +521,51 @@ function LogMaintenanceModal({
             </div>
           </div>
 
+          {/* Section 3: Photo Evidence (Dynamically changed title based on edit/add) */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. {editData ? "Photo Evidence" : "Upload Photo Evidence"}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-black mb-1">
+                {editData
+                  ? "Update Maintenance Photo"
+                  : "Upload Maintenance Photo (Optional)"}
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />{" "}
+                  {formData.photoUrl ? "Change File" : "Choose File"}
+                </button>
+                <span className="text-xs text-slate-500 truncate max-w-xs">
+                  {formData.photoUrl
+                    ? "Photo attached successfully"
+                    : "No file chosen"}
+                </span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+              {formData.photoUrl && (
+                <div className="mt-3 relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                  <img
+                    src={formData.photoUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
@@ -687,6 +745,26 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
               </div>
             </div>
           </div>
+
+          {/* Section 3 Details view properly displaying uploaded evidence */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. Photo Evidence
+            </div>
+            {log.photoUrl ? (
+              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                <img
+                  src={log.photoUrl}
+                  alt="Maintenance Evidence"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500 italic py-2">
+                No photo evidence attached to this record.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -736,11 +814,9 @@ export default function MechanicHistoryLogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // View & Edit States
   const [selectedLog, setSelectedLog] = useState<HistoryLogRecord | null>(null);
   const [editingLog, setEditingLog] = useState<HistoryLogRecord | null>(null);
 
-  // Database States
   const [logsList, setLogsList] = useState<HistoryLogRecord[]>([]);
   const [trucksOptions, setTrucksOptions] = useState<TruckOption[]>([]);
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>(
@@ -748,7 +824,6 @@ export default function MechanicHistoryLogsPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  // Toast Notification State (Mapped from Fleet Status)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -758,15 +833,12 @@ export default function MechanicHistoryLogsPage() {
     }
   }, [toastMessage]);
 
-  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Environment Config
   const API_URL =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
-  // Initial Fetching
   useEffect(() => {
     fetchLogs();
     fetchDropdownOptions();
@@ -796,13 +868,10 @@ export default function MechanicHistoryLogsPage() {
 
   const fetchDropdownOptions = async () => {
     try {
-      // Assuming you have a /api/trucks route on your Express server
       const truckRes = await fetch(`${API_URL}/api/trucks`);
       const truckData = await truckRes.json();
-      // Ensure we extract the array whether it's wrapped in { data: [...] } or just [...]
       setTrucksOptions(truckData.data || truckData || []);
 
-      // Assuming you have a /api/employees route (can filter by role=Mechanic if needed)
       const empRes = await fetch(`${API_URL}/api/employees?role=Mechanic`);
       const empData = await empRes.json();
       setMechanicsOptions(empData.data || empData || []);
@@ -811,7 +880,6 @@ export default function MechanicHistoryLogsPage() {
     }
   };
 
-  // Reset pagination when searching
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -819,7 +887,6 @@ export default function MechanicHistoryLogsPage() {
   const handleModalSubmit = async (formData: any) => {
     try {
       if (editingLog) {
-        // Detect Actual Changes before executing PUT
         const originalDate = editingLog.date
           ? editingLog.date.split("T")[0]
           : "";
@@ -831,7 +898,8 @@ export default function MechanicHistoryLogsPage() {
           formData.additionalMechanicID !==
             (editingLog.additionalMechanicID || "") ||
           formData.issue.trim() !== String(editingLog.issue || "").trim() ||
-          formData.remarks.trim() !== String(editingLog.remarks || "").trim();
+          formData.remarks.trim() !== String(editingLog.remarks || "").trim() ||
+          formData.photoUrl !== (editingLog.photoUrl || "");
 
         if (!isChanged) {
           setToastMessage("No changes were made.");
@@ -850,11 +918,14 @@ export default function MechanicHistoryLogsPage() {
         );
         if (response.ok) {
           await fetchLogs();
-          if (selectedLog?.id === editingLog.id) setSelectedLog(null); // Return to list view
+
+          // Re-fetch the updated selected log into view if we just edited it
+          setSelectedLog((prev) =>
+            prev?.id === editingLog.id ? { ...prev, ...formData } : prev,
+          );
           setToastMessage("Changes saved successfully.");
         }
       } else {
-        // CREATE Request
         const response = await fetch(`${API_URL}/api/HistoryLogsM`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -888,7 +959,6 @@ export default function MechanicHistoryLogsPage() {
     }
   };
 
-  // Search filter
   const filteredLogs = logsList.filter((log) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -900,7 +970,6 @@ export default function MechanicHistoryLogsPage() {
     );
   });
 
-  // Pagination calculation
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -932,7 +1001,6 @@ export default function MechanicHistoryLogsPage() {
               </p>
             </div>
 
-            {/* Action Button: Log Maintenance */}
             <button
               onClick={() => {
                 setEditingLog(null);
@@ -945,9 +1013,7 @@ export default function MechanicHistoryLogsPage() {
             </button>
           </div>
 
-          {/* ================= MAIN CONTENT CARD ================= */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Search Bar Container */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
@@ -969,7 +1035,6 @@ export default function MechanicHistoryLogsPage() {
               </div>
             </div>
 
-            {/* Data Table */}
             <div className="overflow-x-auto">
               {isLoading ? (
                 <div className="flex items-center justify-center py-20">
@@ -1015,7 +1080,6 @@ export default function MechanicHistoryLogsPage() {
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                           title="Click to view complete maintenance log"
                         >
-                          {/* Left Column: Plate Number, Truck Type, Mechanic, Issue */}
                           <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
                             <div className="font-semibold text-slate-900 truncate">
                               {log.plateNumber}
@@ -1034,7 +1098,6 @@ export default function MechanicHistoryLogsPage() {
                             </div>
                           </td>
 
-                          {/* Right Column: Date */}
                           <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right align-top sm:align-middle">
                             <div className="text-sm font-medium text-slate-800">
                               {new Date(log.date).toLocaleDateString("en-US", {
@@ -1052,7 +1115,6 @@ export default function MechanicHistoryLogsPage() {
               )}
             </div>
 
-            {/* Dynamic Pagination Footer */}
             <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
               <span>
                 Showing {filteredLogs.length === 0 ? 0 : startIndex + 1} to{" "}
@@ -1092,7 +1154,6 @@ export default function MechanicHistoryLogsPage() {
         </>
       )}
 
-      {/* Global Form Modal */}
       <LogMaintenanceModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -1105,7 +1166,6 @@ export default function MechanicHistoryLogsPage() {
         mechanicsOptions={mechanicsOptions}
       />
 
-      {/* Fleet Status Toast Notification Component */}
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
