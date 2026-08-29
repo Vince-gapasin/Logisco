@@ -1666,20 +1666,19 @@ export default function ClientsPage() {
             contactNumber: c.contact,
             emailAddress: c.emailAdd,
             businessAddress: c.businessAdd,
-            // 🚀 MAP THE DATABASE RELATIONS TO THE FRONTEND STATE
-            pickupAddresses: (c.Warehouse || c.warehouses || []).map(
-              (w: any) => ({
-                warehouseName: w.whName || "",
-                warehouseAddress: w.warehouseLoc || "",
-                contactPerson: w.contactPerson || "",
-                contactNumber: w.contactNum || "",
-              }),
-            ),
-            deliveryAddresses: (c.Branch || c.branches || []).map((b: any) => ({
+            
+            // 🚀 Added lowercase fallbacks (c.warehouse / c.branch) to ensure perfect mapping
+            pickupAddresses: (c.Warehouse || c.warehouse || c.warehouses || []).map((w: any) => ({
+              warehouseName: w.whName || "",
+              warehouseAddress: w.warehouseLoc || "",
+              contactPerson: w.contactPerson || "",
+              contactNumber: w.contactNum || w.contactNumber || "",
+            })),
+            deliveryAddresses: (c.Branch || c.branch || c.branches || []).map((b: any) => ({
               branchName: b.branchName || "",
               deliveryAddress: b.deliveryAddress || "",
               contactPerson: b.contactPerson || "",
-              contactNumber: b.contactNumber || "",
+              contactNumber: b.contactNumber || b.contactNum || "",
             })),
           }));
 

@@ -376,7 +376,7 @@ function TruckModal({
                 <input
                   type="text"
                   name="capacity"
-                  placeholder="e.g., 5 Tons or 5000 kg"
+                  placeholder="e.g., 5000"
                   value={formData.capacity}
                   onChange={handleInputChange as any}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
@@ -1107,13 +1107,25 @@ export default function FleetStatusPage() {
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+      // 🚀 ALIGN PAYLOAD WITH DATABASE SCHEMA COLUMNS
+      const payload = {
+        plateNumber: record.plateNumber,
+        truckType: record.truckType,
+        model: record.truckModel,
+        capacity: Number(record.capacity) || 0,
+        lastChecked: record.lastChecked 
+            ? new Date(record.lastChecked).toISOString() 
+            : new Date().toISOString(),
+        truckStatus: record.status,
+      };
+
       if (editingTruck) {
         if (!record.id) {
           alert("🚨 Bug Caught: The Truck ID is missing! Cannot update.");
           return;
         }
 
-        await axios.put(`${API_URL}/api/trucks/${record.id}`, record);
+        await axios.put(`${API_URL}/api/trucks/${record.id}`, payload);
 
         setTruckList((prev) =>
           prev.map((t) => (t.id === record.id ? record : t)),
@@ -1123,7 +1135,7 @@ export default function FleetStatusPage() {
         }
         setToastMessage("Changes saved successfully.");
       } else {
-        const response = await axios.post(`${API_URL}/api/trucks`, record);
+        const response = await axios.post(`${API_URL}/api/trucks`, payload);
 
         const dbTruck = response.data;
         const uiRecord: TruckRecord = {

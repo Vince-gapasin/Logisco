@@ -14,7 +14,6 @@ import {
   Search,
   Plus,
   Trash2,
-  Edit3,
 } from "lucide-react";
 
 // ==========================================
@@ -69,65 +68,6 @@ const TABS = [
     statusLabel: "Foul Trip",
   },
 ];
-
-const DUMMY_BOOKINGS: { [key: string]: any[] } = {
-  "Pending Bookings": [
-    {
-      orderId: "ORD-1001",
-      client: "Bonchon",
-      product: "Frozen Chicken",
-      driver: "Juan Dela Cruz",
-      helper: "Mark Reyes",
-      dateTime: "2026-08-25 08:00 AM",
-    },
-    {
-      orderId: "ORD-1002",
-      client: "Bonchon",
-      product: "Frozen Chicken",
-      driver: "Juan Dela Cruz",
-      helper: "Mark Reyes",
-      dateTime: "2026-08-25 08:00 AM",
-    },
-    {
-      orderId: "ORD-1003",
-      client: "Bonchon",
-      product: "Frozen Chicken",
-      driver: "Juan Dela Cruz",
-      helper: "Mark Reyes",
-      dateTime: "2026-08-25 08:00 AM",
-    },
-  ],
-  "In-Transit": [
-    {
-      orderId: "ORD-2001",
-      client: "McDonald's",
-      product: "Fries",
-      driver: "Luis Manzano",
-      helper: "Pedro Santos",
-      dateTime: "2026-08-25 07:00 AM",
-    },
-  ],
-  Completed: [
-    {
-      orderId: "ORD-3001",
-      client: "Jollibee",
-      product: "Gravy Mix",
-      driver: "Juan Dela Cruz",
-      helper: "Mark Reyes",
-      dateTime: "2026-08-24 02:00 PM",
-    },
-  ],
-  "Foul Trip": [
-    {
-      orderId: "ORD-4001",
-      client: "McDonald's",
-      product: "Condiments",
-      driver: "Luis Manzano",
-      helper: "John Doe",
-      dateTime: "2026-08-25 06:00 AM",
-    },
-  ],
-};
 
 // ==========================================
 // CLIENT SEARCH MODAL
@@ -267,7 +207,7 @@ function NewClientBookingModal({
     deliverySchedule: "",
     product: "",
     priorityLevel: "",
-    subconPartner: "", // ADDED FOR SUBCON
+    subconPartner: "",
     truckPlate: "",
     driver: "",
     helper1: "",
@@ -276,7 +216,7 @@ function NewClientBookingModal({
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [isSubconMode, setIsSubconMode] = useState(false); // ADDED FOR SUBCON
+  const [isSubconMode, setIsSubconMode] = useState(false);
 
   const [pickupList, setPickupList] = useState<any[]>([
     {
@@ -300,14 +240,12 @@ function NewClientBookingModal({
     },
   ]);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     if (isOpen) {
-      setIsSubconMode(false); // RESET SUBCON MODE ON OPEN
+      setIsSubconMode(false);
       setFormData(initialFormState);
       setPickupList([
         {
@@ -338,9 +276,7 @@ function NewClientBookingModal({
   if (!isOpen) return null;
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -355,11 +291,7 @@ function NewClientBookingModal({
     setPickupList(updated);
   };
 
-  const handleDeliveryChange = (
-    index: number,
-    field: string,
-    value: string,
-  ) => {
+  const handleDeliveryChange = (index: number, field: string, value: string) => {
     const updated = [...deliveryList];
     updated[index][field] = value;
     setDeliveryList(updated);
@@ -409,28 +341,18 @@ function NewClientBookingModal({
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.clientName.trim())
-      newErrors.clientName = "Client Name is required.";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim())
-      newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim())
-      newErrors.emailAddress = "Email address is required.";
-    if (!formData.businessAddress.trim())
-      newErrors.businessAddress = "Business address is required.";
+    if (!formData.clientName.trim()) newErrors.clientName = "Client Name is required.";
+    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
+    if (!formData.emailAddress.trim()) newErrors.emailAddress = "Email address is required.";
+    if (!formData.businessAddress.trim()) newErrors.businessAddress = "Business address is required.";
 
-    if (!formData.deliverySchedule)
-      newErrors.deliverySchedule = "Delivery schedule is required.";
-    if (!formData.product.trim())
-      newErrors.product = "Product description is required.";
-    if (!formData.priorityLevel)
-      newErrors.priorityLevel = "Priority level is required.";
+    if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
+    if (!formData.product.trim()) newErrors.product = "Product description is required.";
+    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
 
-    if (isSubconMode && !formData.subconPartner)
-      newErrors.subconPartner = "Subcon partner is required.";
-    if (!formData.truckPlate)
-      newErrors.truckPlate = "Truck plate number is required.";
+    if (isSubconMode && !formData.subconPartner) newErrors.subconPartner = "Subcon partner is required.";
+    if (!formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
     if (!formData.driver) newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -463,11 +385,7 @@ function NewClientBookingModal({
           </button>
         </div>
 
-        <form
-          onSubmit={validateAndSubmit}
-          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
-        >
-          {/* SECTION 1: Client Information */}
+        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
               <span>1. Client Information</span>
@@ -477,9 +395,7 @@ function NewClientBookingModal({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Company or Client Name *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Company or Client Name *</label>
                 <input
                   type="text"
                   name="clientName"
@@ -488,16 +404,10 @@ function NewClientBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.clientName && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.clientName}
-                  </p>
-                )}
+                {errors.clientName && <p className="text-red-500 text-[11px] mt-1">{errors.clientName}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Person *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
                 <input
                   type="text"
                   name="contactPerson"
@@ -506,16 +416,10 @@ function NewClientBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactPerson && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactPerson}
-                  </p>
-                )}
+                {errors.contactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.contactPerson}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Number *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
                 <input
                   type="text"
                   name="contactNumber"
@@ -524,16 +428,10 @@ function NewClientBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactNumber}
-                  </p>
-                )}
+                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Email Address *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Email Address *</label>
                 <input
                   type="email"
                   name="emailAddress"
@@ -542,16 +440,10 @@ function NewClientBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.emailAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.emailAddress}
-                  </p>
-                )}
+                {errors.emailAddress && <p className="text-red-500 text-[11px] mt-1">{errors.emailAddress}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Business Address *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Business Address *</label>
                 <input
                   type="text"
                   name="businessAddress"
@@ -560,21 +452,14 @@ function NewClientBookingModal({
                   onChange={handleChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.businessAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.businessAddress}
-                  </p>
-                )}
+                {errors.businessAddress && <p className="text-red-500 text-[11px] mt-1">{errors.businessAddress}</p>}
               </div>
             </div>
           </div>
 
-          {/* SECTION 2: PICKUP ADDRESSES */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                2. Pickup Addresses
-              </span>
+              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses</span>
               <button
                 type="button"
                 onClick={addPickupRow}
@@ -589,24 +474,12 @@ function NewClientBookingModal({
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                     <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                      Warehouse Name
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                      Warehouse Address
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Person
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Number
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                      Pick Up Time
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">
-                      Quantity
-                    </th>
+                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Warehouse Address</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Pick Up Time</th>
+                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
                     <th className="p-2.5 w-16 text-center">Action</th>
                   </tr>
                 </thead>
@@ -614,166 +487,38 @@ function NewClientBookingModal({
                   {pickupList.map((row, idx) => {
                     const confirmKey = `pickup-${idx}`;
                     const isConfirming = deleteConfirm[confirmKey];
-
                     return (
-                      <tr
-                        key={idx}
-                        className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
-                      >
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
-                          {idx + 1}
+                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Enter Name" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Enter Name"
-                            value={row.warehouseName}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "warehouseName",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Enter Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Enter Address"
-                            value={row.warehouseAddress}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "warehouseAddress",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Contact Person"
-                            value={row.contactPerson}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "contactPerson",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Contact Number"
-                            value={row.contactNumber}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "contactNumber",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.pickupTime}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "pickupTime",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="number"
-                            placeholder="Qty"
-                            value={row.quantity}
-                            onChange={(e) =>
-                              handlePickupChange(
-                                idx,
-                                "quantity",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15"
-                          />
+                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
                         </td>
                         <td className="p-2 text-center align-middle">
                           {isConfirming ? (
-                            <div
-                              className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
-                              style={{
-                                backgroundColor:
-                                  "oklch(63.7% 0.237 25.331 / 0.1)",
-                                borderColor: "oklch(63.7% 0.237 25.331 / 0.4)",
-                              }}
-                            >
-                              <span
-                                className="text-[10px] font-semibold leading-tight"
-                                style={{ color: "oklch(50% 0.237 25.331)" }}
-                              >
-                                Delete row?
-                              </span>
+                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
+                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
                               <div className="flex items-center gap-2 justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removePickupRow(idx)}
-                                  style={{
-                                    backgroundColor:
-                                      "oklch(63.7% 0.237 25.331)",
-                                  }}
-                                  className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
-                                >
-                                  Yes
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setDeleteConfirm((prev) => ({
-                                      ...prev,
-                                      [confirmKey]: false,
-                                    }))
-                                  }
-                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
-                                >
-                                  No
-                                </button>
+                                <button type="button" onClick={() => removePickupRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
+                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
                               </div>
                             </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteConfirm((prev) => ({
-                                  ...prev,
-                                  [confirmKey]: true,
-                                }))
-                              }
-                              disabled={pickupList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
-                              style={{
-                                color:
-                                  pickupList.length === 1
-                                    ? undefined
-                                    : "oklch(63.7% 0.237 25.331)",
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 mx-auto" />
-                            </button>
+                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={pickupList.length === 1} className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: pickupList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
                           )}
                         </td>
                       </tr>
@@ -784,12 +529,9 @@ function NewClientBookingModal({
             </div>
           </div>
 
-          {/* SECTION 3: DELIVERY ADDRESSES */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                3. Delivery Address
-              </span>
+              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address</span>
               <button
                 type="button"
                 onClick={addDeliveryRow}
@@ -804,24 +546,12 @@ function NewClientBookingModal({
                 <thead>
                   <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                     <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                      Branch Name
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                      Delivery Address
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Person
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Number
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                      Delivery Time
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">
-                      Quantity
-                    </th>
+                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time</th>
+                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
                     <th className="p-2.5 w-16 text-center">Action</th>
                   </tr>
                 </thead>
@@ -829,166 +559,38 @@ function NewClientBookingModal({
                   {deliveryList.map((row, idx) => {
                     const confirmKey = `delivery-${idx}`;
                     const isConfirming = deleteConfirm[confirmKey];
-
                     return (
-                      <tr
-                        key={idx}
-                        className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
-                      >
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
-                          {idx + 1}
+                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Enter Name" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Enter Name"
-                            value={row.branchName}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "branchName",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Enter Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Enter Address"
-                            value={row.deliveryAddress}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "deliveryAddress",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Contact Person"
-                            value={row.contactPerson}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "contactPerson",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="text"
-                            placeholder="Contact Number"
-                            value={row.contactNumber}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "contactNumber",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
+                          <input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
                         </td>
                         <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.deliveryTime}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "deliveryTime",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input
-                            type="number"
-                            placeholder="Qty"
-                            value={row.quantity}
-                            onChange={(e) =>
-                              handleDeliveryChange(
-                                idx,
-                                "quantity",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15"
-                          />
+                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
                         </td>
                         <td className="p-2 text-center align-middle">
                           {isConfirming ? (
-                            <div
-                              className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
-                              style={{
-                                backgroundColor:
-                                  "oklch(63.7% 0.237 25.331 / 0.1)",
-                                borderColor: "oklch(63.7% 0.237 25.331 / 0.4)",
-                              }}
-                            >
-                              <span
-                                className="text-[10px] font-semibold leading-tight"
-                                style={{ color: "oklch(50% 0.237 25.331)" }}
-                              >
-                                Delete row?
-                              </span>
+                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
+                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
                               <div className="flex items-center gap-2 justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removeDeliveryRow(idx)}
-                                  style={{
-                                    backgroundColor:
-                                      "oklch(63.7% 0.237 25.331)",
-                                  }}
-                                  className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
-                                >
-                                  Yes
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setDeleteConfirm((prev) => ({
-                                      ...prev,
-                                      [confirmKey]: false,
-                                    }))
-                                  }
-                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
-                                >
-                                  No
-                                </button>
+                                <button type="button" onClick={() => removeDeliveryRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
+                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
                               </div>
                             </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteConfirm((prev) => ({
-                                  ...prev,
-                                  [confirmKey]: true,
-                                }))
-                              }
-                              disabled={deliveryList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
-                              style={{
-                                color:
-                                  deliveryList.length === 1
-                                    ? undefined
-                                    : "oklch(63.7% 0.237 25.331)",
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 mx-auto" />
-                            </button>
+                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={deliveryList.length === 1} className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: deliveryList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
                           )}
                         </td>
                       </tr>
@@ -999,76 +601,36 @@ function NewClientBookingModal({
             </div>
           </div>
 
-          {/* SECTION 4: BOOKING DETAILS & SCHEDULE */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               4. Booking Details & Schedule
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Delivery Schedule *
-                </label>
-                <input
-                  type="date"
-                  name="deliverySchedule"
-                  value={formData.deliverySchedule}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.deliverySchedule && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.deliverySchedule}
-                  </p>
-                )}
+                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
+                <input type="date" name="deliverySchedule" value={formData.deliverySchedule} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                {errors.deliverySchedule && <p className="text-red-500 text-[11px] mt-1">{errors.deliverySchedule}</p>}
               </div>
               <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Product To Deliver *
-                </label>
-                <input
-                  type="text"
-                  name="product"
-                  value={formData.product}
-                  onChange={handleChange}
-                  placeholder="e.g., Burger Buns"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.product && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.product}
-                  </p>
-                )}
+                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
+                <input type="text" name="product" value={formData.product} onChange={handleChange} placeholder="e.g., Burger Buns" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                {errors.product && <p className="text-red-500 text-[11px] mt-1">{errors.product}</p>}
               </div>
               <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Priority Level *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
                 <div className="relative w-full">
-                  <select
-                    name="priorityLevel"
-                    value={formData.priorityLevel}
-                    onChange={handleChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  >
-                    <option value="" disabled>
-                      Select priority level
-                    </option>
+                  <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                    <option value="" disabled>Select priority level</option>
                     <option value="Standard">Standard</option>
                     <option value="Urgent">Urgent / Rush</option>
                     <option value="High Priority">High Priority</option>
                   </select>
                 </div>
-                {errors.priorityLevel && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.priorityLevel}
-                  </p>
-                )}
+                {errors.priorityLevel && <p className="text-red-500 text-[11px] mt-1">{errors.priorityLevel}</p>}
               </div>
             </div>
           </div>
 
-          {/* SECTION 5: ASSIGN DELIVERY CREW */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
               <span className="font-semibold text-black text-sm tracking-wide">
@@ -1076,31 +638,11 @@ function NewClientBookingModal({
               </span>
               <div className="flex items-center gap-4">
                 {isSubconMode ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsSubconMode(false)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                  >
-                    Assign to Own Resources
-                  </button>
+                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Own Resources</button>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setIsSubconMode(true)}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                    >
-                      Assign to Subcon Partner
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        alert("Fleet Auto-Recommendation triggered!")
-                      }
-                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                    >
-                      Auto-Recommend Available Resources
-                    </button>
+                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Subcon Partner</button>
+                    <button type="button" onClick={() => alert("Fleet Auto-Recommendation triggered!")} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Auto-Recommend Available Resources</button>
                   </>
                 )}
               </div>
@@ -1109,189 +651,80 @@ function NewClientBookingModal({
             {isSubconMode ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Select Subcon Partner *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
                   <div className="relative w-full">
-                    <select
-                      name="subconPartner"
-                      value={formData.subconPartner}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select partner
-                      </option>
+                    <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select partner</option>
                       <option value="Lalamove">Lalamove</option>
                       <option value="Transportify">Transportify</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  {errors.subconPartner && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.subconPartner}
-                    </p>
-                  )}
+                  {errors.subconPartner && <p className="text-red-500 text-[11px] mt-1">{errors.subconPartner}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
-                  <input
-                    type="text"
-                    name="truckPlate"
-                    value={formData.truckPlate}
-                    onChange={handleChange}
-                    placeholder="Enter plate no."
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.truckPlate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.truckPlate}
-                    </p>
-                  )}
+                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
+                  <input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} placeholder="Enter plate no." className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
-                  <input
-                    type="text"
-                    name="driver"
-                    value={formData.driver}
-                    onChange={handleChange}
-                    placeholder="Enter driver name"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.driver && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.driver}
-                    </p>
-                  )}
+                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
+                  <input type="text" name="driver" value={formData.driver} onChange={handleChange} placeholder="Enter driver name" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1 (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="helper1"
-                    value={formData.helper1}
-                    onChange={handleChange}
-                    placeholder="Enter helper 1 name"
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
+                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
+                  <input type="text" name="helper1" value={formData.helper1} onChange={handleChange} placeholder="Enter helper 1 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2 (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="helper2"
-                    value={formData.helper2}
-                    onChange={handleChange}
-                    placeholder="Enter helper 2 name"
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
+                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
+                  <input type="text" name="helper2" value={formData.helper2} onChange={handleChange} placeholder="Enter helper 2 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
                   <div className="relative w-full">
-                    <select
-                      name="truckPlate"
-                      value={formData.truckPlate}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select truck
-                      </option>
+                    <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select truck</option>
                       {trucks.map((t) => (
-                        <option key={t.truckID} value={t.truckID}>
-                          {t.plateNumber} ({t.model})
-                        </option>
+                        <option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>
                       ))}
                     </select>
                   </div>
-                  {errors.truckPlate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.truckPlate}
-                    </p>
-                  )}
+                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
                   <div className="relative w-full">
-                    <select
-                      name="driver"
-                      value={formData.driver}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select driver
-                      </option>
+                    <select name="driver" value={formData.driver} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select driver</option>
                       {drivers.map((d) => (
-                        <option key={d.employeeID} value={d.employeeName}>
-                          {d.employeeName}
-                        </option>
+                        <option key={d.employeeID} value={d.employeeName}>{d.employeeName}</option>
                       ))}
                     </select>
                   </div>
-                  {errors.driver && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.driver}
-                    </p>
-                  )}
+                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1 (Optional)
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
                   <div className="relative w-full">
-                    <select
-                      name="helper1"
-                      value={formData.helper1}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    >
+                    <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
                       <option value="">Select helper</option>
                       {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>
-                          {h.employeeName}
-                        </option>
+                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
                       ))}
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2 (Optional)
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
                   <div className="relative w-full">
-                    <select
-                      name="helper2"
-                      value={formData.helper2}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    >
+                    <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
                       <option value="">Select helper</option>
                       {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>
-                          {h.employeeName}
-                        </option>
+                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
                       ))}
                     </select>
                   </div>
@@ -1300,7 +733,6 @@ function NewClientBookingModal({
             )}
           </div>
 
-          {/* SECTION 6: NOTES / INSTRUCTIONS */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               6. Notes / Instructions (Optional)
@@ -1315,21 +747,11 @@ function NewClientBookingModal({
             />
           </div>
 
-          {/* MODAL ACTION BUTTONS */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
+            <button type="button" onClick={onClose} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
               Cancel
             </button>
-            <button
-              type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
+            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
               Generate Booking
             </button>
           </div>
@@ -1384,7 +806,7 @@ function BookingModal({
     deliveryAddress: "",
     deliveryContactPerson: "",
     deliveryContactNumber: "",
-    subconPartner: "", // ADDED FOR SUBCON
+    subconPartner: "", 
     truckPlate: "",
     driver: "",
     helper1: "",
@@ -1393,9 +815,8 @@ function BookingModal({
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [isSubconMode, setIsSubconMode] = useState(false); // ADDED FOR SUBCON
+  const [isSubconMode, setIsSubconMode] = useState(false); 
 
-  // Dynamic lists for registered client
   const [pickupList, setPickupList] = useState<any[]>([
     {
       warehouseName: "",
@@ -1418,19 +839,16 @@ function BookingModal({
     },
   ]);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     if (isOpen) {
-      setIsSubconMode(false); // RESET SUBCON MODE ON OPEN
+      setIsSubconMode(false); 
 
       if (preSelectedClientID) {
         const client = clients.find((c) => c.clientID === preSelectedClientID);
 
-        // 1. Auto-populate basic client information
         setFormData({
           ...initialFormState,
           clientID: preSelectedClientID,
@@ -1445,8 +863,6 @@ function BookingModal({
             : "",
         });
 
-        // 2. FIX: Do NOT auto-populate addresses. Just set a single empty default row.
-        // Users will select the warehouse/branch manually from the dropdowns.
         setPickupList([
           {
             warehouseName: "",
@@ -1469,7 +885,6 @@ function BookingModal({
           },
         ]);
       } else {
-        // If Walk-in/On-Call, reset everything to empty
         setFormData(initialFormState);
         setPickupList([
           {
@@ -1496,14 +911,13 @@ function BookingModal({
       setDeleteConfirm({});
       setErrors({});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, preSelectedClientID, clients]);
 
   if (!isOpen) return null;
 
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -1518,11 +932,7 @@ function BookingModal({
     setPickupList(updated);
   };
 
-  const handleDeliveryChange = (
-    index: number,
-    field: string,
-    value: string,
-  ) => {
+  const handleDeliveryChange = (index: number, field: string, value: string) => {
     const updated = [...deliveryList];
     updated[index][field] = value;
     setDeliveryList(updated);
@@ -1579,13 +989,9 @@ function BookingModal({
       ...updated[index],
       warehouseName: selectedName,
       warehouseAddress: matchedWarehouse
-        ? matchedWarehouse.warehouseLoc ||
-          matchedWarehouse.warehouseAddress ||
-          ""
+        ? matchedWarehouse.warehouseLoc || matchedWarehouse.warehouseAddress || ""
         : "",
-      contactPerson: matchedWarehouse
-        ? matchedWarehouse.contactPerson || ""
-        : "",
+      contactPerson: matchedWarehouse ? matchedWarehouse.contactPerson || "" : "",
       contactNumber: matchedWarehouse
         ? matchedWarehouse.contactNum || matchedWarehouse.contactNumber || ""
         : "",
@@ -1618,49 +1024,30 @@ function BookingModal({
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.clientName.trim())
-      newErrors.clientName = "Client / Company Name is required.";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim())
-      newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim())
-      newErrors.emailAddress = "Email address is required.";
-    if (!formData.businessAddress.trim())
-      newErrors.businessAddress = "Business address is required.";
+    if (!formData.clientName.trim()) newErrors.clientName = "Client / Company Name is required.";
+    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
+    if (!formData.emailAddress.trim()) newErrors.emailAddress = "Email address is required.";
+    if (!formData.businessAddress.trim()) newErrors.businessAddress = "Business address is required.";
 
     if (preSelectedClientID) {
-      if (!formData.deliverySchedule)
-        newErrors.deliverySchedule = "Delivery schedule is required.";
-      if (!formData.priorityLevel)
-        newErrors.priorityLevel = "Priority level is required.";
-      if (!formData.product.trim())
-        newErrors.product = "Product description is required.";
+      if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
+      if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
+      if (!formData.product.trim()) newErrors.product = "Product description is required.";
     } else {
-      if (!formData.requestDate)
-        newErrors.requestDate = "Request date is required.";
-      if (!formData.deliverySchedule)
-        newErrors.deliverySchedule = "Delivery schedule is required.";
-      if (!formData.pickupTime)
-        newErrors.pickupTime = "Pickup time is required.";
-      if (!formData.deliveryTime)
-        newErrors.deliveryTime = "Delivery time is required.";
-      if (!formData.priorityLevel)
-        newErrors.priorityLevel = "Priority level is required.";
-      if (!formData.product.trim())
-        newErrors.product = "Product description is required.";
-      if (!formData.quantity.toString().trim())
-        newErrors.quantity = "Quantity is required.";
-      if (!formData.pickupAddress.trim())
-        newErrors.pickupAddress = "Pickup address is required.";
-      if (!formData.deliveryAddress.trim())
-        newErrors.deliveryAddress = "Delivery address is required.";
+      if (!formData.requestDate) newErrors.requestDate = "Request date is required.";
+      if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
+      if (!formData.pickupTime) newErrors.pickupTime = "Pickup time is required.";
+      if (!formData.deliveryTime) newErrors.deliveryTime = "Delivery time is required.";
+      if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
+      if (!formData.product.trim()) newErrors.product = "Product description is required.";
+      if (!formData.quantity.toString().trim()) newErrors.quantity = "Quantity is required.";
+      if (!formData.pickupAddress.trim()) newErrors.pickupAddress = "Pickup address is required.";
+      if (!formData.deliveryAddress.trim()) newErrors.deliveryAddress = "Delivery address is required.";
     }
 
-    if (isSubconMode && !formData.subconPartner)
-      newErrors.subconPartner = "Subcon partner is required.";
-    if (!formData.truckPlate)
-      newErrors.truckPlate = "Truck plate number is required.";
+    if (isSubconMode && !formData.subconPartner) newErrors.subconPartner = "Subcon partner is required.";
+    if (!formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
     if (!formData.driver) newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -1681,19 +1068,15 @@ function BookingModal({
   const selectedClientRecord = preSelectedClientID
     ? clients.find((c) => c.clientID === preSelectedClientID)
     : null;
-  const registeredWarehouses =
-    selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
-  const registeredBranches =
-    selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
+  const registeredWarehouses = selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
+  const registeredBranches = selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            {preSelectedClientID
-              ? "Registered Client Booking"
-              : "On-Call Booking Form"}
+            {preSelectedClientID ? "Registered Client Booking" : "On-Call Booking Form"}
           </h2>
           <button
             type="button"
@@ -1704,11 +1087,7 @@ function BookingModal({
           </button>
         </div>
 
-        <form
-          onSubmit={validateAndSubmit}
-          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
-        >
-          {/* SECTION 1: CLIENT INFORMATION */}
+        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
               <span>1. Client Information</span>
@@ -1721,9 +1100,7 @@ function BookingModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Company or Client Name *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Company or Client Name *</label>
                 {preSelectedClientID ? (
                   <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">
                     {formData.clientName}
@@ -1738,17 +1115,11 @@ function BookingModal({
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
                 )}
-                {errors.clientName && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.clientName}
-                  </p>
-                )}
+                {errors.clientName && <p className="text-red-500 text-[11px] mt-1">{errors.clientName}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Person *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
                 <input
                   type="text"
                   name="contactPerson"
@@ -1757,17 +1128,11 @@ function BookingModal({
                   placeholder="e.g., Juan Dela Cruz"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactPerson && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactPerson}
-                  </p>
-                )}
+                {errors.contactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.contactPerson}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Number *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
                 <input
                   type="text"
                   name="contactNumber"
@@ -1776,17 +1141,11 @@ function BookingModal({
                   placeholder="Enter contact number"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactNumber}
-                  </p>
-                )}
+                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Email Address *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Email Address *</label>
                 <input
                   type="email"
                   name="emailAddress"
@@ -1795,17 +1154,11 @@ function BookingModal({
                   placeholder="Enter email address"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.emailAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.emailAddress}
-                  </p>
-                )}
+                {errors.emailAddress && <p className="text-red-500 text-[11px] mt-1">{errors.emailAddress}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Business Address *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Business Address *</label>
                 <input
                   type="text"
                   name="businessAddress"
@@ -1814,748 +1167,221 @@ function BookingModal({
                   placeholder="Enter business address"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.businessAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.businessAddress}
-                  </p>
-                )}
+                {errors.businessAddress && <p className="text-red-500 text-[11px] mt-1">{errors.businessAddress}</p>}
               </div>
             </div>
           </div>
 
-          {!preSelectedClientID ? (
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                2. Booking Details & Schedule
-              </div>
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses</span>
+              <button
+                type="button"
+                onClick={addPickupRow}
+                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+              >
+                <Plus className="w-4 h-4 font-normal" /> New Pickup
+              </button>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-xs min-w-150">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Warehouse Address</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Pick Up Time</th>
+                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
+                    <th className="p-2.5 w-16 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pickupList.map((row, idx) => {
+                    const confirmKey = `pickup-${idx}`;
+                    const isConfirming = deleteConfirm[confirmKey];
+                    return (
+                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
+                        <td className="p-2 border-r border-slate-200 relative">
+                          <div className="relative w-full">
+                            <select
+                              value={row.warehouseName}
+                              onChange={(e) => handleWarehouseSelect(idx, e.target.value)}
+                              className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate"
+                            >
+                              <option value="">Select Warehouse</option>
+                              {registeredWarehouses.map((w: any, i: number) => (
+                                <option key={i} value={w.whName || w.warehouseName}>
+                                  {w.whName || w.warehouseName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Enter Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
+                        </td>
+                        <td className="p-2 text-center align-middle">
+                          {isConfirming ? (
+                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
+                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
+                              <div className="flex items-center gap-2 justify-center">
+                                <button type="button" onClick={() => removePickupRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
+                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={pickupList.length === 1} className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: pickupList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Request Date *
-                  </label>
-                  <input
-                    type="date"
-                    name="requestDate"
-                    value={formData.requestDate}
-                    onChange={handleChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.requestDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.requestDate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.requestDate}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Delivery Schedule *
-                  </label>
-                  <input
-                    type="date"
-                    name="deliverySchedule"
-                    value={formData.deliverySchedule}
-                    onChange={handleChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.deliverySchedule && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.deliverySchedule}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Priority Level *
-                  </label>
-                  <div className="relative w-full">
-                    <select
-                      name="priorityLevel"
-                      value={formData.priorityLevel}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select priority level
-                      </option>
-                      <option value="Standard">Standard</option>
-                      <option value="Urgent">Urgent / Rush</option>
-                      <option value="High Priority">High Priority</option>
-                    </select>
-                  </div>
-                  {errors.priorityLevel && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.priorityLevel}
-                    </p>
-                  )}
-                </div>
-              </div>
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address</span>
+              <button
+                type="button"
+                onClick={addDeliveryRow}
+                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+              >
+                <Plus className="w-4 h-4 font-normal" /> New Branch
+              </button>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-xs min-w-150">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
+                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time</th>
+                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
+                    <th className="p-2.5 w-16 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveryList.map((row, idx) => {
+                    const confirmKey = `delivery-${idx}`;
+                    const isConfirming = deleteConfirm[confirmKey];
+                    return (
+                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
+                        <td className="p-2 border-r border-slate-200 relative">
+                          <div className="relative w-full">
+                            <select
+                              value={row.branchName}
+                              onChange={(e) => handleBranchSelect(idx, e.target.value)}
+                              className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate pr-6"
+                            >
+                              <option value="">Select Branch</option>
+                              {registeredBranches.map((b: any, i: number) => (
+                                <option key={i} value={b.branchName}>{b.branchName}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Enter Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
+                        </td>
+                        <td className="p-2 text-center align-middle">
+                          {isConfirming ? (
+                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
+                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
+                              <div className="flex items-center gap-2 justify-center">
+                                <button type="button" onClick={() => removeDeliveryRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
+                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={deliveryList.length === 1} className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: deliveryList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
-                <div className="sm:col-span-3">
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Pickup Time *
-                  </label>
-                  <input
-                    type="time"
-                    name="pickupTime"
-                    value={formData.pickupTime}
-                    onChange={handleChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.pickupTime && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.pickupTime}
-                    </p>
-                  )}
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Delivery Time *
-                  </label>
-                  <input
-                    type="time"
-                    name="deliveryTime"
-                    value={formData.deliveryTime}
-                    onChange={handleChange}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.deliveryTime && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.deliveryTime}
-                    </p>
-                  )}
-                </div>
-                <div className="sm:col-span-4">
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Product To Deliver *
-                  </label>
-                  <input
-                    type="text"
-                    name="product"
-                    value={formData.product}
-                    onChange={handleChange}
-                    placeholder="e.g., Burger Buns"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.product && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.product}
-                    </p>
-                  )}
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    placeholder="e.g., 40"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.quantity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.quantity && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.quantity}
-                    </p>
-                  )}
-                </div>
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              4. Booking Details & Schedule
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="sm:col-span-4 md:col-span-3">
+                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
+                <input type="date" name="deliverySchedule" value={formData.deliverySchedule} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                {errors.deliverySchedule && <p className="text-red-500 text-[11px] mt-1">{errors.deliverySchedule}</p>}
               </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Pickup Address *
-                  </label>
-                  <input
-                    type="text"
-                    name="pickupAddress"
-                    value={formData.pickupAddress}
-                    onChange={handleChange}
-                    placeholder="Enter complete pickup address"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.pickupAddress && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.pickupAddress}
-                    </p>
-                  )}
+              <div className="sm:col-span-5 md:col-span-6">
+                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
+                <input type="text" name="product" value={formData.product} onChange={handleChange} placeholder="e.g., Burger Buns" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                {errors.product && <p className="text-red-500 text-[11px] mt-1">{errors.product}</p>}
+              </div>
+              <div className="sm:col-span-3 md:col-span-3">
+                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
+                <div className="relative w-full">
+                  <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                    <option value="" disabled>Select priority level</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Urgent">Urgent / Rush</option>
+                    <option value="High Priority">High Priority</option>
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Delivery Address *
-                  </label>
-                  <input
-                    type="text"
-                    name="deliveryAddress"
-                    value={formData.deliveryAddress}
-                    onChange={handleChange}
-                    placeholder="Enter complete delivery address"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.deliveryAddress && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.deliveryAddress}
-                    </p>
-                  )}
-                </div>
+                {errors.priorityLevel && <p className="text-red-500 text-[11px] mt-1">{errors.priorityLevel}</p>}
               </div>
             </div>
-          ) : (
-            <>
-              {/* SECTION 2: PICKUP ADDRESSES */}
-              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-                  <span className="font-semibold text-black text-sm tracking-wide">
-                    2. Pickup Addresses
-                  </span>
-                  <button
-                    type="button"
-                    onClick={addPickupRow}
-                    style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                    className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-                  >
-                    <Plus className="w-4 h-4 font-normal" /> New Pickup
-                  </button>
-                </div>
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                  <table className="w-full text-left border-collapse text-xs min-w-150">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                        <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                        <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                          Warehouse Name
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                          Warehouse Address
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                          Contact Person
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                          Contact Number
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                          Pick Up Time
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-24 text-center">
-                          Quantity
-                        </th>
-                        <th className="p-2.5 w-16 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pickupList.map((row, idx) => {
-                        const confirmKey = `pickup-${idx}`;
-                        const isConfirming = deleteConfirm[confirmKey];
+          </div>
 
-                        return (
-                          <tr
-                            key={idx}
-                            className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
-                          >
-                            <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
-                              {idx + 1}
-                            </td>
-                            <td className="p-2 border-r border-slate-200 relative">
-                              <div className="relative w-full">
-                                <select
-                                  value={row.warehouseName}
-                                  onChange={(e) =>
-                                    handleWarehouseSelect(idx, e.target.value)
-                                  }
-                                  className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate"
-                                >
-                                  <option value="">Select Warehouse</option>
-                                  {registeredWarehouses.map(
-                                    (w: any, i: number) => (
-                                      <option
-                                        key={i}
-                                        value={w.whName || w.warehouseName}
-                                      >
-                                        {w.whName || w.warehouseName}
-                                      </option>
-                                    ),
-                                  )}
-                                </select>
-                              </div>
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter Address"
-                                value={row.warehouseAddress}
-                                onChange={(e) =>
-                                  handlePickupChange(
-                                    idx,
-                                    "warehouseAddress",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter Contact Person"
-                                value={row.contactPerson}
-                                onChange={(e) =>
-                                  handlePickupChange(
-                                    idx,
-                                    "contactPerson",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter contact number"
-                                value={row.contactNumber}
-                                onChange={(e) =>
-                                  handlePickupChange(
-                                    idx,
-                                    "contactNumber",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="time"
-                                value={row.pickupTime}
-                                onChange={(e) =>
-                                  handlePickupChange(
-                                    idx,
-                                    "pickupTime",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="number"
-                                placeholder="Qty"
-                                value={row.quantity}
-                                onChange={(e) =>
-                                  handlePickupChange(
-                                    idx,
-                                    "quantity",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15"
-                              />
-                            </td>
-                            <td className="p-2 text-center align-middle">
-                              {isConfirming ? (
-                                <div
-                                  className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
-                                  style={{
-                                    backgroundColor:
-                                      "oklch(63.7% 0.237 25.331 / 0.1)",
-                                    borderColor:
-                                      "oklch(63.7% 0.237 25.331 / 0.4)",
-                                  }}
-                                >
-                                  <span
-                                    className="text-[10px] font-semibold leading-tight"
-                                    style={{ color: "oklch(50% 0.237 25.331)" }}
-                                  >
-                                    Delete row?
-                                  </span>
-                                  <div className="flex items-center gap-2 justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => removePickupRow(idx)}
-                                      style={{
-                                        backgroundColor:
-                                          "oklch(63.7% 0.237 25.331)",
-                                      }}
-                                      className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
-                                    >
-                                      Yes
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setDeleteConfirm((prev) => ({
-                                          ...prev,
-                                          [confirmKey]: false,
-                                        }))
-                                      }
-                                      className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
-                                    >
-                                      No
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setDeleteConfirm((prev) => ({
-                                      ...prev,
-                                      [confirmKey]: true,
-                                    }))
-                                  }
-                                  disabled={pickupList.length === 1}
-                                  className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
-                                  style={{
-                                    color:
-                                      pickupList.length === 1
-                                        ? undefined
-                                        : "oklch(63.7% 0.237 25.331)",
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mx-auto" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* SECTION 3: DELIVERY ADDRESSES */}
-              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-                  <span className="font-semibold text-black text-sm tracking-wide">
-                    3. Delivery Address
-                  </span>
-                  <button
-                    type="button"
-                    onClick={addDeliveryRow}
-                    style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                    className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-                  >
-                    <Plus className="w-4 h-4 font-normal" /> Branch
-                  </button>
-                </div>
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                  <table className="w-full text-left border-collapse text-xs min-w-150">
-                    <thead>
-                      <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                        <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                        <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                          Branch Name
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                          Delivery Address
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                          Contact Person
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                          Contact Number
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                          Delivery Time
-                        </th>
-                        <th className="p-2.5 border-r border-slate-200 w-24 text-center">
-                          Quantity
-                        </th>
-                        <th className="p-2.5 w-16 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deliveryList.map((row, idx) => {
-                        const confirmKey = `delivery-${idx}`;
-                        const isConfirming = deleteConfirm[confirmKey];
-
-                        return (
-                          <tr
-                            key={idx}
-                            className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
-                          >
-                            <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
-                              {idx + 1}
-                            </td>
-                            <td className="p-2 border-r border-slate-200 relative">
-                              <div className="relative w-full">
-                                <select
-                                  value={row.branchName}
-                                  onChange={(e) =>
-                                    handleBranchSelect(idx, e.target.value)
-                                  }
-                                  className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate pr-6"
-                                >
-                                  <option value="">Select Branch</option>
-                                  {registeredBranches.map(
-                                    (b: any, i: number) => (
-                                      <option key={i} value={b.branchName}>
-                                        {b.branchName}
-                                      </option>
-                                    ),
-                                  )}
-                                </select>
-                              </div>
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter Address"
-                                value={row.deliveryAddress}
-                                onChange={(e) =>
-                                  handleDeliveryChange(
-                                    idx,
-                                    "deliveryAddress",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter Contact Person"
-                                value={row.contactPerson}
-                                onChange={(e) =>
-                                  handleDeliveryChange(
-                                    idx,
-                                    "contactPerson",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="text"
-                                placeholder="Enter contact number"
-                                value={row.contactNumber}
-                                onChange={(e) =>
-                                  handleDeliveryChange(
-                                    idx,
-                                    "contactNumber",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="time"
-                                value={row.deliveryTime}
-                                onChange={(e) =>
-                                  handleDeliveryChange(
-                                    idx,
-                                    "deliveryTime",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none"
-                              />
-                            </td>
-                            <td className="p-2 border-r border-slate-200">
-                              <input
-                                type="number"
-                                placeholder="Qty"
-                                value={row.quantity}
-                                onChange={(e) =>
-                                  handleDeliveryChange(
-                                    idx,
-                                    "quantity",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15"
-                              />
-                            </td>
-                            <td className="p-2 text-center align-middle">
-                              {isConfirming ? (
-                                <div
-                                  className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
-                                  style={{
-                                    backgroundColor:
-                                      "oklch(63.7% 0.237 25.331 / 0.1)",
-                                    borderColor:
-                                      "oklch(63.7% 0.237 25.331 / 0.4)",
-                                  }}
-                                >
-                                  <span
-                                    className="text-[10px] font-semibold leading-tight"
-                                    style={{ color: "oklch(50% 0.237 25.331)" }}
-                                  >
-                                    Delete row?
-                                  </span>
-                                  <div className="flex items-center gap-2 justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => removeDeliveryRow(idx)}
-                                      style={{
-                                        backgroundColor:
-                                          "oklch(63.7% 0.237 25.331)",
-                                      }}
-                                      className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
-                                    >
-                                      Yes
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setDeleteConfirm((prev) => ({
-                                          ...prev,
-                                          [confirmKey]: false,
-                                        }))
-                                      }
-                                      className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
-                                    >
-                                      No
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setDeleteConfirm((prev) => ({
-                                      ...prev,
-                                      [confirmKey]: true,
-                                    }))
-                                  }
-                                  disabled={deliveryList.length === 1}
-                                  className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
-                                  style={{
-                                    color:
-                                      deliveryList.length === 1
-                                        ? undefined
-                                        : "oklch(63.7% 0.237 25.331)",
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mx-auto" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* SECTION 4: BOOKING DETAILS & SCHEDULE */}
-              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                  4. Booking Details & Schedule
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                  <div className="sm:col-span-4 md:col-span-3">
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Delivery Schedule *
-                    </label>
-                    <input
-                      type="date"
-                      name="deliverySchedule"
-                      value={formData.deliverySchedule}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    />
-                    {errors.deliverySchedule && (
-                      <p className="text-red-500 text-[11px] mt-1">
-                        {errors.deliverySchedule}
-                      </p>
-                    )}
-                  </div>
-                  <div className="sm:col-span-5 md:col-span-6">
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Product To Deliver *
-                    </label>
-                    <input
-                      type="text"
-                      name="product"
-                      value={formData.product}
-                      onChange={handleChange}
-                      placeholder="e.g., Burger Buns"
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    />
-                    {errors.product && (
-                      <p className="text-red-500 text-[11px] mt-1">
-                        {errors.product}
-                      </p>
-                    )}
-                  </div>
-                  <div className="sm:col-span-3 md:col-span-3">
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Priority Level *
-                    </label>
-                    <div className="relative w-full">
-                      <select
-                        name="priorityLevel"
-                        value={formData.priorityLevel}
-                        onChange={handleChange}
-                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                      >
-                        <option value="" disabled>
-                          Select priority level
-                        </option>
-                        <option value="Standard">Standard</option>
-                        <option value="Urgent">Urgent / Rush</option>
-                        <option value="High Priority">High Priority</option>
-                      </select>
-                    </div>
-                    {errors.priorityLevel && (
-                      <p className="text-red-500 text-[11px] mt-1">
-                        {errors.priorityLevel}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* SECTION 5: ASSIGN DELIVERY CREW */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
               <span className="font-semibold text-black text-sm tracking-wide">
-                {preSelectedClientID ? "5." : "3."} Assign Delivery Crews &
-                Vehicle {isSubconMode && "(Subcon)"}
+                5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}
               </span>
               <div className="flex items-center gap-4">
                 {isSubconMode ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsSubconMode(false)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                  >
-                    Assign to Own Resources
-                  </button>
+                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Own Resources</button>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setIsSubconMode(true)}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                    >
-                      Assign to Subcon Partner
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        alert("Fleet Auto-Recommendation triggered!")
-                      }
-                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
-                    >
-                      Auto-Recommend Available Resources
-                    </button>
+                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Subcon Partner</button>
+                    <button type="button" onClick={() => alert("Fleet Auto-Recommendation triggered!")} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Auto-Recommend Available Resources</button>
                   </>
                 )}
               </div>
@@ -2564,189 +1390,80 @@ function BookingModal({
             {isSubconMode ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Select Subcon Partner *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
                   <div className="relative w-full">
-                    <select
-                      name="subconPartner"
-                      value={formData.subconPartner}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select partner
-                      </option>
+                    <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select partner</option>
                       <option value="Lalamove">Lalamove</option>
                       <option value="Transportify">Transportify</option>
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  {errors.subconPartner && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.subconPartner}
-                    </p>
-                  )}
+                  {errors.subconPartner && <p className="text-red-500 text-[11px] mt-1">{errors.subconPartner}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
-                  <input
-                    type="text"
-                    name="truckPlate"
-                    value={formData.truckPlate}
-                    onChange={handleChange}
-                    placeholder="Enter plate no."
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.truckPlate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.truckPlate}
-                    </p>
-                  )}
+                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
+                  <input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} placeholder="Enter plate no." className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
-                  <input
-                    type="text"
-                    name="driver"
-                    value={formData.driver}
-                    onChange={handleChange}
-                    placeholder="Enter driver name"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  />
-                  {errors.driver && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.driver}
-                    </p>
-                  )}
+                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
+                  <input type="text" name="driver" value={formData.driver} onChange={handleChange} placeholder="Enter driver name" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
+                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1 (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="helper1"
-                    value={formData.helper1}
-                    onChange={handleChange}
-                    placeholder="Enter helper 1 name"
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
+                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
+                  <input type="text" name="helper1" value={formData.helper1} onChange={handleChange} placeholder="Enter helper 1 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2 (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    name="helper2"
-                    value={formData.helper2}
-                    onChange={handleChange}
-                    placeholder="Enter helper 2 name"
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
+                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
+                  <input type="text" name="helper2" value={formData.helper2} onChange={handleChange} placeholder="Enter helper 2 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
                   <div className="relative w-full">
-                    <select
-                      name="truckPlate"
-                      value={formData.truckPlate}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select truck
-                      </option>
+                    <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select truck</option>
                       {trucks.map((t) => (
-                        <option key={t.truckID} value={t.truckID}>
-                          {t.plateNumber} ({t.model})
-                        </option>
+                        <option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>
                       ))}
                     </select>
                   </div>
-                  {errors.truckPlate && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.truckPlate}
-                    </p>
-                  )}
+                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
                   <div className="relative w-full">
-                    <select
-                      name="driver"
-                      value={formData.driver}
-                      onChange={handleChange}
-                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                    >
-                      <option value="" disabled>
-                        Select driver
-                      </option>
+                    <select name="driver" value={formData.driver} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
+                      <option value="" disabled>Select driver</option>
                       {drivers.map((d) => (
-                        <option key={d.employeeID} value={d.employeeName}>
-                          {d.employeeName}
-                        </option>
+                        <option key={d.employeeID} value={d.employeeName}>{d.employeeName}</option>
                       ))}
                     </select>
                   </div>
-                  {errors.driver && (
-                    <p className="text-red-500 text-[11px] mt-1">
-                      {errors.driver}
-                    </p>
-                  )}
+                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1 (Optional)
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
                   <div className="relative w-full">
-                    <select
-                      name="helper1"
-                      value={formData.helper1}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    >
+                    <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
                       <option value="">Select helper</option>
                       {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>
-                          {h.employeeName}
-                        </option>
+                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
                       ))}
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2 (Optional)
-                  </label>
+                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
                   <div className="relative w-full">
-                    <select
-                      name="helper2"
-                      value={formData.helper2}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    >
+                    <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
                       <option value="">Select helper</option>
                       {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>
-                          {h.employeeName}
-                        </option>
+                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
                       ))}
                     </select>
                   </div>
@@ -2755,11 +1472,9 @@ function BookingModal({
             )}
           </div>
 
-          {/* SECTION 6: NOTES / INSTRUCTIONS */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              {preSelectedClientID ? "6." : "4."} Notes / Instructions
-              (Optional)
+              6. Notes / Instructions (Optional)
             </div>
             <textarea
               name="notes"
@@ -2771,21 +1486,11 @@ function BookingModal({
             />
           </div>
 
-          {/* MODAL ACTION BUTTONS */}
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
+            <button type="button" onClick={onClose} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
               Cancel
             </button>
-            <button
-              type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
+            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
               Generate Booking
             </button>
           </div>
@@ -2958,34 +1663,107 @@ export default function AdminDashboardPage() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [helpers, setHelpers] = useState<any[]>([]);
 
-  const [bookingsData, setBookingsData] = useState<{ [key: string]: any[] }>(
-    DUMMY_BOOKINGS,
-  );
+  const [bookingsData, setBookingsData] = useState<{ [key: string]: any[] }>({
+    "Pending Bookings": [],
+    "In-Transit": [],
+    Completed: [],
+    "Foul Trip": [],
+  });
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  const fetchOrders = async () => {
+    try {
+      const orderRes = await axios.get(`${API_URL}/api/orders`);
+      const orders = orderRes.data || [];
+
+      const categorized: { [key: string]: any[] } = {
+        "Pending Bookings": [],
+        "In-Transit": [],
+        "Completed": [],
+        "Foul Trip": [],
+      };
+
+      if (Array.isArray(orders)) {
+        orders.forEach((o: any) => {
+          const clientObj = o.Client || o.client || {};
+          let displayClient = clientObj.company;
+          if (!displayClient) {
+            const match = o.notes?.match(/Name:\s*(.*)/);
+            displayClient = match ? `Walk-in: ${match[1]}` : "Walk-in Customer";
+          }
+
+          const detailsArr = o.OrderDetails || o.orderdetails || o.order_details || [];
+          const product = detailsArr[0]?.productName || "Multiple Items";
+
+          const stopsArr = o.BranchStops || o.branchstops || o.branch_stops || [];
+          const rawTime = stopsArr[0]?.expectedTime || "";
+          const requestDateMatch = o.notes?.match(/Request Date:\s*(.*)/);
+          const reqDate = requestDateMatch ? requestDateMatch[1].trim() : new Date(o.createdAt).toLocaleDateString();
+          const dateTime = rawTime ? `${reqDate} @ ${rawTime}` : new Date(o.createdAt).toLocaleString();
+
+          const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
+          const driver = driverMatch ? driverMatch[1].trim() : "Unassigned";
+          const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
+          const helper = helperMatch ? helperMatch[1].trim() : "None";
+
+          let category = "Pending Bookings";
+          const stopStatus = (stopsArr[0]?.stopStatus || "pending").toLowerCase();
+          if (stopStatus.includes("transit") || stopStatus.includes("progress")) {
+            category = "In-Transit";
+          } else if (stopStatus.includes("complete") || stopStatus.includes("delivered")) {
+            category = "Completed";
+          } else if (stopStatus.includes("foul") || stopStatus.includes("fail") || stopStatus.includes("cancel")) {
+            category = "Foul Trip";
+          }
+
+          categorized[category].push({
+            orderId: o.orderCode || o.orderID,
+            client: displayClient,
+            product,
+            driver,
+            helper,
+            dateTime,
+          });
+        });
+      }
+
+      setBookingsData(categorized);
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         const clientRes = await axios.get(`${API_URL}/api/clients`);
         setClients(clientRes.data);
+      } catch (e) {
+        console.error("Failed to load clients");
+      }
 
+      try {
         const truckRes = await axios.get(`${API_URL}/api/trucks`);
         setTrucks(truckRes.data);
+      } catch (e) {
+        console.error("Failed to load trucks");
+      }
 
+      try {
         const empRes = await axios.get(`${API_URL}/api/employees`);
         const allEmployees = empRes.data;
-        setDrivers(
-          allEmployees.filter((e: any) => e.role === "Driver" && e.isActive),
-        );
-        setHelpers(
-          allEmployees.filter((e: any) => e.role === "Helper" && e.isActive),
-        );
-      } catch (error) {
-        console.error("Failed to fetch initial data:", error);
+        setDrivers(allEmployees.filter((e: any) => e.role === "Driver" && e.isActive));
+        setHelpers(allEmployees.filter((e: any) => e.role === "Helper" && e.isActive));
+      } catch (e) {
+        console.error("Failed to load employees");
       }
+
+      await fetchOrders();
     };
+    
     fetchDashboardData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL]);
 
   const handleNavigate = (tabName: string) => {
@@ -3005,14 +1783,13 @@ export default function AdminDashboardPage() {
         detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n\n`;
       }
 
-      detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nDelivery Schedule: ${data.deliverySchedule}\n`;
+      detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupAddress} @ ${data.pickupTime}\n`;
       detailedNotes += `\n[ASSIGNED CREW]\nTruck: ${data.truckPlate}\nDriver: ${data.driver}\nHelper 1: ${data.helper1 || "None"}\nHelper 2: ${data.helper2 || "None"}\n`;
 
       if (data.notes) {
         detailedNotes += `\n[NOTES]\n${data.notes}`;
       }
 
-      // Updated payload to iterate dynamically assigned table rows if they exist
       const stops =
         data.deliveryList && data.deliveryList.length > 0
           ? data.deliveryList.map((d: any) => ({
@@ -3048,6 +1825,8 @@ export default function AdminDashboardPage() {
       alert(
         `✅ Order Generated Successfully!\nTracking Code: ${res.data.orderCode}`,
       );
+
+      await fetchOrders();
     } catch (err: any) {
       console.error(err);
       alert(
@@ -3132,6 +1911,7 @@ export default function AdminDashboardPage() {
           setIsBookingModalOpen(true);
         }}
         onOpenNewClientBooking={() => {
+          setIsClientSearchModalOpen(false);
           setIsNewClientBookingOpen(true);
         }}
       />
