@@ -14,7 +14,6 @@ import {
   Search,
   Plus,
   Trash2,
-  Edit3,
 } from "lucide-react";
 
 // ==========================================
@@ -54,33 +53,29 @@ const TABS = [
     icon: Clock,
     color: "orange",
     statusLabel: "Pending",
-    link: "/admindashboard/feed-pending",
   },
   {
     name: "In-Transit",
     icon: Truck,
     color: "blue",
     statusLabel: "In-Transit",
-    link: "/admindashboard/feed-intransit",
   },
   {
     name: "Completed",
     icon: CheckCircle2,
     color: "green",
     statusLabel: "Delivered",
-    link: "/admindashboard/feed-completed",
   },
   {
     name: "Foul Trip",
     icon: AlertTriangle,
     color: "red",
     statusLabel: "Foul Trip",
-    link: "/admindashboard/feed-foultrip",
   },
 ];
 
 // ==========================================
-// SUCCESS MODAL COMPONENT (Supabase-Ready)
+// SUCCESS MODAL COMPONENT
 // ==========================================
 
 interface SuccessModalProps {
@@ -113,6 +108,437 @@ function SuccessModal({ isOpen, onClose, orderCode }: SuccessModalProps) {
         >
           Done
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// VIEW BOOKING MODAL (READ-ONLY)
+// ==========================================
+
+function ViewOrderModal({
+  isOpen,
+  onClose,
+  order,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  order: any;
+}) {
+  if (!isOpen || !order) return null;
+
+  const raw = order.rawOrder || {};
+  const notes = raw.notes || "";
+  const isPending = order.statusCategory === "Pending Bookings";
+
+  // Parse extrapolated data from raw object & notes
+  const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
+  const reqDate =
+    notes.match(/Request Date:\s*(.*)/)?.[1] ||
+    new Date(raw.createdAt).toLocaleDateString();
+  const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "N/A";
+  const pickupFull = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A";
+  const truck =
+    notes.match(/Truck:\s*(.*)/)?.[1] || raw.assignedTruck || "Unassigned";
+  const driver =
+    notes.match(/Driver:\s*(.*)/)?.[1] || raw.assignedDriver || "Unassigned";
+  const h1 = notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
+  const h2 = notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
+  const actualNotesParts = notes.split("[NOTES]");
+  const actualNotes =
+    actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
+
+  const clientInfo = raw.Client || raw.client || {};
+  let cName = clientInfo.company;
+  let cPerson = clientInfo.contactName || clientInfo.contactPerson || "N/A";
+  let cNum = clientInfo.contact || clientInfo.contactNumber || "N/A";
+  let cEmail = clientInfo.emailAdd || clientInfo.emailAddress || "N/A";
+  let cAddr = clientInfo.businessAdd || clientInfo.businessAddress || "N/A";
+
+  if (!cName) {
+    cName = notes.match(/Name:\s*(.*)/)?.[1] || order.client;
+    const contactMatch = notes.match(/Contact:\s*(.*?)\s*\((.*?)\)/);
+    if (contactMatch) {
+      cPerson = contactMatch[1];
+      cNum = contactMatch[2];
+    }
+  }
+
+  const itemsArr =
+    raw.OrderDetails || raw.orderdetails || raw.order_details || [];
+  const quantity = itemsArr[0]?.quantity || 1;
+  const product = itemsArr[0]?.productName || order.product || "Multiple Items";
+
+  const stopsArr = raw.BranchStops || raw.branchstops || raw.branch_stops || [];
+  const deliveries =
+    stopsArr.length > 0
+      ? stopsArr
+      : [
+          {
+            branchName: "N/A",
+            contactPerson: cPerson,
+            contactNum: cNum,
+            expectedTime: "N/A",
+          },
+        ];
+
+  // Safely split pickup string "Address @ Time"
+  const [pAddr, pTime] = pickupFull.includes(" @ ")
+    ? pickupFull.split(" @ ")
+    : [pickupFull, "N/A"];
+
+  const inputClass =
+    "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
+
+  // Crew Confirmation Logic check
+  const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
+  const isCrewConfirmed =
+    order.driverConfirmed && (!hasHelper || order.helperConfirmed);
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+        {/* Header matched to existing Booking Form UI */}
+        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            Booking Details: {order.orderId}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+          {/* Waiting for Crew Confirmation Status Indicator */}
+          <div
+            className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
+              isPending && !isCrewConfirmed
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : isPending && isCrewConfirmed
+                  ? "bg-orange-50 border-orange-200 text-orange-800"
+                  : order.statusCategory === "In-Transit"
+                    ? "bg-blue-50 border-blue-200 text-blue-800"
+                    : order.statusCategory === "Completed"
+                      ? "bg-green-50 border-green-200 text-green-800"
+                      : "bg-red-50 border-red-200 text-red-800"
+            }`}
+          >
+            {isPending && !isCrewConfirmed ? (
+              <>
+                <Clock className="w-5 h-5 text-amber-600" />
+                Waiting for Crew Confirmation
+              </>
+            ) : isPending && isCrewConfirmed ? (
+              <>
+                <Clock className="w-5 h-5 text-orange-600" />
+                Status: Pending
+              </>
+            ) : (
+              <>
+                {order.statusCategory === "In-Transit" && (
+                  <Truck className="w-5 h-5 text-blue-600" />
+                )}
+                {order.statusCategory === "Completed" && (
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                )}
+                {order.statusCategory === "Foul Trip" && (
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                )}
+                Status: {order.statusCategory}
+              </>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* SECTION 1: Client Information */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                1. Client Information
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Company / Client Name
+                  </label>
+                  <input readOnly value={cName} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Person
+                  </label>
+                  <input readOnly value={cPerson} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Number
+                  </label>
+                  <input readOnly value={cNum} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Email Address
+                  </label>
+                  <input readOnly value={cEmail} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Business Address
+                  </label>
+                  <input readOnly value={cAddr} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 2: Pickup Addresses */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                2. Pickup Address
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Warehouse Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Warehouse Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Pick Up Time
+                      </th>
+                      <th className="p-2.5 text-center">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-slate-200 last:border-0 font-medium text-slate-700">
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        N/A
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pAddr}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cPerson}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cNum}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pTime}
+                      </td>
+                      <td className="p-2 text-center bg-slate-50">
+                        {quantity}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 3: Delivery Addresses */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                3. Delivery Address
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Delivery Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Delivery Time
+                      </th>
+                      <th className="p-2.5 text-center">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveries.map((d: any, idx: number) => (
+                      <tr
+                        key={idx}
+                        className="border-b border-slate-200 last:border-0 font-medium text-slate-700"
+                      >
+                        <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          {d.branchName || "N/A"}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          {d.branchName || d.deliveryAddress || "N/A"}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          {d.contactPerson || cPerson}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          {d.contactNum || d.contactNumber || cNum}
+                        </td>
+                        <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          {d.expectedTime || "N/A"}
+                        </td>
+                        <td className="p-2 text-center bg-slate-50">
+                          {d.quantity || quantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 4: Schedule */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                4. Booking Details & Schedule
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Request Date
+                  </label>
+                  <input readOnly value={reqDate} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Delivery Schedule
+                  </label>
+                  <input readOnly value={delSchedule} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Product To Deliver
+                  </label>
+                  <input readOnly value={product} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Priority Level
+                  </label>
+                  <input readOnly value={priority} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 5: Assign Crew & Confirmation State */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                5. Assigned Delivery Crew & Vehicle
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Truck Plate No.
+                  </label>
+                  <input readOnly value={truck} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver
+                  </label>
+                  <div className="relative">
+                    <input
+                      readOnly
+                      value={driver}
+                      className={`${inputClass} pr-8`}
+                    />
+                    {driver !== "Unassigned" &&
+                      driver !== "None" &&
+                      driver !== "N/A" && (
+                        <div
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                          title={
+                            order.driverConfirmed
+                              ? "Driver Confirmed"
+                              : "Waiting for Crew Confirmation"
+                          }
+                        >
+                          {order.driverConfirmed ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-amber-500" />
+                          )}
+                        </div>
+                      )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Helper #1
+                  </label>
+                  <div className="relative">
+                    <input
+                      readOnly
+                      value={h1}
+                      className={`${inputClass} pr-8`}
+                    />
+                    {hasHelper && (
+                      <div
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                        title={
+                          order.helperConfirmed
+                            ? "Helper Confirmed"
+                            : "Waiting for Crew Confirmation"
+                        }
+                      >
+                        {order.helperConfirmed ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-amber-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Helper #2
+                  </label>
+                  <input readOnly value={h2} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 6: Notes */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                6. Notes / Instructions
+              </div>
+              <textarea
+                readOnly
+                rows={4}
+                value={actualNotes}
+                className="w-full min-h-24 resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none cursor-default"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50">
+          <button
+            onClick={onClose}
+            className="w-full sm:w-auto px-8 py-2.5 bg-[#000c31] hover:bg-blue-800 text-white font-semibold rounded-xl text-sm transition-colors shadow-md"
+          >
+            Close Details
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2904,8 +3330,7 @@ function BookingModal({
             {/* SECTION 6: NOTES / INSTRUCTIONS */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                {preSelectedClientID ? "6." : "4."} Notes / Instructions
-                (Optional)
+                6. Notes / Instructions (Optional)
               </div>
               <textarea
                 name="notes"
@@ -2980,7 +3405,7 @@ function KPIGrid({
   );
 }
 
-function FeedTable({ tabConfig, bookings }: any) {
+function FeedTable({ tabConfig, bookings, onViewOrder }: any) {
   const styles = COLOR_STYLES[tabConfig.color as keyof typeof COLOR_STYLES];
   const data = bookings || [];
 
@@ -3007,8 +3432,8 @@ function FeedTable({ tabConfig, bookings }: any) {
         </div>
       </div>
 
-      {/* Body: Stacked Cards with native scrolling. max-h-[420px] fits approximately 3 visible cards at once */}
-      <div className="p-4 sm:p-6 flex-1 overflow-y-auto max-h-105 feed-scrollbar">
+      {/* Body: Stacked Cards with native scrolling */}
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto max-h-[420px] feed-scrollbar">
         {data.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
             <FileText className="w-12 h-12 mb-2 opacity-20" />
@@ -3016,71 +3441,87 @@ function FeedTable({ tabConfig, bookings }: any) {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {data.map((b: any) => (
-              <div
-                key={b.orderId}
-                className="bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-all duration-200"
-              >
-                {/* Card Header: Order ID & Client on Left, Status + Date/Time on Right */}
-                <div className="flex justify-between items-start mb-3">
-                  <div className="min-w-0 pr-2">
-                    <h4 className="font-bold text-slate-800 text-base truncate">
-                      {b.orderId}
-                    </h4>
-                    <p className="text-sm font-semibold text-slate-700 mt-0.5 truncate">
-                      {b.client}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span
-                      className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-[11px] font-bold whitespace-nowrap`}
-                    >
-                      {tabConfig.statusLabel}
-                    </span>
-                    <span className="text-gray-500 text-[11px] font-medium whitespace-nowrap">
-                      {b.dateTime}
-                    </span>
-                  </div>
-                </div>
+            {data.map((b: any) => {
+              // Dynamically adjust label for pending bookings waiting on crew
+              let displayStatus = tabConfig.statusLabel;
+              if (tabConfig.name === "Pending Bookings") {
+                const hasHelper =
+                  b.helper && b.helper !== "None" && b.helper !== "N/A";
+                const isCrewConfirmed =
+                  b.driverConfirmed && (!hasHelper || b.helperConfirmed);
+                displayStatus = isCrewConfirmed
+                  ? "Pending"
+                  : "Waiting for Crew Confirmation";
+              }
 
-                {/* Card Details: Product, Driver, and Helper Side-by-Side in One Row with Truncation */}
-                <div className="grid grid-cols-3 gap-2 text-sm mt-4 pt-4 border-t border-gray-200/80">
-                  <div className="min-w-0">
-                    <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
-                      Product
-                    </span>
-                    <span
-                      className="text-slate-700 font-medium block truncate"
-                      title={b.product}
-                    >
-                      {b.product}
-                    </span>
+              return (
+                <div
+                  key={b.orderId}
+                  onClick={() => onViewOrder(b)}
+                  className="cursor-pointer bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 group"
+                  title="Click to view details"
+                >
+                  {/* Card Header: Order ID & Client on Left, Status + Date/Time on Right */}
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="min-w-0 pr-2">
+                      <h4 className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-base truncate transition-colors inline-block">
+                        {b.orderId}
+                      </h4>
+                      <p className="text-sm font-semibold text-slate-700 mt-0.5 truncate">
+                        {b.client}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span
+                        className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-[11px] font-bold whitespace-nowrap`}
+                      >
+                        {displayStatus}
+                      </span>
+                      <span className="text-gray-500 text-[11px] font-medium whitespace-nowrap">
+                        {b.dateTime}
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
-                      Driver
-                    </span>
-                    <span
-                      className="text-slate-700 font-medium block truncate"
-                      title={b.driver}
-                    >
-                      {b.driver}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
-                      Helper
-                    </span>
-                    <span
-                      className="text-slate-700 font-medium block truncate"
-                      title={b.helper}
-                    >
-                      {b.helper || "N/A"}
-                    </span>
+
+                  {/* Card Details: Product, Driver, and Helper */}
+                  <div className="grid grid-cols-3 gap-2 text-sm mt-4 pt-4 border-t border-gray-200/80">
+                    <div className="min-w-0">
+                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                        Product
+                      </span>
+                      <span
+                        className="text-slate-700 font-medium block truncate"
+                        title={b.product}
+                      >
+                        {b.product}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                        Driver
+                      </span>
+                      <span
+                        className="text-slate-700 font-medium block truncate"
+                        title={b.driver}
+                      >
+                        {b.driver}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                        Helper
+                      </span>
+                      <span
+                        className="text-slate-700 font-medium block truncate"
+                        title={b.helper}
+                      >
+                        {b.helper || "N/A"}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -3099,6 +3540,9 @@ export default function AdminDashboardPage() {
   const [isNewClientBookingOpen, setIsNewClientBookingOpen] = useState(false);
   const [isClientSearchModalOpen, setIsClientSearchModalOpen] = useState(false);
   const [selectedClientForBooking, setSelectedClientForBooking] = useState("");
+
+  const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<any>(null);
 
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [generatedOrderCode, setGeneratedOrderCode] = useState("");
@@ -3158,6 +3602,14 @@ export default function AdminDashboardPage() {
           const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
           const helper = helperMatch ? helperMatch[1].trim() : "None";
 
+          // Identify Supabase-ready confirmation status
+          const driverConfirmed = Boolean(
+            o.driverConfirmed || o.driver_confirmed,
+          );
+          const helperConfirmed = Boolean(
+            o.helperConfirmed || o.helper_confirmed,
+          );
+
           let category = "Pending Bookings";
           const stopStatus = (
             stopsArr[0]?.stopStatus || "pending"
@@ -3187,6 +3639,10 @@ export default function AdminDashboardPage() {
             driver,
             helper,
             dateTime,
+            driverConfirmed,
+            helperConfirmed,
+            rawOrder: o,
+            statusCategory: category,
           });
         });
       }
@@ -3229,6 +3685,11 @@ export default function AdminDashboardPage() {
       behavior: "smooth",
       block: "start",
     });
+  };
+
+  const handleViewOrder = (order: any) => {
+    setSelectedOrderForView(order);
+    setIsViewOrderModalOpen(true);
   };
 
   const handleModalSubmit = async (data: any) => {
@@ -3352,10 +3813,21 @@ export default function AdminDashboardPage() {
             }}
             className="scroll-mt-6"
           >
-            <FeedTable tabConfig={tab} bookings={bookingsData[tab.name]} />
+            <FeedTable
+              tabConfig={tab}
+              bookings={bookingsData[tab.name]}
+              onViewOrder={handleViewOrder}
+            />
           </div>
         ))}
       </div>
+
+      {/* VIEW ORDER MODAL */}
+      <ViewOrderModal
+        isOpen={isViewOrderModalOpen}
+        onClose={() => setIsViewOrderModalOpen(false)}
+        order={selectedOrderForView}
+      />
 
       <BookingModal
         isOpen={isBookingModalOpen}
