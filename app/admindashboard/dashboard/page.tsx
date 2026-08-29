@@ -14,6 +14,7 @@ import {
   Search,
   Plus,
   Trash2,
+  Edit3,
 } from "lucide-react";
 
 // ==========================================
@@ -53,21 +54,69 @@ const TABS = [
     icon: Clock,
     color: "orange",
     statusLabel: "Pending",
+    link: "/admindashboard/feed-pending",
   },
-  { name: "In-Transit", icon: Truck, color: "blue", statusLabel: "In-Transit" },
+  {
+    name: "In-Transit",
+    icon: Truck,
+    color: "blue",
+    statusLabel: "In-Transit",
+    link: "/admindashboard/feed-intransit",
+  },
   {
     name: "Completed",
     icon: CheckCircle2,
     color: "green",
     statusLabel: "Delivered",
+    link: "/admindashboard/feed-completed",
   },
   {
     name: "Foul Trip",
     icon: AlertTriangle,
     color: "red",
     statusLabel: "Foul Trip",
+    link: "/admindashboard/feed-foultrip",
   },
 ];
+
+// ==========================================
+// SUCCESS MODAL COMPONENT (Supabase-Ready)
+// ==========================================
+
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  orderCode: string;
+}
+
+function SuccessModal({ isOpen, onClose, orderCode }: SuccessModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 text-center">
+        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle2 className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 mb-1">
+          Booking Generated Successfully!
+        </h3>
+        <p className="text-sm font-semibold text-blue-600 mb-3">
+          Order ID: {orderCode}
+        </p>
+        <p className="text-xs text-slate-600 mb-6">
+          Your booking has been generated successfully.
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors shadow-md"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ==========================================
 // CLIENT SEARCH MODAL
@@ -198,6 +247,8 @@ function NewClientBookingModal({
   helpers,
   onSubmitSuccess,
 }: NewClientBookingModalProps) {
+  const currentDate = new Date().toISOString().split("T")[0];
+
   const initialFormState = {
     clientName: "",
     contactPerson: "",
@@ -240,7 +291,9 @@ function NewClientBookingModal({
     },
   ]);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>(
+    {},
+  );
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
@@ -276,7 +329,9 @@ function NewClientBookingModal({
   if (!isOpen) return null;
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -289,12 +344,32 @@ function NewClientBookingModal({
     const updated = [...pickupList];
     updated[index][field] = value;
     setPickupList(updated);
+
+    if (errors[`pickup_${index}_${field}`]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`pickup_${index}_${field}`];
+        return newErrors;
+      });
+    }
   };
 
-  const handleDeliveryChange = (index: number, field: string, value: string) => {
+  const handleDeliveryChange = (
+    index: number,
+    field: string,
+    value: string,
+  ) => {
     const updated = [...deliveryList];
     updated[index][field] = value;
     setDeliveryList(updated);
+
+    if (errors[`delivery_${index}_${field}`]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`delivery_${index}_${field}`];
+        return newErrors;
+      });
+    }
   };
 
   const addPickupRow = () => {
@@ -341,18 +416,53 @@ function NewClientBookingModal({
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.clientName.trim()) newErrors.clientName = "Client Name is required.";
-    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim()) newErrors.emailAddress = "Email address is required.";
-    if (!formData.businessAddress.trim()) newErrors.businessAddress = "Business address is required.";
+    if (!formData.clientName.trim())
+      newErrors.clientName = "Client Name is required.";
+    if (!formData.contactPerson.trim())
+      newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim())
+      newErrors.contactNumber = "Contact number is required.";
 
-    if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
-    if (!formData.product.trim()) newErrors.product = "Product description is required.";
-    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
+    if (!formData.deliverySchedule)
+      newErrors.deliverySchedule = "Delivery schedule is required.";
+    if (!formData.product.trim())
+      newErrors.product = "Product description is required.";
+    if (!formData.priorityLevel)
+      newErrors.priorityLevel = "Priority level is required.";
 
-    if (isSubconMode && !formData.subconPartner) newErrors.subconPartner = "Subcon partner is required.";
-    if (!formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
+    pickupList.forEach((p, idx) => {
+      if (!p.warehouseName.trim())
+        newErrors[`pickup_${idx}_warehouseName`] = "Required";
+      if (!p.warehouseAddress.trim())
+        newErrors[`pickup_${idx}_warehouseAddress`] = "Required";
+      if (!p.contactPerson.trim())
+        newErrors[`pickup_${idx}_contactPerson`] = "Required";
+      if (!p.contactNumber.trim())
+        newErrors[`pickup_${idx}_contactNumber`] = "Required";
+      if (!p.pickupTime) newErrors[`pickup_${idx}_pickupTime`] = "Required";
+      if (!p.quantity.toString().trim())
+        newErrors[`pickup_${idx}_quantity`] = "Required";
+    });
+
+    deliveryList.forEach((d, idx) => {
+      if (!d.branchName.trim())
+        newErrors[`delivery_${idx}_branchName`] = "Required";
+      if (!d.deliveryAddress.trim())
+        newErrors[`delivery_${idx}_deliveryAddress`] = "Required";
+      if (!d.contactPerson.trim())
+        newErrors[`delivery_${idx}_contactPerson`] = "Required";
+      if (!d.contactNumber.trim())
+        newErrors[`delivery_${idx}_contactNumber`] = "Required";
+      if (!d.deliveryTime)
+        newErrors[`delivery_${idx}_deliveryTime`] = "Required";
+      if (!d.quantity.toString().trim())
+        newErrors[`delivery_${idx}_quantity`] = "Required";
+    });
+
+    if (isSubconMode && !formData.subconPartner)
+      newErrors.subconPartner = "Subcon partner is required.";
+    if (!formData.truckPlate)
+      newErrors.truckPlate = "Truck plate number is required.";
     if (!formData.driver) newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -362,6 +472,12 @@ function NewClientBookingModal({
 
     const submissionData = {
       ...formData,
+      emailAddress: formData.emailAddress.trim()
+        ? formData.emailAddress
+        : "N/A",
+      businessAddress: formData.businessAddress.trim()
+        ? formData.businessAddress
+        : "N/A",
       pickupList,
       deliveryList,
     };
@@ -371,393 +487,903 @@ function NewClientBookingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            New Client Booking Form
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+    <>
+      <style>{`
+        .btn-booking-cancel { background-color: oklch(63.7% 0.237 25.331); }
+        .btn-booking-cancel:hover { background-color: black !important; color: white !important; }
+        .btn-booking-generate { background-color: oklch(54.6% 0.245 262.881); }
+        .btn-booking-generate:hover { background-color: black !important; color: white !important; }
+      `}</style>
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+          <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              New Client Booking Form
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form
+            onSubmit={validateAndSubmit}
+            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
           >
-            <X className="w-5 h-5" />
-          </button>
+            {/* SECTION 1: Client Information */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
+                <span>1. Client Information</span>
+                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                  New Client
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Company or Client Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="clientName"
+                    placeholder="e.g., Jollibee - QC Branch"
+                    value={formData.clientName}
+                    onChange={handleChange}
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.clientName && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.clientName}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Person *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactPerson"
+                    placeholder="e.g., Juan Dela Cruz"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.contactPerson && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.contactPerson}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactNumber"
+                    placeholder="Enter contact number"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.contactNumber && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.contactNumber}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="emailAddress"
+                    placeholder="Enter email address"
+                    value={formData.emailAddress}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Business Address
+                  </label>
+                  <input
+                    type="text"
+                    name="businessAddress"
+                    placeholder="Enter business address"
+                    value={formData.businessAddress}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 2: PICKUP ADDRESSES */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  2. Pickup Addresses *
+                </span>
+                <button
+                  type="button"
+                  onClick={addPickupRow}
+                  style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                  className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+                >
+                  <Plus className="w-4 h-4 font-normal" /> New Pickup
+                </button>
+              </div>
+              {Object.keys(errors).some((k) => k.startsWith("pickup_")) && (
+                <p className="text-red-500 text-xs mb-2">
+                  Please fill out all required fields in Pickup Addresses.
+                </p>
+              )}
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Warehouse Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Warehouse Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Pick Up Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Quantity *
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pickupList.map((row, idx) => {
+                      const confirmKey = `pickup-${idx}`;
+                      const isConfirming = deleteConfirm[confirmKey];
+
+                      return (
+                        <tr
+                          key={idx}
+                          className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
+                        >
+                          <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
+                            {idx + 1}
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Enter Name"
+                              value={row.warehouseName}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "warehouseName",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Enter Address"
+                              value={row.warehouseAddress}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "warehouseAddress",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Contact Person"
+                              value={row.contactPerson}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "contactPerson",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Contact Number"
+                              value={row.contactNumber}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "contactNumber",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="time"
+                              value={row.pickupTime}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "pickupTime",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="number"
+                              placeholder="Qty"
+                              value={row.quantity}
+                              onChange={(e) =>
+                                handlePickupChange(
+                                  idx,
+                                  "quantity",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 text-center align-middle">
+                            {isConfirming ? (
+                              <div
+                                className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
+                                style={{
+                                  backgroundColor:
+                                    "oklch(63.7% 0.237 25.331 / 0.1)",
+                                  borderColor:
+                                    "oklch(63.7% 0.237 25.331 / 0.4)",
+                                }}
+                              >
+                                <span
+                                  className="text-[10px] font-semibold leading-tight"
+                                  style={{ color: "oklch(50% 0.237 25.331)" }}
+                                >
+                                  Delete row?
+                                </span>
+                                <div className="flex items-center gap-2 justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removePickupRow(idx)}
+                                    style={{
+                                      backgroundColor:
+                                        "oklch(63.7% 0.237 25.331)",
+                                    }}
+                                    className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDeleteConfirm((prev) => ({
+                                        ...prev,
+                                        [confirmKey]: false,
+                                      }))
+                                    }
+                                    className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeleteConfirm((prev) => ({
+                                    ...prev,
+                                    [confirmKey]: true,
+                                  }))
+                                }
+                                disabled={pickupList.length === 1}
+                                className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                                style={{
+                                  color:
+                                    pickupList.length === 1
+                                      ? undefined
+                                      : "oklch(63.7% 0.237 25.331)",
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 mx-auto" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 3: DELIVERY ADDRESSES */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  3. Delivery Address *
+                </span>
+                <button
+                  type="button"
+                  onClick={addDeliveryRow}
+                  style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                  className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+                >
+                  <Plus className="w-4 h-4 font-normal" /> New Branch
+                </button>
+              </div>
+              {Object.keys(errors).some((k) => k.startsWith("delivery_")) && (
+                <p className="text-red-500 text-xs mb-2">
+                  Please fill out all required fields in Delivery Address.
+                </p>
+              )}
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Delivery Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Delivery Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Quantity *
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveryList.map((row, idx) => {
+                      const confirmKey = `delivery-${idx}`;
+                      const isConfirming = deleteConfirm[confirmKey];
+
+                      return (
+                        <tr
+                          key={idx}
+                          className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
+                        >
+                          <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
+                            {idx + 1}
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Enter Name"
+                              value={row.branchName}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "branchName",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Enter Address"
+                              value={row.deliveryAddress}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "deliveryAddress",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Contact Person"
+                              value={row.contactPerson}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "contactPerson",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="text"
+                              placeholder="Contact Number"
+                              value={row.contactNumber}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "contactNumber",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="time"
+                              value={row.deliveryTime}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "deliveryTime",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200">
+                            <input
+                              type="number"
+                              placeholder="Qty"
+                              value={row.quantity}
+                              onChange={(e) =>
+                                handleDeliveryChange(
+                                  idx,
+                                  "quantity",
+                                  e.target.value,
+                                )
+                              }
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            />
+                          </td>
+                          <td className="p-2 text-center align-middle">
+                            {isConfirming ? (
+                              <div
+                                className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
+                                style={{
+                                  backgroundColor:
+                                    "oklch(63.7% 0.237 25.331 / 0.1)",
+                                  borderColor:
+                                    "oklch(63.7% 0.237 25.331 / 0.4)",
+                                }}
+                              >
+                                <span
+                                  className="text-[10px] font-semibold leading-tight"
+                                  style={{ color: "oklch(50% 0.237 25.331)" }}
+                                >
+                                  Delete row?
+                                </span>
+                                <div className="flex items-center gap-2 justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDeliveryRow(idx)}
+                                    style={{
+                                      backgroundColor:
+                                        "oklch(63.7% 0.237 25.331)",
+                                    }}
+                                    className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDeleteConfirm((prev) => ({
+                                        ...prev,
+                                        [confirmKey]: false,
+                                      }))
+                                    }
+                                    className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDeleteConfirm((prev) => ({
+                                    ...prev,
+                                    [confirmKey]: true,
+                                  }))
+                                }
+                                disabled={deliveryList.length === 1}
+                                className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                                style={{
+                                  color:
+                                    deliveryList.length === 1
+                                      ? undefined
+                                      : "oklch(63.7% 0.237 25.331)",
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 mx-auto" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 4: BOOKING DETAILS & SCHEDULE */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                4. Booking Details & Schedule
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-4 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Delivery Schedule *
+                  </label>
+                  <input
+                    type="date"
+                    name="deliverySchedule"
+                    min={currentDate}
+                    value={formData.deliverySchedule}
+                    onChange={handleChange}
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.deliverySchedule && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.deliverySchedule}
+                    </p>
+                  )}
+                </div>
+                <div className="sm:col-span-5 md:col-span-6">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Product To Deliver *
+                  </label>
+                  <input
+                    type="text"
+                    name="product"
+                    value={formData.product}
+                    onChange={handleChange}
+                    placeholder="e.g., Burger Buns"
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.product && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.product}
+                    </p>
+                  )}
+                </div>
+                <div className="sm:col-span-3 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Priority Level *
+                  </label>
+                  <div className="relative w-full">
+                    <select
+                      name="priorityLevel"
+                      value={formData.priorityLevel}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select priority level
+                      </option>
+                      <option value="Standard">Standard</option>
+                      <option value="Urgent">Urgent / Rush</option>
+                      <option value="High Priority">High Priority</option>
+                    </select>
+                  </div>
+                  {errors.priorityLevel && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.priorityLevel}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 5: ASSIGN DELIVERY CREW */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  5. Assign Delivery Crews & Vehicle{" "}
+                  {isSubconMode && "(Subcon)"}
+                </span>
+                <div className="flex items-center gap-4">
+                  {isSubconMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(false)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Assign to Own Resources
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsSubconMode(true)}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Assign to Subcon Partner
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          alert("Fleet Auto-Recommendation triggered!")
+                        }
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Auto-Recommend Available Resources
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isSubconMode ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Select Subcon Partner *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="subconPartner"
+                        value={formData.subconPartner}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select partner
+                        </option>
+                        <option value="Lalamove">Lalamove</option>
+                        <option value="Transportify">Transportify</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    {errors.subconPartner && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.subconPartner}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <input
+                      type="text"
+                      name="truckPlate"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      placeholder="Enter plate no."
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.truckPlate && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.truckPlate}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <input
+                      type="text"
+                      name="driver"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      placeholder="Enter driver name"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.driver && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.driver}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1 (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="helper1"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      placeholder="Enter helper 1 name"
+                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2 (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="helper2"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      placeholder="Enter helper 2 name"
+                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="truckPlate"
+                        value={formData.truckPlate}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select truck
+                        </option>
+                        {trucks.map((t) => (
+                          <option key={t.truckID} value={t.truckID}>
+                            {t.plateNumber} ({t.model})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.truckPlate && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.truckPlate}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="driver"
+                        value={formData.driver}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select driver
+                        </option>
+                        {drivers.map((d) => (
+                          <option key={d.employeeID} value={d.employeeName}>
+                            {d.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.driver && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.driver}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1 (Optional)
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="helper1"
+                        value={formData.helper1}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      >
+                        <option value="">Select helper</option>
+                        {helpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeName}>
+                            {h.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2 (Optional)
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="helper2"
+                        value={formData.helper2}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      >
+                        <option value="">Select helper</option>
+                        {helpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeName}>
+                            {h.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 6: NOTES / INSTRUCTIONS */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                6. Notes / Instructions (Optional)
+              </div>
+              <textarea
+                name="notes"
+                rows={5}
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Add special delivery instructions, gate pass codes, or handling notes here..."
+                className="w-full min-h-30 resize-y bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              />
+            </div>
+
+            {/* MODAL ACTION BUTTONS */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-booking-cancel w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors duration-200 flex items-center justify-center whitespace-nowrap"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-booking-generate w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors duration-200 flex items-center justify-center whitespace-nowrap"
+              >
+                Generate Booking
+              </button>
+            </div>
+          </form>
         </div>
-
-        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
-              <span>1. Client Information</span>
-              <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                New Client
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Company or Client Name *</label>
-                <input
-                  type="text"
-                  name="clientName"
-                  placeholder="e.g., Jollibee - QC Branch"
-                  value={formData.clientName}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.clientName && <p className="text-red-500 text-[11px] mt-1">{errors.clientName}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
-                <input
-                  type="text"
-                  name="contactPerson"
-                  placeholder="e.g., Juan Dela Cruz"
-                  value={formData.contactPerson}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.contactPerson}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
-                <input
-                  type="text"
-                  name="contactNumber"
-                  placeholder="Enter contact number"
-                  value={formData.contactNumber}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  name="emailAddress"
-                  placeholder="Enter email address"
-                  value={formData.emailAddress}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.emailAddress && <p className="text-red-500 text-[11px] mt-1">{errors.emailAddress}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Business Address *</label>
-                <input
-                  type="text"
-                  name="businessAddress"
-                  placeholder="Enter business address"
-                  value={formData.businessAddress}
-                  onChange={handleChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.businessAddress && <p className="text-red-500 text-[11px] mt-1">{errors.businessAddress}</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses</span>
-              <button
-                type="button"
-                onClick={addPickupRow}
-                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-              >
-                <Plus className="w-4 h-4 font-normal" /> New Pickup
-              </button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Warehouse Address</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Pick Up Time</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pickupList.map((row, idx) => {
-                    const confirmKey = `pickup-${idx}`;
-                    const isConfirming = deleteConfirm[confirmKey];
-                    return (
-                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Name" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
-                        </td>
-                        <td className="p-2 text-center align-middle">
-                          {isConfirming ? (
-                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
-                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
-                              <div className="flex items-center gap-2 justify-center">
-                                <button type="button" onClick={() => removePickupRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
-                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={pickupList.length === 1} className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: pickupList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address</span>
-              <button
-                type="button"
-                onClick={addDeliveryRow}
-                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-              >
-                <Plus className="w-4 h-4 font-normal" /> New Branch
-              </button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryList.map((row, idx) => {
-                    const confirmKey = `delivery-${idx}`;
-                    const isConfirming = deleteConfirm[confirmKey];
-                    return (
-                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Name" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
-                        </td>
-                        <td className="p-2 text-center align-middle">
-                          {isConfirming ? (
-                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
-                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
-                              <div className="flex items-center gap-2 justify-center">
-                                <button type="button" onClick={() => removeDeliveryRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
-                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={deliveryList.length === 1} className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: deliveryList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              4. Booking Details & Schedule
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
-                <input type="date" name="deliverySchedule" value={formData.deliverySchedule} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                {errors.deliverySchedule && <p className="text-red-500 text-[11px] mt-1">{errors.deliverySchedule}</p>}
-              </div>
-              <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
-                <input type="text" name="product" value={formData.product} onChange={handleChange} placeholder="e.g., Burger Buns" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                {errors.product && <p className="text-red-500 text-[11px] mt-1">{errors.product}</p>}
-              </div>
-              <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
-                <div className="relative w-full">
-                  <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                    <option value="" disabled>Select priority level</option>
-                    <option value="Standard">Standard</option>
-                    <option value="Urgent">Urgent / Rush</option>
-                    <option value="High Priority">High Priority</option>
-                  </select>
-                </div>
-                {errors.priorityLevel && <p className="text-red-500 text-[11px] mt-1">{errors.priorityLevel}</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}
-              </span>
-              <div className="flex items-center gap-4">
-                {isSubconMode ? (
-                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Own Resources</button>
-                ) : (
-                  <>
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Subcon Partner</button>
-                    <button type="button" onClick={() => alert("Fleet Auto-Recommendation triggered!")} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Auto-Recommend Available Resources</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {isSubconMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
-                  <div className="relative w-full">
-                    <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select partner</option>
-                      <option value="Lalamove">Lalamove</option>
-                      <option value="Transportify">Transportify</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  {errors.subconPartner && <p className="text-red-500 text-[11px] mt-1">{errors.subconPartner}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} placeholder="Enter plate no." className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <input type="text" name="driver" value={formData.driver} onChange={handleChange} placeholder="Enter driver name" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
-                  <input type="text" name="helper1" value={formData.helper1} onChange={handleChange} placeholder="Enter helper 1 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
-                  <input type="text" name="helper2" value={formData.helper2} onChange={handleChange} placeholder="Enter helper 2 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <div className="relative w-full">
-                    <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select truck</option>
-                      {trucks.map((t) => (
-                        <option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>
-                      ))}
-                    </select>
-                  </div>
-                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <div className="relative w-full">
-                    <select name="driver" value={formData.driver} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select driver</option>
-                      {drivers.map((d) => (
-                        <option key={d.employeeID} value={d.employeeName}>{d.employeeName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
-                  <div className="relative w-full">
-                    <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
-                      <option value="">Select helper</option>
-                      {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
-                  <div className="relative w-full">
-                    <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
-                      <option value="">Select helper</option>
-                      {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              6. Notes / Instructions (Optional)
-            </div>
-            <textarea
-              name="notes"
-              rows={5}
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder="Add special delivery instructions, gate pass codes, or handling notes here..."
-              className="w-full min-h-30 resize-y bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
-            />
-          </div>
-
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button type="button" onClick={onClose} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
-              Cancel
-            </button>
-            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
-              Generate Booking
-            </button>
-          </div>
-        </form>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -786,6 +1412,8 @@ function BookingModal({
   preSelectedClientID,
   onSubmitSuccess,
 }: BookingModalProps) {
+  const currentDate = new Date().toISOString().split("T")[0];
+
   const initialFormState = {
     clientID: "",
     clientName: "",
@@ -793,7 +1421,7 @@ function BookingModal({
     contactNumber: "",
     emailAddress: "",
     businessAddress: "",
-    requestDate: "",
+    requestDate: currentDate,
     deliverySchedule: "",
     pickupTime: "",
     deliveryTime: "",
@@ -806,7 +1434,7 @@ function BookingModal({
     deliveryAddress: "",
     deliveryContactPerson: "",
     deliveryContactNumber: "",
-    subconPartner: "", 
+    subconPartner: "",
     truckPlate: "",
     driver: "",
     helper1: "",
@@ -815,7 +1443,7 @@ function BookingModal({
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [isSubconMode, setIsSubconMode] = useState(false); 
+  const [isSubconMode, setIsSubconMode] = useState(false);
 
   const [pickupList, setPickupList] = useState<any[]>([
     {
@@ -839,12 +1467,14 @@ function BookingModal({
     },
   ]);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
+  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>(
+    {},
+  );
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     if (isOpen) {
-      setIsSubconMode(false); 
+      setIsSubconMode(false);
 
       if (preSelectedClientID) {
         const client = clients.find((c) => c.clientID === preSelectedClientID);
@@ -861,6 +1491,8 @@ function BookingModal({
           businessAddress: client
             ? client.businessAdd || client.businessAddress || ""
             : "",
+          requestDate: new Date().toISOString().split("T")[0],
+          deliverySchedule: "",
         });
 
         setPickupList([
@@ -885,7 +1517,11 @@ function BookingModal({
           },
         ]);
       } else {
-        setFormData(initialFormState);
+        setFormData({
+          ...initialFormState,
+          requestDate: new Date().toISOString().split("T")[0],
+          deliverySchedule: "",
+        });
         setPickupList([
           {
             warehouseName: "",
@@ -911,13 +1547,15 @@ function BookingModal({
       setDeleteConfirm({});
       setErrors({});
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, preSelectedClientID, clients]);
 
   if (!isOpen) return null;
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -930,12 +1568,32 @@ function BookingModal({
     const updated = [...pickupList];
     updated[index][field] = value;
     setPickupList(updated);
+
+    if (errors[`pickup_${index}_${field}`]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`pickup_${index}_${field}`];
+        return newErrors;
+      });
+    }
   };
 
-  const handleDeliveryChange = (index: number, field: string, value: string) => {
+  const handleDeliveryChange = (
+    index: number,
+    field: string,
+    value: string,
+  ) => {
     const updated = [...deliveryList];
     updated[index][field] = value;
     setDeliveryList(updated);
+
+    if (errors[`delivery_${index}_${field}`]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`delivery_${index}_${field}`];
+        return newErrors;
+      });
+    }
   };
 
   const addPickupRow = () => {
@@ -989,14 +1647,34 @@ function BookingModal({
       ...updated[index],
       warehouseName: selectedName,
       warehouseAddress: matchedWarehouse
-        ? matchedWarehouse.warehouseLoc || matchedWarehouse.warehouseAddress || ""
+        ? matchedWarehouse.warehouseLoc ||
+          matchedWarehouse.warehouseAddress ||
+          ""
         : "",
-      contactPerson: matchedWarehouse ? matchedWarehouse.contactPerson || "" : "",
+      contactPerson: matchedWarehouse
+        ? matchedWarehouse.contactPerson || ""
+        : "",
       contactNumber: matchedWarehouse
         ? matchedWarehouse.contactNum || matchedWarehouse.contactNumber || ""
         : "",
     };
     setPickupList(updated);
+
+    const fieldNames = [
+      "warehouseName",
+      "warehouseAddress",
+      "contactPerson",
+      "contactNumber",
+    ];
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      fieldNames.forEach((field) => {
+        if (newErrors[`pickup_${index}_${field}`]) {
+          delete newErrors[`pickup_${index}_${field}`];
+        }
+      });
+      return newErrors;
+    });
   };
 
   const handleBranchSelect = (index: number, selectedName: string) => {
@@ -1018,36 +1696,96 @@ function BookingModal({
         : "",
     };
     setDeliveryList(updated);
+
+    const fieldNames = [
+      "branchName",
+      "deliveryAddress",
+      "contactPerson",
+      "contactNumber",
+    ];
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      fieldNames.forEach((field) => {
+        if (newErrors[`delivery_${index}_${field}`]) {
+          delete newErrors[`delivery_${index}_${field}`];
+        }
+      });
+      return newErrors;
+    });
   };
 
   const validateAndSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
-    if (!formData.clientName.trim()) newErrors.clientName = "Client / Company Name is required.";
-    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim()) newErrors.emailAddress = "Email address is required.";
-    if (!formData.businessAddress.trim()) newErrors.businessAddress = "Business address is required.";
+    if (!formData.clientName.trim())
+      newErrors.clientName = "Client / Company Name is required.";
+    if (!formData.contactPerson.trim())
+      newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim())
+      newErrors.contactNumber = "Contact number is required.";
 
     if (preSelectedClientID) {
-      if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
-      if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
-      if (!formData.product.trim()) newErrors.product = "Product description is required.";
+      if (!formData.deliverySchedule)
+        newErrors.deliverySchedule = "Delivery schedule is required.";
+      if (!formData.priorityLevel)
+        newErrors.priorityLevel = "Priority level is required.";
+      if (!formData.product.trim())
+        newErrors.product = "Product description is required.";
+
+      pickupList.forEach((p, idx) => {
+        if (!p.warehouseName.trim())
+          newErrors[`pickup_${idx}_warehouseName`] = "Required";
+        if (!p.warehouseAddress.trim())
+          newErrors[`pickup_${idx}_warehouseAddress`] = "Required";
+        if (!p.contactPerson.trim())
+          newErrors[`pickup_${idx}_contactPerson`] = "Required";
+        if (!p.contactNumber.trim())
+          newErrors[`pickup_${idx}_contactNumber`] = "Required";
+        if (!p.pickupTime) newErrors[`pickup_${idx}_pickupTime`] = "Required";
+        if (!p.quantity.toString().trim())
+          newErrors[`pickup_${idx}_quantity`] = "Required";
+      });
+
+      deliveryList.forEach((d, idx) => {
+        if (!d.branchName.trim())
+          newErrors[`delivery_${idx}_branchName`] = "Required";
+        if (!d.deliveryAddress.trim())
+          newErrors[`delivery_${idx}_deliveryAddress`] = "Required";
+        if (!d.contactPerson.trim())
+          newErrors[`delivery_${idx}_contactPerson`] = "Required";
+        if (!d.contactNumber.trim())
+          newErrors[`delivery_${idx}_contactNumber`] = "Required";
+        if (!d.deliveryTime)
+          newErrors[`delivery_${idx}_deliveryTime`] = "Required";
+        if (!d.quantity.toString().trim())
+          newErrors[`delivery_${idx}_quantity`] = "Required";
+      });
     } else {
-      if (!formData.requestDate) newErrors.requestDate = "Request date is required.";
-      if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
-      if (!formData.pickupTime) newErrors.pickupTime = "Pickup time is required.";
-      if (!formData.deliveryTime) newErrors.deliveryTime = "Delivery time is required.";
-      if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
-      if (!formData.product.trim()) newErrors.product = "Product description is required.";
-      if (!formData.quantity.toString().trim()) newErrors.quantity = "Quantity is required.";
-      if (!formData.pickupAddress.trim()) newErrors.pickupAddress = "Pickup address is required.";
-      if (!formData.deliveryAddress.trim()) newErrors.deliveryAddress = "Delivery address is required.";
+      if (!formData.requestDate)
+        newErrors.requestDate = "Request date is required.";
+      if (!formData.deliverySchedule)
+        newErrors.deliverySchedule = "Delivery schedule is required.";
+      if (!formData.pickupTime)
+        newErrors.pickupTime = "Pickup time is required.";
+      if (!formData.deliveryTime)
+        newErrors.deliveryTime = "Delivery time is required.";
+      if (!formData.priorityLevel)
+        newErrors.priorityLevel = "Priority level is required.";
+      if (!formData.product.trim())
+        newErrors.product = "Product description is required.";
+      if (!formData.quantity.toString().trim())
+        newErrors.quantity = "Quantity is required.";
+      if (!formData.pickupAddress.trim())
+        newErrors.pickupAddress = "Pickup address is required.";
+      if (!formData.deliveryAddress.trim())
+        newErrors.deliveryAddress = "Delivery address is required.";
     }
 
-    if (isSubconMode && !formData.subconPartner) newErrors.subconPartner = "Subcon partner is required.";
-    if (!formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
+    if (isSubconMode && !formData.subconPartner)
+      newErrors.subconPartner = "Subcon partner is required.";
+    if (!formData.truckPlate)
+      newErrors.truckPlate = "Truck plate number is required.";
     if (!formData.driver) newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
@@ -1057,6 +1795,12 @@ function BookingModal({
 
     const submissionData = {
       ...formData,
+      emailAddress: formData.emailAddress.trim()
+        ? formData.emailAddress
+        : "N/A",
+      businessAddress: formData.businessAddress.trim()
+        ? formData.businessAddress
+        : "N/A",
       pickupList,
       deliveryList,
     };
@@ -1068,435 +1812,1131 @@ function BookingModal({
   const selectedClientRecord = preSelectedClientID
     ? clients.find((c) => c.clientID === preSelectedClientID)
     : null;
-  const registeredWarehouses = selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
-  const registeredBranches = selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
+  const registeredWarehouses =
+    selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
+  const registeredBranches =
+    selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            {preSelectedClientID ? "Registered Client Booking" : "On-Call Booking Form"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+    <>
+      <style>{`
+        .btn-booking-cancel { background-color: oklch(63.7% 0.237 25.331); }
+        .btn-booking-cancel:hover { background-color: black !important; color: white !important; }
+        .btn-booking-generate { background-color: oklch(54.6% 0.245 262.881); }
+        .btn-booking-generate:hover { background-color: black !important; color: white !important; }
+      `}</style>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+          <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              {preSelectedClientID
+                ? "Registered Client Booking"
+                : "On-Call Booking Form"}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form
+            onSubmit={validateAndSubmit}
+            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            {/* SECTION 1: CLIENT INFORMATION */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
+                <span>1. Client Information</span>
+                {!preSelectedClientID && (
+                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                    Walk-in / On-Call
+                  </span>
+                )}
+              </div>
 
-        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
-              <span>1. Client Information</span>
-              {!preSelectedClientID && (
-                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                  Walk-in / On-Call
-                </span>
-              )}
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Company or Client Name *
+                  </label>
+                  {preSelectedClientID ? (
+                    <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">
+                      {formData.clientName}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      name="clientName"
+                      value={formData.clientName}
+                      onChange={handleChange}
+                      placeholder="e.g., Jollibee - QC Branch"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                  )}
+                  {errors.clientName && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.clientName}
+                    </p>
+                  )}
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Company or Client Name *</label>
-                {preSelectedClientID ? (
-                  <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">
-                    {formData.clientName}
-                  </div>
-                ) : (
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Person *
+                  </label>
                   <input
                     type="text"
-                    name="clientName"
-                    value={formData.clientName}
+                    name="contactPerson"
+                    value={formData.contactPerson}
                     onChange={handleChange}
-                    placeholder="e.g., Jollibee - QC Branch"
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    placeholder="e.g., Juan Dela Cruz"
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   />
-                )}
-                {errors.clientName && <p className="text-red-500 text-[11px] mt-1">{errors.clientName}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
-                <input
-                  type="text"
-                  name="contactPerson"
-                  value={formData.contactPerson}
-                  onChange={handleChange}
-                  placeholder="e.g., Juan Dela Cruz"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactPerson && <p className="text-red-500 text-[11px] mt-1">{errors.contactPerson}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
-                <input
-                  type="text"
-                  name="contactNumber"
-                  value={formData.contactNumber}
-                  onChange={handleChange}
-                  placeholder="Enter contact number"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactNumber && <p className="text-red-500 text-[11px] mt-1">{errors.contactNumber}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  name="emailAddress"
-                  value={formData.emailAddress}
-                  onChange={handleChange}
-                  placeholder="Enter email address"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.emailAddress && <p className="text-red-500 text-[11px] mt-1">{errors.emailAddress}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Business Address *</label>
-                <input
-                  type="text"
-                  name="businessAddress"
-                  value={formData.businessAddress}
-                  onChange={handleChange}
-                  placeholder="Enter business address"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.businessAddress && <p className="text-red-500 text-[11px] mt-1">{errors.businessAddress}</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses</span>
-              <button
-                type="button"
-                onClick={addPickupRow}
-                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-              >
-                <Plus className="w-4 h-4 font-normal" /> New Pickup
-              </button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Warehouse Address</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Pick Up Time</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pickupList.map((row, idx) => {
-                    const confirmKey = `pickup-${idx}`;
-                    const isConfirming = deleteConfirm[confirmKey];
-                    return (
-                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200 relative">
-                          <div className="relative w-full">
-                            <select
-                              value={row.warehouseName}
-                              onChange={(e) => handleWarehouseSelect(idx, e.target.value)}
-                              className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate"
-                            >
-                              <option value="">Select Warehouse</option>
-                              {registeredWarehouses.map((w: any, i: number) => (
-                                <option key={i} value={w.whName || w.warehouseName}>
-                                  {w.whName || w.warehouseName}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
-                        </td>
-                        <td className="p-2 text-center align-middle">
-                          {isConfirming ? (
-                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
-                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
-                              <div className="flex items-center gap-2 justify-center">
-                                <button type="button" onClick={() => removePickupRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
-                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={pickupList.length === 1} className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: pickupList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address</span>
-              <button
-                type="button"
-                onClick={addDeliveryRow}
-                style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
-                className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
-              >
-                <Plus className="w-4 h-4 font-normal" /> New Branch
-              </button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryList.map((row, idx) => {
-                    const confirmKey = `delivery-${idx}`;
-                    const isConfirming = deleteConfirm[confirmKey];
-                    return (
-                      <tr key={idx} className="border-b border-slate-200 last:border-0 font-normal text-black align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200 relative">
-                          <div className="relative w-full">
-                            <select
-                              value={row.branchName}
-                              onChange={(e) => handleBranchSelect(idx, e.target.value)}
-                              className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate pr-6"
-                            >
-                              <option value="">Select Branch</option>
-                              {registeredBranches.map((b: any, i: number) => (
-                                <option key={i} value={b.branchName}>{b.branchName}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Enter Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="text" placeholder="Contact Number" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none" />
-                        </td>
-                        <td className="p-2 border-r border-slate-200">
-                          <input type="number" placeholder="Qty" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border border-slate-200 rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15" />
-                        </td>
-                        <td className="p-2 text-center align-middle">
-                          {isConfirming ? (
-                            <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm" style={{ backgroundColor: "oklch(63.7% 0.237 25.331 / 0.1)", borderColor: "oklch(63.7% 0.237 25.331 / 0.4)" }}>
-                              <span className="text-[10px] font-semibold leading-tight" style={{ color: "oklch(50% 0.237 25.331)" }}>Delete row?</span>
-                              <div className="flex items-center gap-2 justify-center">
-                                <button type="button" onClick={() => removeDeliveryRow(idx)} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90">Yes</button>
-                                <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: false }))} className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold">No</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button type="button" onClick={() => setDeleteConfirm((prev) => ({ ...prev, [confirmKey]: true }))} disabled={deliveryList.length === 1} className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`} style={{ color: deliveryList.length === 1 ? undefined : "oklch(63.7% 0.237 25.331)" }}><Trash2 className="w-4 h-4 mx-auto" /></button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              4. Booking Details & Schedule
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
-                <input type="date" name="deliverySchedule" value={formData.deliverySchedule} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                {errors.deliverySchedule && <p className="text-red-500 text-[11px] mt-1">{errors.deliverySchedule}</p>}
-              </div>
-              <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
-                <input type="text" name="product" value={formData.product} onChange={handleChange} placeholder="e.g., Burger Buns" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                {errors.product && <p className="text-red-500 text-[11px] mt-1">{errors.product}</p>}
-              </div>
-              <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
-                <div className="relative w-full">
-                  <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                    <option value="" disabled>Select priority level</option>
-                    <option value="Standard">Standard</option>
-                    <option value="Urgent">Urgent / Rush</option>
-                    <option value="High Priority">High Priority</option>
-                  </select>
+                  {errors.contactPerson && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.contactPerson}
+                    </p>
+                  )}
                 </div>
-                {errors.priorityLevel && <p className="text-red-500 text-[11px] mt-1">{errors.priorityLevel}</p>}
-              </div>
-            </div>
-          </div>
 
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}
-              </span>
-              <div className="flex items-center gap-4">
-                {isSubconMode ? (
-                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Own Resources</button>
-                ) : (
-                  <>
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Assign to Subcon Partner</button>
-                    <button type="button" onClick={() => alert("Fleet Auto-Recommendation triggered!")} className="text-xs font-medium text-blue-600 hover:text-blue-700 underline">Auto-Recommend Available Resources</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {isSubconMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
-                  <div className="relative w-full">
-                    <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select partner</option>
-                      <option value="Lalamove">Lalamove</option>
-                      <option value="Transportify">Transportify</option>
-                      <option value="Other">Other</option>
-                    </select>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactNumber"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    placeholder="Enter contact number"
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                  {errors.contactNumber && (
+                    <p className="text-red-500 text-[11px] mt-1">
+                      {errors.contactNumber}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="emailAddress"
+                    value={formData.emailAddress}
+                    onChange={handleChange}
+                    placeholder="Enter email address"
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Business Address
+                  </label>
+                  <input
+                    type="text"
+                    name="businessAddress"
+                    value={formData.businessAddress}
+                    onChange={handleChange}
+                    placeholder="Enter business address"
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {!preSelectedClientID ? (
+              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                  2. Booking Details & Schedule
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Request Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="requestDate"
+                      value={formData.requestDate}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.requestDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.requestDate && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.requestDate}
+                      </p>
+                    )}
                   </div>
-                  {errors.subconPartner && <p className="text-red-500 text-[11px] mt-1">{errors.subconPartner}</p>}
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Delivery Schedule *
+                    </label>
+                    <input
+                      type="date"
+                      name="deliverySchedule"
+                      min={currentDate}
+                      value={formData.deliverySchedule}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.deliverySchedule && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.deliverySchedule}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Priority Level *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="priorityLevel"
+                        value={formData.priorityLevel}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select priority level
+                        </option>
+                        <option value="Standard">Standard</option>
+                        <option value="Urgent">Urgent / Rush</option>
+                        <option value="High Priority">High Priority</option>
+                      </select>
+                    </div>
+                    {errors.priorityLevel && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.priorityLevel}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} placeholder="Enter plate no." className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Pickup Time *
+                    </label>
+                    <input
+                      type="time"
+                      name="pickupTime"
+                      value={formData.pickupTime}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.pickupTime && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.pickupTime}
+                      </p>
+                    )}
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Delivery Time *
+                    </label>
+                    <input
+                      type="time"
+                      name="deliveryTime"
+                      value={formData.deliveryTime}
+                      onChange={handleChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryTime ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.deliveryTime && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.deliveryTime}
+                      </p>
+                    )}
+                  </div>
+                  <div className="sm:col-span-4">
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Product To Deliver *
+                    </label>
+                    <input
+                      type="text"
+                      name="product"
+                      value={formData.product}
+                      onChange={handleChange}
+                      placeholder="e.g., Burger Buns"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.product && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.product}
+                      </p>
+                    )}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={formData.quantity}
+                      onChange={handleChange}
+                      placeholder="e.g., 40"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.quantity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.quantity && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.quantity}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <input type="text" name="driver" value={formData.driver} onChange={handleChange} placeholder="Enter driver name" className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />
-                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
-                  <input type="text" name="helper1" value={formData.helper1} onChange={handleChange} placeholder="Enter helper 1 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
-                  <input type="text" name="helper2" value={formData.helper2} onChange={handleChange} placeholder="Enter helper 2 name" className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600" />
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Pickup Address *
+                    </label>
+                    <input
+                      type="text"
+                      name="pickupAddress"
+                      value={formData.pickupAddress}
+                      onChange={handleChange}
+                      placeholder="Enter complete pickup address"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.pickupAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.pickupAddress && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.pickupAddress}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Delivery Address *
+                    </label>
+                    <input
+                      type="text"
+                      name="deliveryAddress"
+                      value={formData.deliveryAddress}
+                      onChange={handleChange}
+                      placeholder="Enter complete delivery address"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliveryAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.deliveryAddress && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.deliveryAddress}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <div className="relative w-full">
-                    <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select truck</option>
-                      {trucks.map((t) => (
-                        <option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>
-                      ))}
-                    </select>
+              <>
+                {/* SECTION 2: PICKUP ADDRESSES */}
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                    <span className="font-semibold text-black text-sm tracking-wide">
+                      2. Pickup Addresses *
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addPickupRow}
+                      style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                      className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+                    >
+                      <Plus className="w-4 h-4 font-normal" /> New Pickup
+                    </button>
                   </div>
-                  {errors.truckPlate && <p className="text-red-500 text-[11px] mt-1">{errors.truckPlate}</p>}
+                  {Object.keys(errors).some((k) => k.startsWith("pickup_")) && (
+                    <p className="text-red-500 text-xs mb-2">
+                      Please fill out all required fields in Pickup Addresses.
+                    </p>
+                  )}
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left border-collapse text-xs min-w-150">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                          <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                          <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                            Warehouse Name *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                            Warehouse Address *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                            Contact Person *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                            Contact Number *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                            Pick Up Time *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                            Quantity *
+                          </th>
+                          <th className="p-2.5 w-16 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pickupList.map((row, idx) => {
+                          const confirmKey = `pickup-${idx}`;
+                          const isConfirming = deleteConfirm[confirmKey];
+
+                          return (
+                            <tr
+                              key={idx}
+                              className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
+                            >
+                              <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
+                                {idx + 1}
+                              </td>
+                              <td className="p-2 border-r border-slate-200 relative">
+                                <div className="relative w-full">
+                                  <select
+                                    value={row.warehouseName}
+                                    onChange={(e) =>
+                                      handleWarehouseSelect(idx, e.target.value)
+                                    }
+                                    className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                  >
+                                    <option value="">Select Warehouse</option>
+                                    {registeredWarehouses.map(
+                                      (w: any, i: number) => (
+                                        <option
+                                          key={i}
+                                          value={w.whName || w.warehouseName}
+                                        >
+                                          {w.whName || w.warehouseName}
+                                        </option>
+                                      ),
+                                    )}
+                                  </select>
+                                </div>
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Enter Address"
+                                  value={row.warehouseAddress}
+                                  onChange={(e) =>
+                                    handlePickupChange(
+                                      idx,
+                                      "warehouseAddress",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Enter Contact Person"
+                                  value={row.contactPerson}
+                                  onChange={(e) =>
+                                    handlePickupChange(
+                                      idx,
+                                      "contactPerson",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Enter contact number"
+                                  value={row.contactNumber}
+                                  onChange={(e) =>
+                                    handlePickupChange(
+                                      idx,
+                                      "contactNumber",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="time"
+                                  value={row.pickupTime}
+                                  onChange={(e) =>
+                                    handlePickupChange(
+                                      idx,
+                                      "pickupTime",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="number"
+                                  placeholder="Qty"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    handlePickupChange(
+                                      idx,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 text-center align-middle">
+                                {isConfirming ? (
+                                  <div
+                                    className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
+                                    style={{
+                                      backgroundColor:
+                                        "oklch(63.7% 0.237 25.331 / 0.1)",
+                                      borderColor:
+                                        "oklch(63.7% 0.237 25.331 / 0.4)",
+                                    }}
+                                  >
+                                    <span
+                                      className="text-[10px] font-semibold leading-tight"
+                                      style={{
+                                        color: "oklch(50% 0.237 25.331)",
+                                      }}
+                                    >
+                                      Delete row?
+                                    </span>
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => removePickupRow(idx)}
+                                        style={{
+                                          backgroundColor:
+                                            "oklch(63.7% 0.237 25.331)",
+                                        }}
+                                        className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
+                                      >
+                                        Yes
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setDeleteConfirm((prev) => ({
+                                            ...prev,
+                                            [confirmKey]: false,
+                                          }))
+                                        }
+                                        className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDeleteConfirm((prev) => ({
+                                        ...prev,
+                                        [confirmKey]: true,
+                                      }))
+                                    }
+                                    disabled={pickupList.length === 1}
+                                    className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                                    style={{
+                                      color:
+                                        pickupList.length === 1
+                                          ? undefined
+                                          : "oklch(63.7% 0.237 25.331)",
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mx-auto" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <div className="relative w-full">
-                    <select name="driver" value={formData.driver} onChange={handleChange} className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}>
-                      <option value="" disabled>Select driver</option>
-                      {drivers.map((d) => (
-                        <option key={d.employeeID} value={d.employeeName}>{d.employeeName}</option>
-                      ))}
-                    </select>
+
+                {/* SECTION 3: DELIVERY ADDRESSES */}
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                    <span className="font-semibold text-black text-sm tracking-wide">
+                      3. Delivery Address *
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addDeliveryRow}
+                      style={{ backgroundColor: "oklch(70.7% 0.165 254.624)" }}
+                      className="inline-flex items-center justify-center gap-1.5 text-white font-medium rounded-lg text-xs shadow-sm transition-all w-32.5 h-8 hover:opacity-90"
+                    >
+                      <Plus className="w-4 h-4 font-normal" /> Branch
+                    </button>
                   </div>
-                  {errors.driver && <p className="text-red-500 text-[11px] mt-1">{errors.driver}</p>}
+                  {Object.keys(errors).some((k) =>
+                    k.startsWith("delivery_"),
+                  ) && (
+                    <p className="text-red-500 text-xs mb-2">
+                      Please fill out all required fields in Delivery Address.
+                    </p>
+                  )}
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left border-collapse text-xs min-w-150">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                          <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                          <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                            Branch Name *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                            Delivery Address *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                            Contact Person *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                            Contact Number *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                            Delivery Time *
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                            Quantity *
+                          </th>
+                          <th className="p-2.5 w-16 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deliveryList.map((row, idx) => {
+                          const confirmKey = `delivery-${idx}`;
+                          const isConfirming = deleteConfirm[confirmKey];
+
+                          return (
+                            <tr
+                              key={idx}
+                              className="border-b border-slate-200 last:border-0 font-normal text-black align-top"
+                            >
+                              <td className="p-2 border-r border-slate-200 text-center font-medium pt-3">
+                                {idx + 1}
+                              </td>
+                              <td className="p-2 border-r border-slate-200 relative">
+                                <div className="relative w-full">
+                                  <select
+                                    value={row.branchName}
+                                    onChange={(e) =>
+                                      handleBranchSelect(idx, e.target.value)
+                                    }
+                                    className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none text-black truncate pr-6 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                  >
+                                    <option value="">Select Branch</option>
+                                    {registeredBranches.map(
+                                      (b: any, i: number) => (
+                                        <option key={i} value={b.branchName}>
+                                          {b.branchName}
+                                        </option>
+                                      ),
+                                    )}
+                                  </select>
+                                </div>
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Enter Address"
+                                  value={row.deliveryAddress}
+                                  onChange={(e) =>
+                                    handleDeliveryChange(
+                                      idx,
+                                      "deliveryAddress",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Contact Person"
+                                  value={row.contactPerson}
+                                  onChange={(e) =>
+                                    handleDeliveryChange(
+                                      idx,
+                                      "contactPerson",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="text"
+                                  placeholder="Contact Number"
+                                  value={row.contactNumber}
+                                  onChange={(e) =>
+                                    handleDeliveryChange(
+                                      idx,
+                                      "contactNumber",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="time"
+                                  value={row.deliveryTime}
+                                  onChange={(e) =>
+                                    handleDeliveryChange(
+                                      idx,
+                                      "deliveryTime",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <input
+                                  type="number"
+                                  placeholder="Qty"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    handleDeliveryChange(
+                                      idx,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                                />
+                              </td>
+                              <td className="p-2 text-center align-middle">
+                                {isConfirming ? (
+                                  <div
+                                    className="flex flex-col items-center gap-1 p-1.5 rounded-lg border shadow-sm"
+                                    style={{
+                                      backgroundColor:
+                                        "oklch(63.7% 0.237 25.331 / 0.1)",
+                                      borderColor:
+                                        "oklch(63.7% 0.237 25.331 / 0.4)",
+                                    }}
+                                  >
+                                    <span
+                                      className="text-[10px] font-semibold leading-tight"
+                                      style={{
+                                        color: "oklch(50% 0.237 25.331)",
+                                      }}
+                                    >
+                                      Delete row?
+                                    </span>
+                                    <div className="flex items-center gap-2 justify-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => removeDeliveryRow(idx)}
+                                        style={{
+                                          backgroundColor:
+                                            "oklch(63.7% 0.237 25.331)",
+                                        }}
+                                        className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90"
+                                      >
+                                        Yes
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setDeleteConfirm((prev) => ({
+                                            ...prev,
+                                            [confirmKey]: false,
+                                          }))
+                                        }
+                                        className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDeleteConfirm((prev) => ({
+                                        ...prev,
+                                        [confirmKey]: true,
+                                      }))
+                                    }
+                                    disabled={deliveryList.length === 1}
+                                    className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                                    style={{
+                                      color:
+                                        deliveryList.length === 1
+                                          ? undefined
+                                          : "oklch(63.7% 0.237 25.331)",
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mx-auto" />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1 (Optional)</label>
-                  <div className="relative w-full">
-                    <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
-                      <option value="">Select helper</option>
-                      {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
-                      ))}
-                    </select>
+
+                {/* SECTION 4: BOOKING DETAILS & SCHEDULE */}
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                  <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                    4. Booking Details & Schedule
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-4 md:col-span-3">
+                      <label className="block text-xs font-medium text-black mb-1">
+                        Delivery Schedule *
+                      </label>
+                      <input
+                        type="date"
+                        name="deliverySchedule"
+                        min={currentDate}
+                        value={formData.deliverySchedule}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.deliverySchedule ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      />
+                      {errors.deliverySchedule && (
+                        <p className="text-red-500 text-[11px] mt-1">
+                          {errors.deliverySchedule}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-5 md:col-span-6">
+                      <label className="block text-xs font-medium text-black mb-1">
+                        Product To Deliver *
+                      </label>
+                      <input
+                        type="text"
+                        name="product"
+                        value={formData.product}
+                        onChange={handleChange}
+                        placeholder="e.g., Burger Buns"
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.product ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      />
+                      {errors.product && (
+                        <p className="text-red-500 text-[11px] mt-1">
+                          {errors.product}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-3 md:col-span-3">
+                      <label className="block text-xs font-medium text-black mb-1">
+                        Priority Level *
+                      </label>
+                      <div className="relative w-full">
+                        <select
+                          name="priorityLevel"
+                          value={formData.priorityLevel}
+                          onChange={handleChange}
+                          className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.priorityLevel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                        >
+                          <option value="" disabled>
+                            Select priority level
+                          </option>
+                          <option value="Standard">Standard</option>
+                          <option value="Urgent">Urgent / Rush</option>
+                          <option value="High Priority">High Priority</option>
+                        </select>
+                      </div>
+                      {errors.priorityLevel && (
+                        <p className="text-red-500 text-[11px] mt-1">
+                          {errors.priorityLevel}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2 (Optional)</label>
-                  <div className="relative w-full">
-                    <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600">
-                      <option value="">Select helper</option>
-                      {helpers.map((h) => (
-                        <option key={h.employeeID} value={h.employeeName}>{h.employeeName}</option>
-                      ))}
-                    </select>
-                  </div>
+              </>
+            )}
+
+            {/* SECTION 5: ASSIGN DELIVERY CREW */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  {preSelectedClientID ? "5." : "3."} Assign Delivery Crews &
+                  Vehicle {isSubconMode && "(Subcon)"}
+                </span>
+                <div className="flex items-center gap-4">
+                  {isSubconMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(false)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                    >
+                      Assign to Own Resources
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsSubconMode(true)}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Assign to Subcon Partner
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          alert("Fleet Auto-Recommendation triggered!")
+                        }
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Auto-Recommend Available Resources
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              6. Notes / Instructions (Optional)
+              {isSubconMode ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Select Subcon Partner *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="subconPartner"
+                        value={formData.subconPartner}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.subconPartner ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select partner
+                        </option>
+                        <option value="Lalamove">Lalamove</option>
+                        <option value="Transportify">Transportify</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    {errors.subconPartner && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.subconPartner}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <input
+                      type="text"
+                      name="truckPlate"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      placeholder="Enter plate no."
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.truckPlate && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.truckPlate}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <input
+                      type="text"
+                      name="driver"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      placeholder="Enter driver name"
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                    {errors.driver && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.driver}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1 (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="helper1"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      placeholder="Enter helper 1 name"
+                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2 (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="helper2"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      placeholder="Enter helper 2 name"
+                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="truckPlate"
+                        value={formData.truckPlate}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckPlate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select truck
+                        </option>
+                        {trucks.map((t) => (
+                          <option key={t.truckID} value={t.truckID}>
+                            {t.plateNumber} ({t.model})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.truckPlate && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.truckPlate}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="driver"
+                        value={formData.driver}
+                        onChange={handleChange}
+                        className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driver ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                      >
+                        <option value="" disabled>
+                          Select driver
+                        </option>
+                        {drivers.map((d) => (
+                          <option key={d.employeeID} value={d.employeeName}>
+                            {d.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.driver && (
+                      <p className="text-red-500 text-[11px] mt-1">
+                        {errors.driver}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1 (Optional)
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="helper1"
+                        value={formData.helper1}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      >
+                        <option value="">Select helper</option>
+                        {helpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeName}>
+                            {h.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2 (Optional)
+                    </label>
+                    <div className="relative w-full">
+                      <select
+                        name="helper2"
+                        value={formData.helper2}
+                        onChange={handleChange}
+                        className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      >
+                        <option value="">Select helper</option>
+                        {helpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeName}>
+                            {h.employeeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <textarea
-              name="notes"
-              rows={5}
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder="Add special delivery instructions, gate pass codes, or handling notes here..."
-              className="w-full min-h-30 resize-y bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
-            />
-          </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button type="button" onClick={onClose} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
-              Cancel
-            </button>
-            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95">
-              Generate Booking
-            </button>
-          </div>
-        </form>
+            {/* SECTION 6: NOTES / INSTRUCTIONS */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                {preSelectedClientID ? "6." : "4."} Notes / Instructions
+                (Optional)
+              </div>
+              <textarea
+                name="notes"
+                rows={5}
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Add special delivery instructions, gate pass codes, or handling notes here..."
+                className="w-full min-h-30 resize-y bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              />
+            </div>
+
+            {/* MODAL ACTION BUTTONS */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-booking-cancel w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors duration-200 flex items-center justify-center whitespace-nowrap"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-booking-generate w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors duration-200 flex items-center justify-center whitespace-nowrap"
+              >
+                Generate Booking
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1547,10 +2987,10 @@ function FeedTable({ tabConfig, bookings }: any) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-slate-50/30">
         <div className="flex items-center space-x-3">
           <div
-            className={`w-9 h-9 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.iconText}`}
+            className={`w-9 h-9 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
           >
             <tabConfig.icon className="w-5 h-5" />
           </div>
@@ -1558,15 +2998,17 @@ function FeedTable({ tabConfig, bookings }: any) {
             {tabConfig.name} Feed
           </h3>
         </div>
-        <span
-          className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs font-bold`}
-        >
-          {data.length} Total
-        </span>
+        <div className="flex items-center gap-3">
+          <span
+            className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs font-bold`}
+          >
+            {data.length} Total
+          </span>
+        </div>
       </div>
 
-      {/* Body: Stacked Cards */}
-      <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
+      {/* Body: Stacked Cards with native scrolling. max-h-[420px] fits approximately 3 visible cards at once */}
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto max-h-105 feed-scrollbar">
         {data.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
             <FileText className="w-12 h-12 mb-2 opacity-20" />
@@ -1577,7 +3019,7 @@ function FeedTable({ tabConfig, bookings }: any) {
             {data.map((b: any) => (
               <div
                 key={b.orderId}
-                className="bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:bg-blue-50/10 transition-all duration-200"
+                className="bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-gray-300 transition-all duration-200"
               >
                 {/* Card Header: Order ID & Client on Left, Status + Date/Time on Right */}
                 <div className="flex justify-between items-start mb-3">
@@ -1633,7 +3075,7 @@ function FeedTable({ tabConfig, bookings }: any) {
                       className="text-slate-700 font-medium block truncate"
                       title={b.helper}
                     >
-                      {b.helper}
+                      {b.helper || "N/A"}
                     </span>
                   </div>
                 </div>
@@ -1658,6 +3100,9 @@ export default function AdminDashboardPage() {
   const [isClientSearchModalOpen, setIsClientSearchModalOpen] = useState(false);
   const [selectedClientForBooking, setSelectedClientForBooking] = useState("");
 
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [generatedOrderCode, setGeneratedOrderCode] = useState("");
+
   const [clients, setClients] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -1680,7 +3125,7 @@ export default function AdminDashboardPage() {
       const categorized: { [key: string]: any[] } = {
         "Pending Bookings": [],
         "In-Transit": [],
-        "Completed": [],
+        Completed: [],
         "Foul Trip": [],
       };
 
@@ -1693,14 +3138,20 @@ export default function AdminDashboardPage() {
             displayClient = match ? `Walk-in: ${match[1]}` : "Walk-in Customer";
           }
 
-          const detailsArr = o.OrderDetails || o.orderdetails || o.order_details || [];
+          const detailsArr =
+            o.OrderDetails || o.orderdetails || o.order_details || [];
           const product = detailsArr[0]?.productName || "Multiple Items";
 
-          const stopsArr = o.BranchStops || o.branchstops || o.branch_stops || [];
+          const stopsArr =
+            o.BranchStops || o.branchstops || o.branch_stops || [];
           const rawTime = stopsArr[0]?.expectedTime || "";
           const requestDateMatch = o.notes?.match(/Request Date:\s*(.*)/);
-          const reqDate = requestDateMatch ? requestDateMatch[1].trim() : new Date(o.createdAt).toLocaleDateString();
-          const dateTime = rawTime ? `${reqDate} @ ${rawTime}` : new Date(o.createdAt).toLocaleString();
+          const reqDate = requestDateMatch
+            ? requestDateMatch[1].trim()
+            : new Date(o.createdAt).toLocaleDateString();
+          const dateTime = rawTime
+            ? `${reqDate} @ ${rawTime}`
+            : new Date(o.createdAt).toLocaleString();
 
           const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
           const driver = driverMatch ? driverMatch[1].trim() : "Unassigned";
@@ -1708,12 +3159,24 @@ export default function AdminDashboardPage() {
           const helper = helperMatch ? helperMatch[1].trim() : "None";
 
           let category = "Pending Bookings";
-          const stopStatus = (stopsArr[0]?.stopStatus || "pending").toLowerCase();
-          if (stopStatus.includes("transit") || stopStatus.includes("progress")) {
+          const stopStatus = (
+            stopsArr[0]?.stopStatus || "pending"
+          ).toLowerCase();
+          if (
+            stopStatus.includes("transit") ||
+            stopStatus.includes("progress")
+          ) {
             category = "In-Transit";
-          } else if (stopStatus.includes("complete") || stopStatus.includes("delivered")) {
+          } else if (
+            stopStatus.includes("complete") ||
+            stopStatus.includes("delivered")
+          ) {
             category = "Completed";
-          } else if (stopStatus.includes("foul") || stopStatus.includes("fail") || stopStatus.includes("cancel")) {
+          } else if (
+            stopStatus.includes("foul") ||
+            stopStatus.includes("fail") ||
+            stopStatus.includes("cancel")
+          ) {
             category = "Foul Trip";
           }
 
@@ -1739,31 +3202,26 @@ export default function AdminDashboardPage() {
       try {
         const clientRes = await axios.get(`${API_URL}/api/clients`);
         setClients(clientRes.data);
-      } catch (e) {
-        console.error("Failed to load clients");
-      }
 
-      try {
         const truckRes = await axios.get(`${API_URL}/api/trucks`);
         setTrucks(truckRes.data);
-      } catch (e) {
-        console.error("Failed to load trucks");
-      }
 
-      try {
         const empRes = await axios.get(`${API_URL}/api/employees`);
         const allEmployees = empRes.data;
-        setDrivers(allEmployees.filter((e: any) => e.role === "Driver" && e.isActive));
-        setHelpers(allEmployees.filter((e: any) => e.role === "Helper" && e.isActive));
-      } catch (e) {
-        console.error("Failed to load employees");
+        setDrivers(
+          allEmployees.filter((e: any) => e.role === "Driver" && e.isActive),
+        );
+        setHelpers(
+          allEmployees.filter((e: any) => e.role === "Helper" && e.isActive),
+        );
+      } catch (error) {
+        console.error("Failed to fetch initial data:", error);
       }
 
       await fetchOrders();
     };
-    
     fetchDashboardData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL]);
 
   const handleNavigate = (tabName: string) => {
@@ -1822,10 +3280,10 @@ export default function AdminDashboardPage() {
       };
 
       const res = await axios.post(`${API_URL}/api/orders`, payload);
-      alert(
-        `✅ Order Generated Successfully!\nTracking Code: ${res.data.orderCode}`,
-      );
+      const newOrderCode = res.data.orderCode;
 
+      setGeneratedOrderCode(newOrderCode);
+      setIsSuccessModalOpen(true);
       await fetchOrders();
     } catch (err: any) {
       console.error(err);
@@ -1837,6 +3295,24 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="p-4 md:p-8 w-full max-w-7xl mx-auto">
+      {/* Global Dashboard Styles for the feed scrollbars */}
+      <style>{`
+        .feed-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .feed-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 4px;
+        }
+        .feed-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .feed-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
@@ -1911,9 +3387,14 @@ export default function AdminDashboardPage() {
           setIsBookingModalOpen(true);
         }}
         onOpenNewClientBooking={() => {
-          setIsClientSearchModalOpen(false);
           setIsNewClientBookingOpen(true);
         }}
+      />
+
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        orderCode={generatedOrderCode}
       />
     </div>
   );
