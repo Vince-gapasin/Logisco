@@ -43,6 +43,12 @@ export interface HistoryLogRecord {
   remarks: string;
   date: string;
   photoUrl?: string;
+  driversReport?: string;
+  preliminaryRemarks?: string;
+  preliminaryPhotoUrl?: string;
+  additionalIssue?: string;
+  progressRemarks?: string;
+  progressPhotoUrl?: string;
 }
 
 // Utility mapper to maintain consistent color designs across elements
@@ -549,7 +555,7 @@ function LogDetailView({ log, onBack }: LogDetailViewProps) {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Issue / Work Performed
+                  Work Performed
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
                   {log.issue}
@@ -583,6 +589,92 @@ function LogDetailView({ log, onBack }: LogDetailViewProps) {
                 No photo evidence attached to this record.
               </div>
             )}
+          </div>
+
+          {/* Section 4: Preliminary Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Preliminary Notes (Before Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's Report / Observed Vehicle Issues
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.driversReport || "No preliminary symptoms reported."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.preliminaryRemarks || "No preliminary remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken Before Maintenance
+                </label>
+                {log.preliminaryPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.preliminaryPhotoUrl}
+                      alt="Before Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached before maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Progress Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Progress Notes (During Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Issue
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.additionalIssue || "No additional issues logged."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.progressRemarks || "No progress remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken During Maintenance
+                </label>
+                {log.progressPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.progressPhotoUrl}
+                      alt="During Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached during maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -677,22 +769,22 @@ function TruckSpecificHistoryView({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto px-4 sm:px-6">
+          <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
             <thead>
               <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                <th className="py-3.5 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 w-1/2 text-left">
-                  Records
+                <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">
+                  Status Before Change
                 </th>
-                <th className="py-3.5 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 w-1/2 text-right">
-                  Date
-                </th>
+                <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {paginatedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="py-16 sm:py-20 text-center">
+                  <td colSpan={4} className="py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                         <FileText className="w-6 h-6" />
@@ -714,7 +806,17 @@ function TruckSpecificHistoryView({
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                     title="Click to view complete maintenance log"
                   >
-                    <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <div className="text-sm font-medium text-slate-800">
+                        {new Date(log.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
                       <div className="font-semibold text-slate-900 truncate">
                         {log.plateNumber}
                         <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
@@ -731,14 +833,13 @@ function TruckSpecificHistoryView({
                         <div className="mt-0.5 truncate">{log.issue}</div>
                       </div>
                     </td>
-                    <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right align-top sm:align-middle">
-                      <div className="text-sm font-medium text-slate-800">
-                        {new Date(log.date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </div>
+
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
+                    </td>
+
+                    <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
                     </td>
                   </tr>
                 ))
@@ -790,6 +891,7 @@ function TruckSpecificHistoryView({
 // ==========================================
 interface TruckDetailViewProps {
   truck: TruckRecord;
+  logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
   onDelete: (id: string | number) => void;
@@ -798,6 +900,7 @@ interface TruckDetailViewProps {
 
 function TruckDetailView({
   truck,
+  logs,
   onBack,
   onEdit,
   onDelete,
@@ -805,6 +908,32 @@ function TruckDetailView({
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const styles = getStatusStyles(truck.status);
+
+  const truckLogs = logs.filter(
+    (l) =>
+      String(l.truckID) === String(truck.id) ||
+      String(l.plateNumber).toLowerCase() ===
+        String(truck.plateNumber).toLowerCase(),
+  );
+  const latestLog = truckLogs[truckLogs.length - 1];
+
+  const isOnMaintenanceOrOOS =
+    truck.status === "On Maintenance" || truck.status === "Out of Service";
+
+  const isInspectionFilled = !!(
+    latestLog &&
+    (latestLog.driversReport ||
+      latestLog.preliminaryRemarks ||
+      latestLog.preliminaryPhotoUrl ||
+      latestLog.issue)
+  );
+
+  const isUpdateFilled = !!(
+    latestLog &&
+    (latestLog.additionalIssue ||
+      latestLog.progressRemarks ||
+      latestLog.progressPhotoUrl)
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
@@ -837,7 +966,7 @@ function TruckDetailView({
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -852,17 +981,21 @@ function TruckDetailView({
               <Truck className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {truck.plateNumber}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {truck.truckType}
-                </span>
+              {/* Plate Number and Status Container */}
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {truck.plateNumber}
+                </h2>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}
                 >
                   {truck.status}
+                </span>
+              </div>
+              {/* Truck Type Container */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {truck.truckType}
                 </span>
               </div>
             </div>
@@ -926,6 +1059,101 @@ function TruckDetailView({
               </div>
             </div>
           </div>
+
+          {isOnMaintenanceOrOOS && isInspectionFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Preliminary Notes (Before Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver's Report / Observed Vehicle Issues
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.driversReport ||
+                      latestLog?.issue ||
+                      "No preliminary symptoms reported."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.preliminaryRemarks ||
+                      latestLog?.remarks ||
+                      "No preliminary remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken Before Maintenance
+                  </label>
+                  {latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={
+                          latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl
+                        }
+                        alt="Before Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached before maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isOnMaintenanceOrOOS && isUpdateFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Progress Notes (During Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Issue
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.additionalIssue ||
+                      "No additional issues logged."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.progressRemarks || "No progress remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken During Maintenance
+                  </label>
+                  {latestLog?.progressPhotoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={latestLog?.progressPhotoUrl}
+                        alt="During Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached during maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1113,9 +1341,9 @@ export default function FleetStatusPage() {
         truckType: record.truckType,
         model: record.truckModel,
         capacity: Number(record.capacity) || 0,
-        lastChecked: record.lastChecked 
-            ? new Date(record.lastChecked).toISOString() 
-            : new Date().toISOString(),
+        lastChecked: record.lastChecked
+          ? new Date(record.lastChecked).toISOString()
+          : new Date().toISOString(),
         truckStatus: record.status,
       };
 
@@ -1225,6 +1453,7 @@ export default function FleetStatusPage() {
       ) : selectedTruck ? (
         <TruckDetailView
           truck={selectedTruck}
+          logs={maintenanceLogs}
           onBack={() => setSelectedTruck(null)}
           onEdit={(truckRecord) => {
             setEditingTruck(truckRecord);
@@ -1275,16 +1504,7 @@ export default function FleetStatusPage() {
                 >
                   All ({totalCount})
                 </button>
-                <button
-                  onClick={() => setSelectedFilter("On Maintenance")}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    selectedFilter === "On Maintenance"
-                      ? getStatusStyles("On Maintenance").tabActive
-                      : getStatusStyles("On Maintenance").bgLight
-                  }`}
-                >
-                  On Maintenance ({maintenanceCount})
-                </button>
+
                 <button
                   onClick={() => setSelectedFilter("Available")}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
@@ -1294,6 +1514,16 @@ export default function FleetStatusPage() {
                   }`}
                 >
                   Available ({operationalCount})
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("On Maintenance")}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    selectedFilter === "On Maintenance"
+                      ? getStatusStyles("On Maintenance").tabActive
+                      : getStatusStyles("On Maintenance").bgLight
+                  }`}
+                >
+                  On Maintenance ({maintenanceCount})
                 </button>
                 <button
                   onClick={() => setSelectedFilter("Already Booked")}

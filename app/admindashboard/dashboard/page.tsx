@@ -3433,7 +3433,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder }: any) {
       </div>
 
       {/* Body: Stacked Cards with native scrolling */}
-      <div className="p-4 sm:p-6 flex-1 overflow-y-auto max-h-[420px] feed-scrollbar">
+      <div className="p-4 sm:p-6 flex-1 overflow-y-auto max-h-105 feed-scrollbar">
         {data.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-gray-400">
             <FileText className="w-12 h-12 mb-2 opacity-20" />

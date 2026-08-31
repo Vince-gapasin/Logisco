@@ -45,6 +45,12 @@ export interface HistoryLogRecord {
   remarks: string;
   date: string;
   photoUrl?: string;
+  driversReport?: string;
+  preliminaryRemarks?: string;
+  preliminaryPhotoUrl?: string;
+  additionalIssue?: string;
+  progressRemarks?: string;
+  progressPhotoUrl?: string;
 }
 
 export interface TruckOption {
@@ -453,6 +459,7 @@ interface LogMaintenanceModalProps {
   trucksOptions: TruckOption[];
   mechanicsOptions: EmployeeOption[];
   preselectedTruckId?: string | number | null;
+  formType?: "inspection" | "update" | "log";
 }
 
 function LogMaintenanceModal({
@@ -463,6 +470,7 @@ function LogMaintenanceModal({
   trucksOptions,
   mechanicsOptions,
   preselectedTruckId,
+  formType = "log",
 }: LogMaintenanceModalProps) {
   const initialFormState = {
     date: "",
@@ -556,8 +564,14 @@ function LogMaintenanceModal({
     if (!formData.truckID) newErrors.truckID = "Truck selection is required.";
     if (!formData.primaryMechanicID)
       newErrors.primaryMechanicID = "Primary mechanic is required.";
-    if (!formData.issue.trim())
-      newErrors.issue = "Issue / work performed is required.";
+    if (!formData.issue.trim()) {
+      newErrors.issue =
+        formType === "inspection"
+          ? "Issue to fix is required."
+          : formType === "update"
+            ? "Additional issue is required."
+            : "Work performed is required.";
+    }
 
     if (
       formData.additionalMechanicID &&
@@ -583,7 +597,13 @@ function LogMaintenanceModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            {editData ? "Edit Maintenance Log" : "Maintenance Log Form"}
+            {editData
+              ? "Edit Maintenance Log"
+              : formType === "inspection"
+                ? "Maintenance Inspection Form"
+                : formType === "update"
+                  ? "Maintenance Update Form"
+                  : "Maintenance Log Form"}
           </h2>
           <button
             type="button"
@@ -897,12 +917,22 @@ function LogMaintenanceModal({
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Issue / Work Performed *
+                  {formType === "inspection"
+                    ? "Issue To Fix *"
+                    : formType === "update"
+                      ? "Additional Issue *"
+                      : "Work Performed *"}
                 </label>
                 <textarea
                   name="issue"
                   rows={3}
-                  placeholder="Describe the issue fixed, parts replaced, or general maintenance performed..."
+                  placeholder={
+                    formType === "inspection"
+                      ? "Describe the reported issue or items that require fixing..."
+                      : formType === "update"
+                        ? "Describe maintenance progress, additional issues, or work in progress..."
+                        : "Describe the completed maintenance work and truck condition..."
+                  }
                   value={formData.issue}
                   onChange={handleInputChange as any}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${
@@ -920,7 +950,9 @@ function LogMaintenanceModal({
 
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Remarks (Optional)
+                  {formType === "update"
+                    ? "Additional Remarks (Optional)"
+                    : "Remarks (Optional)"}
                 </label>
                 <textarea
                   name="remarks"
@@ -945,7 +977,16 @@ function LogMaintenanceModal({
                   ? "Update Maintenance Photo"
                   : "Upload Maintenance Photo (Optional)"}
               </label>
-              <div className="flex items-center gap-3">
+              {!editData && (
+                <p className="text-[11px] text-slate-500 mb-2">
+                  {formType === "inspection"
+                    ? "Upload photos showing the truck's condition and identified issue before maintenance."
+                    : formType === "update"
+                      ? "Upload photos showing the maintenance work in progress."
+                      : "Upload photos showing the truck's condition after maintenance."}
+                </p>
+              )}
+              <div className="flex items-center gap-3 mt-1">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -1140,7 +1181,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Issue / Work Performed
+                  Work Performed
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
                   {log.issue}
@@ -1174,6 +1215,92 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
                 No photo evidence attached to this record.
               </div>
             )}
+          </div>
+
+          {/* Section 4: Preliminary Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Preliminary Notes (Before Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's Report / Observed Vehicle Issues
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.driversReport || "No preliminary symptoms reported."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.preliminaryRemarks || "No preliminary remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken Before Maintenance
+                </label>
+                {log.preliminaryPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.preliminaryPhotoUrl}
+                      alt="Before Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached before maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Progress Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Progress Notes (During Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Issue
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.additionalIssue || "No additional issues logged."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.progressRemarks || "No progress remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken During Maintenance
+                </label>
+                {log.progressPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.progressPhotoUrl}
+                      alt="During Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached during maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1309,22 +1436,22 @@ function TruckSpecificHistoryView({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto px-4 sm:px-6">
+          <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
             <thead>
               <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                <th className="py-3.5 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 w-1/2 text-left">
-                  Records
+                <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">
+                  Status Before Change
                 </th>
-                <th className="py-3.5 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 w-1/2 text-right">
-                  Date
-                </th>
+                <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {paginatedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="py-16 sm:py-20 text-center">
+                  <td colSpan={4} className="py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                         <FileText className="w-6 h-6" />
@@ -1347,7 +1474,16 @@ function TruckSpecificHistoryView({
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                     title="Click to view complete maintenance log"
                   >
-                    <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <div className="text-sm font-medium text-slate-800">
+                        {new Date(log.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
                       <div className="font-semibold text-slate-900 truncate">
                         {log.plateNumber}
                         <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
@@ -1364,14 +1500,11 @@ function TruckSpecificHistoryView({
                         <div className="mt-0.5 truncate">{log.issue}</div>
                       </div>
                     </td>
-                    <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right align-top sm:align-middle">
-                      <div className="text-sm font-medium text-slate-800">
-                        {new Date(log.date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </div>
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
+                    </td>
+                    <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
                     </td>
                   </tr>
                 ))
@@ -1423,6 +1556,7 @@ function TruckSpecificHistoryView({
 // ==========================================
 interface TruckDetailViewProps {
   truck: TruckRecord;
+  logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
   onDelete: (id: string | number) => void;
@@ -1433,6 +1567,7 @@ interface TruckDetailViewProps {
 
 function TruckDetailView({
   truck,
+  logs,
   onBack,
   onEdit,
   onDelete,
@@ -1442,6 +1577,37 @@ function TruckDetailView({
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const styles = getStatusStyles(truck.status);
+
+  const canLogMaintenance =
+    truck.status === "On Maintenance" || truck.status === "Out of Service";
+
+  // Find the latest maintenance log/form info for this truck to check if forms have been filled up
+  const truckLogs = logs.filter(
+    (l) =>
+      String(l.truckID) === String(truck.id) ||
+      String(l.plateNumber).toLowerCase() ===
+        String(truck.plateNumber).toLowerCase(),
+  );
+  const latestLog = truckLogs[truckLogs.length - 1];
+
+  // Frontend logic flags
+  const isOnMaintenanceOrOOS =
+    truck.status === "On Maintenance" || truck.status === "Out of Service";
+
+  const isInspectionFilled = !!(
+    latestLog &&
+    (latestLog.driversReport ||
+      latestLog.preliminaryRemarks ||
+      latestLog.preliminaryPhotoUrl ||
+      latestLog.issue)
+  );
+
+  const isUpdateFilled = !!(
+    latestLog &&
+    (latestLog.additionalIssue ||
+      latestLog.progressRemarks ||
+      latestLog.progressPhotoUrl)
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
@@ -1467,7 +1633,7 @@ function TruckDetailView({
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={onUpdateStatusClick}
-            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <span>Update Status</span>
           </button>
@@ -1480,7 +1646,7 @@ function TruckDetailView({
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -1495,34 +1661,38 @@ function TruckDetailView({
               <Truck className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {truck.plateNumber}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {truck.truckType}
-                </span>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {truck.plateNumber}
+                </h2>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}
                 >
                   {truck.status}
                 </span>
               </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {truck.truckType}
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {canLogMaintenance && (
+              <button
+                onClick={onLogMaintenanceClick}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition-colors border border-amber-200 cursor-pointer"
+              >
+                <Wrench className="w-4 h-4" /> Maintenance Update Form
+              </button>
+            )}
             <button
               onClick={onHistoryClick}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
             >
               <HistoryIcon className="w-4 h-4" /> History
-            </button>
-            <button
-              onClick={onLogMaintenanceClick}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition-colors border border-amber-200 cursor-pointer"
-            >
-              <Wrench className="w-4 h-4" /> Log Maintenance
             </button>
           </div>
         </div>
@@ -1575,6 +1745,103 @@ function TruckDetailView({
               </div>
             </div>
           </div>
+
+          {/* Preliminary Notes (Before Maintenance) - Displayed only if On Maintenance / Out of Service AND Inspection Form filled */}
+          {isOnMaintenanceOrOOS && isInspectionFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Preliminary Notes (Before Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver's Report / Observed Vehicle Issues
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.driversReport ||
+                      latestLog?.issue ||
+                      "No preliminary symptoms reported."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.preliminaryRemarks ||
+                      latestLog?.remarks ||
+                      "No preliminary remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken Before Maintenance
+                  </label>
+                  {latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={
+                          latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl
+                        }
+                        alt="Before Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached before maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Progress Notes (During Maintenance) - Displayed only if On Maintenance / Out of Service AND Update Form filled */}
+          {isOnMaintenanceOrOOS && isUpdateFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Progress Notes (During Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Issue
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.additionalIssue ||
+                      "No additional issues logged."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.progressRemarks || "No progress remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken During Maintenance
+                  </label>
+                  {latestLog?.progressPhotoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={latestLog?.progressPhotoUrl}
+                        alt="During Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached during maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1658,6 +1925,9 @@ export default function MechanicFleetStatusPage({
   const [editingHistoryRecord, setEditingHistoryRecord] =
     useState<HistoryLogRecord | null>(null);
   const [showLogMaintenanceModal, setShowLogMaintenanceModal] = useState(false);
+  const [maintenanceFormType, setMaintenanceFormType] = useState<
+    "inspection" | "update" | "log"
+  >("log");
 
   // === TOAST NOTIFICATION STATE ===
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1813,6 +2083,19 @@ export default function MechanicFleetStatusPage({
 
   const handleConfirmStatusToggle = async () => {
     if (!statusConfirmTruck || !pendingStatusTarget) return;
+
+    const wasAvailable = statusConfirmTruck.status === "Available";
+    const targetIsMaintenanceOrOOS =
+      pendingStatusTarget === "On Maintenance" ||
+      pendingStatusTarget === "Out of Service";
+
+    if (wasAvailable && targetIsMaintenanceOrOOS) {
+      setShowConfirmationModal(false);
+      setMaintenanceFormType("inspection");
+      setShowLogMaintenanceModal(true);
+      return;
+    }
+
     await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget);
     setShowConfirmationModal(false);
     setStatusConfirmTruck(null);
@@ -1913,7 +2196,6 @@ export default function MechanicFleetStatusPage({
         if (response.status === 200 || response.status === 201) {
           await fetchLogs();
           if (selectedHistoryRecord?.id === editingHistoryRecord.id) {
-            // Refresh selected record detail view if open
             const updatedRes = await axios.get(`${API_URL}/api/HistoryLogsM`);
             const allLogs = updatedRes.data.data || updatedRes.data;
             const currentRec = allLogs.find(
@@ -1933,12 +2215,21 @@ export default function MechanicFleetStatusPage({
           setToastMessage("Maintenance log saved successfully.");
 
           if (
-            selectedTruck &&
-            (selectedTruck.status === "On Maintenance" ||
-              selectedTruck.status === "Out of Service")
+            maintenanceFormType === "inspection" &&
+            statusConfirmTruck &&
+            pendingStatusTarget
           ) {
-            await executeStatusUpdate(selectedTruck, "Available");
+            await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget);
+          } else if (
+            maintenanceFormType === "log" &&
+            statusConfirmTruck &&
+            pendingStatusTarget === "Available"
+          ) {
+            await executeStatusUpdate(statusConfirmTruck, "Available");
           }
+
+          setStatusConfirmTruck(null);
+          setPendingStatusTarget("");
         }
       }
     } catch (error) {
@@ -1954,12 +2245,10 @@ export default function MechanicFleetStatusPage({
     try {
       await axios.delete(`${API_URL}/api/HistoryLogsM/${id}`);
 
-      // Since it didn't throw an error, it was successful. Update state:
       setMaintenanceLogs((prev) =>
         prev.filter((log) => String(log.id) !== String(id)),
       );
 
-      // This is the trigger that "redirects" you back to the history list
       setSelectedHistoryRecord(null);
       setToastMessage("Deleted successfully.");
     } catch (error) {
@@ -1968,7 +2257,6 @@ export default function MechanicFleetStatusPage({
     }
   };
 
-  // Category counts
   const totalCount = fleetList.length;
   const operationalCount = fleetList.filter(
     (t) => t.status === "Available",
@@ -2009,13 +2297,13 @@ export default function MechanicFleetStatusPage({
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
-      {/* ================= CONDITIONAL VIEWS ================= */}
       {selectedHistoryRecord ? (
         <LogDetailView
           log={selectedHistoryRecord}
           onBack={() => setSelectedHistoryRecord(null)}
           onEdit={(logRecord) => {
             setEditingHistoryRecord(logRecord);
+            setMaintenanceFormType("log");
             setShowLogMaintenanceModal(true);
           }}
           onDelete={handleDeleteHistoryLog}
@@ -2030,6 +2318,7 @@ export default function MechanicFleetStatusPage({
           onSelectLog={(log) => setSelectedHistoryRecord(log)}
           onEditLog={(log) => {
             setEditingHistoryRecord(log);
+            setMaintenanceFormType("log");
             setShowLogMaintenanceModal(true);
           }}
           onDeleteLog={handleDeleteHistoryLog}
@@ -2037,6 +2326,7 @@ export default function MechanicFleetStatusPage({
       ) : selectedTruck ? (
         <TruckDetailView
           truck={selectedTruck}
+          logs={maintenanceLogs}
           onBack={() => setSelectedTruck(null)}
           onEdit={(truckRecord) => {
             setEditingTruck(truckRecord);
@@ -2049,11 +2339,15 @@ export default function MechanicFleetStatusPage({
             setShowStatusSelectModal(true);
           }}
           onHistoryClick={() => setShowTruckHistoryView(true)}
-          onLogMaintenanceClick={() => setShowLogMaintenanceModal(true)}
+          onLogMaintenanceClick={() => {
+            setStatusConfirmTruck(selectedTruck);
+            setPendingStatusTarget("");
+            setMaintenanceFormType("update");
+            setShowLogMaintenanceModal(true);
+          }}
         />
       ) : (
         <>
-          {/* ================= PAGE HEADER ================= */}
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
@@ -2077,9 +2371,7 @@ export default function MechanicFleetStatusPage({
             </button>
           </div>
 
-          {/* ================= MAIN CONTENT CARD ================= */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Filter Tabs & Search Bar */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
                 <button
@@ -2156,7 +2448,6 @@ export default function MechanicFleetStatusPage({
               </div>
             </div>
 
-            {/* Data Table */}
             <div className="overflow-x-auto relative z-10 pb-32 min-h-75">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -2237,7 +2528,6 @@ export default function MechanicFleetStatusPage({
               </table>
             </div>
 
-            {/* Pagination Footer */}
             <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
               <span>
                 Showing {filteredFleet.length === 0 ? 0 : startIndex + 1} to{" "}
@@ -2277,7 +2567,6 @@ export default function MechanicFleetStatusPage({
         </>
       )}
 
-      {/* ================= UPDATE STATUS MODAL ================= */}
       {showStatusSelectModal && statusConfirmTruck && (
         <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto">
@@ -2352,7 +2641,6 @@ export default function MechanicFleetStatusPage({
         </div>
       )}
 
-      {/* ================= STATUS CONFIRMATION MODAL ================= */}
       {showConfirmationModal && statusConfirmTruck && pendingStatusTarget && (
         <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto">
@@ -2401,7 +2689,6 @@ export default function MechanicFleetStatusPage({
         </div>
       )}
 
-      {/* ================= MAINTENANCE -> AVAILABLE WORKFLOW MODAL ================= */}
       {showMaintenanceToAvailableModal && selectedTruck && (
         <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto">
@@ -2429,6 +2716,7 @@ export default function MechanicFleetStatusPage({
                 type="button"
                 onClick={() => {
                   setShowMaintenanceToAvailableModal(false);
+                  setMaintenanceFormType("log");
                   setShowLogMaintenanceModal(true);
                 }}
                 className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer"
@@ -2440,7 +2728,6 @@ export default function MechanicFleetStatusPage({
         </div>
       )}
 
-      {/* ================= GLOBAL TRUCK MODAL (ADD/EDIT) ================= */}
       <TruckModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -2451,21 +2738,22 @@ export default function MechanicFleetStatusPage({
         editData={editingTruck}
       />
 
-      {/* ================= LOG MAINTENANCE MODAL (ADD/EDIT) ================= */}
       <LogMaintenanceModal
         isOpen={showLogMaintenanceModal}
         onClose={() => {
           setShowLogMaintenanceModal(false);
           setEditingHistoryRecord(null);
+          setStatusConfirmTruck(null);
+          setPendingStatusTarget("");
         }}
         onSubmitSuccess={handleMaintenanceLogSubmit}
         editData={editingHistoryRecord}
         trucksOptions={trucksOptionsForModal}
         mechanicsOptions={mechanicsOptions}
-        preselectedTruckId={selectedTruck?.id}
+        preselectedTruckId={statusConfirmTruck?.id || selectedTruck?.id}
+        formType={maintenanceFormType}
       />
 
-      {/* ================= SUCCESS NOTIFICATION TOAST ================= */}
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
