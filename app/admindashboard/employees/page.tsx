@@ -1,9 +1,16 @@
 // ==========================================
-// EMPLOYEE DIRECTORY MANAGEMENT PAGE
+// LOGISCO - EMPLOYEE DIRECTORY
 // ==========================================
+
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import {
   Search,
   UserPlus,
@@ -16,56 +23,625 @@ import {
   ArrowLeft,
   AlertTriangle,
   Loader2,
+  MailCheck,
+  CheckCircle2,
 } from "lucide-react";
-import axios from "axios";
 
-type RoleType = "Admin" | "Coordinator" | "Mechanic" | "Driver" | "Helper";
+
+// ==========================================
+// TYPES
+// ==========================================
+
+type RoleType =
+  | "Admin"
+  | "Coordinator"
+  | "Mechanic"
+  | "Driver"
+  | "Helper";
+
+
+interface UserSession {
+  email: string;
+  role: string;
+  token: string;
+  id: string;
+  employeeName: string;
+  route: string;
+}
+
 
 interface EmployeeRecord {
-  id: string | number;
+  id: string;
+
   firstName: string;
   middleName: string;
   lastName: string;
-  suffix?: string;
+  suffix: string;
+
   role: RoleType;
+  availability: string;
+
   gender: string;
   birthdate: string;
+
   address: string;
   contactNumber: string;
   emailAddress: string;
+
   bloodType: string;
   nationality: string;
   religion: string;
+
   dateEmployed: string;
-  // Driver specific
-  driverLicenseType?: string;
-  licenseNumber?: string;
-  licenseExpirationDate?: string;
-  drivingExperience?: string;
-  // Health & Emergency
+
+  driverLicenseType: string;
+  licenseNumber: string;
+  licenseExpirationDate: string;
+  drivingExperience: string;
+
   healthCondition: string;
   drugTestStatus: string;
   lastMedicalCheckup: string;
+
   emergencyContactPerson: string;
   emergencyContactNumber: string;
   relationship: string;
-  // Other Info
+
   skills: string;
-  certificates?: File | null;
   remarks: string;
-  status: string;
+
+  isActive: boolean;
+  authId: string | null;
 }
 
+
+interface EmployeeFormState {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  suffix: string;
+
+  gender: string;
+  birthdate: string;
+
+  address: string;
+  contactNumber: string;
+  emailAddress: string;
+
+  bloodType: string;
+  nationality: string;
+  religion: string;
+
+  role: RoleType | "";
+  availability: string;
+
+  dateEmployed: string;
+
+  driverLicenseType: string;
+  licenseNumber: string;
+  licenseExpirationDate: string;
+  drivingExperience: string;
+
+  healthCondition: string;
+  drugTestStatus: string;
+  lastMedicalCheckup: string;
+
+  emergencyContactPerson: string;
+  emergencyContactNumber: string;
+  relationship: string;
+
+  skills: string;
+  certificates: File | null;
+  remarks: string;
+}
+
+
+interface ApiEmployee {
+  employeeID: string;
+  employeeCode: string | null;
+
+  employeeName: string;
+
+  role: RoleType;
+  availability: string;
+  healthStatus: string;
+
+  address: string;
+  contact: string;
+
+  auth_id: string | null;
+  isActive: boolean | null;
+
+  birthdate: string | null;
+  middleName: string | null;
+  suffix: string | null;
+  gender: string | null;
+
+  emailAddress: string | null;
+
+  bloodType: string | null;
+  nationality: string | null;
+  religion: string | null;
+
+  dateEmployed: string | null;
+
+  driverLicenseType: string | null;
+  licenseNumber: string | null;
+  licenseExpirationDate: string | null;
+  drivingExperience: number | null;
+
+  drugTestStatus: string | null;
+  lastMedicalCheckup: string | null;
+
+  emergencyContactPerson: string | null;
+  emergencyContactNumber: string | null;
+  relationship: string | null;
+
+  skills: string | null;
+  remarks: string | null;
+}
+
+
+interface EmployeesApiResponse {
+  data: ApiEmployee[];
+
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+
+interface EmployeeApiResponse {
+  message?: string;
+  data: ApiEmployee;
+}
+
+
+interface MessageResponse {
+  message: string;
+}
+
+
 // ==========================================
-// EMPLOYEE MODAL COMPONENT (Add / Edit)
+// CONFIG
+// ==========================================
+
+const ITEMS_PER_PAGE = 10;
+
+const SESSION_KEY =
+  "logisco_user_session";
+
+
+// ==========================================
+// SESSION
+// ==========================================
+
+function getAuthSession(): UserSession {
+  const savedSession =
+    localStorage.getItem(
+      SESSION_KEY,
+    ) ||
+    sessionStorage.getItem(
+      SESSION_KEY,
+    );
+
+  if (!savedSession) {
+    throw new Error(
+      "Authentication session not found. Please log in again.",
+    );
+  }
+
+  try {
+    const session =
+      JSON.parse(
+        savedSession,
+      ) as UserSession;
+
+    if (!session.token) {
+      throw new Error(
+        "Authentication token not found.",
+      );
+    }
+
+    return session;
+
+  } catch {
+    throw new Error(
+      "Invalid authentication session. Please log in again.",
+    );
+  }
+}
+
+
+// ==========================================
+// API FETCH HELPER
+// ==========================================
+
+async function apiFetch<T>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T> {
+
+  const session =
+    getAuthSession();
+
+  const headers =
+    new Headers(
+      options.headers,
+    );
+
+  headers.set(
+    "Authorization",
+    `Bearer ${session.token}`,
+  );
+
+  if (
+    options.body &&
+    !headers.has(
+      "Content-Type",
+    )
+  ) {
+    headers.set(
+      "Content-Type",
+      "application/json",
+    );
+  }
+
+  const response =
+    await fetch(
+      url,
+      {
+        ...options,
+        headers,
+      },
+    );
+
+  let result:
+    unknown = null;
+
+  const contentType =
+    response.headers.get(
+      "content-type",
+    );
+
+  if (
+    contentType?.includes(
+      "application/json",
+    )
+  ) {
+    result =
+      await response.json();
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof result === "object" &&
+      result !== null &&
+      "message" in result
+        ? String(
+            (
+              result as {
+                message: unknown;
+              }
+            ).message,
+          )
+        : `Request failed with status ${response.status}`;
+
+    if (
+      response.status === 401
+    ) {
+      localStorage.removeItem(
+        SESSION_KEY,
+      );
+
+      sessionStorage.removeItem(
+        SESSION_KEY,
+      );
+    }
+
+    throw new Error(
+      message,
+    );
+  }
+
+  return result as T;
+}
+
+
+// ==========================================
+// ERROR HELPER
+// ==========================================
+
+function getErrorMessage(
+  error: unknown,
+): string {
+
+  if (
+    error instanceof Error
+  ) {
+    return error.message;
+  }
+
+  return "Something went wrong.";
+}
+
+
+// ==========================================
+// API EMPLOYEE -> UI EMPLOYEE
+// ==========================================
+
+function mapApiEmployee(
+  employee: ApiEmployee,
+): EmployeeRecord {
+
+  const nameParts =
+    employee.employeeName
+      ?.trim()
+      .split(/\s+/)
+      .filter(Boolean) ?? [];
+
+  const firstName =
+    nameParts[0] ||
+    "Unknown";
+
+  const lastName =
+    nameParts.length > 1
+      ? nameParts
+          .slice(1)
+          .join(" ")
+      : "";
+
+  return {
+    id:
+      employee.employeeID,
+
+    firstName,
+
+    middleName:
+      employee.middleName ||
+      "",
+
+    lastName,
+
+    suffix:
+      employee.suffix ||
+      "",
+
+    role:
+      employee.role,
+
+    availability:
+      employee.availability ||
+      "",
+
+    gender:
+      employee.gender ||
+      "",
+
+    birthdate:
+      employee.birthdate ||
+      "",
+
+    address:
+      employee.address ||
+      "",
+
+    contactNumber:
+      employee.contact ||
+      "",
+
+    emailAddress:
+      employee.emailAddress ||
+      "",
+
+    bloodType:
+      employee.bloodType ||
+      "",
+
+    nationality:
+      employee.nationality ||
+      "",
+
+    religion:
+      employee.religion ||
+      "",
+
+    dateEmployed:
+      employee.dateEmployed ||
+      "",
+
+    driverLicenseType:
+      employee.driverLicenseType ||
+      "",
+
+    licenseNumber:
+      employee.licenseNumber ||
+      "",
+
+    licenseExpirationDate:
+      employee.licenseExpirationDate ||
+      "",
+
+    drivingExperience:
+      employee.drivingExperience !==
+      null
+        ? String(
+            employee.drivingExperience,
+          )
+        : "",
+
+    healthCondition:
+      employee.healthStatus ||
+      "",
+
+    drugTestStatus:
+      employee.drugTestStatus ||
+      "",
+
+    lastMedicalCheckup:
+      employee.lastMedicalCheckup ||
+      "",
+
+    emergencyContactPerson:
+      employee.emergencyContactPerson ||
+      "",
+
+    emergencyContactNumber:
+      employee.emergencyContactNumber ||
+      "",
+
+    relationship:
+      employee.relationship ||
+      "",
+
+    skills:
+      employee.skills ||
+      "",
+
+    remarks:
+      employee.remarks ||
+      "",
+
+    authId:
+      employee.auth_id,
+
+    isActive:
+      employee.isActive === true,
+  };
+}
+
+
+// ==========================================
+// DATE FORMATTER
+// ==========================================
+
+function formatDate(
+  value?: string | null,
+) {
+
+  if (!value) {
+    return "N/A";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleDateString();
+}
+
+
+// ==========================================
+// READ ONLY FIELD
+// ==========================================
+
+function ReadField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-black mb-1">
+        {label}
+      </label>
+
+      <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8">
+        {value || "N/A"}
+      </div>
+    </div>
+  );
+}
+
+
+// ==========================================
+// INITIAL FORM
+// ==========================================
+
+function getInitialFormState():
+  EmployeeFormState {
+
+  return {
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    suffix: "",
+
+    gender: "",
+    birthdate: "",
+
+    address: "",
+    contactNumber: "",
+    emailAddress: "",
+
+    bloodType: "",
+    nationality: "Filipino",
+    religion: "",
+
+    role: "",
+
+    availability:
+      "Available",
+
+    dateEmployed: "",
+
+    driverLicenseType: "",
+    licenseNumber: "",
+    licenseExpirationDate: "",
+    drivingExperience: "",
+
+    healthCondition: "",
+    drugTestStatus: "",
+    lastMedicalCheckup: "",
+
+    emergencyContactPerson:
+      "",
+
+    emergencyContactNumber:
+      "",
+
+    relationship: "",
+
+    skills: "",
+    certificates: null,
+    remarks: "",
+  };
+}
+
+
+// ==========================================
+// EMPLOYEE MODAL
 // ==========================================
 
 interface EmployeeModalProps {
   isOpen: boolean;
+
   onClose: () => void;
-  onSubmitSuccess: (record: EmployeeRecord) => void;
-  editData?: EmployeeRecord | null;
+
+  onSubmitSuccess: (
+    formData:
+      EmployeeFormState,
+    editData?:
+      EmployeeRecord | null,
+  ) => Promise<void>;
+
+  editData?:
+    EmployeeRecord | null;
 }
+
 
 function EmployeeModal({
   isOpen,
@@ -73,1226 +649,2021 @@ function EmployeeModal({
   onSubmitSuccess,
   editData,
 }: EmployeeModalProps) {
-  const initialFormState = {
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    suffix: "",
-    gender: "",
-    birthdate: "",
-    address: "",
-    contactNumber: "",
-    emailAddress: "",
-    bloodType: "",
-    nationality: "Filipino",
-    religion: "",
-    role: "" as RoleType | "",
-    dateEmployed: "",
-    driverLicenseType: "",
-    licenseNumber: "",
-    licenseExpirationDate: "",
-    drivingExperience: "",
-    healthCondition: "",
-    drugTestStatus: "",
-    lastMedicalCheckup: "",
-    emergencyContactPerson: "",
-    emergencyContactNumber: "",
-    relationship: "",
-    skills: "",
-    certificates: null as File | null,
-    remarks: "",
-  };
 
-  const [formData, setFormData] = useState(initialFormState);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [
+    formData,
+    setFormData,
+  ] = useState<EmployeeFormState>(
+    getInitialFormState(),
+  );
 
-  // Auto-populate form if editData is provided
+  const [
+    errors,
+    setErrors,
+  ] = useState<
+    Record<
+      string,
+      string
+    >
+  >({});
+
+  const [
+    isSubmitting,
+    setIsSubmitting,
+  ] = useState(false);
+
+
+  // ==========================================
+  // LOAD EDIT DATA
+  // ==========================================
+
   useEffect(() => {
+
     if (editData) {
+
       setFormData({
-        firstName: editData.firstName || "",
-        middleName: editData.middleName || "",
-        lastName: editData.lastName || "",
-        suffix: editData.suffix || "",
-        gender: editData.gender || "",
-        birthdate: editData.birthdate ? editData.birthdate.split("T")[0] : "",
-        address: editData.address || "",
-        contactNumber: editData.contactNumber || "",
-        emailAddress: editData.emailAddress || "",
-        bloodType: editData.bloodType || "",
-        nationality: editData.nationality || "Filipino",
-        religion: editData.religion || "",
-        role: editData.role || "",
-        dateEmployed: editData.dateEmployed
-          ? editData.dateEmployed.split("T")[0]
-          : "",
-        driverLicenseType: editData.driverLicenseType || "",
-        licenseNumber: editData.licenseNumber || "",
-        licenseExpirationDate: editData.licenseExpirationDate
-          ? editData.licenseExpirationDate.split("T")[0]
-          : "",
-        drivingExperience: editData.drivingExperience || "",
-        healthCondition: editData.healthCondition || "",
-        drugTestStatus: editData.drugTestStatus || "",
-        lastMedicalCheckup: editData.lastMedicalCheckup
-          ? editData.lastMedicalCheckup.split("T")[0]
-          : "",
-        emergencyContactPerson: editData.emergencyContactPerson || "",
-        emergencyContactNumber: editData.emergencyContactNumber || "",
-        relationship: editData.relationship || "",
-        skills: editData.skills || "",
-        certificates: null,
-        remarks: editData.remarks || "",
+        firstName:
+          editData.firstName,
+
+        middleName:
+          editData.middleName,
+
+        lastName:
+          editData.lastName,
+
+        suffix:
+          editData.suffix,
+
+        gender:
+          editData.gender,
+
+        birthdate:
+          editData.birthdate
+            ? editData.birthdate.split(
+                "T",
+              )[0]
+            : "",
+
+        address:
+          editData.address,
+
+        contactNumber:
+          editData.contactNumber,
+
+        emailAddress:
+          editData.emailAddress,
+
+        bloodType:
+          editData.bloodType,
+
+        nationality:
+          editData.nationality ||
+          "Filipino",
+
+        religion:
+          editData.religion,
+
+        role:
+          editData.role,
+
+        availability:
+          editData.availability,
+
+        dateEmployed:
+          editData.dateEmployed
+            ? editData.dateEmployed.split(
+                "T",
+              )[0]
+            : "",
+
+        driverLicenseType:
+          editData.driverLicenseType,
+
+        licenseNumber:
+          editData.licenseNumber,
+
+        licenseExpirationDate:
+          editData.licenseExpirationDate
+            ? editData.licenseExpirationDate.split(
+                "T",
+              )[0]
+            : "",
+
+        drivingExperience:
+          editData.drivingExperience,
+
+        healthCondition:
+          editData.healthCondition,
+
+        drugTestStatus:
+          editData.drugTestStatus,
+
+        lastMedicalCheckup:
+          editData.lastMedicalCheckup
+            ? editData.lastMedicalCheckup.split(
+                "T",
+              )[0]
+            : "",
+
+        emergencyContactPerson:
+          editData.emergencyContactPerson,
+
+        emergencyContactNumber:
+          editData.emergencyContactNumber,
+
+        relationship:
+          editData.relationship,
+
+        skills:
+          editData.skills,
+
+        certificates:
+          null,
+
+        remarks:
+          editData.remarks,
       });
+
     } else {
-      setFormData(initialFormState);
+
+      setFormData(
+        getInitialFormState(),
+      );
     }
-  }, [editData, isOpen]);
 
-  if (!isOpen) return null;
-
-  const handleCloseModal = () => {
-    setFormData(initialFormState);
     setErrors({});
-    onClose();
-  };
+
+  }, [
+    editData,
+    isOpen,
+  ]);
+
+
+  if (!isOpen) {
+    return null;
+  }
+
+
+  // ==========================================
+  // CHANGE
+  // ==========================================
 
   const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    event: React.ChangeEvent<
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
     >,
   ) => {
-    const { name, value, files } = e.target as HTMLInputElement;
-    if (name === "certificates" && files) {
-      setFormData((prev) => ({ ...prev, certificates: files[0] }));
+
+    const {
+      name,
+      value,
+    } = event.target;
+
+    if (
+      name ===
+        "certificates" &&
+      event.target instanceof
+        HTMLInputElement
+    ) {
+
+      const file =
+        event.target.files?.[0] ??
+        null;
+
+      setFormData(
+        (previous) => ({
+          ...previous,
+
+          certificates:
+            file,
+        }),
+      );
+
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+
+      setFormData(
+        (previous) => ({
+          ...previous,
+
+          [name]:
+            value,
+        }),
+      );
     }
+
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+
+      setErrors(
+        (previous) => ({
+          ...previous,
+
+          [name]:
+            "",
+        }),
+      );
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: Record<string, string> = {};
 
-    if (!formData.firstName.trim())
-      newErrors.firstName = "First name is required.";
-    if (!formData.middleName.trim())
-      newErrors.middleName = "Middle name is required.";
-    if (!formData.lastName.trim())
-      newErrors.lastName = "Last name is required.";
-    if (!formData.role) newErrors.role = "Role is required.";
-    if (!formData.address.trim()) newErrors.address = "Address is required.";
-    if (!formData.contactNumber.trim())
-      newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim())
-      newErrors.emailAddress = "Email address is required.";
-    if (!formData.healthCondition.trim())
-      newErrors.healthCondition = "Health condition is required.";
+  // ==========================================
+  // CLOSE
+  // ==========================================
 
-    if (formData.role === "Driver") {
-      if (!formData.licenseNumber.trim())
-        newErrors.licenseNumber = "Driver's license number is required.";
-      if (!formData.driverLicenseType.trim())
-        newErrors.driverLicenseType = "License type / restriction is required.";
-      if (!formData.licenseExpirationDate)
-        newErrors.licenseExpirationDate =
-          "License expiration date is required.";
-      if (!formData.drivingExperience.toString().trim())
-        newErrors.drivingExperience = "Driving experience is required.";
-    }
+  const handleClose =
+    () => {
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+      setFormData(
+        getInitialFormState(),
+      );
 
-    const updatedRecord: EmployeeRecord = {
-      id: editData ? editData.id : Date.now(),
-      ...formData,
-      role: formData.role as RoleType,
-      status: "Active",
+      setErrors({});
+
+      onClose();
     };
 
-    onSubmitSuccess(updatedRecord);
-    setFormData(initialFormState);
-    setErrors({});
-    onClose();
-  };
+
+  // ==========================================
+  // SUBMIT
+  // ==========================================
+
+  const handleSubmit =
+    async (
+      event: React.FormEvent,
+    ) => {
+
+      event.preventDefault();
+
+      const newErrors:
+        Record<
+          string,
+          string
+        > = {};
+
+
+      if (
+        !formData.firstName.trim()
+      ) {
+        newErrors.firstName =
+          "First name is required.";
+      }
+
+
+      if (
+        !formData.lastName.trim()
+      ) {
+        newErrors.lastName =
+          "Last name is required.";
+      }
+
+
+      if (!formData.role) {
+        newErrors.role =
+          "Role is required.";
+      }
+
+
+      if (
+        !formData.availability.trim()
+      ) {
+        newErrors.availability =
+          "Availability is required.";
+      }
+
+
+      if (
+        !formData.address.trim()
+      ) {
+        newErrors.address =
+          "Address is required.";
+      }
+
+
+      if (
+        !formData.contactNumber.trim()
+      ) {
+        newErrors.contactNumber =
+          "Contact number is required.";
+      }
+
+
+      if (
+        !formData.emailAddress.trim()
+      ) {
+        newErrors.emailAddress =
+          "Email address is required.";
+      }
+
+
+      if (
+        !formData.healthCondition.trim()
+      ) {
+        newErrors.healthCondition =
+          "Health status is required.";
+      }
+
+
+      if (
+        formData.role ===
+        "Driver"
+      ) {
+
+        if (
+          !formData.licenseNumber.trim()
+        ) {
+          newErrors.licenseNumber =
+            "Driver's license number is required.";
+        }
+
+        if (
+          !formData.driverLicenseType.trim()
+        ) {
+          newErrors.driverLicenseType =
+            "License type is required.";
+        }
+
+        if (
+          !formData.licenseExpirationDate
+        ) {
+          newErrors.licenseExpirationDate =
+            "License expiration date is required.";
+        }
+
+        if (
+          !formData.drivingExperience
+        ) {
+          newErrors.drivingExperience =
+            "Driving experience is required.";
+        }
+      }
+
+
+      if (
+        Object.keys(
+          newErrors,
+        ).length > 0
+      ) {
+
+        setErrors(
+          newErrors,
+        );
+
+        return;
+      }
+
+
+      try {
+
+        setIsSubmitting(
+          true,
+        );
+
+        await onSubmitSuccess(
+          formData,
+          editData,
+        );
+
+      } finally {
+
+        setIsSubmitting(
+          false,
+        );
+      }
+    };
+
+
+  // ==========================================
+  // MODAL UI
+  // ==========================================
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto">
+
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            {editData ? "Edit Employee Record" : "New Employee Form"}
+
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white">
+
+          <h2 className="text-xl font-bold tracking-wide">
+            {editData
+              ? "Edit Employee Record"
+              : "New Employee Form"}
           </h2>
+
           <button
             type="button"
-            onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            onClick={
+              handleClose
+            }
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
           >
             <X className="w-5 h-5" />
           </button>
+
         </div>
 
+
         <form
-          onSubmit={handleSubmit}
+          onSubmit={
+            handleSubmit
+          }
           className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
         >
-          {/* 1. Personal Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+
+          {/* ================================== */}
+          {/* PERSONAL INFORMATION */}
+          {/* ================================== */}
+
+          <section className="border border-slate-200 rounded-xl p-4 bg-white">
+
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm">
               1. Personal Information
             </div>
+
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   First Name *
                 </label>
+
                 <input
                   type="text"
                   name="firstName"
+                  value={
+                    formData.firstName
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="Enter first name"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.firstName && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.firstName}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Middle Name
                 </label>
+
                 <input
                   type="text"
                   name="middleName"
+                  value={
+                    formData.middleName
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="Enter middle name"
-                  value={formData.middleName}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.middleName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.middleName && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.middleName}
-                  </p>
-                )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Last Name *
                 </label>
+
                 <input
                   type="text"
                   name="lastName"
+                  value={
+                    formData.lastName
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="Enter last name"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.lastName && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.lastName}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Suffix (optional)
+                <label className="block text-xs font-medium mb-1">
+                  Suffix
                 </label>
+
                 <input
                   type="text"
                   name="suffix"
+                  value={
+                    formData.suffix
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="e.g. Jr., III"
-                  value={formData.suffix}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Gender
                 </label>
+
                 <select
                   name="gender"
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.gender
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select gender
                   </option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
+
+                  <option value="Male">
+                    Male
+                  </option>
+
+                  <option value="Female">
+                    Female
+                  </option>
+
+                  <option value="Prefer not to say">
+                    Prefer not to say
+                  </option>
                 </select>
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Birthdate
                 </label>
+
                 <input
                   type="date"
                   name="birthdate"
-                  value={formData.birthdate}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.birthdate
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Address *
                 </label>
+
                 <input
                   type="text"
                   name="address"
+                  value={
+                    formData.address
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="Enter residential address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.address && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.address}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Contact Number *
                 </label>
+
                 <input
                   type="text"
                   name="contactNumber"
+                  value={
+                    formData.contactNumber
+                  }
+                  onChange={
+                    handleInputChange
+                  }
                   placeholder="Enter contact number"
-                  value={formData.contactNumber}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.contactNumber && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.contactNumber}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Email Address *
                 </label>
+
                 <input
                   type="email"
                   name="emailAddress"
-                  placeholder="Enter email address"
-                  value={formData.emailAddress}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.emailAddress
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  disabled={
+                    Boolean(
+                      editData,
+                    )
+                  }
+                  placeholder="Enter email"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs disabled:bg-slate-100 disabled:text-slate-500"
                 />
+
                 {errors.emailAddress && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.emailAddress}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Blood Type
                 </label>
+
                 <select
                   name="bloodType"
-                  value={formData.bloodType}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.bloodType
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select blood type
                   </option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
+
+                  <option value="A+">
+                    A+
+                  </option>
+
+                  <option value="A-">
+                    A-
+                  </option>
+
+                  <option value="B+">
+                    B+
+                  </option>
+
+                  <option value="B-">
+                    B-
+                  </option>
+
+                  <option value="AB+">
+                    AB+
+                  </option>
+
+                  <option value="AB-">
+                    AB-
+                  </option>
+
+                  <option value="O+">
+                    O+
+                  </option>
+
+                  <option value="O-">
+                    O-
+                  </option>
                 </select>
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Nationality
                 </label>
+
                 <input
                   type="text"
                   name="nationality"
-                  placeholder="Enter nationality"
-                  value={formData.nationality}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.nationality
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Religion
                 </label>
+
                 <input
                   type="text"
                   name="religion"
-                  placeholder="Enter religion"
-                  value={formData.religion}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.religion
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* 2. Employee Details */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+            </div>
+
+          </section>
+
+
+          {/* ================================== */}
+          {/* EMPLOYEE DETAILS */}
+          {/* ================================== */}
+
+          <section className="border border-slate-200 rounded-xl p-4">
+
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold">
               2. Employee Details
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Role *
                 </label>
+
                 <select
                   name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.role ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.role
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select role
                   </option>
-                  <option value="Admin">Admin</option>
-                  <option value="Coordinator">Coordinator</option>
-                  <option value="Mechanic">Mechanic</option>
-                  <option value="Driver">Driver</option>
-                  <option value="Helper">Helper</option>
+
+                  <option value="Admin">
+                    Admin
+                  </option>
+
+                  <option value="Coordinator">
+                    Coordinator
+                  </option>
+
+                  <option value="Mechanic">
+                    Mechanic
+                  </option>
+
+                  <option value="Driver">
+                    Driver
+                  </option>
+
+                  <option value="Helper">
+                    Helper
+                  </option>
                 </select>
+
                 {errors.role && (
-                  <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.role}
+                  </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
+                  Availability *
+                </label>
+
+                <input
+                  type="text"
+                  name="availability"
+                  value={
+                    formData.availability
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                />
+
+                {errors.availability && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.availability}
+                  </p>
+                )}
+              </div>
+
+
+              <div>
+                <label className="block text-xs font-medium mb-1">
                   Date Employed
                 </label>
+
                 <input
                   type="date"
                   name="dateEmployed"
-                  value={formData.dateEmployed}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.dateEmployed
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* 3. Driver Information (if applicable) */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. Driver Information (if applicable)
             </div>
+
+          </section>
+
+
+          {/* ================================== */}
+          {/* DRIVER */}
+          {/* ================================== */}
+
+          <section className="border border-slate-200 rounded-xl p-4">
+
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold">
+              3. Driver Information
+            </div>
+
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Driver's License No.
+                <label className="block text-xs font-medium mb-1">
+                  Driver&apos;s License No.
                 </label>
+
                 <input
                   type="text"
                   name="licenseNumber"
-                  placeholder="Enter driver's license number"
-                  value={formData.licenseNumber}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.licenseNumber
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.licenseNumber && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.licenseNumber}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  License Type / Restriction
+                <label className="block text-xs font-medium mb-1">
+                  License Type
                 </label>
+
                 <input
                   type="text"
                   name="driverLicenseType"
-                  placeholder="e.g. Professional / 123"
-                  value={formData.driverLicenseType}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.driverLicenseType
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.driverLicenseType && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.driverLicenseType}
-                  </p>
-                )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  License Expiration Date
+                <label className="block text-xs font-medium mb-1">
+                  License Expiration
                 </label>
+
                 <input
                   type="date"
                   name="licenseExpirationDate"
-                  value={formData.licenseExpirationDate}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseExpirationDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.licenseExpirationDate
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.licenseExpirationDate && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.licenseExpirationDate}
-                  </p>
-                )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Driving Experience (Years)
+                <label className="block text-xs font-medium mb-1">
+                  Driving Experience
                 </label>
+
                 <input
                   type="number"
+                  min="0"
                   name="drivingExperience"
-                  placeholder="Enter years of experience"
-                  value={formData.drivingExperience}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.drivingExperience
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.drivingExperience && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.drivingExperience}
-                  </p>
-                )}
               </div>
-            </div>
-          </div>
 
-          {/* 4. Health & Emergency Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+            </div>
+
+          </section>
+
+
+          {/* ================================== */}
+          {/* HEALTH */}
+          {/* ================================== */}
+
+          <section className="border border-slate-200 rounded-xl p-4">
+
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold">
               4. Health & Emergency Information
             </div>
+
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Health Condition *
+                <label className="block text-xs font-medium mb-1">
+                  Health Status *
                 </label>
+
                 <input
                   type="text"
                   name="healthCondition"
-                  placeholder="e.g. Fit to work / Allergies"
-                  value={formData.healthCondition}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.healthCondition ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  value={
+                    formData.healthCondition
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  placeholder="e.g. Fit to Work"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
                 {errors.healthCondition && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.healthCondition}
                   </p>
                 )}
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Drug Test Status
                 </label>
+
                 <select
                   name="drugTestStatus"
-                  value={formData.drugTestStatus}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.drugTestStatus
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select status
                   </option>
-                  <option value="Passed">Passed</option>
-                  <option value="Failed">Failed</option>
-                  <option value="Pending">Pending</option>
+
+                  <option value="Passed">
+                    Passed
+                  </option>
+
+                  <option value="Failed">
+                    Failed
+                  </option>
+
+                  <option value="Pending">
+                    Pending
+                  </option>
                 </select>
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Last Medical Check-up
                 </label>
+
                 <input
                   type="date"
                   name="lastMedicalCheckup"
-                  value={formData.lastMedicalCheckup}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.lastMedicalCheckup
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Emergency Contact Person
                 </label>
+
                 <input
                   type="text"
                   name="emergencyContactPerson"
-                  placeholder="Enter contact person name"
-                  value={formData.emergencyContactPerson}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.emergencyContactPerson
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Emergency Contact Number
                 </label>
+
                 <input
                   type="text"
                   name="emergencyContactNumber"
-                  placeholder="Enter contact number"
-                  value={formData.emergencyContactNumber}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.emergencyContactNumber
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
+                <label className="block text-xs font-medium mb-1">
                   Relationship
                 </label>
+
                 <input
                   type="text"
                   name="relationship"
-                  placeholder="e.g. Spouse, Parent"
-                  value={formData.relationship}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.relationship
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* 5. Other Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+            </div>
+
+          </section>
+
+
+          {/* ================================== */}
+          {/* OTHER */}
+          {/* ================================== */}
+
+          <section className="border border-slate-200 rounded-xl p-4">
+
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold">
               5. Other Information
             </div>
+
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">
+
+                <label className="block text-xs font-medium mb-1">
                   Skills / Specialization
                 </label>
+
                 <textarea
                   name="skills"
                   rows={2}
-                  placeholder="Enter skills or specializations..."
-                  value={formData.skills}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.skills
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Upload Certificates (PDF, JPG, PNG, DOCX)
+
+                <label className="block text-xs font-medium mb-1">
+                  Upload Certificates
                 </label>
+
                 <input
                   type="file"
                   name="certificates"
                   accept=".pdf,.jpg,.jpeg,.png,.docx"
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-700 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
+
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Certificate upload is not connected yet.
+                </p>
+
               </div>
+
+
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Other Remarks
+
+                <label className="block text-xs font-medium mb-1">
+                  Remarks
                 </label>
+
                 <textarea
                   name="remarks"
                   rows={2}
-                  placeholder="Any additional remarks..."
-                  value={formData.remarks}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  value={
+                    formData.remarks
+                  }
+                  onChange={
+                    handleInputChange
+                  }
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-              </div>
-            </div>
-          </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+              </div>
+
+            </div>
+
+          </section>
+
+
+          {/* BUTTONS */}
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 pt-4 border-t">
+
             <button
               type="button"
-              onClick={handleCloseModal}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              onClick={
+                handleClose
+              }
+              disabled={
+                isSubmitting
+              }
+              className="w-full sm:w-40 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl disabled:opacity-50"
             >
               Cancel
             </button>
+
+
             <button
               type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              disabled={
+                isSubmitting
+              }
+              className="w-full sm:w-40 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {editData ? "Save Changes" : "Add Employee"}
+
+              {isSubmitting && (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              )}
+
+              {editData
+                ? "Save Changes"
+                : "Add Employee"}
+
             </button>
+
           </div>
+
         </form>
+
       </div>
     </div>
   );
 }
 
+
 // ==========================================
-// EMPLOYEE INFORMATION DETAIL VIEW
+// EMPLOYEE DETAIL
 // ==========================================
 
 interface EmployeeDetailViewProps {
-  employee: EmployeeRecord;
-  onBack: () => void;
-  onEdit: (emp: EmployeeRecord) => void;
-  onDelete: (id: string | number) => void;
+  employee:
+    EmployeeRecord;
+
+  currentRole:
+    string;
+
+  onBack:
+    () => void;
+
+  onEdit:
+    (
+      employee:
+        EmployeeRecord,
+    ) => void;
+
+  onDelete:
+    (
+      id: string,
+    ) => Promise<void>;
+
+  onActivate:
+    (
+      id: string,
+    ) => Promise<void>;
 }
+
 
 function EmployeeDetailView({
   employee,
+  currentRole,
   onBack,
   onEdit,
   onDelete,
+  onActivate,
 }: EmployeeDetailViewProps) {
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [
+    showDeleteModal,
+    setShowDeleteModal,
+  ] = useState(false);
+
+  const [
+    isDeleting,
+    setIsDeleting,
+  ] = useState(false);
+
+  const [
+    isActivating,
+    setIsActivating,
+  ] = useState(false);
+
+
+  const isAdmin =
+    currentRole.toLowerCase() ===
+    "admin";
+
+
+  const canEdit =
+    [
+      "admin",
+      "coordinator",
+    ].includes(
+      currentRole.toLowerCase(),
+    );
+
+
+  const accountActivated =
+    Boolean(
+      employee.authId,
+    );
+
+
+  const confirmDelete =
+    async () => {
+
+      try {
+
+        setIsDeleting(
+          true,
+        );
+
+        await onDelete(
+          employee.id,
+        );
+
+      } finally {
+
+        setIsDeleting(
+          false,
+        );
+      }
+    };
+
+
+  const handleActivation =
+    async () => {
+
+      try {
+
+        setIsActivating(
+          true,
+        );
+
+        await onActivate(
+          employee.id,
+        );
+
+      } finally {
+
+        setIsActivating(
+          false,
+        );
+      }
+    };
+
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
-      {/* Header with Back button and Action buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
+
+      {/* HEADER */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+
         <div className="flex items-center gap-3">
+
           <button
-            onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
-            title="Back to Directory"
+            onClick={
+              onBack
+            }
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+
+
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
               Employee Information Record
             </h1>
+
             <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-              Complete profile retrieved directly from Supabase database.
+              Complete employee profile and account management.
             </p>
+
           </div>
+
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => onEdit(employee)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>Edit Employee</span>
-          </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete</span>
-          </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+
+          {/* ACTIVATE ACCOUNT */}
+          {isAdmin && (
+            accountActivated ? (
+
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+
+                Account Activated
+              </button>
+
+            ) : (
+
+              <button
+                type="button"
+                onClick={
+                  handleActivation
+                }
+                disabled={
+                  isActivating ||
+                  !employee.emailAddress
+                }
+                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+
+                {isActivating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MailCheck className="w-4 h-4" />
+                )}
+
+                {isActivating
+                  ? "Sending Invite..."
+                  : "Activate Account"}
+
+              </button>
+            )
+          )}
+
+
+          {/* EDIT */}
+          {canEdit && (
+            <button
+              onClick={() =>
+                onEdit(
+                  employee,
+                )
+              }
+              className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold"
+            >
+              <Edit3 className="w-4 h-4" />
+
+              Edit Employee
+            </button>
+          )}
+
+
+          {/* DELETE */}
+          {isAdmin && (
+            <button
+              onClick={() =>
+                setShowDeleteModal(
+                  true,
+                )
+              }
+              className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold"
+            >
+              <Trash2 className="w-4 h-4" />
+
+              Delete
+            </button>
+          )}
+
         </div>
+
       </div>
 
-      {/* Main Container mimicking Add Employee Form layout structure */}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-        {/* Profile Summary Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
+
+        {/* PROFILE SUMMARY */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b gap-4">
+
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
-              {employee.firstName ? employee.firstName[0] : "E"}
-              {employee.lastName ? employee.lastName[0] : ""}
+
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold">
+
+              {employee.firstName
+                ? employee.firstName[0]
+                : "E"}
+
+              {employee.lastName
+                ? employee.lastName[0]
+                : ""}
+
             </div>
+
+
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {employee.firstName} {employee.middleName} {employee.lastName}{" "}
+
+              <h2 className="text-xl font-bold text-slate-900">
+
+                {employee.firstName}{" "}
+
+                {employee.middleName}{" "}
+
+                {employee.lastName}{" "}
+
                 {employee.suffix}
+
               </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+
+
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+
+                <span className="px-2.5 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
                   {employee.role}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                  {employee.status || "Active"}
+
+
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs ${
+                    employee.isActive
+                      ? "bg-green-100 text-green-700"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {employee.isActive
+                    ? "Active"
+                    : "Inactive"}
                 </span>
+
+
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs ${
+                    accountActivated
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {accountActivated
+                    ? "Login Account Activated"
+                    : "Login Account Not Activated"}
+                </span>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
 
-        {/* Read-only Form Layout matching Add Employee Form */}
-        <div className="space-y-6 text-sm text-slate-900">
-          {/* 1. Personal Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Personal Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  First Name
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.firstName || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Middle Name
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.middleName || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Last Name
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.lastName || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Suffix (optional)
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.suffix || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Gender
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.gender || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Birthdate
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.birthdate
-                    ? new Date(employee.birthdate).toLocaleDateString()
-                    : "N/A"}
-                </div>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Address
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.address || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Number
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.contactNumber || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Email Address
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.emailAddress || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Blood Type
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.bloodType || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Nationality
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.nationality || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Religion
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.religion || "N/A"}
-                </div>
-              </div>
-            </div>
+
+        {/* PERSONAL */}
+        <section className="border border-slate-200 rounded-xl p-4">
+
+          <div className="border-b pb-2 mb-4 font-semibold">
+            1. Personal Information
           </div>
 
-          {/* 2. Employee Details */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              2. Employee Details
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Role
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.role || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Date Employed
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.dateEmployed
-                    ? new Date(employee.dateEmployed).toLocaleDateString()
-                    : "N/A"}
-                </div>
-              </div>
-            </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+
+            <ReadField
+              label="First Name"
+              value={
+                employee.firstName
+              }
+            />
+
+            <ReadField
+              label="Middle Name"
+              value={
+                employee.middleName
+              }
+            />
+
+            <ReadField
+              label="Last Name"
+              value={
+                employee.lastName
+              }
+            />
+
+            <ReadField
+              label="Suffix"
+              value={
+                employee.suffix
+              }
+            />
+
+            <ReadField
+              label="Gender"
+              value={
+                employee.gender
+              }
+            />
+
+            <ReadField
+              label="Birthdate"
+              value={
+                formatDate(
+                  employee.birthdate,
+                )
+              }
+            />
+
+            <ReadField
+              label="Address"
+              value={
+                employee.address
+              }
+            />
+
+            <ReadField
+              label="Contact Number"
+              value={
+                employee.contactNumber
+              }
+            />
+
+            <ReadField
+              label="Email Address"
+              value={
+                employee.emailAddress
+              }
+            />
+
+            <ReadField
+              label="Blood Type"
+              value={
+                employee.bloodType
+              }
+            />
+
+            <ReadField
+              label="Nationality"
+              value={
+                employee.nationality
+              }
+            />
+
+            <ReadField
+              label="Religion"
+              value={
+                employee.religion
+              }
+            />
+
           </div>
 
-          {/* 3. Driver Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. Driver Information (if applicable)
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Driver's License No.
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.licenseNumber || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  License Type / Restriction
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.driverLicenseType || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  License Expiration Date
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.licenseExpirationDate
-                    ? new Date(
-                        employee.licenseExpirationDate,
-                      ).toLocaleDateString()
-                    : "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Driving Experience (Years)
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.drivingExperience
-                    ? `${employee.drivingExperience} years`
-                    : "N/A"}
-                </div>
-              </div>
-            </div>
+        </section>
+
+
+        {/* EMPLOYEE */}
+        <section className="border border-slate-200 rounded-xl p-4">
+
+          <div className="border-b pb-2 mb-4 font-semibold">
+            2. Employee Details
           </div>
 
-          {/* 4. Health & Emergency Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              4. Health & Emergency Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Health Condition
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.healthCondition || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Drug Test Status
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.drugTestStatus || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Last Medical Check-up
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.lastMedicalCheckup
-                    ? new Date(employee.lastMedicalCheckup).toLocaleDateString()
-                    : "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Emergency Contact Person
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.emergencyContactPerson || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Emergency Contact Number
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.emergencyContactNumber || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Relationship
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {employee.relationship || "N/A"}
-                </div>
-              </div>
-            </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+            <ReadField
+              label="Role"
+              value={
+                employee.role
+              }
+            />
+
+            <ReadField
+              label="Availability"
+              value={
+                employee.availability
+              }
+            />
+
+            <ReadField
+              label="Date Employed"
+              value={
+                formatDate(
+                  employee.dateEmployed,
+                )
+              }
+            />
+
           </div>
 
-          {/* 5. Other Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              5. Other Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Skills / Specialization
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12">
-                  {employee.skills || "No skills specified."}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Certificates Record
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  No certificate uploaded or available
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Other Remarks
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12">
-                  {employee.remarks || "No additional remarks."}
-                </div>
-              </div>
-            </div>
+        </section>
+
+
+        {/* DRIVER */}
+        <section className="border border-slate-200 rounded-xl p-4">
+
+          <div className="border-b pb-2 mb-4 font-semibold">
+            3. Driver Information
           </div>
-        </div>
+
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+
+            <ReadField
+              label="License No."
+              value={
+                employee.licenseNumber
+              }
+            />
+
+            <ReadField
+              label="License Type"
+              value={
+                employee.driverLicenseType
+              }
+            />
+
+            <ReadField
+              label="Expiration"
+              value={
+                formatDate(
+                  employee.licenseExpirationDate,
+                )
+              }
+            />
+
+            <ReadField
+              label="Experience"
+              value={
+                employee.drivingExperience
+                  ? `${employee.drivingExperience} years`
+                  : ""
+              }
+            />
+
+          </div>
+
+        </section>
+
+
+        {/* HEALTH */}
+        <section className="border border-slate-200 rounded-xl p-4">
+
+          <div className="border-b pb-2 mb-4 font-semibold">
+            4. Health & Emergency Information
+          </div>
+
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+
+            <ReadField
+              label="Health Status"
+              value={
+                employee.healthCondition
+              }
+            />
+
+            <ReadField
+              label="Drug Test Status"
+              value={
+                employee.drugTestStatus
+              }
+            />
+
+            <ReadField
+              label="Last Medical Check-up"
+              value={
+                formatDate(
+                  employee.lastMedicalCheckup,
+                )
+              }
+            />
+
+            <ReadField
+              label="Emergency Contact"
+              value={
+                employee.emergencyContactPerson
+              }
+            />
+
+            <ReadField
+              label="Emergency Number"
+              value={
+                employee.emergencyContactNumber
+              }
+            />
+
+            <ReadField
+              label="Relationship"
+              value={
+                employee.relationship
+              }
+            />
+
+          </div>
+
+        </section>
+
+
+        {/* OTHER */}
+        <section className="border border-slate-200 rounded-xl p-4">
+
+          <div className="border-b pb-2 mb-4 font-semibold">
+            5. Other Information
+          </div>
+
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            <ReadField
+              label="Skills / Specialization"
+              value={
+                employee.skills
+              }
+            />
+
+            <ReadField
+              label="Remarks"
+              value={
+                employee.remarks
+              }
+            />
+
+          </div>
+
+        </section>
+
       </div>
 
-      {/* Delete Confirmation Modal */}
+
+      {/* DELETE MODAL */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">
+
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50">
+
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
+
+            <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+
+
+            <h3 className="text-lg font-bold mb-2">
               Delete Employee Record
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6">
+
+
+            <p className="text-sm text-slate-600 mb-6">
               Are you sure you want to delete{" "}
-              <strong className="text-slate-900">
-                {employee.firstName} {employee.lastName}
+
+              <strong>
+                {employee.firstName}{" "}
+                {employee.lastName}
               </strong>
-              ? This will permanently remove the record from Supabase.
+              ?
             </p>
-            <div className="flex items-center gap-3">
+
+
+            <div className="flex gap-3">
+
               <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                onClick={() =>
+                  setShowDeleteModal(
+                    false,
+                  )
+                }
+                disabled={
+                  isDeleting
+                }
+                className="flex-1 py-2.5 bg-slate-100 rounded-xl"
               >
                 Cancel
               </button>
+
+
               <button
-                onClick={() => {
-                  onDelete(employee.id);
-                  setShowDeleteModal(false);
-                }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+                onClick={
+                  confirmDelete
+                }
+                disabled={
+                  isDeleting
+                }
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl flex items-center justify-center gap-2"
               >
+
+                {isDeleting && (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                )}
+
                 Confirm Delete
+
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 }
 
+
 // ==========================================
-// EMPLOYEES DIRECTORY MAIN COMPONENT
+// MAIN PAGE
 // ==========================================
 
 export default function EmployeesPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRole, setSelectedRole] = useState("All Roles");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Loading state added here
-  const [selectedEmployee, setSelectedEmployee] =
-    useState<EmployeeRecord | null>(null);
-  const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(
+
+  const [
+    currentSession,
+    setCurrentSession,
+  ] = useState<UserSession | null>(
     null,
   );
-  const [employeeList, setEmployeeList] = useState<EmployeeRecord[]>([]);
 
-  // === Pagination States ===
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
-  // Reset pagination to page 1 whenever the user searches or filters
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedRole]);
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] = useState("");
 
-  // ==========================================
-  // LIVE DATABASE CONNECTION (AXIOS)
-  // ==========================================
-  const fetchEmployees = async () => {
-    setIsLoading(true); // Start Loading
-    try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
-      const response = await axios.get(`${API_URL}/api/employees`);
 
-      const liveData = response.data.map((emp: any) => {
-        const nameParts = emp.employeeName
-          ? emp.employeeName.split(" ")
-          : ["Unknown"];
-        const fName = nameParts[0];
-        const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const [
+    selectedRole,
+    setSelectedRole,
+  ] = useState(
+    "All Roles",
+  );
 
-        return {
-          id: emp.employeeID,
-          firstName: fName,
-          middleName: emp.middleName || "",
-          lastName: lName,
-          suffix: emp.suffix || "",
-          role: emp.role,
-          address: emp.address || "No address provided",
-          contactNumber: emp.contact || "No contact",
-          healthCondition: emp.healthStatus || "Fit to Work",
-          status: emp.isActive ? "Active" : "Inactive",
 
-          gender: emp.gender || "N/A",
-          birthdate: emp.birthdate || "",
-          emailAddress: emp.emailAddress || "",
-          bloodType: emp.bloodType || "",
-          nationality: emp.nationality || "Filipino",
-          religion: emp.religion || "",
-          dateEmployed: emp.dateEmployed || "",
-          driverLicenseType: emp.driverLicenseType || "",
-          licenseNumber: emp.licenseNumber || "",
-          licenseExpirationDate: emp.licenseExpirationDate || "",
-          drivingExperience: emp.drivingExperience || "",
-          drugTestStatus: emp.drugTestStatus || "Pending",
-          lastMedicalCheckup: emp.lastMedicalCheckup || "",
-          emergencyContactPerson: emp.emergencyContactPerson || "",
-          emergencyContactNumber: emp.emergencyContactNumber || "",
-          relationship: emp.relationship || "",
-          skills: emp.skills || "",
-          remarks: emp.remarks || "",
-        };
-      });
+  const [
+    isDropdownOpen,
+    setIsDropdownOpen,
+  ] = useState(false);
 
-      setEmployeeList(liveData);
-    } catch (error) {
-      console.error("Failed to fetch employees from backend:", error);
-    } finally {
-      setIsLoading(false); // End Loading
-    }
-  };
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
+  const [
+    isModalOpen,
+    setIsModalOpen,
+  ] = useState(false);
 
-  const handleRowClick = async (id: string | number) => {
-    try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
-      // ✅ 1. FETCH EXACT RECORD FROM DATABASE
-      const response = await axios.get(`${API_URL}/api/employees/${id}`);
-      const emp = response.data;
+  const [
+    isLoading,
+    setIsLoading,
+  ] = useState(true);
 
-      const nameParts = emp.employeeName
-        ? emp.employeeName.split(" ")
-        : ["Unknown"];
-      const fName = nameParts[0];
-      const lName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-      // ✅ 2. MAP ONLY TO SPECIFIC DATA STORED IN DATABASE (No local hardcoded fallbacks besides standard 'N/A' empty states)
-      const fullRecord: EmployeeRecord = {
-        id: emp.employeeID,
-        firstName: fName,
-        middleName: emp.middleName || "",
-        lastName: lName,
-        suffix: emp.suffix || "",
-        role: emp.role,
-        gender: emp.gender || "",
-        birthdate: emp.birthdate || "",
-        address: emp.address || "",
-        contactNumber: emp.contact || "",
-        emailAddress: emp.emailAddress || "",
-        bloodType: emp.bloodType || "",
-        nationality: emp.nationality || "",
-        religion: emp.religion || "",
-        dateEmployed: emp.dateEmployed || "",
-        driverLicenseType: emp.driverLicenseType || "",
-        licenseNumber: emp.licenseNumber || "",
-        licenseExpirationDate: emp.licenseExpirationDate || "",
-        drivingExperience: emp.drivingExperience || "",
-        healthCondition: emp.healthStatus || "",
-        drugTestStatus: emp.drugTestStatus || "",
-        lastMedicalCheckup: emp.lastMedicalCheckup || "",
-        emergencyContactPerson: emp.emergencyContactPerson || "",
-        emergencyContactNumber: emp.emergencyContactNumber || "",
-        relationship: emp.relationship || "",
-        skills: emp.skills || "",
-        remarks: emp.remarks || "",
-        status: emp.isActive ? "Active" : "Inactive",
-      };
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-      // ✅ 3. PASS LIVE RECORD TO DETAIL VIEW
-      setSelectedEmployee(fullRecord);
-    } catch (error) {
-      console.error(
-        "Failed to fetch complete employee record from Supabase:",
-        error,
-      );
-      // Fallback only if the network fails so UI doesn't crash completely
-      const localEmp = employeeList.find((e) => e.id === id);
-      if (localEmp) setSelectedEmployee(localEmp);
-    }
-  };
 
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState("");
+
+
+  const [
+    selectedEmployee,
+    setSelectedEmployee,
+  ] = useState<
+    EmployeeRecord | null
+  >(null);
+
+
+  const [
+    editingEmployee,
+    setEditingEmployee,
+  ] = useState<
+    EmployeeRecord | null
+  >(null);
+
+
+  const [
+    employeeList,
+    setEmployeeList,
+  ] = useState<
+    EmployeeRecord[]
+  >([]);
+
+
+  const [
+    currentPage,
+    setCurrentPage,
+  ] = useState(1);
+
+
+  const [
+    totalPages,
+    setTotalPages,
+  ] = useState(1);
+
+
+  const [
+    totalEmployees,
+    setTotalEmployees,
+  ] = useState(0);
+
+
+  const dropdownRef =
+    useRef<HTMLDivElement>(
+      null,
+    );
+
 
   const roles = [
     "All Roles",
@@ -1303,346 +2674,1277 @@ export default function EmployeesPage() {
     "Helper",
   ];
 
+
+  // ==========================================
+  // SESSION
+  // ==========================================
+
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
-  const handleModalSubmit = async (record: EmployeeRecord) => {
     try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
-      if (editingEmployee) {
-        // 1. Update Existing
-        await axios.put(`${API_URL}/api/employees/${record.id}`, record);
-        setEditingEmployee(null);
-      } else {
-        // 2. Add New
-        await axios.post(`${API_URL}/api/employees`, record);
-      }
+      setCurrentSession(
+        getAuthSession(),
+      );
 
-      // Refresh list to stay synced
-      await fetchEmployees();
-      setIsModalOpen(false);
-
-      if (selectedEmployee) {
-        // If we were looking at the detail page, refresh it
-        await handleRowClick(record.id);
-      }
     } catch (error) {
-      console.error("Failed to save employee to backend:", error);
-      alert(
-        "Error saving employee to database. Check your frontend console (F12).",
+
+      setErrorMessage(
+        getErrorMessage(
+          error,
+        ),
       );
     }
-  };
 
-  const handleDeleteEmployee = async (id: string | number) => {
-    try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
-      await axios.delete(`${API_URL}/api/employees/${id}`);
+  }, []);
 
-      setSelectedEmployee(null);
-      await fetchEmployees();
-    } catch (error) {
-      console.error("Failed to delete employee from Supabase:", error);
-      alert("Error deleting employee. Please try again.");
+
+  // ==========================================
+  // FETCH EMPLOYEES
+  // ==========================================
+
+  const fetchEmployees =
+    useCallback(
+      async () => {
+
+        setIsLoading(
+          true,
+        );
+
+        setErrorMessage(
+          "",
+        );
+
+
+        try {
+
+          const params =
+            new URLSearchParams();
+
+
+          params.set(
+            "page",
+            String(
+              currentPage,
+            ),
+          );
+
+
+          params.set(
+            "limit",
+            String(
+              ITEMS_PER_PAGE,
+            ),
+          );
+
+
+          params.set(
+            "sortBy",
+            "employeeName",
+          );
+
+
+          params.set(
+            "sortOrder",
+            "asc",
+          );
+
+
+          if (
+            searchTerm.trim()
+          ) {
+
+            params.set(
+              "search",
+              searchTerm.trim(),
+            );
+          }
+
+
+          if (
+            selectedRole !==
+            "All Roles"
+          ) {
+
+            params.set(
+              "role",
+              selectedRole,
+            );
+          }
+
+
+          const response =
+            await apiFetch<EmployeesApiResponse>(
+              `/api/employees?${params.toString()}`,
+            );
+
+
+          setEmployeeList(
+            response.data.map(
+              mapApiEmployee,
+            ),
+          );
+
+
+          setTotalEmployees(
+            response.pagination.total,
+          );
+
+
+          setTotalPages(
+            Math.max(
+              response.pagination.totalPages,
+              1,
+            ),
+          );
+
+        } catch (error) {
+
+          console.error(
+            "Fetch employees error:",
+            error,
+          );
+
+
+          setEmployeeList(
+            [],
+          );
+
+
+          setErrorMessage(
+            getErrorMessage(
+              error,
+            ),
+          );
+
+        } finally {
+
+          setIsLoading(
+            false,
+          );
+        }
+      },
+      [
+        currentPage,
+        searchTerm,
+        selectedRole,
+      ],
+    );
+
+
+  useEffect(() => {
+
+    const timer =
+      window.setTimeout(
+        () => {
+
+          fetchEmployees();
+
+        },
+        300,
+      );
+
+
+    return () =>
+      window.clearTimeout(
+        timer,
+      );
+
+  }, [
+    fetchEmployees,
+  ]);
+
+
+  useEffect(() => {
+
+    setCurrentPage(
+      1,
+    );
+
+  }, [
+    searchTerm,
+    selectedRole,
+  ]);
+
+
+  // ==========================================
+  // GET ONE
+  // ==========================================
+
+  const handleRowClick =
+    async (
+      id: string,
+    ) => {
+
+      try {
+
+        setErrorMessage(
+          "",
+        );
+
+
+        const response =
+          await apiFetch<EmployeeApiResponse>(
+            `/api/employees/${id}`,
+          );
+
+
+        setSelectedEmployee(
+          mapApiEmployee(
+            response.data,
+          ),
+        );
+
+      } catch (error) {
+
+        setErrorMessage(
+          getErrorMessage(
+            error,
+          ),
+        );
+      }
+    };
+
+
+  // ==========================================
+  // CREATE / UPDATE
+  // ==========================================
+
+  const handleModalSubmit =
+    async (
+      formData:
+        EmployeeFormState,
+
+      editData?:
+        EmployeeRecord | null,
+    ) => {
+
+      try {
+
+        setErrorMessage(
+          "",
+        );
+
+        setSuccessMessage(
+          "",
+        );
+
+
+        // ======================================
+        // UPDATE
+        // ======================================
+
+        if (editData) {
+
+          const updatePayload = {
+
+            employeeName:
+              `${formData.firstName} ${formData.lastName}`.trim(),
+
+            middleName:
+              formData.middleName ||
+              null,
+
+            suffix:
+              formData.suffix ||
+              null,
+
+            role:
+              formData.role,
+
+            availability:
+              formData.availability,
+
+            gender:
+              formData.gender ||
+              null,
+
+            birthdate:
+              formData.birthdate ||
+              null,
+
+            address:
+              formData.address,
+
+            contact:
+              formData.contactNumber,
+
+            bloodType:
+              formData.bloodType ||
+              null,
+
+            nationality:
+              formData.nationality ||
+              null,
+
+            religion:
+              formData.religion ||
+              null,
+
+            dateEmployed:
+              formData.dateEmployed ||
+              null,
+
+            driverLicenseType:
+              formData.driverLicenseType ||
+              null,
+
+            licenseNumber:
+              formData.licenseNumber ||
+              null,
+
+            licenseExpirationDate:
+              formData.licenseExpirationDate ||
+              null,
+
+            drivingExperience:
+              formData.drivingExperience
+                ? Number(
+                    formData.drivingExperience,
+                  )
+                : null,
+
+            healthStatus:
+              formData.healthCondition,
+
+            drugTestStatus:
+              formData.drugTestStatus ||
+              null,
+
+            lastMedicalCheckup:
+              formData.lastMedicalCheckup ||
+              null,
+
+            emergencyContactPerson:
+              formData.emergencyContactPerson ||
+              null,
+
+            emergencyContactNumber:
+              formData.emergencyContactNumber ||
+              null,
+
+            relationship:
+              formData.relationship ||
+              null,
+
+            skills:
+              formData.skills ||
+              null,
+
+            remarks:
+              formData.remarks ||
+              null,
+          };
+
+
+          await apiFetch<EmployeeApiResponse>(
+            `/api/employees/${editData.id}`,
+            {
+              method:
+                "PATCH",
+
+              body:
+                JSON.stringify(
+                  updatePayload,
+                ),
+            },
+          );
+
+
+          if (
+            selectedEmployee
+          ) {
+
+            await handleRowClick(
+              editData.id,
+            );
+          }
+
+
+          setSuccessMessage(
+            "Employee updated successfully.",
+          );
+
+
+          setEditingEmployee(
+            null,
+          );
+
+        } else {
+
+          // ======================================
+          // CREATE
+          // NO PASSWORD
+          // ======================================
+
+          const createPayload = {
+
+            employeeID:
+              crypto.randomUUID(),
+
+            employeeName:
+              `${formData.firstName} ${formData.lastName}`.trim(),
+
+            middleName:
+              formData.middleName ||
+              null,
+
+            suffix:
+              formData.suffix ||
+              null,
+
+            role:
+              formData.role,
+
+            availability:
+              formData.availability,
+
+            healthStatus:
+              formData.healthCondition,
+
+            address:
+              formData.address,
+
+            contact:
+              formData.contactNumber,
+
+            emailAddress:
+              formData.emailAddress,
+
+            // Account is not activated yet
+            isActive:
+              false,
+
+            gender:
+              formData.gender ||
+              null,
+
+            birthdate:
+              formData.birthdate ||
+              null,
+
+            bloodType:
+              formData.bloodType ||
+              null,
+
+            nationality:
+              formData.nationality ||
+              null,
+
+            religion:
+              formData.religion ||
+              null,
+
+            dateEmployed:
+              formData.dateEmployed ||
+              null,
+
+            driverLicenseType:
+              formData.driverLicenseType ||
+              null,
+
+            licenseNumber:
+              formData.licenseNumber ||
+              null,
+
+            licenseExpirationDate:
+              formData.licenseExpirationDate ||
+              null,
+
+            drivingExperience:
+              formData.drivingExperience
+                ? Number(
+                    formData.drivingExperience,
+                  )
+                : null,
+
+            drugTestStatus:
+              formData.drugTestStatus ||
+              null,
+
+            lastMedicalCheckup:
+              formData.lastMedicalCheckup ||
+              null,
+
+            emergencyContactPerson:
+              formData.emergencyContactPerson ||
+              null,
+
+            emergencyContactNumber:
+              formData.emergencyContactNumber ||
+              null,
+
+            relationship:
+              formData.relationship ||
+              null,
+
+            skills:
+              formData.skills ||
+              null,
+
+            remarks:
+              formData.remarks ||
+              null,
+          };
+
+
+          await apiFetch<EmployeeApiResponse>(
+            "/api/employees",
+            {
+              method:
+                "POST",
+
+              body:
+                JSON.stringify(
+                  createPayload,
+                ),
+            },
+          );
+
+
+          setSuccessMessage(
+            "Employee created successfully. You can activate the login account from the employee profile.",
+          );
+        }
+
+
+        setIsModalOpen(
+          false,
+        );
+
+
+        await fetchEmployees();
+
+      } catch (error) {
+
+        const message =
+          getErrorMessage(
+            error,
+          );
+
+
+        setErrorMessage(
+          message,
+        );
+
+
+        throw error;
+      }
+    };
+
+
+  // ==========================================
+  // ACTIVATE ACCOUNT
+  // ==========================================
+
+  const handleActivateEmployee =
+    async (
+      id: string,
+    ) => {
+
+      try {
+
+        setErrorMessage(
+          "",
+        );
+
+        setSuccessMessage(
+          "",
+        );
+
+
+        const response =
+          await apiFetch<MessageResponse>(
+            `/api/employees/${id}/activate`,
+            {
+              method:
+                "POST",
+            },
+          );
+
+
+        setSuccessMessage(
+          response.message ||
+          "Activation email sent successfully.",
+        );
+
+
+        // Refresh employee profile
+        await handleRowClick(
+          id,
+        );
+
+
+        await fetchEmployees();
+
+      } catch (error) {
+
+        const message =
+          getErrorMessage(
+            error,
+          );
+
+
+        setErrorMessage(
+          message,
+        );
+
+
+        throw error;
+      }
+    };
+
+
+  // ==========================================
+  // DELETE
+  // ==========================================
+
+  const handleDeleteEmployee =
+    async (
+      id: string,
+    ) => {
+
+      try {
+
+        await apiFetch<MessageResponse>(
+          `/api/employees/${id}`,
+          {
+            method:
+              "DELETE",
+          },
+        );
+
+
+        setSelectedEmployee(
+          null,
+        );
+
+
+        setSuccessMessage(
+          "Employee deleted successfully.",
+        );
+
+
+        await fetchEmployees();
+
+      } catch (error) {
+
+        setErrorMessage(
+          getErrorMessage(
+            error,
+          ),
+        );
+
+
+        throw error;
+      }
+    };
+
+
+  // ==========================================
+  // DROPDOWN OUTSIDE CLICK
+  // ==========================================
+
+  useEffect(() => {
+
+    function handleClickOutside(
+      event:
+        MouseEvent,
+    ) {
+
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(
+          event.target as Node,
+        )
+      ) {
+
+        setIsDropdownOpen(
+          false,
+        );
+      }
     }
-  };
 
-  // 1. Filter the entire list first
-  const filteredEmployees = employeeList.filter((emp) => {
-    const matchesSearch =
-      emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.contactNumber.includes(searchTerm);
-    const matchesRole =
-      selectedRole === "All Roles" || emp.role === selectedRole;
-    return matchesSearch && matchesRole;
-  });
 
-  // 2. Pagination Math based on filtered results
-  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside,
+    );
 
-  // 3. Slice exactly 10 entries for the current page
-  const currentEmployees = filteredEmployees.slice(startIndex, endIndex);
 
-  // === RENDER DETAIL VIEW IF AN EMPLOYEE IS SELECTED ===
-  if (selectedEmployee) {
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside,
+      );
+
+  }, []);
+
+
+  // ==========================================
+  // DETAIL
+  // ==========================================
+
+  if (
+    selectedEmployee
+  ) {
+
     return (
       <>
+
+        {successMessage && (
+          <div className="fixed top-5 right-5 z-60 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
+            {successMessage}
+          </div>
+        )}
+
+
+        {errorMessage && (
+          <div className="fixed top-5 right-5 z-60 bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
+            {errorMessage}
+          </div>
+        )}
+
+
         <EmployeeDetailView
-          employee={selectedEmployee}
-          onBack={() => setSelectedEmployee(null)}
-          onEdit={(emp) => {
-            setEditingEmployee(emp);
-            setIsModalOpen(true);
+          employee={
+            selectedEmployee
+          }
+
+          currentRole={
+            currentSession?.role ||
+            ""
+          }
+
+          onBack={() =>
+            setSelectedEmployee(
+              null,
+            )
+          }
+
+          onEdit={(
+            employee,
+          ) => {
+
+            setEditingEmployee(
+              employee,
+            );
+
+            setIsModalOpen(
+              true,
+            );
           }}
-          onDelete={handleDeleteEmployee}
+
+          onDelete={
+            handleDeleteEmployee
+          }
+
+          onActivate={
+            handleActivateEmployee
+          }
         />
+
+
         <EmployeeModal
-          isOpen={isModalOpen}
+          isOpen={
+            isModalOpen
+          }
+
           onClose={() => {
-            setIsModalOpen(false);
-            setEditingEmployee(null);
+
+            setIsModalOpen(
+              false,
+            );
+
+            setEditingEmployee(
+              null,
+            );
           }}
-          onSubmitSuccess={handleModalSubmit}
-          editData={editingEmployee}
+
+          onSubmitSuccess={
+            handleModalSubmit
+          }
+
+          editData={
+            editingEmployee
+          }
         />
+
       </>
     );
   }
 
-  // === RENDER MAIN DIRECTORY LIST ===
+
+  // ==========================================
+  // PAGINATION
+  // ==========================================
+
+  const startIndex =
+    totalEmployees ===
+    0
+      ? 0
+      : (
+          currentPage -
+          1
+        ) *
+          ITEMS_PER_PAGE +
+        1;
+
+
+  const endIndex =
+    Math.min(
+      currentPage *
+        ITEMS_PER_PAGE,
+
+      totalEmployees,
+    );
+
+
+  const currentRole =
+    currentSession?.role
+      ?.toLowerCase() ||
+    "";
+
+
+  const canCreate =
+    [
+      "admin",
+      "coordinator",
+    ].includes(
+      currentRole,
+    );
+
+
+  // ==========================================
+  // DIRECTORY
+  // ==========================================
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
-      {/* Page Header */}
+
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             Employee Directory
           </h1>
+
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Manage your staff listings, employee profiles, and directory
-            records.
+            Manage staff profiles and employee accounts.
           </p>
+
         </div>
 
-        {/* Action Button */}
-        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+
+        {canCreate && (
           <button
             onClick={() => {
-              setEditingEmployee(null);
-              setIsModalOpen(true);
+
+              setEditingEmployee(
+                null,
+              );
+
+              setIsModalOpen(
+                true,
+              );
             }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md"
           >
-            <UserPlus className="w-4 h-4 shrink-0" />
-            <span>Add Employee</span>
+
+            <UserPlus className="w-4 h-4" />
+
+            Add Employee
+
           </button>
-        </div>
+        )}
+
       </div>
 
-      {/* Main Content Container Card */}
+
+      {/* SUCCESS */}
+      {successMessage && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">
+          {successMessage}
+        </div>
+      )}
+
+
+      {/* ERROR */}
+      {errorMessage && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          {errorMessage}
+        </div>
+      )}
+
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white">
-          <h2 className="text-base sm:text-lg font-bold text-slate-900">
+
+        {/* FILTERS */}
+        <div className="p-4 sm:p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+          <h2 className="text-lg font-bold">
             List of Employees
           </h2>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+
+          <div className="flex flex-col sm:flex-row gap-3">
+
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+
               <input
                 type="text"
-                placeholder={
-                  selectedRole === "All Roles"
-                    ? "Search employees..."
-                    : `Search ${selectedRole.toLowerCase()}s...`
+                value={
+                  searchTerm
                 }
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                onChange={(
+                  event,
+                ) =>
+                  setSearchTerm(
+                    event.target.value,
+                  )
+                }
+                placeholder="Search employees..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm"
               />
+
             </div>
 
-            <div className="relative" ref={dropdownRef}>
+
+            <div
+              className="relative"
+              ref={
+                dropdownRef
+              }
+            >
+
               <button
                 type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full sm:w-auto inline-flex items-center justify-between gap-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-medium rounded-xl px-4 py-2.5 text-sm transition-all duration-200"
+                onClick={() =>
+                  setIsDropdownOpen(
+                    !isDropdownOpen,
+                  )
+                }
+                className="inline-flex items-center gap-2 border bg-slate-50 rounded-xl px-4 py-2.5 text-sm"
               >
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-slate-500 shrink-0" />
-                  <span>
-                    Role:{" "}
-                    <strong className="text-slate-900 font-semibold">
-                      {selectedRole}
-                    </strong>
-                  </span>
-                </div>
-                <ChevronDown
-                  className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
-                />
+
+                <Filter className="w-4 h-4" />
+
+                Role:{" "}
+
+                <strong>
+                  {selectedRole}
+                </strong>
+
+                <ChevronDown className="w-4 h-4" />
+
               </button>
 
+
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-full sm:w-48 bg-white border border-slate-100 rounded-xl shadow-lg z-20 py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                  {roles.map((role) => {
-                    const isSelected = selectedRole === role;
-                    return (
+
+                <div className="absolute right-0 mt-2 w-48 bg-white border rounded-xl shadow-lg z-20">
+
+                  {roles.map(
+                    (
+                      role,
+                    ) => (
+
                       <button
-                        type="button"
-                        key={role}
+                        key={
+                          role
+                        }
                         onClick={() => {
-                          setSelectedRole(role);
-                          setIsDropdownOpen(false);
+
+                          setSelectedRole(
+                            role,
+                          );
+
+                          setIsDropdownOpen(
+                            false,
+                          );
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${
-                          isSelected
-                            ? "bg-blue-50 text-blue-600 font-semibold"
-                            : "text-slate-700 hover:bg-slate-50"
-                        }`}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
                       >
-                        <span>{role}</span>
-                        {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                        )}
+                        {role}
                       </button>
-                    );
-                  })}
+
+                    ),
+                  )}
+
                 </div>
               )}
+
             </div>
+
           </div>
+
         </div>
 
+
+        {/* TABLE */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-200 table-fixed">
+
+          <table className="w-full text-left table-fixed min-w-200">
+
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6 w-[25%]">Name</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[15%]">Role</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[25%]">Address</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[20%]">Contact Number</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[15%]">Status</th>
+
+              <tr className="bg-slate-50 text-xs uppercase">
+
+                <th className="px-6 py-3.5 w-[25%]">
+                  Name
+                </th>
+
+                <th className="px-6 py-3.5 w-[15%]">
+                  Role
+                </th>
+
+                <th className="px-6 py-3.5 w-[20%]">
+                  Address
+                </th>
+
+                <th className="px-6 py-3.5 w-[20%]">
+                  Contact
+                </th>
+
+                <th className="px-6 py-3.5 w-[20%]">
+                  Account
+                </th>
+
               </tr>
+
             </thead>
+
+
             <tbody>
+
               {isLoading ? (
+
                 <tr>
-                  <td colSpan={5} className="py-16 sm:py-20 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-                      <p className="text-slate-900 font-medium text-sm">
-                        Loading records...
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1">
-                        Please wait while we fetch the employee directory.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : currentEmployees.length > 0 ? (
-                currentEmployees.map((emp) => (
-                  <tr
-                    key={emp.id}
-                    onClick={() => handleRowClick(emp.id)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
-                    title="Click to view complete employee record"
+
+                  <td
+                    colSpan={5}
+                    className="py-20 text-center"
                   >
-                    <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
-                      {emp.firstName}{" "}
-                      {emp.middleName ? `${emp.middleName[0]}. ` : ""}
-                      {emp.lastName} {emp.suffix}
-                    </td>
-                    <td className="py-3.5 px-4 sm:px-6 truncate">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
-                        {emp.role}
-                      </span>
-                    </td>
-                    <td
-                      className="py-3.5 px-4 sm:px-6 truncate"
-                      title={emp.address}
-                    >
-                      {emp.address}
-                    </td>
-                    <td
-                      className="py-3.5 px-4 sm:px-6 truncate"
-                      title={emp.contactNumber}
-                    >
-                      {emp.contactNumber}
-                    </td>
-                    <td className="py-3.5 px-4 sm:px-6 truncate">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
-                        {emp.healthCondition}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="py-16 sm:py-20 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <p className="text-slate-900 font-medium text-sm">
-                        No records found{" "}
-                        {selectedRole !== "All Roles"
-                          ? `for role "${selectedRole}"`
-                          : ""}
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Staff listings and employee profiles will appear here
-                        once connected to your backend database or added via the
-                        form.
-                      </p>
-                    </div>
+
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+
+                    Loading records...
+
                   </td>
+
+                </tr>
+
+              ) : employeeList.length >
+                0 ? (
+
+                employeeList.map(
+                  (
+                    employee,
+                  ) => (
+
+                    <tr
+                      key={
+                        employee.id
+                      }
+
+                      onClick={() =>
+                        handleRowClick(
+                          employee.id,
+                        )
+                      }
+
+                      className="border-b hover:bg-slate-50 cursor-pointer text-sm"
+                    >
+
+                      <td className="px-6 py-3.5 font-medium truncate">
+
+                        {employee.firstName}{" "}
+
+                        {employee.middleName
+                          ? `${employee.middleName[0]}. `
+                          : ""}
+
+                        {employee.lastName}
+
+                      </td>
+
+
+                      <td className="px-6 py-3.5">
+
+                        <span className="bg-blue-100 text-blue-700 rounded-full px-2.5 py-1 text-xs">
+                          {employee.role}
+                        </span>
+
+                      </td>
+
+
+                      <td className="px-6 py-3.5 truncate">
+                        {employee.address ||
+                          "N/A"}
+                      </td>
+
+
+                      <td className="px-6 py-3.5 truncate">
+                        {employee.contactNumber ||
+                          "N/A"}
+                      </td>
+
+
+                      <td className="px-6 py-3.5">
+
+                        {employee.authId ? (
+
+                          <span className="bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-1 text-xs">
+                            Activated
+                          </span>
+
+                        ) : (
+
+                          <span className="bg-amber-100 text-amber-700 rounded-full px-2.5 py-1 text-xs">
+                            Not Activated
+                          </span>
+
+                        )}
+
+                      </td>
+
+                    </tr>
+
+                  ),
+                )
+
+              ) : (
+
+                <tr>
+
+                  <td
+                    colSpan={5}
+                    className="py-20 text-center"
+                  >
+
+                    <FileText className="w-8 h-8 text-slate-400 mx-auto mb-3" />
+
+                    No employee records found.
+
+                  </td>
+
                 </tr>
               )}
+
             </tbody>
+
           </table>
+
         </div>
 
-        {/* Updated Pagination Footer */}
-        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
+
+        {/* PAGINATION */}
+        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+
           <span>
-            Showing {filteredEmployees.length === 0 ? 0 : startIndex + 1} to{" "}
-            {Math.min(endIndex, filteredEmployees.length)} of{" "}
-            {filteredEmployees.length} entries
+            Showing{" "}
+            {startIndex}{" "}
+            to{" "}
+            {endIndex}{" "}
+            of{" "}
+            {totalEmployees}{" "}
+            entries
           </span>
+
+
           <div className="flex items-center gap-2">
+
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === 1
-                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+              onClick={() =>
+                setCurrentPage(
+                  (
+                    previous,
+                  ) =>
+                    Math.max(
+                      previous -
+                        1,
+                      1,
+                    ),
+                )
+              }
+              disabled={
+                currentPage <=
+                1 ||
+                isLoading
+              }
+              className="px-3 py-1.5 border rounded-lg disabled:opacity-40"
             >
               Previous
             </button>
+
+
+            <span>
+              Page{" "}
+              {currentPage}{" "}
+              of{" "}
+              {totalPages}
+            </span>
+
+
             <button
               onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                setCurrentPage(
+                  (
+                    previous,
+                  ) =>
+                    Math.min(
+                      previous +
+                        1,
+                      totalPages,
+                    ),
+                )
               }
-              disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === totalPages || totalPages === 0
-                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+              disabled={
+                currentPage >=
+                  totalPages ||
+                isLoading
+              }
+              className="px-3 py-1.5 border rounded-lg disabled:opacity-40"
             >
               Next
             </button>
+
           </div>
+
         </div>
+
       </div>
 
+
       <EmployeeModal
-        isOpen={isModalOpen}
+        isOpen={
+          isModalOpen
+        }
+
         onClose={() => {
-          setIsModalOpen(false);
-          setEditingEmployee(null);
+
+          setIsModalOpen(
+            false,
+          );
+
+          setEditingEmployee(
+            null,
+          );
         }}
-        onSubmitSuccess={handleModalSubmit}
-        editData={editingEmployee}
+
+        onSubmitSuccess={
+          handleModalSubmit
+        }
+
+        editData={
+          editingEmployee
+        }
       />
+
     </div>
   );
 }

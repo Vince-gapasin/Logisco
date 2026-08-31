@@ -1,29 +1,52 @@
-import axios from "axios";
+export interface AuthResponse {
+  email: string;
+  role: string;
+  token: string;
+  id: string;
+  employeeName: string;
+}
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
-
-export const authenticateUser = async (emailInput: string, passwordInput: string) => {
+export const authenticateUser = async (
+  emailInput: string,
+  passwordInput: string
+): Promise<AuthResponse | null> => {
   try {
-    const response = await axios.post(`${API_URL}/api/auth/login`, {
-      email: emailInput,
-      password: passwordInput,
-    });
+    const response = await fetch(
+      "/api/auth/login",
+      {
+        method: "POST",
 
-    // If Express sends back that beautiful 200 OK we just saw in your test
-    if (response.status === 200 && response.data) {
-      
-      // We explicitly return the exact variables your Next.js login page is expecting
-      return {
-        email: response.data.email,
-        role: response.data.role,
-        token: response.data.token,
-        id: response.data.employeeId
-      };
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          email: emailInput,
+          password: passwordInput,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      return null;
     }
-    
-    return null;
+
+    const data = await response.json();
+
+    return {
+      email: data.email,
+      role: data.role,
+      token: data.token,
+      id: data.employeeId,
+      employeeName: data.employeeName,
+    };
+
   } catch (error) {
-    console.error("Auth Service Error:", error);
-    return null; // This tells the login page to show the "Invalid credentials" error
+    console.error(
+      "Auth Service Error:",
+      error
+    );
+
+    return null;
   }
 };
