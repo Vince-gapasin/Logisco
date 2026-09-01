@@ -1,9 +1,11 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 // ==========================================
-// FLEET STATUS PAGE & TRUCK MODAL
+// LOGISCO - FLEET STATUS PAGE
 // ==========================================
+
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Search,
   Truck,
@@ -13,12 +15,95 @@ import {
   Edit3,
   Trash2,
   AlertTriangle,
-  Loader2, // Added for loading state
+  Loader2,
 } from "lucide-react";
-import axios from "axios";
+
+import type {
+  Truck as ApiTruck,
+  CreateTruckDto,
+  UpdateTruckDto,
+  TrucksResponse,
+  TruckResponse,
+} from "@/types/truck";
+
+// ==========================================
+// CONFIG & SESSION
+// ==========================================
+
+const ITEMS_PER_PAGE = 10;
+const SESSION_KEY = "logisco_user_session";
+
+interface UserSession {
+  email: string;
+  role: string;
+  token: string;
+  id: string;
+  employeeName: string;
+}
+
+function getAuthSession(): UserSession {
+  const savedSession =
+    localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+
+  if (!savedSession) {
+    throw new Error("Authentication session not found. Please log in again.");
+  }
+  return JSON.parse(savedSession) as UserSession;
+}
+
+// ==========================================
+// API FETCH HELPER
+// ==========================================
+
+async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const session = getAuthSession();
+  const headers = new Headers(options.headers);
+
+  headers.set("Authorization", `Bearer ${session.token}`);
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  let result: unknown = null;
+  const contentType = response.headers.get("content-type");
+
+  if (contentType?.includes("application/json")) {
+    result = await response.json();
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof result === "object" && result !== null && "message" in result
+        ? String((result as { message: unknown }).message)
+        : `Request failed with status ${response.status}`;
+
+    if (response.status === 401) {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+    throw new Error(message);
+  }
+
+  return result as T;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Something went wrong.";
+}
+
+// ==========================================
+// FRONTEND TYPES & MAPPERS
+// ==========================================
 
 export interface TruckRecord {
-  id: string | number;
+  id: string;
   plateNumber: string;
   truckType: string;
   truckModel: string;
@@ -27,47 +112,57 @@ export interface TruckRecord {
   status: string;
 }
 
+function mapApiTruck(truck: ApiTruck): TruckRecord {
+  return {
+    id: truck.truckID,
+    plateNumber: truck.plateNumber || "N/A",
+    truckType: truck.truckType || "N/A",
+    truckModel: truck.model || "N/A",
+    capacity: truck.capacity ? String(truck.capacity) : "",
+    lastChecked: truck.lastChecked ? truck.lastChecked.split("T")[0] : "",
+    status: truck.truckStatus || "Available",
+  };
+}
+
 // ==========================================
 // TRUCK MODAL COMPONENT (Add / Edit)
 // ==========================================
+
 interface TruckModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (record: TruckRecord) => void;
+  onSubmitSuccess: (formData: any, editData?: TruckRecord | null) => Promise<void>;
   editData?: TruckRecord | null;
 }
 
-function TruckModal({
-  isOpen,
-  onClose,
-  onSubmitSuccess,
-  editData,
-}: TruckModalProps) {
+function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalProps) {
   const initialTruckState = {
     plateNumber: "",
     truckType: "",
     truckModel: "",
     capacity: "",
     lastChecked: "",
+    status: "Available",
   };
 
   const [formData, setFormData] = useState(initialTruckState);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (editData) {
       setFormData({
-        plateNumber: editData.plateNumber || "",
-        truckType: editData.truckType || "",
-        truckModel: editData.truckModel || "",
-        capacity: editData.capacity ? String(editData.capacity) : "",
-        lastChecked: editData.lastChecked
-          ? editData.lastChecked.split("T")[0]
-          : "",
+        plateNumber: editData.plateNumber,
+        truckType: editData.truckType,
+        truckModel: editData.truckModel,
+        capacity: editData.capacity,
+        lastChecked: editData.lastChecked,
+        status: editData.status,
       });
     } else {
       setFormData(initialTruckState);
     }
+    setErrors({});
   }, [editData, isOpen]);
 
   if (!isOpen) return null;
@@ -79,7 +174,7 @@ function TruckModal({
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -88,45 +183,36 @@ function TruckModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    if (!formData.plateNumber.trim())
-      newErrors.plateNumber = "Plate number is required.";
+    if (!formData.plateNumber.trim()) newErrors.plateNumber = "Plate number is required.";
     if (!formData.truckType) newErrors.truckType = "Type of truck is required.";
-    if (!formData.truckModel.trim())
-      newErrors.truckModel = "Truck model is required.";
+    if (!formData.truckModel.trim()) newErrors.truckModel = "Truck model is required.";
     if (!String(formData.capacity).trim()) newErrors.capacity = "Capacity is required.";
-    if (!formData.lastChecked)
-      newErrors.lastChecked = "Last checked date is required.";
-
+    
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    const updatedRecord: TruckRecord = {
-      id: editData ? editData.id : Date.now(),
-      plateNumber: formData.plateNumber,
-      truckType: formData.truckType,
-      truckModel: formData.truckModel,
-      capacity: formData.capacity,
-      lastChecked: formData.lastChecked,
-      status: editData ? editData.status : "Operational",
-    };
-
-    onSubmitSuccess(updatedRecord);
-    setFormData(initialTruckState);
-    setErrors({});
-    onClose();
+    try {
+      setIsSubmitting(true);
+      await onSubmitSuccess(formData, editData);
+      handleCloseModal();
+    } catch (error) {
+      // Errors handled by parent toast
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
+          <h2 className="text-xl font-bold tracking-wide">
             {editData ? "Edit Truck Record" : "New Truck Form"}
           </h2>
           <button
@@ -138,10 +224,7 @@ function TruckModal({
           </button>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
-        >
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Truck Information
@@ -149,37 +232,27 @@ function TruckModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Plate Number *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Plate Number *</label>
                 <input
                   type="text"
                   name="plateNumber"
                   placeholder="e.g., ABC-1234"
                   value={formData.plateNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.plateNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.plateNumber}
-                  </p>
-                )}
+                {errors.plateNumber && <p className="text-red-500 text-[11px] mt-1">{errors.plateNumber}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Type of Truck *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Type of Truck *</label>
                 <select
                   name="truckType"
                   value={formData.truckType}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>
-                    Select truck type
-                  </option>
+                  <option value="" disabled>Select truck type</option>
                   <option value="Closed Van">Closed Van</option>
                   <option value="Wing Van">Wing Van</option>
                   <option value="Dry Van">Dry Van</option>
@@ -190,69 +263,46 @@ function TruckModal({
                   <option value="Trailer Truck">Trailer Truck</option>
                   <option value="Tanker Truck">Tanker Truck</option>
                   <option value="Pickup Truck">Pickup Truck</option>
-                  <option value="Other">Other</option>
+                  <option value="Others">Others</option>
                 </select>
-                {errors.truckType && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.truckType}
-                  </p>
-                )}
+                {errors.truckType && <p className="text-red-500 text-[11px] mt-1">{errors.truckType}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Truck Model *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Truck Model *</label>
                 <input
                   type="text"
                   name="truckModel"
-                  placeholder="e.g., Isuzu NPR / Fuso Canter"
+                  placeholder="e.g., Isuzu NPR"
                   value={formData.truckModel}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.truckModel && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.truckModel}
-                  </p>
-                )}
+                {errors.truckModel && <p className="text-red-500 text-[11px] mt-1">{errors.truckModel}</p>}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Capacity *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Capacity *</label>
                 <input
                   type="text"
                   name="capacity"
-                  placeholder="e.g., 5 Tons or 5000 kg"
+                  placeholder="e.g., 5000 kg"
                   value={formData.capacity}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.capacity && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.capacity}
-                  </p>
-                )}
+                {errors.capacity && <p className="text-red-500 text-[11px] mt-1">{errors.capacity}</p>}
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Last Checked (MM/DD/YYYY) *
-                </label>
+                <label className="block text-xs font-medium text-black mb-1">Last Checked (Optional)</label>
                 <input
                   type="date"
                   name="lastChecked"
                   value={formData.lastChecked}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastChecked ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.lastChecked && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.lastChecked}
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -261,16 +311,17 @@ function TruckModal({
             <button
               type="button"
               onClick={handleCloseModal}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              disabled={isSubmitting}
+              className="w-full sm:w-40 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              disabled={isSubmitting}
+              className="w-full sm:w-40 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
             >
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {editData ? "Save Changes" : "Add Truck"}
             </button>
           </div>
@@ -281,55 +332,54 @@ function TruckModal({
 }
 
 // ==========================================
-// TRUCK INFORMATION DETAIL VIEW
+// TRUCK DETAIL VIEW
 // ==========================================
+
 interface TruckDetailViewProps {
   truck: TruckRecord;
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
-  onDelete: (id: string | number) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
-function TruckDetailView({
-  truck,
-  onBack,
-  onEdit,
-  onDelete,
-}: TruckDetailViewProps) {
+function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      await onDelete(truck.id);
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
-            title="Back to Fleet Status"
-          >
+          <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Truck Information Record
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-              Complete truck details retrieved directly from the database.
-            </p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Truck Information Record</h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">Complete truck details from the database.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => onEdit(truck)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md"
           >
             <Edit3 className="w-4 h-4" />
             <span>Edit Truck</span>
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -340,106 +390,67 @@ function TruckDetailView({
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100">
               <Truck className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {truck.plateNumber}
-              </h2>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">{truck.plateNumber}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                   {truck.truckType}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                  {truck.status || "Operational"}
+                  {truck.status}
                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6 text-sm text-slate-900">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Truck Information
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-black mb-1">Truck Model</label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+              {truck.truckModel}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Plate Number
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.plateNumber || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Type of Truck
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.truckType || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Truck Model
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.truckModel || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Capacity
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.capacity || "N/A"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Last Checked
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.lastChecked
-                    ? new Date(truck.lastChecked).toLocaleDateString()
-                    : "N/A"}
-                </div>
-              </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-black mb-1">Capacity</label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+              {truck.capacity}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-black mb-1">Last Checked</label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+              {truck.lastChecked || "N/A"}
             </div>
           </div>
         </div>
       </div>
 
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete Truck Record
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
+            <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Truck Record</h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-6">
-              Are you sure you want to delete{" "}
-              <strong className="text-slate-900">{truck.plateNumber}</strong>?
-              This will permanently remove the record from the database.
+              Are you sure you want to delete <strong className="text-slate-900">{truck.plateNumber}</strong>?
             </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  onDelete(truck.id);
-                  setShowDeleteModal(false);
-                }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm flex justify-center gap-2"
               >
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Confirm Delete
               </button>
             </div>
@@ -451,162 +462,141 @@ function TruckDetailView({
 }
 
 // ==========================================
-// FLEET STATUS MAIN PAGE
+// MAIN PAGE
 // ==========================================
+
 export default function FleetStatusPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Loading state added
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
-  // Reset pagination to page 1 whenever the user searches
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
- // ==========================================
-  // LIVE DATABASE CONNECTION (FETCH TRUCKS)
-  // ==========================================
-  useEffect(() => {
-    const fetchTrucks = async () => {
-      setIsLoading(true);
-      try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-        const response = await axios.get(`${API_URL}/api/trucks`);
-
-        const backendData = response.data.data || response.data;
-        let liveData: TruckRecord[] = [];
-
-        if (Array.isArray(backendData)) {
-          liveData = backendData.map((dbTruck: any, index: number) => ({
-            // 1. Fix the React Key Warning (Grabs truckID, falls back to secure random key)
-            id: dbTruck.truckID || crypto.randomUUID(), 
-            plateNumber: dbTruck.plateNumber || "N/A",
-            truckType: dbTruck.truckType || "N/A",
-            truckModel: dbTruck.model || "N/A",
-            capacity: dbTruck.capacity ? String(dbTruck.capacity) : "",
-            
-            // 2. Map the exact DB column (lastChecked)
-            lastChecked: dbTruck.lastChecked ? dbTruck.lastChecked.split("T")[0] : "",
-            
-            // 3. Map the exact DB column (truckStatus)
-            status: dbTruck.truckStatus || "Operational", 
-          }));
-        }
-
-        setTruckList(liveData);
-      } catch (error) {
-        console.error("Failed to fetch trucks:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTrucks();
+  const fetchTrucks = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const response = await apiFetch<TrucksResponse>("/api/fleet-status");
+      setTruckList(response.data.map(mapApiTruck));
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+      setTruckList([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // ==========================================
-  // LIVE DATABASE CONNECTION (ADD TRUCK)
-  // ==========================================
+  useEffect(() => {
+    fetchTrucks();
+  }, [fetchTrucks]);
 
-  const handleRowClick = async (id: string | number) => {
+  const handleRowClick = async (id: string) => {
     try {
-      // 🚀 Update connection here later
-      const localTruck = truckList.find((t) => t.id === id);
-      if (localTruck) {
-        setSelectedTruck(localTruck);
-      }
+      setErrorMessage("");
+      const response = await apiFetch<TruckResponse>(`/api/fleet-status/${id}`);
+      setSelectedTruck(mapApiTruck(response.data));
     } catch (error) {
-      console.error("Failed to fetch complete truck record:", error);
+      setErrorMessage(getErrorMessage(error));
     }
   };
 
-  const handleModalSubmit = async (record: TruckRecord) => {
+  const handleModalSubmit = async (formData: any, editData?: TruckRecord | null) => {
     try {
-      // 1. FORCING the Express Port (Bypass Next.js completely)
-      const API_URL = "http://localhost:3001";
+      setErrorMessage("");
+      setSuccessMessage("");
 
-      if (editingTruck) {
-        // 2. The 404 Protector: Ensure the ID actually exists
-        if (!record.id) {
-          alert("🚨 Bug Caught: The Truck ID is missing! Cannot update.");
-          return;
-        }
+      if (editData) {
+        const payload: UpdateTruckDto = {
+          plateNumber: formData.plateNumber,
+          truckType: formData.truckType,
+          model: formData.truckModel,
+          capacity: formData.capacity,
+          lastChecked: formData.lastChecked || null,
+          truckStatus: formData.status,
+        };
 
-        // 3. Frontend Logging (So we can see exactly what URL it tries to hit)
-        console.log(`[FRONTEND] 🟡 Sending PUT to: ${API_URL}/api/trucks/${record.id}`);
+        await apiFetch<TruckResponse>(`/api/fleet-status/${editData.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
         
-        await axios.put(`${API_URL}/api/trucks/${record.id}`, record);
-        
-        setTruckList((prev) => prev.map((t) => (t.id === record.id ? record : t)));
-        if (selectedTruck && selectedTruck.id === record.id) {
-          setSelectedTruck(record);
-        }
-        setEditingTruck(null);
+        setSuccessMessage("Truck updated successfully.");
+        if (selectedTruck) await handleRowClick(editData.id);
       } else {
-        console.log(`[FRONTEND] 🟢 Sending POST to: ${API_URL}/api/trucks`);
-        const response = await axios.post(`${API_URL}/api/trucks`, record);
+        const payload: CreateTruckDto = {
+          plateNumber: formData.plateNumber,
+          truckType: formData.truckType,
+          model: formData.truckModel,
+          capacity: formData.capacity,
+          lastChecked: formData.lastChecked || null,
+          truckStatus: "Available",
+        };
+
+        await apiFetch<TruckResponse>("/api/fleet-status", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
         
-        const dbTruck = response.data;
-        // Make sure we grab the newly created truckID from Postgres!
-        const uiRecord: TruckRecord = { ...record, id: dbTruck?.truckID || dbTruck?.id || Date.now() };
-        setTruckList((prev) => [uiRecord, ...prev]);
+        setSuccessMessage("Truck added successfully.");
       }
-      setIsModalOpen(false);
-    } catch (error: any) {
-      console.error("Failed to save truck:", error);
-      const serverMsg = error.response?.data?.error || error.response?.data?.details || error.message;
-      alert(`🚨 FAILED 🚨\n\nReason: ${serverMsg}`);
-    }
-  };
-
-  const handleDeleteTruck = async (id: string | number) => {
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       
-      // 🚀 THE FIX: Actually send the DELETE request to the backend
-      await axios.delete(`${API_URL}/api/trucks/${id}`);
-      
-      setTruckList((prev) => prev.filter((t) => t.id !== id));
-      setSelectedTruck(null);
+      await fetchTrucks();
     } catch (error) {
-      console.error("Failed to delete truck:", error);
-      alert("Error deleting truck. Please try again.");
+      const msg = getErrorMessage(error);
+      setErrorMessage(msg);
+      throw error;
     }
   };
 
-  // 1. Filter the entire list first
-  const filteredTrucks = truckList.filter(
-    (truck) =>
-      truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase()),
+  const handleDeleteTruck = async (id: string) => {
+    try {
+      await apiFetch(`/api/fleet-status/${id}`, { method: "DELETE" });
+      setSelectedTruck(null);
+      setSuccessMessage("Truck deactivated successfully.");
+      await fetchTrucks();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+      throw error;
+    }
+  };
+
+  const filteredTrucks = truckList.filter((truck) =>
+    truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    truck.truckType.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 2. Pagination Math based on filtered results
-  const totalPages = Math.ceil(filteredTrucks.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+  const totalPages = Math.ceil(filteredTrucks.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const currentTrucks = filteredTrucks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // 3. Slice exactly 10 entries for the current page
-  const currentTrucks = filteredTrucks.slice(startIndex, endIndex);
-
-  // === CONDITIONAL RENDER: SHOW DETAIL VIEW ===
   if (selectedTruck) {
     return (
       <>
+        {successMessage && (
+          <div className="fixed top-5 right-5 z-60 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
+            {successMessage}
+          </div>
+        )}
+        {errorMessage && (
+          <div className="fixed top-5 right-5 z-60 bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
+            {errorMessage}
+          </div>
+        )}
         <TruckDetailView
           truck={selectedTruck}
           onBack={() => setSelectedTruck(null)}
-          onEdit={(truckRecord) => {
-            setEditingTruck(truckRecord);
+          onEdit={(truck) => {
+            setEditingTruck(truck);
             setIsModalOpen(true);
           }}
           onDelete={handleDeleteTruck}
@@ -624,36 +614,30 @@ export default function FleetStatusPage() {
     );
   }
 
-  // === MAIN FLEET STATUS LIST VIEW ===
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Fleet Status
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">
-            Monitor and manage fleet availability, maintenance logs, and truck
-            asset statuses.
-          </p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Fleet Status</h1>
+          <p className="text-xs sm:text-sm text-slate-700 mt-1">Monitor and manage fleet availability.</p>
         </div>
-
-        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
-          <button
-            onClick={() => {
-              setEditingTruck(null);
-              setIsModalOpen(true);
-            }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap"
-          >
-            <Truck className="w-4 h-4 shrink-0" />
-            <span>Add Truck</span>
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            setEditingTruck(null);
+            setIsModalOpen(true);
+          }}
+          className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md"
+        >
+          <Truck className="w-4 h-4" />
+          <span>Add Truck</span>
+        </button>
       </div>
 
+      {successMessage && <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">{successMessage}</div>}
+      {errorMessage && <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{errorMessage}</div>}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-4 bg-white">
+        <div className="p-4 sm:p-5 border-b border-slate-100">
           <div className="relative w-full sm:w-96">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -661,15 +645,15 @@ export default function FleetStatusPage() {
               placeholder="Search by plate number or status..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl pl-10 pr-4 py-2.5"
             />
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-162.5">
+          <table className="w-full text-left min-w-[600px]">
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase">
                 <th className="py-3.5 px-4 sm:px-6">Plate Number</th>
                 <th className="py-3.5 px-4 sm:px-6">Last Checked</th>
                 <th className="py-3.5 px-4 sm:px-6">Status</th>
@@ -677,36 +661,23 @@ export default function FleetStatusPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                // Loading State View
                 <tr>
-                  <td colSpan={3} className="py-16 sm:py-20 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
-                      <p className="text-slate-900 font-medium text-sm">
-                        Loading trucks...
-                      </p>
-                      <p className="text-slate-500 text-xs mt-1">
-                        Please wait while we sync with the database.
-                      </p>
-                    </div>
+                  <td colSpan={3} className="py-16 text-center">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                    <p className="text-sm font-medium">Loading trucks...</p>
                   </td>
                 </tr>
               ) : currentTrucks.length > 0 ? (
-                // Populated Data View
-                currentTrucks.map((truck, index) => (
+                currentTrucks.map((truck) => (
                   <tr
-                    key={truck.id || index}
+                    key={truck.id}
                     onClick={() => handleRowClick(truck.id)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
-                    title="Click to view complete truck record"
+                    className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer text-sm"
                   >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
-                      {truck.plateNumber}{" "}
-                      <span className="text-xs text-slate-500 font-normal">
-                        ({truck.truckType})
-                      </span>
+                      {truck.plateNumber} <span className="text-xs text-slate-500 font-normal">({truck.truckType})</span>
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6">{truck.lastChecked}</td>
+                    <td className="py-3.5 px-4 sm:px-6">{truck.lastChecked || "N/A"}</td>
                     <td className="py-3.5 px-4 sm:px-6">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         {truck.status}
@@ -715,21 +686,10 @@ export default function FleetStatusPage() {
                   </tr>
                 ))
               ) : (
-                // Empty State View (Shown only if not loading AND no data)
                 <tr>
-                  <td colSpan={3} className="py-16 sm:py-20 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <p className="text-slate-900 font-medium text-sm">
-                        No trucks found
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Truck records will appear here once added via the form
-                        or connected to your backend database.
-                      </p>
-                    </div>
+                  <td colSpan={3} className="py-16 text-center">
+                    <FileText className="w-6 h-6 mx-auto mb-3 text-slate-500" />
+                    <p className="text-sm font-medium">No trucks found</p>
                   </td>
                 </tr>
               )}
@@ -737,37 +697,20 @@ export default function FleetStatusPage() {
           </table>
         </div>
 
-        {/* Pagination Footer */}
-        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
-          <span>
-            Showing {filteredTrucks.length === 0 ? 0 : startIndex + 1} to{" "}
-            {Math.min(endIndex, filteredTrucks.length)} of{" "}
-            {filteredTrucks.length} entries
-          </span>
-          <div className="flex items-center gap-2">
+        <div className="p-4 flex flex-col sm:flex-row items-center justify-between text-xs border-t">
+          <span>Showing {filteredTrucks.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filteredTrucks.length)} of {filteredTrucks.length} entries</span>
+          <div className="flex gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || isLoading}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === 1 || isLoading
-                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Previous
             </button>
             <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
-              disabled={
-                currentPage === totalPages || totalPages === 0 || isLoading
-              }
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage === totalPages || totalPages === 0 || isLoading
-                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
-              }`}
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages || totalPages === 0 || isLoading}
+              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Next
             </button>
