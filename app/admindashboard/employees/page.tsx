@@ -711,9 +711,9 @@ function EmployeeModal({
           {/* PERSONAL INFORMATION */}
           {/* ================================== */}
 
-          <section className="border border-slate-200 rounded-xl p-4 bg-white">
+          <section className="border border-slate-200 rounded-xl p-4 bg-white text-black">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm">
-              1. Personal Information
+              1. Personal Information 
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -949,7 +949,7 @@ function EmployeeModal({
           {/* EMPLOYEE DETAILS */}
           {/* ================================== */}
 
-          <section className="border border-slate-200 rounded-xl p-4">
+          <section className="border border-slate-200 text-black rounded-xl p-4">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold">
               2. Employee Details
             </div>
@@ -1470,7 +1470,7 @@ function EmployeeDetailView({
         </div>
 
         {/* PERSONAL */}
-        <section className="border border-slate-200 rounded-xl p-4">
+        <section className="border border-slate-200 rounded-xl p-4 text-black">
           <div className="border-b pb-2 mb-4 font-semibold">
             1. Personal Information
           </div>
@@ -1506,7 +1506,7 @@ function EmployeeDetailView({
         </section>
 
         {/* EMPLOYEE */}
-        <section className="border border-slate-200 rounded-xl p-4">
+        <section className="border border-slate-200 rounded-xl p-4 text-black">
           <div className="border-b pb-2 mb-4 font-semibold">
             2. Employee Details
           </div>
@@ -1524,7 +1524,7 @@ function EmployeeDetailView({
         </section>
 
         {/* DRIVER */}
-        <section className="border border-slate-200 rounded-xl p-4">
+        <section className="border border-slate-200 rounded-xl p-4 text-black">
           <div className="border-b pb-2 mb-4 font-semibold">
             3. Driver Information
           </div>
@@ -1554,7 +1554,7 @@ function EmployeeDetailView({
         </section>
 
         {/* HEALTH */}
-        <section className="border border-slate-200 rounded-xl p-4">
+        <section className="border border-slate-200 rounded-xl p-4 text-black">
           <div className="border-b pb-2 mb-4 font-semibold">
             4. Health & Emergency Information
           </div>
@@ -1587,7 +1587,7 @@ function EmployeeDetailView({
         </section>
 
         {/* OTHER */}
-        <section className="border border-slate-200 rounded-xl p-4">
+        <section className="border border-slate-200 rounded-xl p-4 text-black">
           <div className="border-b pb-2 mb-4 font-semibold">
             5. Other Information
           </div>
@@ -2271,18 +2271,18 @@ export default function EmployeesPage() {
         </div>
 
         {/* PAGINATION */}
-        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-black">
           <span>
             Showing {startIndex} to {endIndex} of {totalEmployees} entries
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-black">
             <button
               onClick={() =>
                 setCurrentPage((previous) => Math.max(previous - 1, 1))
               }
               disabled={currentPage <= 1 || isLoading}
-              className="px-3 py-1.5 border rounded-lg disabled:opacity-40"
+              className="px-3 py-1.5 border rounded-lg disabled:opacity-40 text-black"
             >
               Previous
             </button>
