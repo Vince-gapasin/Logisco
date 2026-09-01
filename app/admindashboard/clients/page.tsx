@@ -3,10 +3,22 @@
 // ==========================================
 "use client";
 
-import React, { useState } from "react";
-import { UserPlus, Search, FileText, X, Plus, Trash2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import {
+  UserPlus,
+  Search,
+  FileText,
+  X,
+  Plus,
+  Trash2,
+  ArrowLeft,
+  Edit3,
+  AlertTriangle,
+  ChevronDown,
+} from "lucide-react";
+import axios from "axios";
 
-type TabType = "Clients" | "Partners" | "On-Call";
+type TabType = "Clients" | "Partners";
 
 interface PickupAddress {
   warehouseName: string;
@@ -45,17 +57,7 @@ export interface PartnerRecord {
   businessAddress: string;
 }
 
-export interface OnCallRecord {
-  id: string | number;
-  name: string;
-  status: string;
-  contactPerson: string;
-  contactNumber: string;
-  emailAddress: string;
-  address: string;
-}
-
-export type UnifiedRecord = ClientRecord | PartnerRecord | OnCallRecord;
+export type UnifiedRecord = ClientRecord | PartnerRecord;
 
 // ==========================================
 // 1. CLIENT MODAL
@@ -65,12 +67,14 @@ interface ClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: (record: ClientRecord) => void;
+  editData?: ClientRecord | null;
 }
 
 export function ClientModal({
   isOpen,
   onClose,
   onSubmitSuccess,
+  editData,
 }: ClientModalProps) {
   const initialClientState = {
     name: "",
@@ -104,6 +108,61 @@ export function ClientModal({
     {},
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (editData) {
+      setFormData({
+        name: editData.name || "",
+        contactName: editData.contactPerson || "",
+        contactNumber: editData.contactNumber || "",
+        emailAddress: editData.emailAddress || "",
+        businessAddress: editData.businessAddress || "",
+      });
+      setPickupList(
+        editData.pickupAddresses && editData.pickupAddresses.length > 0
+          ? [...editData.pickupAddresses]
+          : [
+              {
+                warehouseName: "",
+                warehouseAddress: "",
+                contactPerson: "",
+                contactNumber: "",
+              },
+            ],
+      );
+      setDeliveryList(
+        editData.deliveryAddresses && editData.deliveryAddresses.length > 0
+          ? [...editData.deliveryAddresses]
+          : [
+              {
+                branchName: "",
+                deliveryAddress: "",
+                contactPerson: "",
+                contactNumber: "",
+              },
+            ],
+      );
+    } else {
+      setFormData(initialClientState);
+      setPickupList([
+        {
+          warehouseName: "",
+          warehouseAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+        },
+      ]);
+      setDeliveryList([
+        {
+          branchName: "",
+          deliveryAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+        },
+      ]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -217,32 +276,36 @@ export function ClientModal({
       newErrors.businessAddress = "Business address is required.";
 
     pickupList.forEach((p, idx) => {
-      if (!p.warehouseName.trim())
-        newErrors[`pickup-${idx}-warehouseName`] =
-          "Warehouse name is required.";
-      if (!p.warehouseAddress.trim())
-        newErrors[`pickup-${idx}-warehouseAddress`] =
-          "Warehouse address is required.";
-      if (!p.contactPerson.trim())
-        newErrors[`pickup-${idx}-contactPerson`] =
-          "Contact person is required.";
-      if (!p.contactNumber.trim())
-        newErrors[`pickup-${idx}-contactNumber`] =
-          "Contact number is required.";
+      if (p.warehouseName || p.warehouseAddress) {
+        if (!p.warehouseName.trim())
+          newErrors[`pickup-${idx}-warehouseName`] =
+            "Warehouse name is required.";
+        if (!p.warehouseAddress.trim())
+          newErrors[`pickup-${idx}-warehouseAddress`] =
+            "Warehouse address is required.";
+        if (!p.contactPerson.trim())
+          newErrors[`pickup-${idx}-contactPerson`] =
+            "Contact person is required.";
+        if (!p.contactNumber.trim())
+          newErrors[`pickup-${idx}-contactNumber`] =
+            "Contact number is required.";
+      }
     });
 
     deliveryList.forEach((d, idx) => {
-      if (!d.branchName.trim())
-        newErrors[`delivery-${idx}-branchName`] = "Branch name is required.";
-      if (!d.deliveryAddress.trim())
-        newErrors[`delivery-${idx}-deliveryAddress`] =
-          "Delivery address is required.";
-      if (!d.contactPerson.trim())
-        newErrors[`delivery-${idx}-contactPerson`] =
-          "Contact person is required.";
-      if (!d.contactNumber.trim())
-        newErrors[`delivery-${idx}-contactNumber`] =
-          "Contact number is required.";
+      if (d.branchName || d.deliveryAddress) {
+        if (!d.branchName.trim())
+          newErrors[`delivery-${idx}-branchName`] = "Branch name is required.";
+        if (!d.deliveryAddress.trim())
+          newErrors[`delivery-${idx}-deliveryAddress`] =
+            "Delivery address is required.";
+        if (!d.contactPerson.trim())
+          newErrors[`delivery-${idx}-contactPerson`] =
+            "Contact person is required.";
+        if (!d.contactNumber.trim())
+          newErrors[`delivery-${idx}-contactNumber`] =
+            "Contact number is required.";
+      }
     });
 
     if (Object.keys(newErrors).length > 0) {
@@ -251,46 +314,27 @@ export function ClientModal({
     }
 
     const newRecord: ClientRecord = {
-      id: Date.now(),
+      id: editData ? editData.id : Date.now(),
       name: formData.name,
-      status: "Active",
+      status: editData ? editData.status : "Active",
       contactPerson: formData.contactName,
       contactNumber: formData.contactNumber,
       emailAddress: formData.emailAddress,
       businessAddress: formData.businessAddress,
-      pickupAddresses: pickupList,
-      deliveryAddresses: deliveryList,
+      pickupAddresses: pickupList.filter((p) => p.warehouseName.trim() !== ""),
+      deliveryAddresses: deliveryList.filter((d) => d.branchName.trim() !== ""),
     };
 
     onSubmitSuccess(newRecord);
-    setFormData(initialClientState);
-    setPickupList([
-      {
-        warehouseName: "",
-        warehouseAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-      },
-    ]);
-    setDeliveryList([
-      {
-        branchName: "",
-        deliveryAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-      },
-    ]);
-    setDeleteConfirm({});
-    setErrors({});
-    onClose();
+    handleCloseModal();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            New Client Form
+            {editData ? "Edit Client Form" : "New Client Form"}
           </h2>
           <button
             onClick={handleCloseModal}
@@ -306,12 +350,12 @@ export function ClientModal({
         >
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Client & Delivery Details
+              1. Client & Information
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Client or Company Name
+                  Company / Client Name
                 </label>
                 <input
                   type="text"
@@ -820,7 +864,7 @@ export function ClientModal({
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
-              Add Client
+              {editData ? "Save Changes" : "Add Client"}
             </button>
           </div>
         </form>
@@ -837,12 +881,14 @@ interface PartnerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: (record: PartnerRecord) => void;
+  editData?: PartnerRecord | null;
 }
 
 export function PartnerModal({
   isOpen,
   onClose,
   onSubmitSuccess,
+  editData,
 }: PartnerModalProps) {
   const initialPartnerState = {
     name: "",
@@ -855,17 +901,37 @@ export function PartnerModal({
 
   const [formData, setFormData] = useState(initialPartnerState);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isContractDropdownOpen, setIsContractDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (editData) {
+      setFormData({
+        name: editData.name || "",
+        contractType: editData.contractType || "",
+        contactPerson: editData.contactPerson || "",
+        contactNumber: editData.contactNumber || "",
+        emailAddress: editData.emailAddress || "",
+        businessAddress: editData.businessAddress || "",
+      });
+    } else {
+      setFormData(initialPartnerState);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editData, isOpen]);
 
   if (!isOpen) return null;
 
   const handleCloseModal = () => {
     setFormData(initialPartnerState);
     setErrors({});
+    setIsContractDropdownOpen(false);
     onClose();
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e:
+      | React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+      | { target: { name: string; value: string } },
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -897,9 +963,9 @@ export function PartnerModal({
     }
 
     const newRecord: PartnerRecord = {
-      id: Date.now(),
+      id: editData ? editData.id : Date.now(),
       name: formData.name,
-      status: "Active",
+      status: editData ? editData.status : "Active",
       contractType: formData.contractType,
       contactPerson: formData.contactPerson,
       contactNumber: formData.contactNumber,
@@ -910,15 +976,18 @@ export function PartnerModal({
     onSubmitSuccess(newRecord);
     setFormData(initialPartnerState);
     setErrors({});
+    setIsContractDropdownOpen(false);
     onClose();
   };
 
+  const CONTRACT_TYPES = ["Regular", "Seasonal"];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-auto">
         <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <h2 className="text-xl font-bold text-white tracking-wide">
-            Add new Partners
+            {editData ? "Edit Partner" : "Add New Partner"}
           </h2>
           <button
             onClick={handleCloseModal}
@@ -955,27 +1024,70 @@ export function PartnerModal({
                 )}
               </div>
 
+              {/* Contract Type Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Type of Contract
                 </label>
-                <select
-                  name="contractType"
-                  value={formData.contractType}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contractType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                <div
+                  className={`relative w-full ${isContractDropdownOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select type of contract
-                  </option>
-                  <option value="Long-Term Contract">Long-Term Contract</option>
-                  <option value="Short-Term Contract">
-                    Short-Term Contract
-                  </option>
-                  <option value="Per Delivery">Per Delivery</option>
-                  <option value="On-Demand">On-Demand</option>
-                  <option value="Subcontract">Subcontract</option>
-                </select>
+                  {isContractDropdownOpen && (
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsContractDropdownOpen(false)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsContractDropdownOpen(!isContractDropdownOpen)
+                    }
+                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${
+                      errors.contractType
+                        ? "border-red-500 bg-red-50/20 text-black"
+                        : "border-slate-300 text-black"
+                    }`}
+                  >
+                    <span
+                      className={
+                        formData.contractType ? "text-black" : "text-slate-400"
+                      }
+                    >
+                      {formData.contractType || "Select type of contract"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
+                        isContractDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isContractDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto animate-in fade-in slide-in-from-top-1 text-left">
+                      {CONTRACT_TYPES.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({
+                              target: { name: "contractType", value: opt },
+                            });
+                            setIsContractDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
+                            formData.contractType === opt
+                              ? "bg-blue-50/50 text-blue-700 font-medium"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {errors.contractType && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.contractType}
@@ -1075,7 +1187,7 @@ export function PartnerModal({
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
               className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
-              Add partners
+              {editData ? "Save Changes" : "Add partner"}
             </button>
           </div>
         </form>
@@ -1085,220 +1197,298 @@ export function PartnerModal({
 }
 
 // ==========================================
-// 3. ON-CALL MODAL
+// RECORD DETAIL VIEW COMPONENT
 // ==========================================
 
-interface OnCallModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmitSuccess: (record: OnCallRecord) => void;
+interface RecordDetailViewProps {
+  record: UnifiedRecord;
+  tabType: TabType;
+  onBack: () => void;
+  onEdit: (record: UnifiedRecord) => void;
+  onDelete: (id: string | number) => void;
 }
 
-export function OnCallModal({
-  isOpen,
-  onClose,
-  onSubmitSuccess,
-}: OnCallModalProps) {
-  const initialOnCallState = {
-    name: "",
-    contactPerson: "",
-    contactNumber: "",
-    emailAddress: "",
-    address: "",
-  };
+function RecordDetailView({
+  record,
+  tabType,
+  onBack,
+  onEdit,
+  onDelete,
+}: RecordDetailViewProps) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const [formData, setFormData] = useState(initialOnCallState);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  if (!isOpen) return null;
-
-  const handleCloseModal = () => {
-    setFormData(initialOnCallState);
-    setErrors({});
-    onClose();
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim())
-      newErrors.name = "Company/Owner name is required.";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim())
-      newErrors.contactNumber = "Contact number is required.";
-    if (!formData.emailAddress.trim())
-      newErrors.emailAddress = "Email address is required.";
-    if (!formData.address.trim()) newErrors.address = "Address is required.";
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    const newRecord: OnCallRecord = {
-      id: Date.now(),
-      name: formData.name,
-      status: "Active",
-      contactPerson: formData.contactPerson,
-      contactNumber: formData.contactNumber,
-      emailAddress: formData.emailAddress,
-      address: formData.address,
-    };
-
-    onSubmitSuccess(newRecord);
-    setFormData(initialOnCallState);
-    setErrors({});
-    onClose();
-  };
+  const isClient = (rec: UnifiedRecord): rec is ClientRecord =>
+    tabType === "Clients";
+  const isPartner = (rec: UnifiedRecord): rec is PartnerRecord =>
+    tabType === "Partners";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            New On-Call Personnel Form
-          </h2>
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            title={`Back to ${tabType}`}
           >
-            <X className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              {tabType.slice(0, -1)} Information Record
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              Complete profile retrieved directly from database.
+            </p>
+          </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="p-6 space-y-4 text-sm text-slate-900"
-        >
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-3">
-            <div className="border-b border-slate-200 pb-2 mb-3 font-semibold text-black text-sm tracking-wide">
-              Personnel Credentials
-            </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onEdit(record)}
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>Edit Record</span>
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>
 
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
+              {record.name ? record.name[0].toUpperCase() : "R"}
+            </div>
             <div>
-              <label className="block text-xs font-medium text-black mb-1">
-                Company Name/Owner Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                placeholder="Enter company or owner name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-              />
-              {errors.name && (
-                <p className="text-red-500 text-[11px] mt-1">{errors.name}</p>
-              )}
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                {record.name}
+              </h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {tabType}
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  {record.status || "Active"}
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-6 text-sm text-slate-900">
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              1. General Details
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Name / Company
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
+                  {record.name || "N/A"}
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Contact Person
                 </label>
-                <input
-                  type="text"
-                  name="contactPerson"
-                  placeholder="Enter contact person"
-                  value={formData.contactPerson}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactPerson && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactPerson}
-                  </p>
-                )}
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
+                  {record.contactPerson || "N/A"}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Contact Number
                 </label>
-                <input
-                  type="text"
-                  name="contactNumber"
-                  placeholder="Enter contact number"
-                  value={formData.contactNumber}
-                  onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-                {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
-                    {errors.contactNumber}
-                  </p>
-                )}
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
+                  {record.contactNumber || "N/A"}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-black mb-1">
+                  Email Address
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
+                  {record.emailAddress || "N/A"}
+                </div>
+              </div>
+
+              {isPartner(record) && (
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contract Type
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                    {record.contractType || "N/A"}
+                  </div>
+                </div>
+              )}
+
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-black mb-1">
+                  Address
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12 wrap-break-word">
+                  {isPartner(record) || isClient(record)
+                    ? record.businessAddress
+                    : "N/A"}
+                </div>
               </div>
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-black mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="emailAddress"
-                placeholder="Enter email address"
-                value={formData.emailAddress}
-                onChange={handleInputChange}
-                className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-              />
-              {errors.emailAddress && (
-                <p className="text-red-500 text-[11px] mt-1">
-                  {errors.emailAddress}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-black mb-1">
-                Address
-              </label>
-              <input
-                type="text"
-                name="address"
-                placeholder="Enter address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-              />
-              {errors.address && (
-                <p className="text-red-500 text-[11px] mt-1">
-                  {errors.address}
-                </p>
-              )}
-            </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={handleCloseModal}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
-            >
-              Add Personnel
-            </button>
-          </div>
-        </form>
+          {isClient(record) && (
+            <>
+              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                  2. Pickup Addresses
+                </div>
+                {record.pickupAddresses && record.pickupAddresses.length > 0 ? (
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left border-collapse text-xs table-fixed">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                          <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                            Warehouse Name
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[35%]">
+                            Address
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                            Contact Person
+                          </th>
+                          <th className="p-2.5 w-[20%]">Contact Number</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {record.pickupAddresses.map((p, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-slate-200 last:border-0"
+                          >
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {p.warehouseName || "N/A"}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {p.warehouseAddress || "N/A"}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {p.contactPerson || "N/A"}
+                            </td>
+                            <td className="p-2.5 truncate">
+                              {p.contactNumber || "N/A"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 py-2">
+                    No pickup addresses recorded.
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                  3. Delivery Addresses
+                </div>
+                {record.deliveryAddresses &&
+                record.deliveryAddresses.length > 0 ? (
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left border-collapse text-xs table-fixed">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                          <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                            Branch Name
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[35%]">
+                            Address
+                          </th>
+                          <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                            Contact Person
+                          </th>
+                          <th className="p-2.5 w-[20%]">Contact Number</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {record.deliveryAddresses.map((d, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-slate-200 last:border-0"
+                          >
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {d.branchName || "N/A"}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {d.deliveryAddress || "N/A"}
+                            </td>
+                            <td className="p-2.5 border-r border-slate-200 truncate">
+                              {d.contactPerson || "N/A"}
+                            </td>
+                            <td className="p-2.5 truncate">
+                              {d.contactNumber || "N/A"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 py-2">
+                    No delivery addresses recorded.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Delete Record
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 mb-6">
+              Are you sure you want to delete{" "}
+              <strong className="text-slate-900">{record.name}</strong>? This
+              will permanently remove the record from the database.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(record.id);
+                  setShowDeleteModal(false);
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1310,41 +1500,61 @@ export function OnCallModal({
 function ClientsTable({
   activeTab,
   currentData,
+  onRowClick,
 }: {
   activeTab: TabType;
   currentData: UnifiedRecord[];
+  onRowClick: (record: UnifiedRecord) => void;
 }) {
+  // --- ADDED PAGINATION LOGIC ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Reset to page 1 whenever the search term or tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentData, activeTab]);
+
+  const totalPages = Math.ceil(currentData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = currentData.slice(startIndex, endIndex);
+  // ------------------------------
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-162.5">
+        <table className="w-full text-left border-collapse min-w-200 table-fixed">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              <th className="py-3.5 px-4 sm:px-6">Name</th>
-              <th className="py-3.5 px-4 sm:px-6">Status</th>
-              <th className="py-3.5 px-4 sm:px-6">Contact Person</th>
-              <th className="py-3.5 px-4 sm:px-6">Contact Number</th>
+              <th className="py-3.5 px-4 sm:px-6 w-[30%]">Name</th>
+              <th className="py-3.5 px-4 sm:px-6 w-[15%]">Status</th>
+              <th className="py-3.5 px-4 sm:px-6 w-[25%]">Contact Person</th>
+              <th className="py-3.5 px-4 sm:px-6 w-[30%]">Contact Number</th>
             </tr>
           </thead>
           <tbody>
-            {currentData.length > 0 ? (
-              currentData.map((item) => (
+            {/* USE paginatedData INSTEAD OF currentData HERE */}
+            {paginatedData.length > 0 ? (
+              paginatedData.map((item) => (
                 <tr
                   key={item.id}
-                  className="border-b border-slate-100 hover:bg-slate-50/50 text-sm font-normal text-slate-800"
+                  onClick={() => onRowClick(item)}
+                  className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
+                  title="Click to view complete record"
                 >
-                  <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
+                  <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
                     {item.name}
                   </td>
-                  <td className="py-3.5 px-4 sm:px-6">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  <td className="py-3.5 px-4 sm:px-6 truncate">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
                       {item.status}
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 sm:px-6 font-normal">
+                  <td className="py-3.5 px-4 sm:px-6 truncate">
                     {item.contactPerson}
                   </td>
-                  <td className="py-3.5 px-4 sm:px-6 font-normal">
+                  <td className="py-3.5 px-4 sm:px-6 truncate">
                     {item.contactNumber}
                   </td>
                 </tr>
@@ -1372,17 +1582,34 @@ function ClientsTable({
       </div>
 
       <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-normal text-slate-700 bg-white">
-        <span>Showing {currentData.length} entries</span>
+        {/* UPDATED TO SHOW CORRECT PAGINATION COUNTS */}
+        <span>
+          Showing {currentData.length === 0 ? 0 : startIndex + 1} to{" "}
+          {Math.min(endIndex, currentData.length)} of {currentData.length}{" "}
+          entries
+        </span>
         <div className="flex items-center gap-2">
           <button
-            disabled
-            className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 font-medium cursor-not-allowed"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              currentPage === 1
+                ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+            }`}
           >
             Previous
           </button>
           <button
-            disabled
-            className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 font-medium cursor-not-allowed"
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages || totalPages === 0}
+            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              currentPage === totalPages || totalPages === 0
+                ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+            }`}
           >
             Next
           </button>
@@ -1391,7 +1618,6 @@ function ClientsTable({
     </div>
   );
 }
-
 // ==========================================
 // MAIN CLIENTS PAGE COMPONENT
 // ==========================================
@@ -1399,81 +1625,365 @@ function ClientsTable({
 export default function ClientsPage() {
   const [activeTab, setActiveTab] = useState<TabType>("Clients");
   const [searchTerm, setSearchTerm] = useState("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<UnifiedRecord | null>(
+    null,
+  );
+  const [editingRecord, setEditingRecord] = useState<UnifiedRecord | null>(
+    null,
+  );
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [dataMap, setDataMap] = useState<Record<TabType, UnifiedRecord[]>>({
     Clients: [],
     Partners: [],
-    "On-Call": [],
   });
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  useEffect(() => {
+    const fetchClientsAndPartners = async () => {
+      try {
+        const clientRes = await axios.get(`${API_URL}/api/clients`);
+
+        // 🚀 Filter out any leftover On-Call records if they exist in the DB
+        const mappedClients: ClientRecord[] = clientRes.data
+          .filter((c: any) => c.contractType !== "On-Call")
+          .map((c: any) => ({
+            id: c.clientID,
+            name: c.company,
+            status: c.status,
+            contactPerson: c.contactName,
+            contactNumber: c.contact,
+            emailAddress: c.emailAdd,
+            businessAddress: c.businessAdd,
+            
+            // 🚀 Added lowercase fallbacks (c.warehouse / c.branch) to ensure perfect mapping
+            pickupAddresses: (c.Warehouse || c.warehouse || c.warehouses || []).map((w: any) => ({
+              warehouseName: w.whName || "",
+              warehouseAddress: w.warehouseLoc || "",
+              contactPerson: w.contactPerson || "",
+              contactNumber: w.contactNum || w.contactNumber || "",
+            })),
+            deliveryAddresses: (c.Branch || c.branch || c.branches || []).map((b: any) => ({
+              branchName: b.branchName || "",
+              deliveryAddress: b.deliveryAddress || "",
+              contactPerson: b.contactPerson || "",
+              contactNumber: b.contactNumber || b.contactNum || "",
+            })),
+          }));
+
+        const partnerRes = await axios.get(`${API_URL}/api/partners`);
+        const mappedPartners: PartnerRecord[] = partnerRes.data.map(
+          (p: any) => ({
+            id: p.subConID,
+            name: p.companyName,
+            status: p.isActive ? "Active" : "Inactive",
+            contractType: p.contractType,
+            contactPerson: p.contactName,
+            contactNumber: p.contactNumber,
+            emailAddress: p.emailAddress,
+            businessAddress: p.businessAddress,
+          }),
+        );
+
+        setDataMap((prev) => ({
+          ...prev,
+          Clients: mappedClients,
+          Partners: mappedPartners,
+        }));
+      } catch (error) {
+        console.error("Failed to fetch data from Database:", error);
+      }
+    };
+    fetchClientsAndPartners();
+  }, [API_URL]);
 
   const currentData = dataMap[activeTab].filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const handleClientSubmit = (newRecord: ClientRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      Clients: [newRecord, ...prev.Clients],
-    }));
+  const checkNoChanges = (original: any, updated: any) => {
+    return JSON.stringify(original) === JSON.stringify(updated);
   };
 
-  const handlePartnerSubmit = (newRecord: PartnerRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      Partners: [newRecord, ...prev.Partners],
-    }));
+  const handleClientSubmit = async (newRecord: ClientRecord) => {
+    try {
+      if (editingRecord) {
+        if (checkNoChanges(editingRecord, newRecord)) {
+          setToastMessage("No changes were made.");
+          setEditingRecord(null);
+          return;
+        }
+
+        const payload = {
+          company: newRecord.name,
+          contactName: newRecord.contactPerson,
+          contact: newRecord.contactNumber,
+          emailAdd: newRecord.emailAddress,
+          businessAdd: newRecord.businessAddress,
+        };
+
+        await axios.put(`${API_URL}/api/clients/${newRecord.id}`, payload);
+
+        setDataMap((prev) => ({
+          ...prev,
+          Clients: prev.Clients.map((c) =>
+            c.id === newRecord.id ? newRecord : c,
+          ),
+        }));
+        setSelectedRecord(newRecord);
+        setToastMessage("Changes saved successfully.");
+      } else {
+        const payload = {
+          company: newRecord.name,
+          contactName: newRecord.contactPerson,
+          contact: newRecord.contactNumber,
+          emailAdd: newRecord.emailAddress,
+          businessAdd: newRecord.businessAddress,
+          contractType: "Regular",
+          status: "Active",
+        };
+
+        const clientResponse = await axios.post(
+          `${API_URL}/api/clients`,
+          payload,
+        );
+        const savedClient = clientResponse.data;
+        const completeRecord = { ...newRecord, id: savedClient.clientID };
+
+        if (newRecord.pickupAddresses && newRecord.pickupAddresses.length > 0) {
+          for (const pickup of newRecord.pickupAddresses) {
+            await axios.post(
+              `${API_URL}/api/clients/${savedClient.clientID}/warehouses`,
+              {
+                whName: pickup.warehouseName,
+                warehouseLoc: pickup.warehouseAddress,
+                contactPerson: pickup.contactPerson,
+                contactNum: pickup.contactNumber,
+              },
+            );
+          }
+        }
+        if (
+          newRecord.deliveryAddresses &&
+          newRecord.deliveryAddresses.length > 0
+        ) {
+          for (const branch of newRecord.deliveryAddresses) {
+            await axios.post(
+              `${API_URL}/api/clients/${savedClient.clientID}/branches`,
+              {
+                branchName: branch.branchName,
+                deliveryAddress: branch.deliveryAddress,
+                contactPerson: branch.contactPerson,
+                contactNumber: branch.contactNumber,
+              },
+            );
+          }
+        }
+
+        setDataMap((prev) => ({
+          ...prev,
+          Clients: [completeRecord, ...prev.Clients],
+        }));
+        setToastMessage("Added successfully.");
+      }
+      setEditingRecord(null);
+    } catch (error: any) {
+      console.error("Failed to save client to Database:", error);
+      setToastMessage("Error saving record.");
+    }
   };
 
-  const handleOnCallSubmit = (newRecord: OnCallRecord) => {
-    setDataMap((prev) => ({
-      ...prev,
-      "On-Call": [newRecord, ...prev["On-Call"]],
-    }));
+  const handlePartnerSubmit = async (newRecord: PartnerRecord) => {
+    try {
+      const payload = {
+        name: newRecord.name,
+        contractType: newRecord.contractType,
+        contactPerson: newRecord.contactPerson,
+        contactNumber: newRecord.contactNumber,
+        emailAddress: newRecord.emailAddress,
+        businessAddress: newRecord.businessAddress,
+      };
+
+      if (editingRecord) {
+        if (checkNoChanges(editingRecord, newRecord)) {
+          setToastMessage("No changes were made.");
+          setEditingRecord(null);
+          return;
+        }
+
+        await axios.put(`${API_URL}/api/partners/${newRecord.id}`, payload);
+        setDataMap((prev) => ({
+          ...prev,
+          Partners: prev.Partners.map((p) =>
+            p.id === newRecord.id ? newRecord : p,
+          ),
+        }));
+        setSelectedRecord(newRecord);
+        setToastMessage("Changes saved successfully.");
+      } else {
+        const response = await axios.post(`${API_URL}/api/partners`, payload);
+        const savedPartner = response.data;
+        setDataMap((prev) => ({
+          ...prev,
+          Partners: [
+            { ...newRecord, id: savedPartner.subConID },
+            ...prev.Partners,
+          ],
+        }));
+        setToastMessage("Added successfully.");
+      }
+      setEditingRecord(null);
+    } catch (error: any) {
+      console.error("Failed to save partner to Database:", error);
+      setToastMessage("Error saving record.");
+    }
   };
+
+  const handleDeleteRecord = async (id: string | number) => {
+    try {
+      const endpoint = activeTab === "Partners" ? "partners" : "clients";
+      await axios.delete(`${API_URL}/api/${endpoint}/${id}`);
+
+      setDataMap((prev) => ({
+        ...prev,
+        [activeTab]: prev[activeTab].filter((item) => item.id !== id),
+      }));
+      setSelectedRecord(null);
+      setToastMessage("Deleted successfully.");
+    } catch (error: any) {
+      console.error(`Failed to delete ${activeTab} from Database:`, error);
+      setToastMessage("Error deleting record.");
+    }
+  };
+
+  if (selectedRecord) {
+    return (
+      <>
+        <RecordDetailView
+          record={selectedRecord}
+          tabType={activeTab}
+          onBack={() => setSelectedRecord(null)}
+          onEdit={(rec) => {
+            setEditingRecord(rec);
+            setIsModalOpen(true);
+          }}
+          onDelete={handleDeleteRecord}
+        />
+
+        {activeTab === "Clients" && (
+          <ClientModal
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setEditingRecord(null);
+            }}
+            onSubmitSuccess={handleClientSubmit}
+            editData={editingRecord as ClientRecord}
+          />
+        )}
+        {activeTab === "Partners" && (
+          <PartnerModal
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setEditingRecord(null);
+            }}
+            onSubmitSuccess={handlePartnerSubmit}
+            editData={editingRecord as PartnerRecord}
+          />
+        )}
+
+        {/* TOAST NOTIFICATION */}
+        {toastMessage && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+            <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+              <div
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                  toastMessage.toLowerCase().includes("error")
+                    ? "bg-red-500"
+                    : toastMessage === "No changes were made."
+                      ? "bg-blue-500"
+                      : "bg-emerald-500"
+                }`}
+              >
+                {toastMessage === "No changes were made." ? (
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                )}
+              </div>
+              {toastMessage}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Clients & Partners
           </h1>
           <p className="text-xs sm:text-sm text-slate-700 mt-1">
-            Manage your client directories, partner relationships, and on-call
-            personnel.
+            Manage your client directories and partner relationships.
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           {activeTab === "Clients" && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
             >
               <UserPlus className="w-4 h-4 shrink-0" />
               <span>Add Client</span>
             </button>
           )}
-
           {activeTab === "Partners" && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
             >
               <UserPlus className="w-4 h-4 shrink-0" />
               <span>Add Partner</span>
-            </button>
-          )}
-
-          {activeTab === "On-Call" && (
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
-            >
-              <UserPlus className="w-4 h-4 shrink-0" />
-              <span>On-Call Booking</span>
             </button>
           )}
         </div>
@@ -1481,7 +1991,7 @@ export default function ClientsPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="border-b border-slate-100 px-4 sm:px-6 pt-4 flex gap-6 sm:gap-8 overflow-x-auto">
-          {(["Clients", "Partners", "On-Call"] as TabType[]).map((tab) => {
+          {(["Clients", "Partners"] as TabType[]).map((tab) => {
             const isActive = activeTab === tab;
             return (
               <button
@@ -1524,7 +2034,11 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        <ClientsTable activeTab={activeTab} currentData={currentData} />
+        <ClientsTable
+          activeTab={activeTab}
+          currentData={currentData}
+          onRowClick={(record) => setSelectedRecord(record)}
+        />
       </div>
 
       {activeTab === "Clients" && (
@@ -1534,7 +2048,6 @@ export default function ClientsPage() {
           onSubmitSuccess={handleClientSubmit}
         />
       )}
-
       {activeTab === "Partners" && (
         <PartnerModal
           isOpen={isModalOpen}
@@ -1543,12 +2056,52 @@ export default function ClientsPage() {
         />
       )}
 
-      {activeTab === "On-Call" && (
-        <OnCallModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSubmitSuccess={handleOnCallSubmit}
-        />
+      {/* TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+            <div
+              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                toastMessage.toLowerCase().includes("error")
+                  ? "bg-red-500"
+                  : toastMessage === "No changes were made."
+                    ? "bg-blue-500"
+                    : "bg-emerald-500"
+              }`}
+            >
+              {toastMessage === "No changes were made." ? (
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              )}
+            </div>
+            {toastMessage}
+          </div>
+        </div>
       )}
     </div>
   );

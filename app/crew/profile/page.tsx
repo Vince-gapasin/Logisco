@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Mail, Lock, X, AlertCircle, User, Shield } from "lucide-react";
 
-export default function MechanicProfilePage() {
+export default function CrewProfilePage() {
   // Modal states
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -125,14 +125,14 @@ export default function MechanicProfilePage() {
         <div className="p-5 sm:p-6 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center border-2 border-slate-100 shadow-inner shrink-0 overflow-hidden">
             <img
-              src="https://api.dicebear.com/7.x/initials/svg?seed=JD"
-              alt="Mechanic Profile"
+              src="https://api.dicebear.com/7.x/initials/svg?seed=SE"
+              alt="Crew Profile"
               className="w-full h-full object-cover"
             />
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              JUAN DELA CRUZ
+              SEBASTIAN R. ENRILLE
             </h2>
           </div>
         </div>
@@ -152,7 +152,7 @@ export default function MechanicProfilePage() {
               <input
                 type="text"
                 readOnly
-                value="juan.mechanic@logisco.com"
+                value="sebastian.enrille@logisco.com"
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
               <p className="text-xs text-slate-700 mt-1">
@@ -167,7 +167,7 @@ export default function MechanicProfilePage() {
               <input
                 type="text"
                 readOnly
-                value="Mechanic"
+                value="Crew"
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
               <p className="text-xs text-slate-700 mt-1">

@@ -3,12 +3,14 @@
 import React, { useState } from "react";
 import {
   Bell,
-  FileText,
+  Package,
+  MapPin,
   AlertTriangle,
   CheckCircle2,
   Clock,
   Check,
   ClipboardList,
+  Truck,
 } from "lucide-react";
 
 // Mock interface for Supabase integration
@@ -17,75 +19,21 @@ interface Notification {
   title: string;
   message: string;
   time: string;
-  type: "approval" | "warning" | "success" | "system" | "reminder";
+  type: "assignment" | "status" | "warning" | "system" | "reminder";
   isRead: boolean;
 }
 
-export default function AdminNotificationsPage() {
-  // Mock data tailored for the Admin role
+export default function CrewNotificationsPage() {
+  // Mock data tailored for the Crew/Driver role, keeping only the delivery assignment
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: 1,
-      title: "Forecast Alert Below Normal",
+      title: "New Delivery Assignment",
       message:
-        "Your MLR forecast for August 2026 shows a -12.5% variance. Review the latest forecast insights and take action to mitigate potential shortfall.",
-      time: "2 mins ago",
-      type: "warning",
+        "New assignment for ORD-0001 (Client: Jollibee-Katipunan). Tap to view details prior to dispatch.",
+      time: "Just now",
+      type: "assignment",
       isRead: false,
-    },
-    {
-      id: 2,
-      title: "Emergency: Fleet Breakdown",
-      message:
-        "Truck XYZ-9876 reported transmission failure on NLEX. Coordinator has been notified for recovery protocols.",
-      time: "30 mins ago",
-      type: "warning",
-      isRead: false,
-    },
-    {
-      id: 3,
-      title: "Crew Assignment Declined",
-      message:
-        "Booking Shakey's Tarlac: Not all assigned crew members confirmed the assignment. Please assign replacements.",
-      time: "1 hour ago",
-      type: "warning",
-      isRead: false,
-    },
-    {
-      id: 4,
-      title: "Backload Delivery",
-      message:
-        "A backload delivery report has been submitted. View details to confirm report.",
-      time: "1.5 hours ago",
-      type: "approval",
-      isRead: false,
-    },
-    {
-      id: 5,
-      title: "Delivery Completed",
-      message:
-        "Trip #1024 has been successfully delivered and marked complete by Driver Juan Dela Cruz.",
-      time: "2 hours ago",
-      type: "success",
-      isRead: false,
-    },
-    {
-      id: 6,
-      title: "ASSIGN CREW NOW",
-      message:
-        "Order ID 0912 is approaching its scheduled date. Assign a crew to proceed.",
-      time: "3 hours ago",
-      type: "reminder",
-      isRead: false,
-    },
-    {
-      id: 7,
-      title: "System Update",
-      message:
-        "The LOGISCO admin database will undergo a scheduled backup tomorrow at 2:00 AM. Expect minor delays.",
-      time: "1 day ago",
-      type: "system",
-      isRead: true,
     },
   ]);
 
@@ -105,16 +53,19 @@ export default function AdminNotificationsPage() {
     );
   };
 
+  // Render the correct icon based on notification type tailored for the crew
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "approval":
-        return <FileText className="w-5 h-5 text-blue-600" />;
+      case "assignment":
+        return <Package className="w-5 h-5 text-blue-600" />;
+      case "status":
+        return <MapPin className="w-5 h-5 text-emerald-600" />;
       case "warning":
         return <AlertTriangle className="w-5 h-5 text-red-600" />;
-      case "success":
-        return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
       case "reminder":
         return <ClipboardList className="w-5 h-5 text-purple-600" />;
+      case "system":
+        return <Truck className="w-5 h-5 text-slate-600" />;
       default:
         return <Bell className="w-5 h-5 text-slate-600" />;
     }
@@ -122,14 +73,16 @@ export default function AdminNotificationsPage() {
 
   const getIconBg = (type: string) => {
     switch (type) {
-      case "approval":
+      case "assignment":
         return "bg-blue-50 border-blue-100";
+      case "status":
+        return "bg-emerald-50 border-emerald-100";
       case "warning":
         return "bg-red-50 border-red-100";
-      case "success":
-        return "bg-emerald-50 border-emerald-100";
       case "reminder":
         return "bg-purple-50 border-purple-100";
+      case "system":
+        return "bg-slate-50 border-slate-100";
       default:
         return "bg-slate-50 border-slate-100";
     }
@@ -142,7 +95,7 @@ export default function AdminNotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Bell className="w-6 h-6 text-blue-600" />
-            Notifications
+            Crew Notifications
             {unreadCount > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full ml-2">
                 {unreadCount} New
@@ -150,7 +103,7 @@ export default function AdminNotificationsPage() {
             )}
           </h1>
           <p className="text-slate-600 text-sm mt-1">
-            System alerts, administrative updates, and pending approvals.
+            Delivery assignments, route alerts, and status reminders.
           </p>
         </div>
 
@@ -174,7 +127,7 @@ export default function AdminNotificationsPage() {
             </div>
             <p className="text-slate-900 font-medium">You're all caught up!</p>
             <p className="text-slate-500 text-sm mt-1">
-              No new notifications or alerts at this time.
+              No new assignments or alerts at this time.
             </p>
           </div>
         ) : (
@@ -210,8 +163,7 @@ export default function AdminNotificationsPage() {
                       {notif.time}
                     </div>
                   </div>
-                  {/* FIX: Added line-clamp-2 to truncate long messages with (...) */}
-                  <p className="text-sm text-slate-600 leading-relaxed pr-0 sm:pr-4 line-clamp-2">
+                  <p className="text-sm text-slate-600 leading-relaxed pr-0 sm:pr-4">
                     {notif.message}
                   </p>
                 </div>

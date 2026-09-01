@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import axios from "axios";
 import {
   TrendingUp,
   FileText,
@@ -10,20 +11,18 @@ import {
   XCircle,
   CheckCircle2,
   Calendar,
+  Loader2
 } from "lucide-react";
 
 // ==========================================
-// STATIC FILTER OPTIONS (Supabase Ready)
+// STATIC FILTER OPTIONS
 // ==========================================
 const TIMEFRAME_OPTIONS = [
   "Time Frame",
   "Today",
   "This Week",
-  "Last Week",
   "This Month",
-  "Last Month",
   "This Year",
-  "Last Year",
 ];
 
 const MONTH_OPTIONS = [
@@ -42,11 +41,18 @@ const MONTH_OPTIONS = [
   "December",
 ];
 
-const STATUS_OPTIONS = ["Final Status", "Delivered", "Foul Trip"];
+const STATUS_OPTIONS = ["Final Status", "Delivered", "Foul Trip", "Pending", "In-Transit"];
+const CREW_OPTIONS = ["Delivery Crew", "Driver", "Helper"];
 
-// These will eventually be populated via Supabase
-const CLIENT_OPTIONS = ["Client"];
-const CREW_OPTIONS = ["Delivery Crew", "Helper", "Driver"];
+export interface ReportRecord {
+  id: string;
+  date: string;
+  orderId: string;
+  client: string;
+  status: string;
+  crew: string;
+  remarks: string;
+}
 
 export default function ReportsForecastingPage() {
   // ==========================================
@@ -57,25 +63,175 @@ export default function ReportsForecastingPage() {
   // Filter States
   const [timeframe, setTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
   const [month, setMonth] = useState(MONTH_OPTIONS[0]);
-  const [client, setClient] = useState(CLIENT_OPTIONS[0]);
+  const [client, setClient] = useState("Client");
   const [crew, setCrew] = useState(CREW_OPTIONS[0]);
   const [status, setStatus] = useState(STATUS_OPTIONS[0]);
+
+  // Data States
+  const [records, setRecords] = useState<ReportRecord[]>([]);
+  const [clientOptions, setClientOptions] = useState<string[]>(["Client"]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  // ==========================================
+  // DATA FETCHING
+  // ==========================================
+  useEffect(() => {
+    const fetchReports = async () => {
+      setIsLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/api/orders`);
+        const orders = response.data || [];
+
+        const uniqueClients = new Set<string>();
+        const formattedRecords: ReportRecord[] = [];
+
+        orders.forEach((o: any) => {
+          // 1. Client Formatting
+          const clientObj = o.Client || o.client || {};
+          let displayClient = clientObj.company;
+          if (!displayClient) {
+            const match = o.notes?.match(/Name:\s*(.*)/);
+            displayClient = match ? `Walk-in: ${match[1]}` : "Walk-in Customer";
+          }
+          uniqueClients.add(displayClient);
+
+          // 2. Date Formatting
+          const requestDateMatch = o.notes?.match(/Request Date:\s*([^\n]*)/);
+          const reqDate = requestDateMatch 
+            ? requestDateMatch[1].trim() 
+            : new Date(o.createdAt).toISOString().split("T")[0];
+
+          // 3. Crew Formatting
+          const driverMatch = o.notes?.match(/Driver:\s*([^\n]*)/);
+          const driver = driverMatch ? driverMatch[1].trim() : "Unassigned";
+          const helperMatch = o.notes?.match(/Helper 1:\s*([^\n]*)/);
+          const helper = helperMatch ? helperMatch[1].trim() : "None";
+          const crewString = `Driver: ${driver} | Helper: ${helper}`;
+
+          // 4. Status Routing
+          const stopsArr = o.BranchStops || o.branchstops || o.branch_stops || [];
+          const rawStatus = (stopsArr[0]?.stopStatus || "Pending").toLowerCase();
+          let category = "Pending";
+          
+          if (rawStatus.includes("transit") || rawStatus.includes("progress")) {
+            category = "In-Transit";
+          } else if (rawStatus.includes("complete") || rawStatus.includes("delivered")) {
+            category = "Delivered"; // Aligned with her STATUS_OPTIONS
+          } else if (rawStatus.includes("foul") || rawStatus.includes("fail") || rawStatus.includes("cancel")) {
+            category = "Foul Trip";
+          }
+
+          formattedRecords.push({
+            id: o.orderCode || o.orderID,
+            date: reqDate,
+            orderId: o.orderCode || o.orderID,
+            client: displayClient,
+            status: category,
+            crew: crewString,
+            remarks: "Retrieved from DB",
+          });
+        });
+
+        formattedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setRecords(formattedRecords);
+        setClientOptions(["Client", ...Array.from(uniqueClients)]);
+      } catch (error) {
+        console.error("Failed to fetch reports:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReports();
+  }, [API_URL]);
+
+  // ==========================================
+  // FILTERING LOGIC
+  // ==========================================
+  const filteredRecords = useMemo(() => {
+    return records.filter((rec) => {
+      // 1. Status Filter
+      if (status !== "Final Status" && rec.status !== status) return false;
+
+      // 2. Client Filter
+      if (client !== "Client" && rec.client !== client) return false;
+
+      // 3. Crew Filter
+      if (crew === "Driver" && !rec.crew.includes("Driver:")) return false;
+      if (crew === "Helper" && (!rec.crew.includes("Helper:") || rec.crew.includes("None"))) return false;
+
+      // 4. Month Filter
+      if (month !== "Month") {
+        const recMonth = new Date(rec.date).toLocaleString('default', { month: 'long' });
+        if (recMonth !== month) return false;
+      }
+
+      // 5. Timeframe Filter
+      if (timeframe !== "Time Frame") {
+        const d = new Date(rec.date);
+        const t = new Date();
+        d.setHours(0,0,0,0);
+        t.setHours(0,0,0,0);
+
+        if (timeframe === "Today" && d.getTime() !== t.getTime()) return false;
+        if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear()) return false;
+        if (timeframe === "This Month" && (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())) return false;
+        if (timeframe === "This Week") {
+          const startOfWeek = new Date(t);
+          startOfWeek.setDate(t.getDate() - t.getDay());
+          if (d < startOfWeek) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [records, timeframe, month, client, crew, status]);
+
+  // Summary Math
+  const totalHistorical = filteredRecords.length;
+  const successfulDeliveries = filteredRecords.filter((r) => r.status === "Delivered").length;
+  const foulTrips = filteredRecords.filter((r) => r.status === "Foul Trip").length;
+
+  // Pagination Math
+  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeframe, month, client, crew, status]);
 
   // Click Outside Handler for Dropdowns
   const dropdownsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownsRef.current &&
-        !dropdownsRef.current.contains(event.target as Node)
-      ) {
+      if (dropdownsRef.current && !dropdownsRef.current.contains(event.target as Node)) {
         setActiveDropdown(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Status Badge Helper
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Delivered": return "bg-emerald-100 text-emerald-700";
+      case "In-Transit": return "bg-blue-100 text-blue-700";
+      case "Pending": return "bg-amber-100 text-amber-700";
+      case "Foul Trip": return "bg-red-100 text-red-700";
+      default: return "bg-slate-100 text-slate-700";
+    }
+  };
 
   // ==========================================
   // REUSABLE DROPDOWN COMPONENT
@@ -138,7 +294,7 @@ export default function ReportsForecastingPage() {
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       <div className="space-y-6">
         {/* ========================================== */}
-        {/* HEADER SECTION                            */}
+        {/* HEADER SECTION                             */}
         {/* ========================================== */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -151,9 +307,12 @@ export default function ReportsForecastingPage() {
             </p>
           </div>
 
-          {/* Action Button:*/}
+          {/* Action Button: */}
           <div className="flex justify-center sm:justify-start w-full sm:w-auto">
-            <button className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap">
+            <button 
+              onClick={() => alert("Forecasting Module coming soon!")}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap"
+            >
               <TrendingUp className="w-4 h-4 shrink-0" />
               <span>Forecasting</span>
             </button>
@@ -161,7 +320,7 @@ export default function ReportsForecastingPage() {
         </div>
 
         {/* ========================================== */}
-        {/* FILTER SECTION                            */}
+        {/* FILTER SECTION                             */}
         {/* ========================================== */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
@@ -190,7 +349,7 @@ export default function ReportsForecastingPage() {
             <FilterDropdown
               id="client"
               label="Client"
-              options={CLIENT_OPTIONS}
+              options={clientOptions}
               value={client}
               setValue={setClient}
             />
@@ -225,7 +384,7 @@ export default function ReportsForecastingPage() {
                 Total Historical
               </p>
               <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
-                0
+                {totalHistorical}
               </h3>
             </div>
           </div>
@@ -240,7 +399,7 @@ export default function ReportsForecastingPage() {
                 Successful Deliveries
               </p>
               <h3 className="text-xl sm:text-2xl font-bold text-green-900">
-                0
+                {successfulDeliveries}
               </h3>
             </div>
           </div>
@@ -254,7 +413,9 @@ export default function ReportsForecastingPage() {
               <p className="text-xs font-semibold text-red-700 uppercase tracking-wider">
                 Foul Trip
               </p>
-              <h3 className="text-xl sm:text-2xl font-bold text-red-900">0</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-red-900">
+                {foulTrips}
+              </h3>
             </div>
           </div>
         </div>
@@ -272,7 +433,7 @@ export default function ReportsForecastingPage() {
           </div>
 
           {/* Table Wrapper (VISIBLE Horizontal Scroll Protection) */}
-          <div className="w-full overflow-x-auto pb-2">
+          <div className="w-full overflow-x-auto pb-2 min-h-[300px]">
             <table className="w-full text-left border-collapse min-w-225">
               <thead>
                 <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
@@ -285,41 +446,92 @@ export default function ReportsForecastingPage() {
                 </tr>
               </thead>
 
-              {/* Empty State Body */}
-              <tbody>
-                <tr>
-                  <td colSpan={6} className="py-12 sm:py-16 text-center">
-                    <div className="flex flex-col items-center justify-center px-4">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
-                        <FileText className="w-6 h-6" />
+              {/* Dynamic Body */}
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                      <p className="text-slate-600 text-sm font-medium">Loading records...</p>
+                    </td>
+                  </tr>
+                ) : paginatedRecords.length > 0 ? (
+                  paginatedRecords.map((record, idx) => (
+                    <tr
+                      key={record.id || idx}
+                      className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
+                    >
+                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                        {record.date}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
+                        {record.orderId}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                        {record.client}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
+                          {record.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">
+                        {record.crew}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
+                        {record.remarks}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="py-12 sm:py-16 text-center">
+                      <div className="flex flex-col items-center justify-center px-4">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <p className="text-slate-900 font-medium text-sm">
+                          No delivery records found
+                        </p>
+                        <p className="text-slate-600 text-xs mt-1 max-w-sm">
+                          Adjust your filters or try a different search combination.
+                        </p>
                       </div>
-                      <p className="text-slate-900 font-medium text-sm">
-                        No delivery records found
-                      </p>
-                      <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Completed delivery reports will appear here once
-                        connected to your backend database.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination Footer - Precisely matching EmployeesPage */}
+          {/* Dynamic Pagination Footer */}
           <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
-            <span>Showing 0 of 0 entries</span>
+            <span>
+              Showing {filteredRecords.length === 0 ? 0 : startIndex + 1} to{" "}
+              {Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} entries
+            </span>
             <div className="flex items-center gap-2">
               <button
-                disabled
-                className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 cursor-not-allowed"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                  currentPage === 1
+                    ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                    : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                }`}
               >
                 Previous
               </button>
               <button
-                disabled
-                className="px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-400 cursor-not-allowed"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                  currentPage === totalPages || totalPages === 0
+                    ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                    : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                }`}
               >
                 Next
               </button>
