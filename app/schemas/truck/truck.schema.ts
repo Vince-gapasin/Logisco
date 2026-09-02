@@ -33,8 +33,14 @@ export const createTruckSchema = z.object({
   lastChecked: z.string().nullable().optional(),
   
   truckStatus: z.preprocess(
-    (val) => (val === "Operational" ? "Available" : val),
-    z.enum(["Available", "In Use", "Maintenance", "Out of Service"]).default("Available")
+    (val) => {
+      if (val === "Operational") return "Available";
+      if (val === "Maintenance") return "On Maintenance";
+      return val;
+    },
+    z.enum(["Available", "On Maintenance", "On Delivery", "Out of Service"], {
+      message: "Invalid truck status",
+    }).default("Available")
   ),
   
   subconID: z.string().uuid("Invalid Subcontractor ID").nullable().optional(),

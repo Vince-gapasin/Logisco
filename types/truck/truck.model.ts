@@ -3,7 +3,7 @@ export type TruckType =
   | "Boom Truck" | "Flatbed Truck" | "Dump Truck" | "Trailer Truck"
   | "Tanker Truck" | "Pickup Truck" | "Others";
 
-export type TruckStatus = "Available" | "In Use" | "Maintenance" | "Out of Service";
+export type TruckStatus = "Available" | "On Maintenance" | "On Delivery" | "Out of Service";
 
 export interface Truck {
   truckID: string;
