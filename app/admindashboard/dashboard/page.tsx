@@ -188,35 +188,46 @@ function ViewOrderModal({
 
   const raw = order.rawOrder || {};
   const notes = raw.notes || "";
-  const isPending = order.statusCategory === "Pending Bookings";
+  const category = order.statusCategory;
+  const isPending = category === "Pending Bookings";
 
-  // 1. Client Information from the relation or notes fallback
+  // 1. Client Information (Safely checking standard DB column names + Notes Fallback)
   const clientInfo = raw.Client || raw.client || {};
-  const cName = clientInfo.company || notes.match(/Name:\s*(.*)/)?.[1] || order.client || "N/A";
-  const cPerson = clientInfo.contactName || clientInfo.contactPerson || "N/A";
-  const cNum = clientInfo.contact || clientInfo.contactNumber || "N/A";
-  const cEmail = clientInfo.emailAdd || clientInfo.emailAddress || "N/A";
-  const cAddr = clientInfo.businessAdd || clientInfo.businessAddress || "N/A";
+  const cName = clientInfo.company || clientInfo.companyName || notes.match(/Name:\s*(.*)/)?.[1] || order.client || "Walk-in Customer";
+  const cPerson = clientInfo.contactName || clientInfo.contactPerson || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "N/A";
+  const cNum = clientInfo.contact || clientInfo.contactNumber || notes.match(/\((.*?)\)/)?.[1] || "N/A";
+  const cEmail = clientInfo.emailAdd || clientInfo.emailAddress || clientInfo.email || "N/A";
+  const cAddr = clientInfo.businessAdd || clientInfo.businessAddress || clientInfo.address || "N/A";
 
-  // 2. Extrapolate details from notes if needed
+  // 2. Extrapolate Base Details
   const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
   const reqDate = notes.match(/Request Date:\s*(.*)/)?.[1] || new Date(raw.createdAt).toLocaleDateString();
   const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "N/A";
 
-  const truck = notes.match(/Truck:\s*(.*)/)?.[1] || raw.assignedTruck || "Unassigned";
-  const driver = notes.match(/Driver:\s*(.*)/)?.[1] || raw.assignedDriver || "Unassigned";
-  const h1 = notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
-  const h2 = notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
+  // 3. Pickup Details (Extracted precisely from our standard Notes payload)
+  const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
+  const pickupParts = pickupLine.split(" @ ");
+  const pickupAddr = pickupParts[0]?.trim() || "N/A";
+  const pickupTime = pickupParts[1]?.trim() || "N/A";
+
+  // 4. Live Dispatch Information (Prioritize Database over Notes)
+  // Accounts for Supabase returning relations as objects or arrays
+  const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : (raw.DispatchOrder || raw.dispatch_order);
+  
+  const truck = dispatchRecord?.Truck?.plateNumber || notes.match(/Truck:\s*(.*)/)?.[1] || "Unassigned";
+  const driver = dispatchRecord?.Driver?.employeeName || notes.match(/Driver:\s*(.*)/)?.[1] || "Unassigned";
+  const h1 = dispatchRecord?.Helper1?.employeeName || notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
+  const h2 = dispatchRecord?.Helper2?.employeeName || notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
 
   const actualNotesParts = notes.split("[NOTES]");
   const actualNotes = actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
 
-  // 3. Products & Items from OrderDetails
+  // 5. Products & Items
   const itemsArr = raw.OrderDetails || raw.orderdetails || raw.order_details || [];
   const product = itemsArr[0]?.productName || order.product || "Multiple Items";
   const quantity = itemsArr[0]?.quantity || 1;
 
-  // 4. Branch Stops / Delivery Addresses from BranchStops relation
+  // 6. Branch Stops
   const stopsArr = raw.BranchStops || raw.branchstops || raw.branch_stops || [];
   const deliveries = stopsArr.length > 0 ? stopsArr : [
     {
@@ -226,53 +237,67 @@ function ViewOrderModal({
       contactNum: cNum,
       expectedTime: "N/A",
       quantity: quantity,
+      stopStatus: "Pending"
     },
   ];
 
-  const inputClass =
-    "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
+  const inputClass = "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
 
   const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
   const isCrewConfirmed = order.driverConfirmed && (!hasHelper || order.helperConfirmed);
 
+  // Dynamic Header Colors based on Status
+  const headerColors = {
+    "Pending Bookings": "bg-[#000c31] border-slate-800",
+    "In-Transit": "bg-blue-600 border-blue-800",
+    "Completed": "bg-green-600 border-green-800",
+    "Foul Trip": "bg-red-600 border-red-800"
+  };
+  const headerClass = headerColors[category as keyof typeof headerColors] || headerColors["Pending Bookings"];
+
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            Booking Details: {order.orderId}
-          </h2>
+        <div className={`flex items-center justify-between px-6 py-4 text-white border-b transition-colors ${headerClass}`}>
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              Booking Details: {order.orderId}
+            </h2>
+            <p className="text-xs font-medium opacity-80 mt-0.5">Created on {new Date(raw.createdAt).toLocaleString()}</p>
+          </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+          {/* Dynamic Alert Banner */}
           <div
             className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
               isPending && !isCrewConfirmed
                 ? "bg-amber-50 border-amber-200 text-amber-800"
-                : isPending && isCrewConfirmed
-                ? "bg-orange-50 border-orange-200 text-orange-800"
-                : order.statusCategory === "In-Transit"
+                : category === "In-Transit"
                 ? "bg-blue-50 border-blue-200 text-blue-800"
-                : order.statusCategory === "Completed"
+                : category === "Completed"
                 ? "bg-green-50 border-green-200 text-green-800"
-                : "bg-red-50 border-red-200 text-red-800"
+                : category === "Foul Trip"
+                ? "bg-red-50 border-red-200 text-red-800"
+                : "bg-orange-50 border-orange-200 text-orange-800"
             }`}
           >
             {isPending && !isCrewConfirmed ? (
-              <>
-                <Clock className="w-5 h-5 text-amber-600" />
-                Waiting for Crew Confirmation
-              </>
+              <><Clock className="w-5 h-5 text-amber-600" /> Waiting for Crew Confirmation</>
+            ) : category === "In-Transit" ? (
+              <><Truck className="w-5 h-5 text-blue-600" /> Currently In-Transit</>
+            ) : category === "Completed" ? (
+              <><CheckCircle2 className="w-5 h-5 text-green-600" /> Delivery Completed</>
+            ) : category === "Foul Trip" ? (
+              <><AlertTriangle className="w-5 h-5 text-red-600" /> Foul Trip / Cancelled</>
             ) : (
-              <>
-                Status: {order.statusCategory}
-              </>
+              <><Clock className="w-5 h-5 text-orange-600" /> Crew Confirmed - Awaiting Dispatch</>
             )}
           </div>
 
@@ -283,26 +308,11 @@ function ViewOrderModal({
                 1. Client Information
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Company Name</label>
-                  <input readOnly value={cName} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Contact Person</label>
-                  <input readOnly value={cPerson} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Contact Number</label>
-                  <input readOnly value={cNum} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Email Address</label>
-                  <input readOnly value={cEmail} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Business Address</label>
-                  <input readOnly value={cAddr} className={inputClass} />
-                </div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Company Name</label><input readOnly value={cName} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Contact Person</label><input readOnly value={cPerson} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Contact Number</label><input readOnly value={cNum} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Email Address</label><input readOnly value={cEmail} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Business Address</label><input readOnly value={cAddr} className={inputClass} /></div>
               </div>
             </div>
 
@@ -325,11 +335,11 @@ function ViewOrderModal({
                   </thead>
                   <tbody>
                     <tr className="border-b border-slate-200 font-medium text-slate-700">
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">Main Warehouse</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">{cAddr}</td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">Origin Location</td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">{pickupAddr}</td>
                       <td className="p-2 border-r border-slate-200 bg-slate-50">{cPerson}</td>
                       <td className="p-2 border-r border-slate-200 bg-slate-50">{cNum}</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">08:00 AM</td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">{pickupTime}</td>
                       <td className="p-2 text-center bg-slate-50">{quantity}</td>
                     </tr>
                   </tbody>
@@ -340,31 +350,45 @@ function ViewOrderModal({
             {/* SECTION 3: Delivery Address */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                3. Delivery Address
+                3. Delivery Itinerary & Status
               </div>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-left border-collapse text-xs min-w-150">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                       <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">Delivery Address</th>
                       <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
                       <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time</th>
-                      <th className="p-2.5 text-center">Quantity</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[10%]">Expected Time</th>
+                      <th className="p-2.5 border-r border-slate-200 text-center w-[10%]">Quantity</th>
+                      <th className="p-2.5 text-center w-[10%]">Stop Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {deliveries.map((d: any, idx: number) => (
-                      <tr key={idx} className="border-b border-slate-200 font-medium text-slate-700">
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">{d.branchName || "Branch"}</td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">{d.deliveryAddress || d.branchName || "N/A"}</td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactPerson || cPerson}</td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactNum || d.contactNumber || cNum}</td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">{d.expectedTime || "N/A"}</td>
-                        <td className="p-2 text-center bg-slate-50">{d.quantity || quantity}</td>
-                      </tr>
-                    ))}
+                    {deliveries.map((d: any, idx: number) => {
+                      const st = d.stopStatus?.toLowerCase() || "pending";
+                      let badgeClass = "bg-orange-100 text-orange-700";
+                      if (st.includes("transit") || st.includes("progress")) badgeClass = "bg-blue-100 text-blue-700";
+                      if (st.includes("complete") || st.includes("delivered")) badgeClass = "bg-green-100 text-green-700";
+                      if (st.includes("fail") || st.includes("foul") || st.includes("cancel")) badgeClass = "bg-red-100 text-red-700";
+
+                      return (
+                        <tr key={idx} className="border-b border-slate-200 font-medium text-slate-700">
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.branchName || "Branch"}</td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.deliveryAddress || d.branchName || "N/A"}</td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactPerson || cPerson}</td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactNum || d.contactNumber || cNum}</td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.expectedTime || "N/A"}</td>
+                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">{d.quantity || quantity}</td>
+                          <td className="p-2 text-center bg-slate-50">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                              {d.stopStatus || "Pending"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -376,22 +400,10 @@ function ViewOrderModal({
                 4. Booking Details & Schedule
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Request Date</label>
-                  <input readOnly value={reqDate} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Delivery Schedule</label>
-                  <input readOnly value={delSchedule} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Product To Deliver</label>
-                  <input readOnly value={product} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Priority Level</label>
-                  <input readOnly value={priority} className={inputClass} />
-                </div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Request Date</label><input readOnly value={reqDate} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Delivery Schedule</label><input readOnly value={delSchedule} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Product To Deliver</label><input readOnly value={product} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Priority Level</label><input readOnly value={priority} className={inputClass} /></div>
               </div>
             </div>
 
@@ -401,22 +413,10 @@ function ViewOrderModal({
                 5. Assigned Delivery Crew & Vehicle
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No.</label>
-                  <input readOnly value={truck} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver</label>
-                  <input readOnly value={driver} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1</label>
-                  <input readOnly value={h1} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2</label>
-                  <input readOnly value={h2} className={inputClass} />
-                </div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Truck Plate No.</label><input readOnly value={truck} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Driver</label><input readOnly value={driver} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Helper #1</label><input readOnly value={h1} className={inputClass} /></div>
+                <div><label className="block text-[11px] font-medium text-slate-500 mb-1">Helper #2</label><input readOnly value={h2} className={inputClass} /></div>
               </div>
             </div>
 
@@ -429,7 +429,7 @@ function ViewOrderModal({
                 readOnly
                 rows={3}
                 value={actualNotes}
-                className="w-full resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none cursor-default"
+                className="w-full resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none cursor-default"
               />
             </div>
           </div>
@@ -438,7 +438,12 @@ function ViewOrderModal({
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-8 py-2.5 bg-[#000c31] hover:bg-blue-800 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer"
+            className={`w-full sm:w-auto px-8 py-2.5 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer ${
+              category === "In-Transit" ? "bg-blue-600 hover:bg-blue-700" :
+              category === "Completed" ? "bg-green-600 hover:bg-green-700" :
+              category === "Foul Trip" ? "bg-red-600 hover:bg-red-700" :
+              "bg-[#000c31] hover:bg-slate-800"
+            }`}
           >
             Close Details
           </button>
@@ -599,6 +604,11 @@ function NewClientBookingModal({
   const [formData, setFormData] = useState(initialFormState);
   const [isSubconMode, setIsSubconMode] = useState(false);
 
+  // Dynamic Resource States
+  const [availableTrucks, setAvailableTrucks] = useState<any[]>(trucks);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>(drivers);
+  const [availableHelpers, setAvailableHelpers] = useState<any[]>(helpers);
+
   const [pickupList, setPickupList] = useState<any[]>([
     {
       warehouseName: "",
@@ -623,6 +633,29 @@ function NewClientBookingModal({
 
   const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    setAvailableTrucks(trucks);
+    setAvailableDrivers(drivers);
+    setAvailableHelpers(helpers);
+  }, [trucks, drivers, helpers]);
+
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      if (!formData.deliverySchedule) return;
+      try {
+        const res = await apiFetch<any>(`/api/dispatch/available-resources?date=${formData.deliverySchedule}`);
+        if (res && res.data) {
+          setAvailableTrucks(res.data.trucks || []);
+          setAvailableDrivers(res.data.drivers || []);
+          setAvailableHelpers(res.data.helpers || []);
+        }
+      } catch (error) {
+        console.error("Failed to load resources for this date:", error);
+      }
+    };
+    fetchAvailable();
+  }, [formData.deliverySchedule]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1483,7 +1516,7 @@ function NewClientBookingModal({
                         <option value="" disabled>
                           Select truck
                         </option>
-                        {trucks.map((t) => (
+                        {availableTrucks.map((t) => (
                           <option key={t.truckID} value={t.truckID}>
                             {t.plateNumber} ({t.model})
                           </option>
@@ -1510,8 +1543,8 @@ function NewClientBookingModal({
                         <option value="" disabled>
                           Select driver
                         </option>
-                        {drivers.map((d) => (
-                          <option key={d.employeeID} value={d.employeeName}>
+                        {availableDrivers.map((d) => (
+                          <option key={d.employeeID} value={d.employeeID}>
                             {d.employeeName}
                           </option>
                         ))}
@@ -1535,8 +1568,8 @@ function NewClientBookingModal({
                         className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                       >
                         <option value="">Select helper</option>
-                        {helpers.map((h) => (
-                          <option key={h.employeeID} value={h.employeeName}>
+                        {availableHelpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeID}>
                             {h.employeeName}
                           </option>
                         ))}
@@ -1555,8 +1588,8 @@ function NewClientBookingModal({
                         className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                       >
                         <option value="">Select helper</option>
-                        {helpers.map((h) => (
-                          <option key={h.employeeID} value={h.employeeName}>
+                        {availableHelpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeID}>
                             {h.employeeName}
                           </option>
                         ))}
@@ -1663,6 +1696,11 @@ function BookingModal({
   const [formData, setFormData] = useState(initialFormState);
   const [isSubconMode, setIsSubconMode] = useState(false);
 
+  // Dynamic Resource States
+  const [availableTrucks, setAvailableTrucks] = useState<any[]>(trucks);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>(drivers);
+  const [availableHelpers, setAvailableHelpers] = useState<any[]>(helpers);
+
   const [pickupList, setPickupList] = useState<any[]>([
     {
       warehouseName: "",
@@ -1687,6 +1725,31 @@ function BookingModal({
 
   const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Sync initial props
+  useEffect(() => {
+    setAvailableTrucks(trucks);
+    setAvailableDrivers(drivers);
+    setAvailableHelpers(helpers);
+  }, [trucks, drivers, helpers]);
+
+  // Dynamically fetch available resources when the delivery schedule date changes
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      if (!formData.deliverySchedule) return;
+      try {
+        const res = await apiFetch<any>(`/api/dispatch/available-resources?date=${formData.deliverySchedule}`);
+        if (res && res.data) {
+          setAvailableTrucks(res.data.trucks || []);
+          setAvailableDrivers(res.data.drivers || []);
+          setAvailableHelpers(res.data.helpers || []);
+        }
+      } catch (error) {
+        console.error("Failed to load resources for this date:", error);
+      }
+    };
+    fetchAvailable();
+  }, [formData.deliverySchedule]);
 
   useEffect(() => {
     if (isOpen) {
@@ -2858,7 +2921,7 @@ function BookingModal({
                         <option value="" disabled>
                           Select truck
                         </option>
-                        {trucks.map((t) => (
+                        {availableTrucks.map((t) => (
                           <option key={t.truckID} value={t.truckID}>
                             {t.plateNumber} ({t.model})
                           </option>
@@ -2885,8 +2948,8 @@ function BookingModal({
                         <option value="" disabled>
                           Select driver
                         </option>
-                        {drivers.map((d) => (
-                          <option key={d.employeeID} value={d.employeeName}>
+                        {availableDrivers.map((d) => (
+                          <option key={d.employeeID} value={d.employeeID}>
                             {d.employeeName}
                           </option>
                         ))}
@@ -2910,8 +2973,8 @@ function BookingModal({
                         className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                       >
                         <option value="">Select helper</option>
-                        {helpers.map((h) => (
-                          <option key={h.employeeID} value={h.employeeName}>
+                        {availableHelpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeID}>
                             {h.employeeName}
                           </option>
                         ))}
@@ -2930,8 +2993,8 @@ function BookingModal({
                         className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                       >
                         <option value="">Select helper</option>
-                        {helpers.map((h) => (
-                          <option key={h.employeeID} value={h.employeeName}>
+                        {availableHelpers.map((h) => (
+                          <option key={h.employeeID} value={h.employeeID}>
                             {h.employeeName}
                           </option>
                         ))}
@@ -3270,33 +3333,33 @@ export default function AdminDashboardPage() {
       setClients(clientRes.data || []);
 
       const truckRes = await apiFetch<any>("/api/fleet-status");
-      // Map trucks to ensure they have the right properties
       const allTrucks = truckRes.data || truckRes || [];
       const mappedTrucks = allTrucks.map((t: any) => ({
         ...t,
         truckID: t.truckID || t.id,
         plateNumber: t.plateNumber || t.plate_number || "Unknown Plate",
         model: t.model || "Unknown Model",
-        isActive: t.isActive !== undefined ? t.isActive : (t.status === "Active" || t.truckStatus === "Available")
+        isActive: t.isActive !== undefined ? t.isActive : (t.status === "Active"),
+        truckStatus: t.truckStatus || t.status || "Available"
       }));
-      setTrucks(mappedTrucks);
+      setTrucks(mappedTrucks.filter((t: any) => t.isActive && t.truckStatus === "Available"));
 
       const empRes = await apiFetch<any>("/api/employees");
       const allEmployees = empRes.data || empRes || [];
       
-      // Map employees to safely handle different database column names
       const mappedEmployees = allEmployees.map((e: any) => ({
         ...e,
         employeeID: e.employeeID || e.id,
         employeeName: e.employeeName || (e.firstName ? `${e.firstName} ${e.lastName}` : "Unknown Name"),
-        isActive: e.isActive !== undefined ? e.isActive : (e.status === "Active")
+        isActive: e.isActive !== undefined ? e.isActive : (e.status === "Active"),
+        availability: e.availability || "Available"
       }));
 
       setDrivers(
-        mappedEmployees.filter((e: any) => e.role === "Driver" && e.isActive)
+        mappedEmployees.filter((e: any) => e.role === "Driver" && e.isActive && e.availability === "Available")
       );
       setHelpers(
-        mappedEmployees.filter((e: any) => e.role === "Helper" && e.isActive)
+        mappedEmployees.filter((e: any) => e.role === "Helper" && e.isActive && e.availability === "Available")
       );
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
@@ -3329,8 +3392,14 @@ export default function AdminDashboardPage() {
         detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n\n`;
       }
 
+      // Map UUIDs back to Human Readable Names for the Notes Section
+      const driverName = drivers.find(d => d.employeeID === data.driver)?.employeeName || data.driver;
+      const helper1Name = helpers.find(h => h.employeeID === data.helper1)?.employeeName || data.helper1 || "None";
+      const helper2Name = helpers.find(h => h.employeeID === data.helper2)?.employeeName || data.helper2 || "None";
+      const truckName = trucks.find(t => t.truckID === data.truckPlate)?.plateNumber || data.truckPlate;
+
       detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate || new Date().toISOString().split("T")[0]}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupAddress || (data.pickupList?.[0]?.warehouseAddress)} @ ${data.pickupTime || (data.pickupList?.[0]?.pickupTime)}\n`;
-      detailedNotes += `\n[ASSIGNED CREW]\nTruck: ${data.truckPlate}\nDriver: ${data.driver}\nHelper 1: ${data.helper1 || "None"}\nHelper 2: ${data.helper2 || "None"}\n`;
+      detailedNotes += `\n[ASSIGNED CREW]\nTruck: ${truckName}\nDriver: ${driverName}\nHelper 1: ${helper1Name}\nHelper 2: ${helper2Name}\n`;
 
       if (data.notes) {
         detailedNotes += `\n[NOTES]\n${data.notes}`;
@@ -3367,10 +3436,32 @@ export default function AdminDashboardPage() {
         stops: stops,
       };
 
+      // 1. CREATE THE BOOKING
       const res = await apiFetch<any>("/api/bookings", {
         method: "POST",
         body: JSON.stringify(payload),
       });
+
+      const newOrderID = res.orderID; 
+
+      // 2. ASSIGN THE RESOURCES (Locking the driver, truck, and helpers)
+      if (!data.subconPartner && data.truckPlate && data.driver) {
+        try {
+          await apiFetch(`/api/dispatch/${newOrderID}/assign`, {
+            method: "POST",
+            body: JSON.stringify({
+              truckID: data.truckPlate,
+              driverID: data.driver, 
+              helper1ID: data.helper1 || undefined,
+              helper2ID: data.helper2 || undefined,
+              totalCargoWeight: 0 
+            })
+          });
+          console.log("Resources locked successfully!");
+        } catch (assignError: any) {
+          alert(`Booking created, but assignment failed: ${assignError.message}`);
+        }
+      }
 
       setGeneratedOrderCode(res.orderCode);
       setIsSuccessModalOpen(true);
@@ -3383,7 +3474,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="p-4 md:p-8 w-full max-w-7xl mx-auto">
-      {/* Global Dashboard Styles for the feed scrollbars */}
       <style>{`
         .feed-scrollbar::-webkit-scrollbar {
           width: 8px;
@@ -3449,7 +3539,6 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      {/* VIEW ORDER MODAL */}
       <ViewOrderModal 
         isOpen={isViewOrderModalOpen} 
         onClose={() => setIsViewOrderModalOpen(false)}

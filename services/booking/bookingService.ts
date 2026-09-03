@@ -16,16 +16,20 @@ const generateOrderCode = (): string => {
 // ==========================================
 
 export async function getBookings(): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from("Order")
-    .select(`
-      *,
-      Client (company),
-      OrderDetails (*),
-      BranchStops (*)
-    `)
-    .eq("isActive", true)
-    .order("createdAt", { ascending: false });
+const { data, error } = await supabase
+      .from("Order")
+      .select(`
+        *,
+        Client (*),
+        OrderDetails (*),
+        BranchStops (*),
+        DispatchOrder (
+          *,
+          Truck (plateNumber, model),
+          Driver:Employee!driverID (employeeName)
+        )
+      `)
+      .order('createdAt', { ascending: false });
 
   if (error) {
     throw error;
