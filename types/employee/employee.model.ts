@@ -8,6 +8,7 @@ export interface Employee {
   address: string;
   contact: string;
   auth_id: string | null;
+  activation_sent_at: string | null;
   isActive: boolean | null;
   birthdate: string | null;
   middleName: string | null;

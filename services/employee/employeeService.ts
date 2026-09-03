@@ -130,116 +130,8 @@ export async function getEmployeeById(
 
 
 // ==========================================
-// CREATE EMPLOYEE + SEND INVITATION EMAIL
+// CREATE EMPLOYEE PROFILE
 // ==========================================
-
-// export async function createEmployee(
-//   employee: CreateEmployeeDto
-// ): Promise<Employee> {
-
-//   // ========================================
-//   // 1. MAKE SURE APP URL EXISTS
-//   // ========================================
-
-//   const appUrl =
-//     process.env.APP_URL;
-
-//   if (!appUrl) {
-//     throw new Error(
-//       "APP_URL environment variable is missing"
-//     );
-//   }
-
-
-//   // ========================================
-//   // 2. SEND SUPABASE INVITATION
-//   // ========================================
-
-//   const {
-//     data: inviteData,
-//     error: inviteError,
-//   } =
-//     await supabase.auth.admin
-//       .inviteUserByEmail(
-//         employee.emailAddress,
-//         {
-//           data: {
-//             employeeName:
-//               employee.employeeName,
-
-//             role:
-//               employee.role,
-//           },
-
-//           redirectTo:
-//             `${appUrl}/set-password`,
-//         }
-//       );
-
-
-//   if (inviteError) {
-//     throw inviteError;
-//   }
-
-
-//   if (!inviteData.user) {
-//     throw new Error(
-//       "Failed to create employee authentication invitation"
-//     );
-//   }
-
-
-//   // ========================================
-//   // 3. CREATE EMPLOYEE RECORD
-//   // ========================================
-
-//   const {
-//     data,
-//     error,
-//   } = await supabase
-//     .from(TABLE)
-//     .insert({
-//       ...employee,
-
-//       auth_id:
-//         inviteData.user.id,
-
-//       isActive:
-//         true,
-//     })
-//     .select()
-//     .single();
-
-
-//   // ========================================
-//   // 4. ROLLBACK AUTH USER IF DB INSERT FAILS
-//   // ========================================
-
-//   if (error) {
-
-//     const {
-//       error: rollbackError,
-//     } =
-//       await supabase.auth.admin
-//         .deleteUser(
-//           inviteData.user.id
-//         );
-
-
-//     if (rollbackError) {
-//       console.error(
-//         "Failed to rollback Auth user:",
-//         rollbackError
-//       );
-//     }
-
-
-//     throw error;
-//   }
-
-
-//   return data as Employee;
-// }
 
 export async function createEmployee(
   employee: CreateEmployeeDto
@@ -249,14 +141,19 @@ export async function createEmployee(
     .insert({
       ...employee,
 
-      // Account has not been activated yet
+      // Employee is enabled immediately
+      isActive: true,
+
+      // Authentication account has not been created yet
       auth_id: null,
-      isActive: false,
+      activation_sent_at: null,
+      activation_completed_at: null,
     })
     .select()
     .single();
 
   if (error) {
+    console.error("Create employee error:", error);
     throw error;
   }
 
@@ -266,10 +163,6 @@ export async function createEmployee(
 export async function activateEmployeeAccount(
   id: string
 ): Promise<Employee> {
-  // ==========================================
-  // 1. FIND EMPLOYEE
-  // ==========================================
-
   const {
     data: employee,
     error: employeeError,
@@ -284,22 +177,8 @@ export async function activateEmployeeAccount(
   }
 
   if (!employee) {
-    throw new Error(
-      "Employee not found"
-    );
+    throw new Error("Employee not found");
   }
-
-
-  // ==========================================
-  // 2. CHECK IF ALREADY ACTIVATED
-  // ==========================================
-
-  if (employee.auth_id) {
-    throw new Error(
-      "Employee account has already been activated"
-    );
-  }
-
 
   if (!employee.emailAddress) {
     throw new Error(
@@ -307,13 +186,7 @@ export async function activateEmployeeAccount(
     );
   }
 
-
-  // ==========================================
-  // 3. CHECK APP URL
-  // ==========================================
-
-  const appUrl =
-    process.env.APP_URL;
+  const appUrl = process.env.APP_URL;
 
   if (!appUrl) {
     throw new Error(
@@ -321,49 +194,41 @@ export async function activateEmployeeAccount(
     );
   }
 
-
-  // ==========================================
-  // 4. SEND INVITATION
-  // ==========================================
+  // For this first working version, do not delete or replace
+  // an existing Auth user. That will be handled by a separate,
+  // safe resend flow later.
+  if (employee.auth_id) {
+    throw new Error(
+      "Activation email has already been sent"
+    );
+  }
 
   const {
     data: inviteData,
     error: inviteError,
-  } =
-    await supabase.auth.admin
-      .inviteUserByEmail(
-        employee.emailAddress,
-        {
-          data: {
-            employeeName:
-              employee.employeeName,
+  } = await supabase.auth.admin.inviteUserByEmail(
+    employee.emailAddress,
+    {
+      data: {
+        employeeName: employee.employeeName,
+        role: employee.role,
+        employeeID: employee.employeeID,
+      },
+      redirectTo: `${appUrl}/set-password`,
+    }
+  );
 
-            role:
-              employee.role,
-
-            employeeID:
-              employee.employeeID,
-          },
-
-          redirectTo:
-            `${appUrl}/set-password`,
-        }
-      );
-
-    if (inviteError) {
-      console.error("SUPABASE INVITE ERROR:", {
-        message: inviteError.message,
-        status: inviteError.status,
-        code: inviteError.code,
-        name: inviteError.name,
-      }
+  if (inviteError) {
+    console.error(
+      "Supabase invitation error:",
+      inviteError
     );
 
-  throw new Error(
-    inviteError.message || "Failed to send invitation email"
-  );
-}
-
+    throw new Error(
+      inviteError.message ||
+        "Failed to send activation email"
+    );
+  }
 
   if (!inviteData.user) {
     throw new Error(
@@ -371,43 +236,35 @@ export async function activateEmployeeAccount(
     );
   }
 
-
-  // ==========================================
-  // 5. LINK AUTH USER TO EMPLOYEE
-  // ==========================================
-
   const {
     data: updatedEmployee,
     error: updateError,
   } = await supabase
     .from(TABLE)
     .update({
-      auth_id:
-        inviteData.user.id,
-
-      isActive:
-        true,
+      auth_id: inviteData.user.id,
+      isActive: true,
+      activation_sent_at: new Date().toISOString(),
     })
-    .eq(
-      "employeeID",
-      id
-    )
+    .eq("employeeID", id)
     .select()
     .single();
 
-
-  // ==========================================
-  // 6. ROLLBACK IF UPDATE FAILS
-  // ==========================================
-
   if (updateError) {
-    await supabase.auth.admin.deleteUser(
-      inviteData.user.id
-    );
+    const { error: rollbackError } =
+      await supabase.auth.admin.deleteUser(
+        inviteData.user.id
+      );
+
+    if (rollbackError) {
+      console.error(
+        "Failed to roll back Auth user:",
+        rollbackError
+      );
+    }
 
     throw updateError;
   }
-
 
   return updatedEmployee as Employee;
 }
