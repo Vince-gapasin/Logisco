@@ -10,21 +10,14 @@ import {
   createEmployee,
 } from "@/services/employee/employeeService";
 
-
 import {
   employeeQuerySchema,
   createEmployeeSchema,
 } from "@/app/schemas/employee/employee.schema";
 
-import type {
-  CreateEmployeeDto,
-  EmployeeResponse,
-  EmployeesResponse,
-} from "@/types/employee";
-
-
 // ============================================
 // GET ALL EMPLOYEES
+// All authenticated employees can access
 // ============================================
 
 export async function GET(request: Request) {
@@ -43,51 +36,27 @@ export async function GET(request: Request) {
       );
     }
 
-    // QUERY PARAMETERS
-    const { searchParams } = new URL(request.url);
+    // READ QUERY PARAMETERS
+    const { searchParams } = new URL(
+      request.url
+    );
 
-    const validation = employeeQuerySchema.safeParse({
-      page:
-        searchParams.get("page") ??
-        undefined,
+    const rawQuery = Object.fromEntries(
+      searchParams.entries()
+    );
 
-      limit:
-        searchParams.get("limit") ??
-        undefined,
-
-      search:
-        searchParams.get("search") ??
-        undefined,
-
-      role:
-        searchParams.get("role") ??
-        undefined,
-
-      availability:
-        searchParams.get("availability") ??
-        undefined,
-
-      healthStatus:
-        searchParams.get("healthStatus") ??
-        undefined,
-
-      isActive:
-        searchParams.get("isActive") ??
-        undefined,
-
-      sortBy:
-        searchParams.get("sortBy") ??
-        undefined,
-
-      sortOrder:
-        searchParams.get("sortOrder") ??
-        undefined,
-    });
+    // VALIDATE QUERY PARAMETERS
+    const validation =
+      employeeQuerySchema.safeParse(
+        rawQuery
+      );
 
     if (!validation.success) {
       return NextResponse.json(
         {
-          message: "Invalid query parameters",
+          message:
+            "Invalid employee query parameters",
+
           errors:
             validation.error
               .flatten()
@@ -99,33 +68,35 @@ export async function GET(request: Request) {
       );
     }
 
-    const query = validation.data;
+    // FETCH EMPLOYEES
+    const result = await getEmployees(
+      validation.data
+    );
 
     const {
-      employees,
-      total,
-    } = await getEmployees(query);
+      page,
+      limit,
+    } = validation.data;
 
-    const response: EmployeesResponse = {
-      data: employees,
-
-      pagination: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.ceil(
-          total / query.limit
-        ),
-      },
-    };
-
+    // SUCCESS
     return NextResponse.json(
-      response,
+      {
+        data: result.employees,
+
+        pagination: {
+          page,
+          limit,
+          total: result.total,
+
+          totalPages: Math.ceil(
+            result.total / limit
+          ),
+        },
+      },
       {
         status: 200,
       }
     );
-
   } catch (error) {
     console.error(
       "GET employees error:",
@@ -135,7 +106,9 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         message:
-          "Failed to fetch employees",
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch employees",
       },
       {
         status: 500,
@@ -144,9 +117,9 @@ export async function GET(request: Request) {
   }
 }
 
-
 // ============================================
 // CREATE EMPLOYEE
+// Admin only
 // ============================================
 
 export async function POST(request: Request) {
@@ -165,39 +138,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Authorization
+    // AUTHORIZATION
     const roleError = requireRole(
       auth.employee.role,
-      ["Admin", "Coordinator"]
+      ["Admin"]
     );
 
     if (roleError) {
       return NextResponse.json(
-      {
-        message: roleError.error,
-      },
-      {
-      status: roleError.status,
-        }
-  );
-}
-
-    // CHECK CONTENT TYPE
-    const contentType =
-      request.headers.get("content-type");
-
-    if (
-      !contentType?.includes(
-        "application/json"
-      )
-    ) {
-      return NextResponse.json(
         {
-          message:
-            "Content-Type must be application/json",
+          message: roleError.error,
         },
         {
-          status: 415,
+          status: roleError.status,
         }
       );
     }
@@ -219,14 +172,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // ZOD VALIDATION
+    // VALIDATE BODY
     const validation =
-      createEmployeeSchema.safeParse(body);
+      createEmployeeSchema.safeParse(
+        body
+      );
 
     if (!validation.success) {
       return NextResponse.json(
         {
           message: "Validation failed",
+
           errors:
             validation.error
               .flatten()
@@ -238,53 +194,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const employeeData: CreateEmployeeDto =
-      validation.data;
-
     // CREATE EMPLOYEE
-    const employee =
-      await createEmployee(employeeData);
+    const employee = await createEmployee(
+      validation.data
+    );
 
-    const response: EmployeeResponse = {
-      message:
-        "Employee created successfully",
-      data: employee,
-    };
-
+    // SUCCESS
     return NextResponse.json(
-      response,
+      {
+        message:
+          "Employee created successfully",
+
+        data: employee,
+      },
       {
         status: 201,
       }
     );
-
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(
       "POST employee error:",
       error
     );
 
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "message" in error
-    ) {
-      return NextResponse.json(
-        {
-          message: String(
-            error.message
-          ),
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
     return NextResponse.json(
       {
         message:
-          "Failed to create employee",
+          error instanceof Error
+            ? error.message
+            : "Failed to create employee",
       },
       {
         status: 500,

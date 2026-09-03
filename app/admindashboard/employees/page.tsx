@@ -80,6 +80,7 @@ interface EmployeeRecord {
 
   isActive: boolean;
   authId: string | null;
+  activation_sent_at?: string | null;
 }
 
 interface EmployeeFormState {
@@ -137,6 +138,8 @@ interface ApiEmployee {
 
   auth_id: string | null;
   isActive: boolean | null;
+  activation_sent_at?: string | null;
+
 
   birthdate: string | null;
   middleName: string | null;
@@ -359,6 +362,8 @@ function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
     authId: employee.auth_id,
 
     isActive: employee.isActive === true,
+
+    activation_sent_at: employee.activation_sent_at,
   };
 }
 
@@ -1324,7 +1329,44 @@ function EmployeeDetailView({
 
   const canEdit = ["admin", "coordinator"].includes(currentRole.toLowerCase());
 
-  const accountActivated = Boolean(employee.authId);
+  const accountActivated = Boolean(employee.isActive);
+
+  const activationCooldownMs = 0 * 60 * 1000; //set 15
+
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  useEffect(() => {
+  if (!employee.activation_sent_at || employee.isActive) {
+    return;
+  }
+
+  const interval = setInterval(() => {
+    setCurrentTime(Date.now());
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [
+  employee.activation_sent_at,
+  employee.isActive,
+]);
+
+const activationSentAt = employee.activation_sent_at
+  ? new Date(employee.activation_sent_at).getTime()
+  : null;
+
+const activationCooldownActive =
+  !accountActivated &&
+  activationSentAt !== null &&
+  currentTime - activationSentAt < activationCooldownMs;
+
+const activationRemainingMs =
+  activationCooldownActive && activationSentAt !== null
+    ? activationCooldownMs - (currentTime - activationSentAt)
+    : 0;
+
+const activationRemainingMinutes = Math.ceil(
+  activationRemainingMs / 60000
+);
 
   const confirmDelete = async () => {
     try {
@@ -1371,32 +1413,48 @@ function EmployeeDetailView({
 
         <div className="flex flex-wrap items-center gap-3">
           {/* ACTIVATE ACCOUNT */}
-          {isAdmin &&
-            (accountActivated ? (
-              <button
-                type="button"
-                disabled
-                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Account Activated
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleActivation}
-                disabled={isActivating || !employee.emailAddress}
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isActivating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <MailCheck className="w-4 h-4" />
-                )}
+{isAdmin &&
+  (accountActivated ? (
+    <button
+      type="button"
+      disabled
+      className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
+    >
+      <CheckCircle2 className="w-4 h-4" />
+      Account Activated
+    </button>
+  ) : activationCooldownActive ? (
+    <button
+      type="button"
+      disabled
+      className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-not-allowed"
+    >
+      <Loader2 className="w-4 h-4" />
+      Resend in {activationRemainingMinutes} min
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={handleActivation}
+      disabled={
+        isActivating ||
+        !employee.emailAddress
+      }
+      className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {isActivating ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <MailCheck className="w-4 h-4" />
+      )}
 
-                {isActivating ? "Sending Invite..." : "Activate Account"}
-              </button>
-            ))}
+      {isActivating
+        ? "Sending Invite..."
+        : activationSentAt
+          ? "Resend Activation"
+          : "Activate Account"}
+    </button>
+  ))}
 
           {/* EDIT */}
           {canEdit && (
@@ -2246,7 +2304,7 @@ export default function EmployeesPage() {
                     </td>
 
                     <td className="px-6 py-3.5">
-                      {employee.authId ? (
+                      {employee.isActive ? (
                         <span className="bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-1 text-xs">
                           Activated
                         </span>

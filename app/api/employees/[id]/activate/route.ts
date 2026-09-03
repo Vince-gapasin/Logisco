@@ -9,54 +9,38 @@ import {
   activateEmployeeAccount,
 } from "@/services/employee/employeeService";
 
-import {
-  employeeIdSchema,
-} from "@/app/schemas/employee/employee.schema";
-
-
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
 
-
-// ==========================================
-// ACTIVATE EMPLOYEE ACCOUNT
-// ADMIN ONLY
-// ==========================================
-
 export async function POST(
   request: Request,
   { params }: RouteContext
 ) {
   try {
-    // ========================================
-    // AUTHENTICATION
-    // ========================================
+    // ==========================================
+    // 1. AUTHENTICATE ADMIN
+    // ==========================================
 
     const auth =
-      await requireAuth(
-        request
-      );
+      await requireAuth(request);
 
     if ("error" in auth) {
       return NextResponse.json(
         {
-          message:
-            auth.error,
+          message: auth.error,
         },
         {
-          status:
-            auth.status,
+          status: auth.status,
         }
       );
     }
 
-
-    // ========================================
-    // AUTHORIZATION
-    // ========================================
+    // ==========================================
+    // 2. ADMIN ONLY
+    // ==========================================
 
     const roleError =
       requireRole(
@@ -67,36 +51,26 @@ export async function POST(
     if (roleError) {
       return NextResponse.json(
         {
-          message:
-            roleError.error,
+          message: roleError.error,
         },
         {
-          status:
-            roleError.status,
+          status: roleError.status,
         }
       );
     }
 
-
-    // ========================================
-    // VALIDATE EMPLOYEE ID
-    // ========================================
+    // ==========================================
+    // 3. GET EMPLOYEE ID
+    // ==========================================
 
     const { id } =
       await params;
 
-    const idValidation =
-      employeeIdSchema.safeParse(
-        id
-      );
-
-    if (
-      !idValidation.success
-    ) {
+    if (!id) {
       return NextResponse.json(
         {
           message:
-            "Invalid employee ID",
+            "Employee ID is required",
         },
         {
           status: 400,
@@ -104,24 +78,34 @@ export async function POST(
       );
     }
 
-
-    // ========================================
-    // ACTIVATE
-    // ========================================
+    // ==========================================
+    // 4. SEND ACTIVATION EMAIL
+    // ==========================================
+    //
+    // IMPORTANT:
+    // This does NOT activate the employee.
+    //
+    // The service:
+    // - creates/sends invitation
+    // - stores auth_id
+    // - stores activation_sent_at
+    // - keeps isActive = false
+    //
+    // ==========================================
 
     const employee =
-      await activateEmployeeAccount(
-        idValidation.data
-      );
+      await activateEmployeeAccount(id);
 
+    // ==========================================
+    // 5. SUCCESS
+    // ==========================================
 
     return NextResponse.json(
       {
         message:
           "Activation email sent successfully",
 
-        data:
-          employee,
+        data: employee,
       },
       {
         status: 200,
@@ -130,16 +114,14 @@ export async function POST(
 
   } catch (error) {
     console.error(
-      "Activate employee error:",
+      "Send activation error:",
       error
     );
-
 
     const message =
       error instanceof Error
         ? error.message
-        : "Failed to activate employee account";
-
+        : "Failed to send activation email";
 
     if (
       message ===
@@ -154,7 +136,6 @@ export async function POST(
         }
       );
     }
-
 
     if (
       message.includes(
@@ -171,6 +152,20 @@ export async function POST(
       );
     }
 
+    if (
+      message.includes(
+        "Please wait"
+      )
+    ) {
+      return NextResponse.json(
+        {
+          message,
+        },
+        {
+          status: 429,
+        }
+      );
+    }
 
     return NextResponse.json(
       {
