@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireRole } from "@/app/lib/auth";
-import { getClients, createClient } from "@/services/client/clientService";
-import { createClientSchema } from "@/app/schemas/client/client.schema";
-import type { ClientsResponse, ClientResponse } from "@/types/client";
+import { getPartners, createPartner } from "@/services/client/clientService";
+import { createPartnerSchema } from "@/app/schemas/client/client.schema";
+import type { PartnersResponse, PartnerResponse } from "@/types/client";
 
 // ============================================
-// GET ALL ACTIVE CLIENTS
+// GET ALL ACTIVE PARTNERS
 // ============================================
 export async function GET(request: Request) {
   try {
@@ -14,24 +14,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
 
-    const clients = await getClients();
+    const partners = await getPartners();
 
-    const response: ClientsResponse = {
-      data: clients,
+    const response: PartnersResponse = {
+      data: partners,
     };
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
-    console.error("GET clients error:", error);
+    console.error("GET partners error:", error);
     return NextResponse.json(
-      { message: "Failed to fetch clients" },
+      { message: "Failed to fetch partners" },
       { status: 500 }
     );
   }
 }
 
 // ============================================
-// CREATE CLIENT (WITH WAREHOUSES & BRANCHES)
+// CREATE PARTNER
 // ============================================
 export async function POST(request: Request) {
   try {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
     }
 
-    const validation = createClientSchema.safeParse(body);
+    const validation = createPartnerSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(
         {
@@ -63,19 +63,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const newClient = await createClient(validation.data);
+    const newPartner = await createPartner(validation.data);
 
-    const response: ClientResponse = {
-      message: "Client added successfully",
-      data: newClient,
+    const response: PartnerResponse = {
+      message: "Partner added successfully",
+      data: newPartner,
     };
 
     return NextResponse.json(response, { status: 201 });
   } catch (error: unknown) {
-    console.error("POST client error:", error);
+    console.error("POST partner error:", error);
     if (typeof error === "object" && error !== null && "message" in error) {
       return NextResponse.json({ message: String(error.message) }, { status: 400 });
     }
-    return NextResponse.json({ message: "Failed to create client" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to create partner" }, { status: 500 });
   }
 }
