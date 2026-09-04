@@ -50,3 +50,22 @@ export const authenticateUser = async (
     return null;
   }
 };
+
+// Add this to the bottom of services/authService.ts
+
+export const validateToken = async (token: string): Promise<boolean> => {
+  try {
+    const response = await fetch("/api/auth/validate", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+    
+    // Returns true if the token is valid (status 200)
+    return response.ok; 
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return false;
+  }
+};
