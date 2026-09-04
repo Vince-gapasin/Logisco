@@ -75,36 +75,44 @@ export async function completeDispatch(dispatchID: string) {
 }
 
 export async function getAvailableResources(targetDate: string) {
-  // 1. Fetch all Dispatch Orders that are scheduled for the target date
-  // NOTE: This assumes you save the delivery date in the DispatchOrder or Order table!
-  // If your DB doesn't have a specific date column yet, we check all active/pending dispatches.
+  // 1. Fetch dispatch orders to see who is busy
+  // REMOVED helper1ID and helper2ID because they don't exist in the DB schema!
   const { data: busyDispatches, error: dispatchErr } = await supabase
     .from("DispatchOrder")
-    .select("truckID, driverID, helper1ID, helper2ID")
-    .in("status", ["Assigned", "In-Transit", "Pending"]);
-    // .eq("deliveryDate", targetDate) <-- Uncomment this if you add a deliveryDate column to your table!
+    .select("truckID, driverID"); 
+  
+  // .eq("deliveryDate", targetDate) <-- Uncomment this if you add a deliveryDate column to your table!
 
-  if (dispatchErr) throw new Error("Failed to fetch busy schedules");
+  if (dispatchErr) throw new Error(`Supabase Error: ${dispatchErr.message}`);
 
-  // 2. Extract all IDs that are busy on this date
+  // 2. Extract all IDs that are busy
   const busyTrucks = new Set<string>();
   const busyEmployees = new Set<string>();
 
-  busyDispatches?.forEach((d) => {
-    if (d.truckID) busyTrucks.add(d.truckID);
-    if (d.driverID) busyEmployees.add(d.driverID);
-    if (d.helper1ID) busyEmployees.add(d.helper1ID);
-    if (d.helper2ID) busyEmployees.add(d.helper2ID);
-  });
+  if (busyDispatches) {
+    busyDispatches.forEach((d: any) => {
+      if (d.truckID) busyTrucks.add(d.truckID);
+      if (d.driverID) busyEmployees.add(d.driverID);
+    });
+  }
 
-  // 3. Fetch ALL Active Trucks and filter out the busy ones
-  const { data: allTrucks } = await supabase.from("Truck").select("*").eq("isActive", true);
-  const availableTrucks = allTrucks?.filter((t) => !busyTrucks.has(t.truckID) && t.truckStatus !== "Out of Service") || [];
+  // 3. Fetch all active resources
+  const { data: allTrucks } = await supabase.from("Truck").select("*");
+  const { data: allEmployees } = await supabase.from("Employee").select("*");
 
-  // 4. Fetch ALL Active Employees and filter out the busy ones
-  const { data: allEmployees } = await supabase.from("Employee").select("*").eq("isActive", true);
-  const availableDrivers = allEmployees?.filter((e) => e.role === "Driver" && !busyEmployees.has(e.employeeID)) || [];
-  const availableHelpers = allEmployees?.filter((e) => e.role === "Helper" && !busyEmployees.has(e.employeeID)) || [];
+  // 4. Filter out the busy ones
+  const availableTrucks = (allTrucks || []).filter(
+    (t: any) => !busyTrucks.has(t.truckID || t.id) && (t.status === "Active" || t.isActive)
+  );
+  
+  const availableDrivers = (allEmployees || []).filter(
+    (e: any) => e.role === "Driver" && !busyEmployees.has(e.employeeID || e.id) && (e.status === "Active" || e.isActive)
+  );
+  
+  // Since we aren't tracking busy helpers in the DB right now, we return all active helpers
+  const availableHelpers = (allEmployees || []).filter(
+    (e: any) => e.role === "Helper" && (e.status === "Active" || e.isActive)
+  );
 
   return {
     trucks: availableTrucks,
