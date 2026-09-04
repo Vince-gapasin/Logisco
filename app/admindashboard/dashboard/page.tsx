@@ -465,7 +465,13 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
       try {
         const res = await apiFetch<any>(`/api/dispatch/available-resources?date=${formData.deliverySchedule}`);
         if (res && res.data) {
-          setAvailableTrucks(res.data.trucks || []); setAvailableDrivers(res.data.drivers || []); setAvailableHelpers(res.data.helpers || []);
+          const fetchedTrucks = (res.data.trucks || []).map((t: any) => ({ ...t, truckID: t.truckID || t.id, plateNumber: t.plateNumber || t.plate_number || "Unknown" }));
+          const fetchedDrivers = (res.data.drivers || []).map((d: any) => ({ ...d, employeeID: d.employeeID || d.id, employeeName: d.employeeName || `${d.firstName || ''} ${d.lastName || ''}`.trim() || "Unknown" }));
+          const fetchedHelpers = (res.data.helpers || []).map((h: any) => ({ ...h, employeeID: h.employeeID || h.id, employeeName: h.employeeName || `${h.firstName || ''} ${h.lastName || ''}`.trim() || "Unknown" }));
+
+          setAvailableTrucks(fetchedTrucks); 
+          setAvailableDrivers(fetchedDrivers); 
+          setAvailableHelpers(fetchedHelpers);
         }
       } catch (error) { console.error("Failed to load resources for this date:", error); }
     };
@@ -505,6 +511,20 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
   const addDeliveryRow = () => setDeliveryList([...deliveryList, { branchName: "", deliveryAddress: "", contactPerson: "", contactNumber: "", deliveryTime: "", quantity: "" }]);
   const removeDeliveryRow = (index: number) => { if (deliveryList.length === 1) return; setDeliveryList(deliveryList.filter((_, idx) => idx !== index)); setDeleteConfirm((prev) => ({ ...prev, [`delivery-${index}`]: false })); };
 
+  const handleAutoRecommend = () => {
+    if (!formData.deliverySchedule) {
+      alert("Please select a Delivery Schedule date first to check availability.");
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      truckPlate: availableTrucks.length > 0 ? availableTrucks[0].truckID : prev.truckPlate,
+      driver: availableDrivers.length > 0 ? availableDrivers[0].employeeID : prev.driver,
+      helper1: availableHelpers.length > 0 ? availableHelpers[0].employeeID : prev.helper1,
+      helper2: availableHelpers.length > 1 ? availableHelpers[1].employeeID : prev.helper2,
+    }));
+  };
+
   const validateAndSubmit = (e: React.FormEvent) => {
     e.preventDefault(); const newErrors: { [key: string]: string } = {};
     if (!formData.clientName.trim()) newErrors.clientName = "Client Name is required.";
@@ -538,7 +558,24 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
 
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
 
-    onSubmitSuccess({ ...formData, emailAddress: formData.emailAddress.trim() || "N/A", businessAddress: formData.businessAddress.trim() || "N/A", pickupList, deliveryList });
+    const selectedTruck = availableTrucks.find(t => t.truckID === formData.truckPlate);
+    const selectedDriver = availableDrivers.find(d => d.employeeID === formData.driver);
+    const selectedHelper1 = availableHelpers.find(h => h.employeeID === formData.helper1);
+    const selectedHelper2 = availableHelpers.find(h => h.employeeID === formData.helper2);
+
+    onSubmitSuccess({ 
+      ...formData, 
+      emailAddress: formData.emailAddress.trim() || "N/A", 
+      businessAddress: formData.businessAddress.trim() || "N/A", 
+      pickupList, 
+      deliveryList,
+      resolvedNames: {
+        truck: selectedTruck ? selectedTruck.plateNumber : formData.truckPlate,
+        driver: selectedDriver ? selectedDriver.employeeName : formData.driver,
+        helper1: selectedHelper1 ? selectedHelper1.employeeName : formData.helper1,
+        helper2: selectedHelper2 ? selectedHelper2.employeeName : formData.helper2
+      }
+    });
     onClose();
   };
 
@@ -559,11 +596,11 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
                 <span>1. Client Information</span><span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">New Client</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                <div><label className="block text-xs font-medium text-black mb-1">Company Name *</label><input type="text" name="clientName" value={formData.clientName} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Contact Person *</label><input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Contact Number *</label><input type="text" name="contactNumber" value={formData.contactNumber} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Email Address</label><input type="email" name="emailAddress" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Business Address</label><input type="text" name="businessAddress" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Company Name *</label><input type="text" name="clientName" placeholder="e.g., Acme Corp" value={formData.clientName} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Contact Person *</label><input type="text" name="contactPerson" placeholder="e.g., Juan Dela Cruz" value={formData.contactPerson} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Contact Number *</label><input type="text" name="contactNumber" placeholder="e.g., 09123456789" value={formData.contactNumber} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Email Address</label><input type="email" name="emailAddress" placeholder="company@email.com" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Business Address</label><input type="text" name="businessAddress" placeholder="Enter full business address" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
               </div>
             </div>
 
@@ -591,10 +628,10 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
                     {pickupList.map((row, idx) => (
                       <tr key={idx} className="border-b border-slate-200">
                         <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Warehouse Name" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Full Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="09XX-XXX-XXXX" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 text-center"><button type="button" onClick={() => removePickupRow(idx)} disabled={pickupList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
@@ -629,10 +666,10 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
                     {deliveryList.map((row, idx) => (
                       <tr key={idx} className="border-b border-slate-200">
                         <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Branch Name" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Full Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="09XX-XXX-XXXX" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 text-center"><button type="button" onClick={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
@@ -648,7 +685,7 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">4. Booking Details & Schedule</div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                 <div className="sm:col-span-4 md:col-span-3"><label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label><input type="date" name="deliverySchedule" min={currentDate} value={formData.deliverySchedule} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`} /></div>
-                <div className="sm:col-span-5 md:col-span-6"><label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label><input type="text" name="product" value={formData.product} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`} /></div>
+                <div className="sm:col-span-5 md:col-span-6"><label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label><input type="text" name="product" placeholder="e.g., 50 boxes of tile" value={formData.product} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`} /></div>
                 <div className="sm:col-span-3 md:col-span-3"><label className="block text-xs font-medium text-black mb-1">Priority Level *</label><select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.priorityLevel ? "border-red-500" : "border-slate-300"}`}><option value="" disabled>Select</option><option value="Standard">Standard</option><option value="Urgent">Urgent / Rush</option><option value="High Priority">High Priority</option></select></div>
               </div>
             </div>
@@ -659,9 +696,12 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
                 <span className="font-semibold text-black text-sm tracking-wide">5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}</span>
                 <div className="flex gap-4">
                   {isSubconMode ? (
-                    <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline">Assign to Own Resources</button>
+                    <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Own Resources</button>
                   ) : (
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline">Assign to Subcon Partner</button>
+                    <>
+                      <button type="button" onClick={handleAutoRecommend} className="text-xs text-emerald-600 font-bold underline hover:text-emerald-800">Auto-Recommend Resources</button>
+                      <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Subcon Partner</button>
+                    </>
                   )}
                 </div>
               </div>
@@ -678,10 +718,10 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" placeholder="Optional" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" placeholder="Optional" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" placeholder="Optional" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" placeholder="Optional" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -720,7 +760,7 @@ function NewClientBookingModal({ isOpen, onClose, trucks, drivers, helpers, subc
             {/* Notes */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">6. Notes / Instructions (Optional)</div>
-              <textarea name="notes" rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
+              <textarea name="notes" placeholder="Any specific handling instructions..." rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
             </div>
 
             {/* Actions */}
@@ -773,7 +813,13 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
       try {
         const res = await apiFetch<any>(`/api/dispatch/available-resources?date=${formData.deliverySchedule}`);
         if (res && res.data) {
-          setAvailableTrucks(res.data.trucks || []); setAvailableDrivers(res.data.drivers || []); setAvailableHelpers(res.data.helpers || []);
+          const fetchedTrucks = (res.data.trucks || []).map((t: any) => ({ ...t, truckID: t.truckID || t.id, plateNumber: t.plateNumber || t.plate_number || "Unknown" }));
+          const fetchedDrivers = (res.data.drivers || []).map((d: any) => ({ ...d, employeeID: d.employeeID || d.id, employeeName: d.employeeName || `${d.firstName || ''} ${d.lastName || ''}`.trim() || "Unknown" }));
+          const fetchedHelpers = (res.data.helpers || []).map((h: any) => ({ ...h, employeeID: h.employeeID || h.id, employeeName: h.employeeName || `${h.firstName || ''} ${h.lastName || ''}`.trim() || "Unknown" }));
+
+          setAvailableTrucks(fetchedTrucks); 
+          setAvailableDrivers(fetchedDrivers); 
+          setAvailableHelpers(fetchedHelpers);
         }
       } catch (error) { console.error("Failed to load resources for this date:", error); }
     };
@@ -839,6 +885,20 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
     setErrors((prev) => { const newErrors = { ...prev }; ["branchName", "deliveryAddress", "contactPerson", "contactNumber"].forEach((field) => delete newErrors[`delivery_${index}_${field}`]); return newErrors; });
   };
 
+  const handleAutoRecommend = () => {
+    if (!formData.deliverySchedule) {
+      alert("Please select a Delivery Schedule date first to check availability.");
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      truckPlate: availableTrucks.length > 0 ? availableTrucks[0].truckID : prev.truckPlate,
+      driver: availableDrivers.length > 0 ? availableDrivers[0].employeeID : prev.driver,
+      helper1: availableHelpers.length > 0 ? availableHelpers[0].employeeID : prev.helper1,
+      helper2: availableHelpers.length > 1 ? availableHelpers[1].employeeID : prev.helper2,
+    }));
+  };
+
   const validateAndSubmit = (e: React.FormEvent) => {
     e.preventDefault(); const newErrors: { [key: string]: string } = {};
     if (!formData.clientName.trim()) newErrors.clientName = "Client / Company Name is required.";
@@ -885,7 +945,24 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
 
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
 
-    onSubmitSuccess({ ...formData, emailAddress: formData.emailAddress.trim() || "N/A", businessAddress: formData.businessAddress.trim() || "N/A", pickupList, deliveryList });
+    const selectedTruck = availableTrucks.find(t => t.truckID === formData.truckPlate);
+    const selectedDriver = availableDrivers.find(d => d.employeeID === formData.driver);
+    const selectedHelper1 = availableHelpers.find(h => h.employeeID === formData.helper1);
+    const selectedHelper2 = availableHelpers.find(h => h.employeeID === formData.helper2);
+
+    onSubmitSuccess({ 
+      ...formData, 
+      emailAddress: formData.emailAddress.trim() || "N/A", 
+      businessAddress: formData.businessAddress.trim() || "N/A", 
+      pickupList, 
+      deliveryList,
+      resolvedNames: {
+        truck: selectedTruck ? selectedTruck.plateNumber : formData.truckPlate,
+        driver: selectedDriver ? selectedDriver.employeeName : formData.driver,
+        helper1: selectedHelper1 ? selectedHelper1.employeeName : formData.helper1,
+        helper2: selectedHelper2 ? selectedHelper2.employeeName : formData.helper2
+      }
+    });
     onClose();
   };
 
@@ -913,12 +990,12 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Company Name *</label>
-                  {preSelectedClientID ? <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">{formData.clientName}</div> : <input type="text" name="clientName" value={formData.clientName} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />}
+                  {preSelectedClientID ? <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">{formData.clientName}</div> : <input type="text" name="clientName" placeholder="e.g., Acme Corp" value={formData.clientName} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} />}
                 </div>
-                <div><label className="block text-xs font-medium text-black mb-1">Contact Person *</label><input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Contact Number *</label><input type="text" name="contactNumber" value={formData.contactNumber} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Email Address</label><input type="email" name="emailAddress" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Business Address</label><input type="text" name="businessAddress" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Contact Person *</label><input type="text" name="contactPerson" placeholder="e.g., Juan Dela Cruz" value={formData.contactPerson} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Contact Number *</label><input type="text" name="contactNumber" placeholder="e.g., 09123456789" value={formData.contactNumber} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`} /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Email Address</label><input type="email" name="emailAddress" placeholder="company@email.com" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                <div><label className="block text-xs font-medium text-black mb-1">Business Address</label><input type="text" name="businessAddress" placeholder="Enter full business address" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
               </div>
             </div>
 
@@ -953,12 +1030,12 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
                               {registeredWarehouses.map((w: any, i: number) => (<option key={i} value={w.whName || w.warehouseName}>{w.whName || w.warehouseName}</option>))}
                             </select>
                           ) : (
-                            <input type="text" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} />
+                            <input type="text" placeholder="Warehouse Name" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} />
                           )}
                         </td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Full Address" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="09XX-XXX-XXXX" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 text-center"><button type="button" onClick={() => removePickupRow(idx)} disabled={pickupList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
@@ -1000,12 +1077,12 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
                               {registeredBranches.map((b: any, i: number) => (<option key={i} value={b.branchName}>{b.branchName}</option>))}
                             </select>
                           ) : (
-                            <input type="text" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} />
+                            <input type="text" placeholder="Branch Name" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} />
                           )}
                         </td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
-                        <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Full Address" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="Contact Person" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
+                        <td className="p-2 border-r border-slate-200"><input type="text" placeholder="09XX-XXX-XXXX" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`} /></td>
                         <td className="p-2 text-center"><button type="button" onClick={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
@@ -1021,7 +1098,7 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">4. Booking Details & Schedule</div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                 <div className="sm:col-span-4 md:col-span-3"><label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label><input type="date" name="deliverySchedule" min={currentDate} value={formData.deliverySchedule} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`} /></div>
-                <div className="sm:col-span-5 md:col-span-6"><label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label><input type="text" name="product" value={formData.product} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`} /></div>
+                <div className="sm:col-span-5 md:col-span-6"><label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label><input type="text" name="product" placeholder="e.g., 50 boxes of tile" value={formData.product} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`} /></div>
                 <div className="sm:col-span-3 md:col-span-3"><label className="block text-xs font-medium text-black mb-1">Priority Level *</label><select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className={`w-full border rounded-md px-3 py-2 text-xs ${errors.priorityLevel ? "border-red-500" : "border-slate-300"}`}><option value="" disabled>Select</option><option value="Standard">Standard</option><option value="Urgent">Urgent / Rush</option><option value="High Priority">High Priority</option></select></div>
               </div>
             </div>
@@ -1032,9 +1109,12 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
                 <span className="font-semibold text-black text-sm tracking-wide">5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}</span>
                 <div className="flex gap-4">
                   {isSubconMode ? (
-                    <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline">Assign to Own Resources</button>
+                    <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Own Resources</button>
                   ) : (
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline">Assign to Subcon Partner</button>
+                    <>
+                      <button type="button" onClick={handleAutoRecommend} className="text-xs text-emerald-600 font-bold underline hover:text-emerald-800">Auto-Recommend Resources</button>
+                      <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Subcon Partner</button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1051,10 +1131,10 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
                       <option value="Other">Other</option>
                     </select>
                   </div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                  <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" placeholder="Optional" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" placeholder="Optional" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" placeholder="Optional" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
+                  <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" placeholder="Optional" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -1093,7 +1173,7 @@ function BookingModal({ isOpen, onClose, clients, trucks, drivers, helpers, subc
             {/* Notes */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">6. Notes / Instructions (Optional)</div>
-              <textarea name="notes" rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
+              <textarea name="notes" placeholder="Any specific handling instructions..." rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
             </div>
 
             {/* Actions */}
@@ -1289,10 +1369,10 @@ export default function AdminDashboardPage() {
       let detailedNotes = "";
       if (!data.clientID) { detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n\n`; }
 
-      const driverName = drivers.find(d => d.employeeID === data.driver)?.employeeName || data.driver;
-      const helper1Name = helpers.find(h => h.employeeID === data.helper1)?.employeeName || data.helper1 || "None";
-      const helper2Name = helpers.find(h => h.employeeID === data.helper2)?.employeeName || data.helper2 || "None";
-      const truckName = trucks.find(t => t.truckID === data.truckPlate)?.plateNumber || data.truckPlate;
+      const driverName = data.resolvedNames?.driver || data.driver;
+      const helper1Name = data.resolvedNames?.helper1 || data.helper1 || "None";
+      const helper2Name = data.resolvedNames?.helper2 || data.helper2 || "None";
+      const truckName = data.resolvedNames?.truck || data.truckPlate;
 
       detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate || new Date().toISOString().split("T")[0]}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupAddress || (data.pickupList?.[0]?.warehouseAddress)} @ ${data.pickupTime || (data.pickupList?.[0]?.pickupTime)}\n`;
       
