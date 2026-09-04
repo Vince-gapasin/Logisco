@@ -2,7 +2,7 @@
 // LOGISCO - RBAC & USER TYPES
 // ==========================================
 
-export type UserRole = "admin" | "coordinator" | "crew" | "mechanic";
+export type UserRole = "admin" | "coordinator" | "driver" | "helper" | "mechanic" | "client";
 
 export interface UserProfile {
   id: string;
@@ -21,7 +21,7 @@ export interface RolePermissions {
 
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   admin: {
-    canManageUsers: true, // Only Admin can create, edit, disable, or delete user accounts
+    canManageUsers: true, 
     canManageBookings: true,
     canViewFleet: true,
   },
@@ -30,7 +30,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageBookings: true,
     canViewFleet: true,
   },
-  crew: {
+  driver: {
+    canManageUsers: false,
+    canManageBookings: false,
+    canViewFleet: false,
+  },
+  helper: {
     canManageUsers: false,
     canManageBookings: false,
     canViewFleet: false,
@@ -39,5 +44,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageUsers: false,
     canManageBookings: false,
     canViewFleet: true,
+  },
+  client: {
+    canManageUsers: false,
+    canManageBookings: false, // Clients request bookings, but don't "manage" the master dispatch board
+    canViewFleet: false,
   },
 };
