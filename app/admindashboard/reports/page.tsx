@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
+  TrendingUp,
   FileText,
   ChevronDown,
   Filter,
@@ -9,7 +10,7 @@ import {
   XCircle,
   CheckCircle2,
   Calendar,
-  Loader2
+  Loader2,
 } from "lucide-react";
 
 // ==========================================
@@ -97,7 +98,13 @@ const MONTH_OPTIONS = [
   "December",
 ];
 
-const STATUS_OPTIONS = ["Final Status", "Delivered", "Foul Trip", "Pending", "In-Transit"];
+const STATUS_OPTIONS = [
+  "Final Status",
+  "Delivered",
+  "Foul Trip",
+  "Pending",
+  "In-Transit",
+];
 const CREW_OPTIONS = ["Delivery Crew", "Driver", "Helper"];
 
 export interface ReportRecord {
@@ -120,7 +127,7 @@ const FilterDropdown = ({
   value,
   setValue,
   activeDropdown,
-  setActiveDropdown
+  setActiveDropdown,
 }: {
   id: string;
   label: string;
@@ -213,32 +220,55 @@ export default function ReportsForecastingPage() {
             let displayClient = clientObj.company || clientObj.companyName;
             if (!displayClient) {
               const match = o.notes?.match(/Name:\s*(.*)/);
-              displayClient = match ? `Walk-in: ${match[1]}` : "Walk-in Customer";
+              displayClient = match
+                ? `Walk-in: ${match[1]}`
+                : "Walk-in Customer";
             }
             uniqueClients.add(displayClient);
 
             // 2. Date Formatting
             const requestDateMatch = o.notes?.match(/Request Date:\s*([^\n]*)/);
-            const reqDate = requestDateMatch 
-              ? requestDateMatch[1].trim() 
+            const reqDate = requestDateMatch
+              ? requestDateMatch[1].trim()
               : new Date(o.createdAt).toISOString().split("T")[0];
 
             // 3. Crew Formatting (Check live dispatch order first, fallback to notes)
-            const dispatchRecord = Array.isArray(o.DispatchOrder) ? o.DispatchOrder[0] : (o.DispatchOrder || o.dispatch_order);
-            const driverName = dispatchRecord?.Driver?.employeeName || o.notes?.match(/Driver:\s*([^\n]*)/)?.[1]?.trim() || "Unassigned";
-            const helperName = dispatchRecord?.Helper1?.employeeName || o.notes?.match(/Helper 1:\s*([^\n]*)/)?.[1]?.trim() || "None";
+            const dispatchRecord = Array.isArray(o.DispatchOrder)
+              ? o.DispatchOrder[0]
+              : o.DispatchOrder || o.dispatch_order;
+            const driverName =
+              dispatchRecord?.Driver?.employeeName ||
+              o.notes?.match(/Driver:\s*([^\n]*)/)?.[1]?.trim() ||
+              "Unassigned";
+            const helperName =
+              dispatchRecord?.Helper1?.employeeName ||
+              o.notes?.match(/Helper 1:\s*([^\n]*)/)?.[1]?.trim() ||
+              "None";
             const crewString = `Driver: ${driverName} | Helper: ${helperName}`;
 
             // 4. Status Routing
-            const stopsArr = o.BranchStops || o.branchstops || o.branch_stops || [];
-            const rawStatus = (stopsArr[0]?.stopStatus || "Pending").toLowerCase();
+            const stopsArr =
+              o.BranchStops || o.branchstops || o.branch_stops || [];
+            const rawStatus = (
+              stopsArr[0]?.stopStatus || "Pending"
+            ).toLowerCase();
             let category = "Pending";
-            
-            if (rawStatus.includes("transit") || rawStatus.includes("progress")) {
+
+            if (
+              rawStatus.includes("transit") ||
+              rawStatus.includes("progress")
+            ) {
               category = "In-Transit";
-            } else if (rawStatus.includes("complete") || rawStatus.includes("delivered")) {
+            } else if (
+              rawStatus.includes("complete") ||
+              rawStatus.includes("delivered")
+            ) {
               category = "Delivered";
-            } else if (rawStatus.includes("foul") || rawStatus.includes("fail") || rawStatus.includes("cancel")) {
+            } else if (
+              rawStatus.includes("foul") ||
+              rawStatus.includes("fail") ||
+              rawStatus.includes("cancel")
+            ) {
               category = "Foul Trip";
             }
 
@@ -254,7 +284,9 @@ export default function ReportsForecastingPage() {
           });
         }
 
-        formattedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        formattedRecords.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        );
         setRecords(formattedRecords);
         setClientOptions(["Client", ...Array.from(uniqueClients)]);
       } catch (error) {
@@ -275,22 +307,33 @@ export default function ReportsForecastingPage() {
       if (status !== "Final Status" && rec.status !== status) return false;
       if (client !== "Client" && rec.client !== client) return false;
       if (crew === "Driver" && !rec.crew.includes("Driver:")) return false;
-      if (crew === "Helper" && (!rec.crew.includes("Helper:") || rec.crew.includes("None"))) return false;
+      if (
+        crew === "Helper" &&
+        (!rec.crew.includes("Helper:") || rec.crew.includes("None"))
+      )
+        return false;
 
       if (month !== "Month") {
-        const recMonth = new Date(rec.date).toLocaleString('default', { month: 'long' });
+        const recMonth = new Date(rec.date).toLocaleString("default", {
+          month: "long",
+        });
         if (recMonth !== month) return false;
       }
 
       if (timeframe !== "Time Frame") {
         const d = new Date(rec.date);
         const t = new Date();
-        d.setHours(0,0,0,0);
-        t.setHours(0,0,0,0);
+        d.setHours(0, 0, 0, 0);
+        t.setHours(0, 0, 0, 0);
 
         if (timeframe === "Today" && d.getTime() !== t.getTime()) return false;
-        if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear()) return false;
-        if (timeframe === "This Month" && (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())) return false;
+        if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear())
+          return false;
+        if (
+          timeframe === "This Month" &&
+          (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())
+        )
+          return false;
         if (timeframe === "This Week") {
           const startOfWeek = new Date(t);
           startOfWeek.setDate(t.getDate() - t.getDay());
@@ -304,8 +347,12 @@ export default function ReportsForecastingPage() {
 
   // Summary Math
   const totalHistorical = filteredRecords.length;
-  const successfulDeliveries = filteredRecords.filter((r) => r.status === "Delivered").length;
-  const foulTrips = filteredRecords.filter((r) => r.status === "Foul Trip").length;
+  const successfulDeliveries = filteredRecords.filter(
+    (r) => r.status === "Delivered",
+  ).length;
+  const foulTrips = filteredRecords.filter(
+    (r) => r.status === "Foul Trip",
+  ).length;
 
   // Pagination Math
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
@@ -321,7 +368,10 @@ export default function ReportsForecastingPage() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownsRef.current && !dropdownsRef.current.contains(event.target as Node)) {
+      if (
+        dropdownsRef.current &&
+        !dropdownsRef.current.contains(event.target as Node)
+      ) {
         setActiveDropdown(null);
       }
     }
@@ -331,18 +381,23 @@ export default function ReportsForecastingPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Delivered": return "bg-emerald-100 text-emerald-700";
-      case "In-Transit": return "bg-blue-100 text-blue-700";
-      case "Pending": return "bg-amber-100 text-amber-700";
-      case "Foul Trip": return "bg-red-100 text-red-700";
-      default: return "bg-slate-100 text-slate-700";
+      case "Delivered":
+        return "bg-emerald-100 text-emerald-700";
+      case "In-Transit":
+        return "bg-blue-100 text-blue-700";
+      case "Pending":
+        return "bg-amber-100 text-amber-700";
+      case "Foul Trip":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-slate-100 text-slate-700";
     }
   };
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       <div className="space-y-6">
-        {/* HEADER SECTION */}
+        {/* HEADER SECTION ALIGNED WITH THE BUTTON */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -352,120 +407,230 @@ export default function ReportsForecastingPage() {
               View delivery performance reports and analyze historical records.
             </p>
           </div>
-        </div>
 
-        {/* FILTER SECTION */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-          <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
-            <Filter className="w-4 h-4 text-blue-600" />
-            <h2>Filter Completed Reports</h2>
-          </div>
-
-          <div ref={dropdownsRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <FilterDropdown id="timeframe" label="Timeframe" options={TIMEFRAME_OPTIONS} value={timeframe} setValue={setTimeframe} activeDropdown={activeDropdown} setActiveDropdown={setActiveDropdown} />
-            <FilterDropdown id="month" label="Month" options={MONTH_OPTIONS} value={month} setValue={setMonth} activeDropdown={activeDropdown} setActiveDropdown={setActiveDropdown} />
-            <FilterDropdown id="client" label="Client" options={clientOptions} value={client} setValue={setClient} activeDropdown={activeDropdown} setActiveDropdown={setActiveDropdown} />
-            <FilterDropdown id="crew" label="Delivery Crew" options={CREW_OPTIONS} value={crew} setValue={setCrew} activeDropdown={activeDropdown} setActiveDropdown={setActiveDropdown} />
-            <FilterDropdown id="status" label="Final Status" options={STATUS_OPTIONS} value={status} setValue={setStatus} activeDropdown={activeDropdown} setActiveDropdown={setActiveDropdown} />
+          {/* Action Button: */}
+          <div className="w-full sm:w-auto">
+            <a
+              href="/admindashboard/forecasting"
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
+            >
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span>Forecasting</span>
+            </a>
           </div>
         </div>
+      </div>
 
-        {/* SUMMARY CARDS SECTION */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Total Historical</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900">{totalHistorical}</h3>
-            </div>
-          </div>
-          <div className="bg-green-50/50 p-4 sm:p-5 rounded-2xl border border-green-100 shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Successful Deliveries</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-green-900">{successfulDeliveries}</h3>
-            </div>
-          </div>
-          <div className="bg-red-50/50 p-4 sm:p-5 rounded-2xl border border-red-100 shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-              <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-red-700 uppercase tracking-wider">Foul Trip</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-red-900">{foulTrips}</h3>
-            </div>
-          </div>
+      {/* FILTER SECTION */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 mt-6">
+        <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
+          <Filter className="w-4 h-4 text-blue-600" />
+          <h2>Filter Completed Reports</h2>
         </div>
 
-        {/* DATA TABLE SECTION */}
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full">
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-blue-600" />
-            <h2 className="text-sm font-semibold text-slate-900">Delivery Records</h2>
-          </div>
+        <div
+          ref={dropdownsRef}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end"
+        >
+          <FilterDropdown
+            id="timeframe"
+            label="Timeframe"
+            options={TIMEFRAME_OPTIONS}
+            value={timeframe}
+            setValue={setTimeframe}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          <FilterDropdown
+            id="month"
+            label="Month"
+            options={MONTH_OPTIONS}
+            value={month}
+            setValue={setMonth}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          <FilterDropdown
+            id="client"
+            label="Client"
+            options={clientOptions}
+            value={client}
+            setValue={setClient}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          <FilterDropdown
+            id="crew"
+            label="Delivery Crew"
+            options={CREW_OPTIONS}
+            value={crew}
+            setValue={setCrew}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          <FilterDropdown
+            id="status"
+            label="Final Status"
+            options={STATUS_OPTIONS}
+            value={status}
+            setValue={setStatus}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+        </div>
+      </div>
 
-          <div className="w-full overflow-x-auto pb-2 min-h-[300px]">
-            <table className="w-full text-left border-collapse min-w-225">
-              <thead>
-                <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  <th className="py-3.5 px-4 sm:px-6">Date</th>
-                  <th className="py-3.5 px-4 sm:px-6">Order ID</th>
-                  <th className="py-3.5 px-4 sm:px-6">Client</th>
-                  <th className="py-3.5 px-4 sm:px-6">Final Status</th>
-                  <th className="py-3.5 px-4 sm:px-6">Delivery Crews</th>
-                  <th className="py-3.5 px-4 sm:px-6">Remarks</th>
+      {/* SUMMARY CARDS SECTION */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Total Historical
+            </p>
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+              {totalHistorical}
+            </h3>
+          </div>
+        </div>
+        <div className="bg-green-50/50 p-4 sm:p-5 rounded-2xl border border-green-100 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">
+              Successful Deliveries
+            </p>
+            <h3 className="text-xl sm:text-2xl font-bold text-green-900">
+              {successfulDeliveries}
+            </h3>
+          </div>
+        </div>
+        <div className="bg-red-50/50 p-4 sm:p-5 rounded-2xl border border-red-100 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-red-700 uppercase tracking-wider">
+              Foul Trip
+            </p>
+            <h3 className="text-xl sm:text-2xl font-bold text-red-900">
+              {foulTrips}
+            </h3>
+          </div>
+        </div>
+      </div>
+
+      {/* DATA TABLE SECTION */}
+      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full mt-6">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-blue-600" />
+          <h2 className="text-sm font-semibold text-slate-900">
+            Delivery Records
+          </h2>
+        </div>
+
+        <div className="w-full overflow-x-auto pb-2 min-h-75">
+          <table className="w-full text-left border-collapse min-w-225">
+            <thead>
+              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th className="py-3.5 px-4 sm:px-6">Date</th>
+                <th className="py-3.5 px-4 sm:px-6">Order ID</th>
+                <th className="py-3.5 px-4 sm:px-6">Client</th>
+                <th className="py-3.5 px-4 sm:px-6">Final Status</th>
+                <th className="py-3.5 px-4 sm:px-6">Delivery Crews</th>
+                <th className="py-3.5 px-4 sm:px-6">Remarks</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                    <p className="text-slate-600 text-sm font-medium">
+                      Loading records...
+                    </p>
+                  </td>
                 </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="py-16 text-center">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-                      <p className="text-slate-600 text-sm font-medium">Loading records...</p>
+              ) : paginatedRecords.length > 0 ? (
+                paginatedRecords.map((record, idx) => (
+                  <tr
+                    key={record.id || idx}
+                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
+                  >
+                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                      {record.date}
+                    </td>
+                    <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
+                      {record.orderId}
+                    </td>
+                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                      {record.client}
+                    </td>
+                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
+                      >
+                        {record.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">
+                      {record.crew}
+                    </td>
+                    <td className="py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
+                      {record.remarks}
                     </td>
                   </tr>
-                ) : paginatedRecords.length > 0 ? (
-                  paginatedRecords.map((record, idx) => (
-                    <tr key={record.id || idx} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800">
-                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">{record.date}</td>
-                      <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">{record.orderId}</td>
-                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">{record.client}</td>
-                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>{record.status}</span>
-                      </td>
-                      <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">{record.crew}</td>
-                      <td className="py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">{record.remarks}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-12 sm:py-16 text-center">
-                      <div className="flex flex-col items-center justify-center px-4">
-                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
-                          <FileText className="w-6 h-6" />
-                        </div>
-                        <p className="text-slate-900 font-medium text-sm">No delivery records found</p>
-                        <p className="text-slate-600 text-xs mt-1 max-w-sm">Adjust your filters or try a different search combination.</p>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-12 sm:py-16 text-center">
+                    <div className="flex flex-col items-center justify-center px-4">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
+                        <FileText className="w-6 h-6" />
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                      <p className="text-slate-900 font-medium text-sm">
+                        No delivery records found
+                      </p>
+                      <p className="text-slate-600 text-xs mt-1 max-w-sm">
+                        Adjust your filters or try a different search
+                        combination.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Dynamic Pagination Footer */}
-          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
-            <span>Showing {filteredRecords.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} entries</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
-              <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
-            </div>
+        {/* Dynamic Pagination Footer */}
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
+          <span>
+            Showing {filteredRecords.length === 0 ? 0 : startIndex + 1} to{" "}
+            {Math.min(endIndex, filteredRecords.length)} of{" "}
+            {filteredRecords.length} entries
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages || totalPages === 0}
+              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
