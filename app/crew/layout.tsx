@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import Sidebarcrew from "@/components/Sidebarcrew";
-import Headercrew from "@/components/Headercrew";
+import SharedHeader from "@/components/SharedHeader";
 
 export default function CrewLayout({
   children,
@@ -22,7 +22,11 @@ export default function CrewLayout({
       {/* Right Side Container (Header + Main Content Area) */}
       <div className="flex flex-col flex-1 w-full overflow-hidden">
         {/* Header */}
-        <Headercrew isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <SharedHeader 
+          isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen} 
+          basePath="/crewdashboard" 
+        />
 
         {/* Dynamic Main Page Content */}
         <main className="flex-1 overflow-y-auto">

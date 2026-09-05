@@ -2,7 +2,7 @@
 "use client";
 import React, { useState } from "react";
 import Sidebar from "@/components/Sidebaradmin";
-import Header from "@/components/Headeradmin";
+import SharedHeader from "@/components/SharedHeader";
 
 export default function AdminLayout({
   children,
@@ -19,7 +19,11 @@ export default function AdminLayout({
       {/* Right Side Container (Header + Main Content Area) */}
       <div className="flex flex-col flex-1 w-full overflow-hidden">
         {/* Header */}
-        <Header isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <SharedHeader 
+          isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen} 
+          basePath="/admindashboard" 
+        />
 
         {/* Dynamic Main Page Content */}
         <main className="flex-1 overflow-y-auto">

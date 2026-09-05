@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import SidebarMechanic from "@/components/Sidebarmechanic";
-import HeaderMechanic from "@/components/Headermechanic";
+import SharedHeader from "@/components/SharedHeader";
 
 export default function MechanicLayout({
   children,
@@ -20,7 +20,11 @@ export default function MechanicLayout({
       {/* Right Side Container (Header + Main Content Area) */}
       <div className="flex flex-col flex-1 w-full overflow-hidden">
         {/* Header */}
-        <HeaderMechanic isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <SharedHeader 
+          isOpen={isSidebarOpen} 
+          setIsOpen={setIsSidebarOpen} 
+          basePath="/mechanic" 
+        />
 
         {/* Dynamic Main Page Content */}
         <main className="flex-1 overflow-y-auto">

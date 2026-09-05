@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { newEmail } = body;
+    const { newEmail, userRole } = body;
 
     if (!newEmail) {
       return NextResponse.json({ message: "New email is required" }, { status: 400 });
@@ -34,9 +34,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid or expired session" }, { status: 401 });
     }
 
-    // 🚨 Store the old email before we change it in Auth
-    const oldEmail = user.email;
-
     // 2. Initialize the Admin Client
     const adminClient = createClient(supabaseUrl, supabaseSecretKey);
 
@@ -48,15 +45,21 @@ export async function POST(request: Request) {
 
     if (updateError) throw updateError;
 
-    // 4. Sync the new email to the Employee database table
-    const { error: dbError } = await adminClient
-      .from("Employee")
-      .update({ emailAddress: newEmail }) 
-      .eq("auth_id", user.id); // 🚨 Match using the auth_id column defined in your schema
+    // 4. Role-Aware Sync: Route the update to the correct database table
+    if (userRole === "client") {
+      const { error: dbError } = await adminClient
+        .from("Client")
+        .update({ emailAdd: newEmail }) // Client table uses emailAdd
+        .eq("auth_id", user.id);
 
-    if (dbError) {
-      console.warn("Auth updated, but failed to sync Employee table:", dbError);
-      throw new Error("Failed to sync email to the database profile.");
+      if (dbError) throw new Error("Failed to sync email to the Client profile.");
+    } else {
+      const { error: dbError } = await adminClient
+        .from("Employee")
+        .update({ emailAddress: newEmail }) // Employee table uses emailAddress
+        .eq("auth_id", user.id);
+
+      if (dbError) throw new Error("Failed to sync email to the Employee profile.");
     }
 
     return NextResponse.json(

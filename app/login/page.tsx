@@ -145,13 +145,13 @@ export default function LoginPage() {
           targetRoute = "/coordinator";
           break;
         case "driver":
-          targetRoute = "/driver";
+          targetRoute = "/crew/dashboard";
           break;
         case "mechanic":
           targetRoute = "/mechanic/fleet-status";
           break;
         case "helper":
-          targetRoute = "/helper";
+          targetRoute = "/crew/dashboard";
           break;
         case "client":
           targetRoute = "/client"; 
