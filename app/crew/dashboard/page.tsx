@@ -33,8 +33,7 @@ export interface DeliveryRecord {
   bookingId: string;
   address: string;
   dateTime: string;
-  status: "Accepted" | "Awaiting Confirmation";
-  // Detailed fields
+  status: string; // Made flexible to handle DB variations
   scheduledDate: string;
   pickupTime: string;
   deliveryTime: string;
@@ -50,7 +49,7 @@ export interface DeliveryRecord {
   quantity?: string;
   priorityLevel?: string;
   notes: string;
-  confirmBy?: string; // For Awaiting Confirmation
+  confirmBy?: string;
   multiplePickups?: PickupRecord[];
   multipleDeliveries?: DeliveryDestinationRecord[];
 }
@@ -66,9 +65,16 @@ export default function CrewDashboardPage({
   isOpen,
   setIsOpen,
 }: CrewDashboardProps) {
-  const [selectedFilter, setSelectedFilter] = useState<
-    "My Deliveries" | "Unconfirmed"
-  >("My Deliveries");
+  const [selectedFilter, setSelectedFilter] = useState<"My Deliveries" | "Unconfirmed">("My Deliveries");
+
+  // Fetch / Loading States
+  const [deliveryList, setDeliveryList] = useState<DeliveryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Action states for backend integration
+  const [showDeclineConfirmModal, setShowDeclineConfirmModal] = useState<boolean>(false);
+  const [declineReason, setDeclineReason] = useState<string>("");
+  const [isSubmittingResponse, setIsSubmittingResponse] = useState<boolean>(false);
 
   // State to manage modal popup and views
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryRecord | null>(null);
@@ -114,274 +120,72 @@ export default function CrewDashboardPage({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Realistic food-service dummy delivery data with multiple pickups/deliveries in lbs
-  const [deliveryList, setDeliveryList] = useState<DeliveryRecord[]>([
-    {
-      id: 1,
-      clientName: "Jollibee Katipunan",
-      clientEmail: "admin.katipunan@jollibee.com",
-      bookingId: "ORD-1100",
-      address: "Katipunan Ave, Quezon City",
-      dateTime: "June 1, 2026 • 2:00 PM - 4:00 PM",
-      status: "Accepted",
-      scheduledDate: "June 1, 2026",
-      pickupTime: "2:00 PM",
-      deliveryTime: "4:00 PM",
-      pickupAddress: "101 Commonwealth Ave, Quezon City",
-      deliveryAddress: "Katipunan Ave, Quezon City",
-      contactPerson: "Maria Santos",
-      contactNumber: "0917-845-1124",
-      driver: "Mark Santos",
-      helper: "John Reyes",
-      helper2: "Carlo Mendoza",
-      assignedVehicle: "ABC-1234",
-      product: "Frozen Burger Patties",
-      quantity: "3,500 lbs",
-      priorityLevel: "High",
-      notes: "Handle frozen products carefully. Keep products properly stored and deliver within the scheduled time. Contact the coordinator immediately in case of delays or delivery issues.",
-      multiplePickups: [
-        {
-          warehouse: "Jollibee Commissary",
-          address: "Quezon City",
-          contactPerson: "Juan Dela Cruz",
-          contactNumber: "0917-123-4567",
-          pickupTime: "08:00 AM",
-          quantity: "2,000 lbs",
-          status: "Pending",
-        },
-        {
-          warehouse: "Pasig Cold Storage",
-          address: "Pasig City",
-          contactPerson: "Mark Cruz",
-          contactNumber: "0918-555-1234",
-          pickupTime: "09:30 AM",
-          quantity: "1,500 lbs",
-          status: "Pending",
-        },
-      ],
-      multipleDeliveries: [
-        {
-          branch: "Jollibee - Katipunan",
-          address: "Katipunan Avenue, Quezon City",
-          contactPerson: "Ana Reyes",
-          contactNumber: "0919-345-6789",
-          deliveryTime: "11:00 AM",
-          quantity: "2,000 lbs",
-          status: "Pending",
-        },
-        {
-          branch: "Jollibee - Cubao",
-          address: "General Roxas Avenue, Quezon City",
-          contactPerson: "Carlo Cruz",
-          contactNumber: "0920-456-7890",
-          deliveryTime: "12:00 PM",
-          quantity: "1,500 lbs",
-          status: "Pending",
-        },
-      ],
-    },
-    {
-      id: 2,
-      clientName: "Popeyes – Sta. Mesa",
-      clientEmail: "admin.stamesa@popeyes.ph",
-      bookingId: "ORD-0002",
-      address: "V. Mapa Street, Sta. Mesa, Manila",
-      dateTime: "August 22, 2026 • 1:00 PM - 4:00 PM",
-      status: "Awaiting Confirmation",
-      scheduledDate: "August 22, 2026",
-      pickupTime: "1:00 PM",
-      deliveryTime: "4:00 PM",
-      pickupAddress: "Pasig Warehouse",
-      deliveryAddress: "V. Mapa Street, Sta. Mesa, Manila",
-      contactPerson: "Juan Dela Cruz",
-      contactNumber: "0917-123-4567",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Fries & Buns",
-      quantity: "1,500 lbs",
-      priorityLevel: "Medium",
-      notes: "Handle with care.",
-      confirmBy: "August 20, 2026",
-      multiplePickups: [
-        {
-          warehouse: "Pasig Warehouse",
-          address: "Pasig City",
-          contactPerson: "Juan Dela Cruz",
-          contactNumber: "0917-123-4567",
-          pickupTime: "1:00 PM",
-          quantity: "1,500 lbs",
-          status: "Pending",
+  // ==========================================
+  // FETCH REAL DATA ON MOUNT
+  // ==========================================
+  useEffect(() => {
+    const fetchMyDispatches = async () => {
+      try {
+        setIsLoading(true);
+        const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+        const token = sessionStr ? JSON.parse(sessionStr).token : "";
+
+        if (!token) {
+          setIsLoading(false);
+          return;
         }
-      ],
-      multipleDeliveries: [
-        {
-          branch: "Popeyes – Sta. Mesa",
-          address: "V. Mapa Street, Sta. Mesa, Manila",
-          contactPerson: "Juan Dela Cruz",
-          contactNumber: "0917-123-4567",
-          deliveryTime: "4:00 PM",
-          quantity: "1,500 lbs",
-          status: "Pending",
-        }
-      ]
-    },
-    {
-      id: 3,
-      clientName: "KFC – Cubao",
-      clientEmail: "admin.cubao@kfc.ph",
-      bookingId: "ORD-0003",
-      address: "Aurora Boulevard, Cubao, Quezon City",
-      dateTime: "August 23, 2026 • 9:30 AM - 1:30 PM",
-      status: "Accepted",
-      scheduledDate: "August 23, 2026",
-      pickupTime: "9:30 AM",
-      deliveryTime: "1:30 PM",
-      pickupAddress: "Quezon City Hub",
-      deliveryAddress: "Aurora Boulevard, Cubao, Quezon City",
-      contactPerson: "Ana Rivera",
-      contactNumber: "0918-987-6543",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Poultry Supplies",
-      quantity: "3,500 lbs",
-      priorityLevel: "High",
-      notes: "Ensure temperature control is active.",
-      multiplePickups: [
-        {
-          warehouse: "Quezon City Hub",
-          address: "Quezon City",
-          contactPerson: "Ana Rivera",
-          contactNumber: "0918-987-6543",
-          pickupTime: "9:30 AM",
-          quantity: "3,500 lbs",
-          status: "Pending",
-        }
-      ],
-      multipleDeliveries: [
-        {
-          branch: "KFC – Cubao",
-          address: "Aurora Boulevard, Cubao, Quezon City",
-          contactPerson: "Ana Rivera",
-          contactNumber: "0918-987-6543",
-          deliveryTime: "1:30 PM",
-          quantity: "3,500 lbs",
-          status: "Pending",
-        }
-      ]
-    },
-    {
-      id: 4,
-      clientName: "McDonald’s – Ortigas",
-      clientEmail: "admin.ortigas@mcdonalds.com.ph",
-      bookingId: "ORD-0004",
-      address: "Emerald Avenue, Ortigas Center, Pasig City",
-      dateTime: "August 24, 2026 • 2:00 PM - 6:00 PM",
-      status: "Awaiting Confirmation",
-      scheduledDate: "August 24, 2026",
-      pickupTime: "2:00 PM",
-      deliveryTime: "6:00 PM",
-      pickupAddress: "Marikina Depot",
-      deliveryAddress: "Emerald Avenue, Ortigas Center, Pasig City",
-      contactPerson: "Carlos Lim",
-      contactNumber: "0920-111-2222",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Beverage Syrups",
-      quantity: "2,500 lbs",
-      priorityLevel: "Low",
-      notes: "Heavy items, request unloading assistance if needed.",
-      confirmBy: "August 22, 2026",
-      multiplePickups: [
-        {
-          warehouse: "Marikina Depot",
-          address: "Marikina City",
-          contactPerson: "Carlos Lim",
-          contactNumber: "0920-111-2222",
-          pickupTime: "2:00 PM",
-          quantity: "2,500 lbs",
-          status: "Pending",
-        }
-      ],
-      multipleDeliveries: [
-        {
-          branch: "McDonald’s – Ortigas",
-          address: "Emerald Avenue, Ortigas Center, Pasig City",
-          contactPerson: "Carlos Lim",
-          contactNumber: "0920-111-2222",
-          deliveryTime: "6:00 PM",
-          quantity: "2,500 lbs",
-          status: "Pending",
-        }
-      ]
-    },
-    {
-      id: 5,
-      clientName: "Chowking – Quezon Avenue",
-      clientEmail: "admin.qave@chowking.com",
-      bookingId: "ORD-0005",
-      address: "Quezon Avenue, Quezon City",
-      dateTime: "August 25, 2026 • 10:00 AM - 12:00 PM",
-      status: "Accepted",
-      scheduledDate: "August 25, 2026",
-      pickupTime: "10:00 AM",
-      deliveryTime: "12:00 PM",
-      pickupAddress: "Novaliches Warehouse",
-      deliveryAddress: "Quezon Avenue, Quezon City",
-      contactPerson: "Lea Gomez",
-      contactNumber: "0922-333-4444",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Noodle Packs & Dimsum",
-      quantity: "2,000 lbs",
-      priorityLevel: "Medium",
-      notes: "Standard delivery.",
-      multiplePickups: [
-        {
-          warehouse: "Novaliches Warehouse",
-          address: "Quezon City",
-          contactPerson: "Lea Gomez",
-          contactNumber: "0922-333-4444",
-          pickupTime: "10:00 AM",
-          quantity: "2,000 lbs",
-          status: "Pending",
-        }
-      ],
-      multipleDeliveries: [
-        {
-          branch: "Chowking – Quezon Avenue",
-          address: "Quezon Avenue, Quezon City",
-          contactPerson: "Lea Gomez",
-          contactNumber: "0922-333-4444",
-          deliveryTime: "12:00 PM",
-          quantity: "2,000 lbs",
-          status: "Pending",
-        }
-      ]
-    },
-  ]);
+
+        const response = await fetch("/api/crew/dispatches", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch dispatches");
+        
+        const data = await response.json();
+        console.log("📦 Fetched Deliveries from API:", data);
+        setDeliveryList(data);
+      } catch (error) {
+        console.error("Error fetching dispatches:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMyDispatches();
+  }, []);
 
   // Reset page to 1 when switching tabs
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedFilter]);
 
-  // Category counts
-  const myDeliveriesCount = deliveryList.filter(
-    (d) => d.status === "Accepted"
-  ).length;
-  const unconfirmedCount = deliveryList.filter(
-    (d) => d.status === "Awaiting Confirmation"
-  ).length;
+  // ==========================================
+  // BULLETPROOF STATUS HELPERS
+  // ==========================================
+  const isAccepted = (status?: string) => {
+    if (!status) return false;
+    const s = String(status).trim().toLowerCase();
+    return s === "accepted" || s === "in transit" || s === "ongoing delivery" || s === "completed";
+  };
+
+  const isUnconfirmed = (status?: string) => {
+    // If it is NOT actively moving or accepted, it catches it as unconfirmed
+    return !isAccepted(status);
+  };
+
+  // Category counts using strict logic
+  const myDeliveriesCount = deliveryList.filter((d) => isAccepted(d.status)).length;
+  const unconfirmedCount = deliveryList.filter((d) => isUnconfirmed(d.status)).length;
 
   // Filter logic based on tabs only
   const filteredDeliveries = deliveryList.filter((delivery) => {
     return selectedFilter === "My Deliveries"
-      ? delivery.status === "Accepted"
-      : delivery.status === "Awaiting Confirmation";
+      ? isAccepted(delivery.status)
+      : isUnconfirmed(delivery.status);
   });
 
   // Pagination Math
@@ -396,6 +200,7 @@ export default function CrewDashboardPage({
     setShowDetailsModal(true);
     setShowStartConfirmModal(false);
     setShowAcceptConfirmModal(false);
+    setShowDeclineConfirmModal(false);
     setShowSubmitConfirmModal(false);
   };
 
@@ -418,7 +223,6 @@ export default function CrewDashboardPage({
   const handleUpdateStatusSubmit = () => {
     setShowSubmitConfirmModal(false);
     
-    // Trigger Trip Report if submitting the "Returned" stage
     if (currentStageIndex === 5) {
       setShowTripReportModal(true);
     } else {
@@ -455,7 +259,6 @@ export default function CrewDashboardPage({
     setVehicleIssues("");
     setVehicleNotes("");
     
-    // Reset view to dashboard
     setViewMode("list");
     setSelectedDelivery(null);
     setCurrentStageIndex(0);
@@ -481,7 +284,56 @@ export default function CrewDashboardPage({
     }
   };
 
-  // Helper for status indicator badge styling
+  // API Integration: Accept or Decline a Dispatch Order
+  const handleDispatchResponse = async (action: "accept" | "decline") => {
+    if (!selectedDelivery) return;
+    if (action === "decline" && !declineReason.trim()) {
+      alert("Please provide a reason for declining.");
+      return;
+    }
+
+    setIsSubmittingResponse(true);
+    try {
+      const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+      const token = sessionStr ? JSON.parse(sessionStr).token : "";
+
+      const response = await fetch("/api/crew/dispatches/respond", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          dispatchID: selectedDelivery.id, 
+          action,
+          reason: action === "decline" ? declineReason : undefined
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || "Failed to update status");
+      }
+
+      setDeliveryList((prev) =>
+        prev.map((d) =>
+          d.id === selectedDelivery.id ? { ...d, status: action === "accept" ? "Accepted" : "Declined" } : d
+        )
+      );
+      
+      setShowAcceptConfirmModal(false);
+      setShowDeclineConfirmModal(false);
+      setShowDetailsModal(false);
+      setDeclineReason("");
+      
+      alert(`Assignment ${action}ed successfully.`);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setIsSubmittingResponse(false);
+    }
+  };
+
   const getStatusBadgeClass = (status?: string) => {
     switch (status) {
       case "Completed":
@@ -494,14 +346,13 @@ export default function CrewDashboardPage({
   };
 
   // ==========================================
-  // UPDATE STATUS PAGE VIEW
+  // SHARED STATUS LOGIC HOISTED
   // ==========================================
-  if (viewMode === "update-status" && selectedDelivery) {
-    const hasTwoPickups = (selectedDelivery.multiplePickups?.length || 0) > 1;
+  const hasTwoPickups = selectedDelivery ? (selectedDelivery.multiplePickups?.length || 0) > 1 : false;
+  let pickup1Status: "Pending" | "Ongoing Delivery" | "Completed" = "Pending";
+  let pickup2Status: "Pending" | "Ongoing Delivery" | "Completed" = "Pending";
 
-    let pickup1Status: "Pending" | "Ongoing Delivery" | "Completed" = "Pending";
-    let pickup2Status: "Pending" | "Ongoing Delivery" | "Completed" = "Pending";
-
+  if (selectedDelivery) {
     if (!hasTwoPickups) {
       if (currentStageIndex === 0) {
         pickup1Status = "Ongoing Delivery";
@@ -523,8 +374,20 @@ export default function CrewDashboardPage({
       }
     }
 
+    // Force Pending UI if we are just looking at the preview modal
+    if (viewMode === "list") {
+      pickup1Status = "Pending";
+      pickup2Status = "Pending";
+    }
+  }
+
+  // ==========================================
+  // UPDATE STATUS PAGE VIEW
+  // ==========================================
+  if (viewMode === "update-status" && selectedDelivery) {
     let currentStopName = "Pickup #1";
     let currentStopStatus: "Pending" | "Ongoing Delivery" | "Completed" = pickup1Status;
+    
     if (hasTwoPickups && pickup1Status === "Completed" && pickup2Status !== "Completed") {
       currentStopName = "Pickup #2";
       currentStopStatus = pickup2Status;
@@ -543,9 +406,6 @@ export default function CrewDashboardPage({
       }
     }
 
-    // ==========================================
-    // MAP LOGIC DATA CALCULATION
-    // ==========================================
     const mapStops: Array<{ id: string, type: 'pickup' | 'delivery', title: string, name: string, status: string, x: number, y: number }> = [];
     
     // Add Pickups
@@ -584,7 +444,6 @@ export default function CrewDashboardPage({
       });
     });
 
-    // Calculate Dynamic Truck Position based on current Stage
     let truckX = mapStops[0].x;
     let truckY = mapStops[0].y;
 
@@ -601,7 +460,7 @@ export default function CrewDashboardPage({
       if (nextIdx > 0) {
         const prev = mapStops[nextIdx - 1];
         const next = mapStops[nextIdx];
-        truckX = prev.x + (next.x - prev.x) * 0.45; // Place truck midway towards destination
+        truckX = prev.x + (next.x - prev.x) * 0.45; 
         truckY = prev.y + (next.y - prev.y) * 0.45;
       } else {
         truckX = mapStops[0].x;
@@ -618,7 +477,6 @@ export default function CrewDashboardPage({
       truckY = last.y;
     }
 
-    // Map Routes logic - Blue Theme
     const fullPathD = `M ${mapStops[0].x} ${mapStops[0].y} ` + mapStops.slice(1).map(s => `L ${s.x} ${s.y}`).join(' ');
     
     let activePathD = `M ${mapStops[0].x} ${mapStops[0].y}`;
@@ -666,7 +524,7 @@ export default function CrewDashboardPage({
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
           
-          {/* MAP-BASED DELIVERY TRACKING SECTION - Blue Theme */}
+          {/* MAP-BASED DELIVERY TRACKING SECTION */}
           <div className="bg-[#e0f2fe] rounded-2xl border border-slate-300 overflow-hidden shadow-sm flex flex-col">
             <div className="bg-white px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10 relative">
               <div className="flex items-center gap-2">
@@ -680,7 +538,6 @@ export default function CrewDashboardPage({
 
             <div className="relative w-full h-80 sm:h-100 md:h-120 bg-[#e0f2fe] overflow-hidden flex items-center justify-center font-sans">
               
-              {/* Map Background Roads Simulation */}
               <div className="absolute inset-0 pointer-events-none opacity-60">
                 <svg className="w-full h-full" preserveAspectRatio="none">
                   <path d="M-10,15 L 30,25 L 40,-10 M 30,25 L 50,80 L 110,60 M 50,80 L 30,110 M 80,-10 L 70,40 L 110,30" stroke="#ffffff" strokeWidth="12" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -689,15 +546,11 @@ export default function CrewDashboardPage({
                 </svg>
               </div>
 
-              {/* Dynamic Map Route Paths (Blue theme) */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {/* Blue path ahead of truck */}
                 <path d={fullPathD} fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                {/* Active blue path behind truck */}
                 <path d={activePathD} fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
 
-              {/* Top Left Floating Header */}
               <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
                 <div className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-xl shadow-md border border-slate-200 text-xs font-medium text-slate-800">
                   {selectedDelivery.bookingId}
@@ -707,7 +560,6 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* Map Stops / Nodes (Blue Theme) */}
               {mapStops.map((stop) => (
                 <div 
                   key={stop.id} 
@@ -733,7 +585,6 @@ export default function CrewDashboardPage({
                 </div>
               ))}
 
-              {/* Dynamic Truck Marker (Blue Theme) */}
               <div 
                 className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-700 ease-in-out"
                 style={{ left: `${truckX}%`, top: `${truckY}%` }}
@@ -747,9 +598,7 @@ export default function CrewDashboardPage({
 
             <div className="bg-white px-2 sm:px-6 pt-12 pb-6 border-t border-slate-200 z-10 relative">
               <div className="relative flex justify-between items-center w-full max-w-4xl mx-auto px-4 sm:px-8">
-                {/* Background Line */}
                 <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 bg-slate-200 z-0"></div>
-                {/* Active Line */}
                 <div className="absolute left-8 top-1/2 -translate-y-1/2 h-1 bg-blue-600 z-0 transition-all duration-500" style={{ width: `calc(${ (currentStageIndex / (stages.length - 1)) * 100 }% - 64px)` }}></div>
 
                 {stages.map((stage, index) => {
@@ -781,7 +630,6 @@ export default function CrewDashboardPage({
           </div>
 
           <div className="space-y-4 text-sm text-slate-900">
-            
             {/* Pickup Addresses Section */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between">
@@ -817,7 +665,7 @@ export default function CrewDashboardPage({
                         {pickup1Status}
                       </span>
                     </div>
-                    <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0]}</span>
+                    <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Jollibee Commissary"}</span>
                     <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
                     <span className="text-slate-700 truncate">{selectedDelivery.contactPerson} | ({selectedDelivery.contactNumber})</span>
                     <span className="text-slate-700 truncate">Delivery Time: {selectedDelivery.pickupTime}</span>
@@ -931,282 +779,6 @@ export default function CrewDashboardPage({
             </button>
           </div>
         </div>
-
-        {/* Submit Status Confirmation Modal */}
-        {showSubmitConfirmModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                Submit status update?
-              </h3>
-              <div className="flex items-center gap-3 mt-6">
-                <button
-                  onClick={() => setShowSubmitConfirmModal(false)}
-                  className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap"
-                >
-                  No
-                </button>
-                <button
-                  onClick={handleUpdateStatusSubmit}
-                  className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap"
-                >
-                  Yes
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Emergency Popup Modal */}
-        {showEmergencyModal && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-5 text-left">
-              <div className="flex items-center justify-between border-b pb-4">
-                <div className="flex flex-col truncate">
-                  <span className="text-lg sm:text-xl font-black uppercase tracking-wider text-red-600 flex items-center gap-1.5 mb-1 truncate">
-                    <AlertTriangle className="w-6 h-6 shrink-0" /> EMERGENCY
-                  </span>
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-800">Need immediate assistance?</h3>
-                </div>
-                <button onClick={() => setShowEmergencyModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {emergencySubmitted ? (
-                <div className="py-8 text-center text-emerald-600 font-bold text-base">
-                  Emergency alert submitted successfully.
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-2">Reason</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {["Broken Truck", "Heavy Traffic", "Flat Tire", "Accident / Road Incident", "Medical Emergency", "Other"].map((reason) => (
-                        <button
-                          key={reason}
-                          type="button"
-                          onClick={() => setEmergencyReason(reason)}
-                          className={`p-2.5 rounded-xl border text-xs sm:text-sm font-semibold text-left transition-all cursor-pointer whitespace-nowrap truncate ${
-                            emergencyReason === reason
-                              ? "bg-red-50 border-red-600 text-red-700 ring-1 ring-red-600"
-                              : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          {reason}
-                        </button>
-                      ))}
-                      {emergencyReason === "Other" && (
-                        <div className="col-span-2 sm:col-span-3 mt-1 animate-fade-in">
-                          <input
-                            type="text"
-                            value={otherReason}
-                            onChange={(e) => setOtherReason(e.target.value)}
-                            placeholder="Please specify the emergency..."
-                            className="w-full border border-slate-300 rounded-xl p-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600"
-                            autoFocus
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">Message</label>
-                    <textarea
-                      value={emergencyMessage}
-                      onChange={(e) => setEmergencyMessage(e.target.value)}
-                      placeholder="Describe the problem and what assistance you need..."
-                      className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-25"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">Proof of Emergency</label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors overflow-hidden relative">
-                      {emergencyImage ? (
-                        <img src={emergencyImage} alt="Emergency Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center pt-3 pb-4 px-4 text-center">
-                          <Camera className="w-6 h-6 text-slate-400 mb-1 stroke-[1.5]" />
-                          <span className="text-xs sm:text-sm font-semibold text-slate-700">Tap to attach image</span>
-                        </div>
-                      )}
-                      <input type="file" accept="image/*" onChange={handleEmergencyImageUpload} className="hidden" />
-                    </label>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <button
-                      onClick={() => setShowEmergencyModal(false)}
-                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSendEmergencyAlert}
-                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors cursor-pointer whitespace-nowrap"
-                    >
-                      Send Emergency Alert
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* Trip Report Popup */}
-        {showTripReportModal && (
-          <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-5 text-left max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b pb-4">
-                <h3 className="text-xl font-bold text-slate-900 tracking-tight truncate">Trip Report</h3>
-                <button onClick={() => setShowTripReportModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer shrink-0">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div>
-                <label className="block text-base font-bold text-slate-800 mb-4">How was the trip?</label>
-                
-                <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Remarks</label>
-                      <textarea
-                        value={tripRemarks}
-                        onChange={(e) => setTripRemarks(e.target.value)}
-                        className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 min-h-25"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Notes (Optional)</label>
-                      <textarea
-                        value={tripNotes}
-                        onChange={(e) => setTripNotes(e.target.value)}
-                        className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 min-h-25"
-                      />
-                    </div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-5 mt-2">
-                <label className="block text-base font-bold text-slate-800 mb-4">Did you notice any truck issues or damage?</label>
-                
-                {!tripReportNoIssue ? (
-                  <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <button
-                      onClick={() => setTripReportNoIssue(true)}
-                      className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
-                    >
-                      No Issue
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowTripReportModal(false);
-                        setShowVehicleProblemModal(true);
-                      }}
-                      className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm cursor-pointer"
-                    >
-                      Yes — Report Vehicle Problem
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex justify-end animate-fade-in mt-2">
-                    <button
-                      onClick={handleSendRemarks}
-                      className="w-full py-3.5 bg-blue-600 hover:bg-black text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer"
-                    >
-                      Send Remarks
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Vehicle Problem Popup */}
-        {showVehicleProblemModal && (
-          <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-5 text-left max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b pb-4 gap-2">
-                <h3 className="text-xl font-bold text-slate-900 truncate">Report Vehicle Problem</h3>
-                <button 
-                  onClick={() => {
-                    setShowVehicleProblemModal(false);
-                    setShowTripReportModal(true);
-                  }} 
-                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Issues Observed <span className="text-red-500">*</span></label>
-                <textarea
-                  value={vehicleIssues}
-                  onChange={(e) => setVehicleIssues(e.target.value)}
-                  placeholder="Describe the truck issue or damage..."
-                  className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-25"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-800 mb-2">Additional Notes</label>
-                <textarea
-                  value={vehicleNotes}
-                  onChange={(e) => setVehicleNotes(e.target.value)}
-                  placeholder="Optional details..."
-                  className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-25"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 pt-5 mt-2 border-t border-slate-200">
-                <button
-                  onClick={() => handleSendProblem()}
-                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  Send Problem
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Remarks Sent Successfully Modal */}
-        {showRemarksSuccess && (
-          <div className="fixed inset-0 z-90 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 text-center flex flex-col items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
-                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Remarks Sent Successfully</h3>
-                <p className="text-xs text-slate-600">Your trip remarks have been submitted successfully.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Problem Report Sent Successfully Modal */}
-        {showProblemSuccess && (
-          <div className="fixed inset-0 z-90 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 text-center flex flex-col items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
-                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Problem Report Sent Status</h3>
-                <p className="text-xs text-slate-600">The vehicle problem has been reported successfully.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     );
   }
@@ -1259,7 +831,15 @@ export default function CrewDashboardPage({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse table-fixed">
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-              {currentDeliveries.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={2} className="py-10 text-center">
+                    <div className="flex justify-center items-center">
+                      <span className="text-sm font-semibold text-slate-500 animate-pulse">Loading dispatches...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : currentDeliveries.length === 0 ? (
                 <tr>
                   <td colSpan={2} className="py-10 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
@@ -1305,12 +885,12 @@ export default function CrewDashboardPage({
                         </div>
                         <span
                           className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
-                            delivery.status === "Accepted"
+                            isAccepted(delivery.status)
                               ? "bg-emerald-100 text-emerald-800"
                               : "bg-amber-100 text-amber-800"
                           }`}
                         >
-                          {delivery.status}
+                          {isUnconfirmed(delivery.status) ? "Awaiting Confirmation" : delivery.status}
                         </span>
                       </div>
                     </td>
@@ -1356,14 +936,11 @@ export default function CrewDashboardPage({
         </div>
       </div>
 
-      {/* ========================================================
-          DELIVERY INFORMATION MODAL POPUP
-      ======================================================== */}
+      {/* DELIVERY INFORMATION MODAL POPUP */}
       {showDetailsModal && selectedDelivery && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto max-h-[80vh] flex flex-col">
             
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-3 sm:px-6 py-4 bg-[#000c31] text-white border-b border-slate-800 shrink-0 gap-2">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
@@ -1380,9 +957,9 @@ export default function CrewDashboardPage({
               </div>
               
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                {selectedDelivery.status === "Accepted" ? (
+                {isAccepted(selectedDelivery.status) ? (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold bg-emerald-500 text-white shadow-sm whitespace-nowrap">
-                    Accepted
+                    {selectedDelivery.status}
                   </span>
                 ) : (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">
@@ -1399,10 +976,8 @@ export default function CrewDashboardPage({
               </div>
             </div>
 
-            {/* Scrollable Form Body */}
             <div className="p-4 sm:p-6 space-y-6 overflow-y-auto text-sm text-slate-900 bg-slate-50/50 flex-1">
               
-              {/* 1. Client Information */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   1. Client Information
@@ -1441,7 +1016,6 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* 2. Booking Details */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   2. Booking Details
@@ -1474,7 +1048,6 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* 3. Assigned Delivery Crew & Vehicle */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   3. Assigned Delivery Crew & Vehicle
@@ -1507,7 +1080,6 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* 4. Pickup Addresses */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   4. Pickup Addresses
@@ -1549,35 +1121,50 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* 5. Delivery Address */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   5. Delivery Address
                 </div>
                 <div className="space-y-4">
                   {selectedDelivery.multipleDeliveries && selectedDelivery.multipleDeliveries.length > 0 ? (
-                    selectedDelivery.multipleDeliveries.map((deliv, idx) => (
-                      <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-blue-600 font-bold truncate">Delivery Address #{idx + 1}</span>
-                          <span className="px-2.5 py-0.5 rounded-full font-semibold text-xs bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap shrink-0">
-                            Pending
-                          </span>
+                    selectedDelivery.multipleDeliveries.map((deliv, idx) => {
+                      let delivStatus: "Pending" | "Ongoing Delivery" | "Completed" = "Pending";
+                      const bothPickupsDone = hasTwoPickups ? (pickup2Status === "Completed") : (pickup1Status === "Completed");
+
+                      if (!bothPickupsDone) {
+                        delivStatus = "Pending";
+                      } else {
+                        if (idx === 0) {
+                          delivStatus = currentStageIndex >= 3 ? "Completed" : "Ongoing Delivery";
+                        } else {
+                          const prevDone = currentStageIndex >= (3 + idx);
+                          delivStatus = prevDone ? "Completed" : (currentStageIndex >= (3 + idx - 1) ? "Ongoing Delivery" : "Pending");
+                        }
+                      }
+
+                      return (
+                        <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-blue-600 font-bold truncate">Delivery Address #{idx + 1}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap shrink-0 ${getStatusBadgeClass(delivStatus)}`}>
+                              {delivStatus}
+                            </span>
+                          </div>
+                          <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
+                          <span className="text-slate-700 truncate">{deliv.address}</span>
+                          <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
+                          <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
+                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
+                          <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
                         </div>
-                        <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
-                        <span className="text-slate-700 truncate">{deliv.address}</span>
-                        <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
-                        <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
-                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                        <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="text-blue-600 font-bold truncate">Delivery Address #1</span>
-                        <span className="px-2.5 py-0.5 rounded-full font-semibold text-xs bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap shrink-0">
-                          Pending
+                        <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap shrink-0 ${getStatusBadgeClass(pickup1Status === "Completed" ? (currentStageIndex >= 3 ? "Completed" : "Ongoing Delivery") : "Pending")}`}>
+                          {pickup1Status === "Completed" ? (currentStageIndex >= 3 ? "Completed" : "Ongoing Delivery") : "Pending"}
                         </span>
                       </div>
                       <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.clientName}</span>
@@ -1591,7 +1178,6 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* 6. Notes / Instructions */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   6. Notes / Instructions
@@ -1603,9 +1189,8 @@ export default function CrewDashboardPage({
 
             </div>
 
-            {/* Modal Footer Actions */}
             <div className="px-4 sm:px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              {selectedDelivery.status === "Awaiting Confirmation" ? (
+              {isUnconfirmed(selectedDelivery.status) ? (
                 <>
                   <span className="text-xs sm:text-sm text-red-500 font-semibold text-center sm:text-left truncate">
                     Please confirm by {selectedDelivery.confirmBy || "the required date"}.
@@ -1613,6 +1198,7 @@ export default function CrewDashboardPage({
                   <div className="flex w-full sm:w-auto gap-2 shrink-0">
                     <button
                       type="button"
+                      onClick={() => setShowDeclineConfirmModal(true)}
                       className="flex-1 sm:flex-none px-4 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors cursor-pointer whitespace-nowrap"
                     >
                       Decline Assignment
@@ -1659,7 +1245,8 @@ export default function CrewDashboardPage({
                   setShowStartConfirmModal(false);
                   setShowAcceptConfirmModal(false);
                 }}
-                className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap"
+                disabled={isSubmittingResponse}
+                className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50"
               >
                 No
               </button>
@@ -1671,14 +1258,53 @@ export default function CrewDashboardPage({
                     setCurrentStageIndex(0);
                     setViewMode("update-status");
                   } else {
-                    setShowAcceptConfirmModal(false);
-                    setDeliveryList(prev => prev.map(d => d.id === selectedDelivery.id ? { ...d, status: "Accepted" } : d));
-                    setSelectedDelivery({ ...selectedDelivery, status: "Accepted" });
+                    handleDispatchResponse("accept");
                   }
                 }}
-                className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap"
+                disabled={isSubmittingResponse}
+                className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50"
               >
-                Yes
+                {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : "Yes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Assignment Modal */}
+      {showDeclineConfirmModal && selectedDelivery && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
+            <p className="text-xs sm:text-sm text-slate-600 mb-4">
+              Are you sure you want to decline this dispatch? You must provide a valid reason.
+            </p>
+            
+            <textarea
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="Ex. Sick leave, Family emergency, Vehicle issues..."
+              className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6"
+              required
+            />
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setShowDeclineConfirmModal(false);
+                  setDeclineReason("");
+                }}
+                disabled={isSubmittingResponse}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDispatchResponse("decline")}
+                disabled={isSubmittingResponse || !declineReason.trim()}
+                className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700"
+              >
+                {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
               </button>
             </div>
           </div>

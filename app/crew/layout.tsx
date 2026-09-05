@@ -25,7 +25,7 @@ export default function CrewLayout({
         <SharedHeader 
           isOpen={isSidebarOpen} 
           setIsOpen={setIsSidebarOpen} 
-          basePath="/crewdashboard" 
+          basePath="/crew" 
         />
 
         {/* Dynamic Main Page Content */}
