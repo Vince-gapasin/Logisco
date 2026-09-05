@@ -1,6 +1,6 @@
 // File: components/Headeradmin.tsx
 "use client";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, Bell, Menu } from "lucide-react";
 
@@ -10,6 +10,24 @@ interface HeaderProps {
 }
 
 export default function Header({ isOpen, setIsOpen }: HeaderProps) {
+  const [avatarSeed, setAvatarSeed] = useState("User");
+
+  useEffect(() => {
+    // Fetch the stored session to get the user's name for the avatar
+    const sessionData =
+      localStorage.getItem("logisco_user_session") ||
+      sessionStorage.getItem("logisco_user_session");
+
+    if (sessionData) {
+      try {
+        const user = JSON.parse(sessionData);
+        setAvatarSeed(user.employeeName || user.email || "User");
+      } catch (error) {
+        console.error("Failed to parse user session", error);
+      }
+    }
+  }, []);
+
   return (
     <header className="h-16 bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
       {/* Search Input Bar & Conditional Hamburger Trigger */}
@@ -50,7 +68,7 @@ export default function Header({ isOpen, setIsOpen }: HeaderProps) {
           title="Profile Settings"
         >
           <img
-            src="https://api.dicebear.com/7.x/initials/svg?seed=Joanne"
+            src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(avatarSeed)}`}
             alt="Avatar"
             className="w-full h-full object-cover bg-slate-200"
           />

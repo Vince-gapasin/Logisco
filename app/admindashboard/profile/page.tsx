@@ -1,27 +1,94 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Mail, Lock, X, AlertCircle, User, Shield } from "lucide-react";
 
+// ==========================================
+// SESSION & API FETCH
+// ==========================================
+const SESSION_KEY = "logisco_user_session";
+
+function getAuthSession() {
+  const savedSession = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+  if (!savedSession) throw new Error("Authentication session not found. Please log in again.");
+  return JSON.parse(savedSession);
+}
+
+async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const session = getAuthSession();
+  const headers = new Headers(options.headers);
+
+  headers.set("Authorization", `Bearer ${session.token}`);
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(url, { ...options, headers });
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = result?.message || `Request failed with status ${response.status}`;
+    if (response.status === 401) {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+    throw new Error(message);
+  }
+
+  return result as T;
+}
+
+// ==========================================
+// MAIN PAGE
+// ==========================================
 export default function ProfilePage() {
+  // Session state
+  const [userInfo, setUserInfo] = useState({
+    name: "Loading...",
+    email: "Loading...",
+    role: "Loading...",
+  });
+
   // Modal states
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
-  // Email form state
+  // Form states
   const [currentEmail, setCurrentEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [confirmEmail, setConfirmEmail] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
 
-  // Password form state
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
+
+  // Fetch session data on mount
+  useEffect(() => {
+    const sessionData =
+      localStorage.getItem("logisco_user_session") ||
+      sessionStorage.getItem("logisco_user_session");
+
+    if (sessionData) {
+      try {
+        const parsed = JSON.parse(sessionData);
+        setUserInfo({
+          name: parsed.employeeName || "Unknown User",
+          email: parsed.email || "No email provided",
+          role: parsed.role || "Unassigned",
+        });
+      } catch (error) {
+        console.error("Failed to parse session", error);
+      }
+    }
+  }, []);
 
   // Handle Email Update Submission
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  // Handle Email Update Submission
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError("");
 
@@ -41,15 +108,44 @@ export default function ProfilePage() {
       return;
     }
 
-    alert("Frontend validation passed! Ready for Supabase Auth integration.");
-    setIsEmailModalOpen(false);
-    setCurrentEmail("");
-    setNewEmail("");
-    setConfirmEmail("");
+    setIsSubmittingEmail(true);
+    try {
+      const response = await apiFetch<{ message: string }>("/api/auth/update-email", {
+        method: "POST",
+        body: JSON.stringify({ newEmail }),
+      });
+
+      alert(response.message);
+      
+      // Update the local session storage so the UI updates instantly
+      const sessionData = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+      if (sessionData) {
+        const parsed = JSON.parse(sessionData);
+        parsed.email = newEmail;
+        
+        if (localStorage.getItem(SESSION_KEY)) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+        }
+        if (sessionStorage.getItem(SESSION_KEY)) {
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+        }
+        
+        setUserInfo((prev) => ({ ...prev, email: newEmail }));
+      }
+
+      setIsEmailModalOpen(false);
+      setCurrentEmail("");
+      setNewEmail("");
+      setConfirmEmail("");
+    } catch (err: any) {
+      setEmailError(err.message);
+    } finally {
+      setIsSubmittingEmail(false);
+    }
   };
 
   // Handle Password Update Submission
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError("");
 
@@ -68,11 +164,23 @@ export default function ProfilePage() {
       return;
     }
 
-    alert("Frontend validation passed! Ready for Supabase Auth integration.");
-    setIsPasswordModalOpen(false);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setIsSubmittingPassword(true);
+    try {
+      const response = await apiFetch<{ message: string }>("/api/auth/update-password", {
+        method: "POST",
+        body: JSON.stringify({ newPassword }),
+      });
+
+      alert(response.message);
+      setIsPasswordModalOpen(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      setPasswordError(err.message);
+    } finally {
+      setIsSubmittingPassword(false);
+    }
   };
 
   return (
@@ -84,8 +192,7 @@ export default function ProfilePage() {
             My Profile
           </h1>
           <p className="text-xs sm:text-sm text-slate-700 mt-1">
-            Manage your account credentials, security settings, and profile
-            info.
+            Manage your account credentials, security settings, and profile info.
           </p>
         </div>
 
@@ -116,8 +223,8 @@ export default function ProfilePage() {
             <User className="w-8 h-8 sm:w-9 sm:h-9" />
           </div>
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              JOANNE PATERNO
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight uppercase">
+              {userInfo.name}
             </h2>
           </div>
         </div>
@@ -137,11 +244,11 @@ export default function ProfilePage() {
               <input
                 type="text"
                 readOnly
-                value="Not available"
+                value={userInfo.email}
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
               <p className="text-xs text-slate-700 mt-1">
-                Will be populated dynamically from Supabase Auth session.
+                Populated dynamically from Supabase Auth session.
               </p>
             </div>
 
@@ -152,7 +259,7 @@ export default function ProfilePage() {
               <input
                 type="text"
                 readOnly
-                value="Not available"
+                value={userInfo.role.toUpperCase()}
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
               <p className="text-xs text-slate-700 mt-1">
@@ -175,6 +282,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => setIsEmailModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                disabled={isSubmittingEmail}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -197,7 +305,8 @@ export default function ProfilePage() {
                   value={currentEmail}
                   onChange={(e) => setCurrentEmail(e.target.value)}
                   placeholder="Enter current email"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingEmail}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -210,7 +319,8 @@ export default function ProfilePage() {
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="Enter new email"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingEmail}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -223,7 +333,8 @@ export default function ProfilePage() {
                   value={confirmEmail}
                   onChange={(e) => setConfirmEmail(e.target.value)}
                   placeholder="Confirm new email"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingEmail}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -231,15 +342,17 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setIsEmailModalOpen(false)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                  disabled={isSubmittingEmail}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md shadow-blue-200 transition-all"
+                  disabled={isSubmittingEmail}
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md shadow-blue-200 transition-all disabled:opacity-50 flex items-center justify-center min-w-[120px]"
                 >
-                  Update Email
+                  {isSubmittingEmail ? "Updating..." : "Update Email"}
                 </button>
               </div>
             </form>
@@ -259,6 +372,7 @@ export default function ProfilePage() {
               <button
                 onClick={() => setIsPasswordModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                disabled={isSubmittingPassword}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -281,7 +395,8 @@ export default function ProfilePage() {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingPassword}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -294,7 +409,8 @@ export default function ProfilePage() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password (min. 6 characters)"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingPassword}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -307,7 +423,8 @@ export default function ProfilePage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400"
+                  disabled={isSubmittingPassword}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
 
@@ -315,15 +432,17 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                  disabled={isSubmittingPassword}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md shadow-blue-200 transition-all"
+                  disabled={isSubmittingPassword}
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md shadow-blue-200 transition-all disabled:opacity-50 flex items-center justify-center min-w-[140px]"
                 >
-                  Update Password
+                  {isSubmittingPassword ? "Updating..." : "Update Password"}
                 </button>
               </div>
             </form>
