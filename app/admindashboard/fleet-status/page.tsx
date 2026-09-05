@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Loader2,
   ChevronDown,
+  History as HistoryIcon,
+  ClipboardCheck,
 } from "lucide-react";
 import axios from "axios";
 
@@ -28,6 +30,27 @@ export interface TruckRecord {
   status: string;
 }
 
+export interface HistoryLogRecord {
+  id: string | number;
+  truckID?: string | number;
+  plateNumber: string;
+  truckType: string;
+  primaryMechanicID?: string;
+  mechanicName: string;
+  additionalMechanicID?: string;
+  additionalMechanic: string;
+  issue: string;
+  remarks: string;
+  date: string;
+  photoUrl?: string;
+  driversReport?: string;
+  preliminaryRemarks?: string;
+  preliminaryPhotoUrl?: string;
+  additionalIssue?: string;
+  progressRemarks?: string;
+  progressPhotoUrl?: string;
+}
+
 // Utility mapper to maintain consistent color designs across elements
 const getStatusStyles = (status: string) => {
   switch (status) {
@@ -38,6 +61,14 @@ const getStatusStyles = (status: string) => {
         btn: "bg-emerald-300 text-emerald-900 border-emerald-900/80",
         modalIcon: "bg-emerald-100 text-emerald-600",
         modalBtn: "bg-emerald-600 hover:bg-emerald-700",
+      };
+    case "Already Booked":
+      return {
+        bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200/50",
+        tabActive: "bg-indigo-600 text-white shadow-md shadow-indigo-600/10",
+        btn: "bg-indigo-300 text-indigo-900 border-indigo-900/80",
+        modalIcon: "bg-indigo-100 text-indigo-600",
+        modalBtn: "bg-indigo-600 hover:bg-indigo-700",
       };
     case "On Maintenance":
       return {
@@ -83,10 +114,9 @@ const formatDisplayDate = (dateString: string) => {
       month: "long",
       day: "numeric",
       year: "numeric",
-      timeZone: "UTC", // Forces UTC parsing to prevent day-shifting
+      timeZone: "UTC",
     }).format(date);
   } catch (error) {
-    // Fallback just in case the string is malformed
     return dateString;
   }
 };
@@ -119,7 +149,6 @@ function TruckModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
 
-  // Calculate today's date in YYYY-MM-DD format to use as the max constraint
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
@@ -171,7 +200,6 @@ function TruckModal({
     if (!String(formData.capacity).trim())
       newErrors.capacity = "Capacity is required.";
 
-    // Check if the date is empty or in the future
     if (!formData.lastChecked) {
       newErrors.lastChecked = "Last checked date is required.";
     } else if (formData.lastChecked > today) {
@@ -190,7 +218,7 @@ function TruckModal({
       truckModel: formData.truckModel.trim(),
       capacity: formData.capacity.trim(),
       lastChecked: formData.lastChecked,
-      status: editData ? editData.status : "Available", // Matched mechanic default status logic
+      status: editData ? editData.status : "Available",
     };
 
     onSubmitSuccess(updatedRecord);
@@ -354,7 +382,7 @@ function TruckModal({
                 <input
                   type="text"
                   name="capacity"
-                  placeholder="e.g., 5 Tons or 5000 kg"
+                  placeholder="e.g., 5000"
                   value={formData.capacity}
                   onChange={handleInputChange as any}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
@@ -392,14 +420,14 @@ function TruckModal({
               type="button"
               onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               {editData ? "Save Changes" : "Add Truck"}
             </button>
@@ -411,23 +439,501 @@ function TruckModal({
 }
 
 // ==========================================
+// HISTORY LOG DETAIL VIEW
+// ==========================================
+interface LogDetailViewProps {
+  log: HistoryLogRecord;
+  onBack: () => void;
+}
+
+function LogDetailView({ log, onBack }: LogDetailViewProps) {
+  return (
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            title="Back to History Logs"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Maintenance Log Details
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              Complete maintenance record and remarks.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
+              <ClipboardCheck className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                {log.plateNumber}
+              </h2>
+              <div className="flex items-center gap-2 mt-1 text-slate-600 text-sm">
+                <Truck className="w-4 h-4" />
+                <span>{log.truckType}</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-left sm:text-right">
+            <div className="text-xs text-slate-500 font-medium">
+              Date of Maintenance
+            </div>
+            <div className="text-base font-semibold text-slate-900 mt-0.5">
+              {new Date(log.date).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6 text-sm text-slate-900">
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              1. Record Details
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Plate Number
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {log.plateNumber}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Type of Truck
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {log.truckType}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Date
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {log.date ? log.date.split("T")[0] : "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Primary Mechanic
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {log.mechanicName}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Mechanic
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
+                  {log.additionalMechanic || "None"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              2. Maintenance Information
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Work Performed
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.issue}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-24 whitespace-pre-wrap">
+                  {log.remarks || "No additional remarks."}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. Photo Evidence
+            </div>
+            {log.photoUrl ? (
+              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                <img
+                  src={log.photoUrl}
+                  alt="Maintenance Evidence"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500 italic py-2">
+                No photo evidence attached to this record.
+              </div>
+            )}
+          </div>
+
+          {/* Section 4: Preliminary Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Preliminary Notes (Before Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's Report / Observed Vehicle Issues
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.driversReport || "No preliminary symptoms reported."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.preliminaryRemarks || "No preliminary remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken Before Maintenance
+                </label>
+                {log.preliminaryPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.preliminaryPhotoUrl}
+                      alt="Before Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached before maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Progress Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Progress Notes (During Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Issue
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.additionalIssue || "No additional issues logged."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.progressRemarks || "No progress remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken During Maintenance
+                </label>
+                {log.progressPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.progressPhotoUrl}
+                      alt="During Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached during maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// TRUCK SPECIFIC HISTORY VIEW
+// ==========================================
+interface TruckSpecificHistoryViewProps {
+  truck: TruckRecord;
+  logs: HistoryLogRecord[];
+  onBack: () => void;
+  onSelectLog: (log: HistoryLogRecord) => void;
+}
+
+function TruckSpecificHistoryView({
+  truck,
+  logs,
+  onBack,
+  onSelectLog,
+}: TruckSpecificHistoryViewProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const truckLogs = logs.filter(
+    (l) =>
+      String(l.truckID) === String(truck.id) ||
+      String(l.plateNumber).toLowerCase() ===
+        String(truck.plateNumber).toLowerCase(),
+  );
+
+  const filteredLogs = truckLogs.filter((log) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      log.plateNumber?.toLowerCase().includes(searchLower) ||
+      log.truckType?.toLowerCase().includes(searchLower) ||
+      log.mechanicName?.toLowerCase().includes(searchLower) ||
+      log.additionalMechanic?.toLowerCase().includes(searchLower) ||
+      log.issue?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative animate-fade-in">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            title="Back to Truck Details"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+              History Logs — {truck.plateNumber}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-700 mt-1">
+              View past maintenance and repair records for this specific truck.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+              <ClipboardCheck className="w-5 h-5 text-blue-600" />
+            </div>
+            <h2 className="text-base font-bold text-slate-800">
+              Maintenance Records ({truck.plateNumber})
+            </h2>
+          </div>
+          <div className="relative w-full lg:w-80">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search mechanic, issue..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto px-4 sm:px-6">
+          <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
+            <thead>
+              <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
+                <th className="py-3.5 px-4 w-1/4 text-left">
+                  Status Before Change
+                </th>
+                <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+              {paginatedLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-16 sm:py-20 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        No history logs found
+                      </p>
+                      <p className="text-slate-500 text-xs mt-1">
+                        Try adjusting your search query or check back later.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedLogs.map((log) => (
+                  <tr
+                    key={log.id}
+                    onClick={() => onSelectLog(log)}
+                    className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                    title="Click to view complete maintenance log"
+                  >
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <div className="text-sm font-medium text-slate-800">
+                        {new Date(log.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <div className="font-semibold text-slate-900 truncate">
+                        {log.plateNumber}
+                        <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
+                          — {log.truckType}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
+                        <div className="font-medium text-slate-700">
+                          {log.mechanicName}{" "}
+                          {log.additionalMechanic
+                            ? `& ${log.additionalMechanic}`
+                            : ""}
+                        </div>
+                        <div className="mt-0.5 truncate">{log.issue}</div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
+                    </td>
+
+                    <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                      <span className="text-xs text-slate-400">—</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
+          <span>
+            Showing {filteredLogs.length === 0 ? 0 : startIndex + 1} to{" "}
+            {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length}{" "}
+            entries
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                currentPage === 1
+                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                  : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              }`}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages || totalPages === 0}
+              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+                currentPage === totalPages || totalPages === 0
+                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                  : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
 // TRUCK INFORMATION DETAIL VIEW
 // ==========================================
 interface TruckDetailViewProps {
   truck: TruckRecord;
+  logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
   onDelete: (id: string | number) => void;
+  onHistoryClick: () => void;
 }
 
 function TruckDetailView({
   truck,
+  logs,
   onBack,
   onEdit,
   onDelete,
+  onHistoryClick,
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const styles = getStatusStyles(truck.status);
+
+  const truckLogs = logs.filter(
+    (l) =>
+      String(l.truckID) === String(truck.id) ||
+      String(l.plateNumber).toLowerCase() ===
+        String(truck.plateNumber).toLowerCase(),
+  );
+  const latestLog = truckLogs[truckLogs.length - 1];
+
+  const isOnMaintenanceOrOOS =
+    truck.status === "On Maintenance" || truck.status === "Out of Service";
+
+  const isInspectionFilled = !!(
+    latestLog &&
+    (latestLog.driversReport ||
+      latestLog.preliminaryRemarks ||
+      latestLog.preliminaryPhotoUrl ||
+      latestLog.issue)
+  );
+
+  const isUpdateFilled = !!(
+    latestLog &&
+    (latestLog.additionalIssue ||
+      latestLog.progressRemarks ||
+      latestLog.progressPhotoUrl)
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
@@ -435,7 +941,7 @@ function TruckDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to Fleet Status"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -453,14 +959,14 @@ function TruckDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={() => onEdit(truck)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
             <span>Edit Truck</span>
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -475,20 +981,33 @@ function TruckDetailView({
               <Truck className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {truck.plateNumber}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {truck.truckType}
-                </span>
+              {/* Plate Number and Status Container */}
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {truck.plateNumber}
+                </h2>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}
                 >
                   {truck.status}
                 </span>
               </div>
+              {/* Truck Type Container */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {truck.truckType}
+                </span>
+              </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onHistoryClick}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+            >
+              <HistoryIcon className="w-4 h-4" /> History
+            </button>
           </div>
         </div>
 
@@ -540,6 +1059,101 @@ function TruckDetailView({
               </div>
             </div>
           </div>
+
+          {isOnMaintenanceOrOOS && isInspectionFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Preliminary Notes (Before Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver's Report / Observed Vehicle Issues
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.driversReport ||
+                      latestLog?.issue ||
+                      "No preliminary symptoms reported."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.preliminaryRemarks ||
+                      latestLog?.remarks ||
+                      "No preliminary remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken Before Maintenance
+                  </label>
+                  {latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={
+                          latestLog?.preliminaryPhotoUrl || latestLog?.photoUrl
+                        }
+                        alt="Before Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached before maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isOnMaintenanceOrOOS && isUpdateFilled && (
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs animate-fade-in">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Progress Notes (During Maintenance)
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Issue
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.additionalIssue ||
+                      "No additional issues logged."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Additional Remarks
+                  </label>
+                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                    {latestLog?.progressRemarks || "No progress remarks."}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-2">
+                    Picture Taken During Maintenance
+                  </label>
+                  {latestLog?.progressPhotoUrl ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                      <img
+                        src={latestLog?.progressPhotoUrl}
+                        alt="During Maintenance"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                      No photo evidence attached during maintenance.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -560,7 +1174,7 @@ function TruckDetailView({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -569,7 +1183,7 @@ function TruckDetailView({
                   onDelete(truck.id);
                   setShowDeleteModal(false);
                 }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer"
               >
                 Confirm Delete
               </button>
@@ -587,12 +1201,25 @@ function TruckDetailView({
 export default function FleetStatusPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<
-    "All" | "Available" | "On Maintenance" | "On Delivery" | "Out of Service"
+    | "All"
+    | "On Maintenance"
+    | "Available"
+    | "Already Booked"
+    | "On Delivery"
+    | "Out of Service"
   >("All");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<HistoryLogRecord[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
+
+  // === HISTORY VIEW STATES ===
+  const [showTruckHistoryView, setShowTruckHistoryView] = useState(false);
+  const [selectedHistoryRecord, setSelectedHistoryRecord] =
+    useState<HistoryLogRecord | null>(null);
 
   // === TOAST NOTIFICATION STATE ===
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -611,53 +1238,65 @@ export default function FleetStatusPage() {
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
-  // Reset pagination to page 1 whenever the user searches or filters
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectedFilter]);
 
   // ==========================================
-  // LIVE DATABASE CONNECTION (FETCH TRUCKS)
+  // LIVE DATABASE CONNECTION (FETCH DATA)
   // ==========================================
   useEffect(() => {
-    const fetchTrucks = async () => {
-      setIsLoading(true);
-      try {
-        const API_URL =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-        const response = await axios.get(`${API_URL}/api/trucks`);
-
-        const backendData = response.data.data || response.data;
-        let liveData: TruckRecord[] = [];
-
-        if (Array.isArray(backendData)) {
-          liveData = backendData.map((dbTruck: any) => ({
-            id: dbTruck.truckID || crypto.randomUUID(),
-            plateNumber: dbTruck.plateNumber || "N/A",
-            truckType: dbTruck.truckType || "N/A",
-            truckModel: dbTruck.model || "N/A",
-            capacity: dbTruck.capacity ? String(dbTruck.capacity) : "",
-            lastChecked: dbTruck.lastChecked
-              ? dbTruck.lastChecked.split("T")[0]
-              : "",
-            status: dbTruck.truckStatus || "Available",
-          }));
-        }
-
-        setTruckList(liveData);
-      } catch (error) {
-        console.error("Failed to fetch trucks:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchTrucks();
+    fetchLogs();
   }, []);
 
-  // ==========================================
-  // LIVE DATABASE CONNECTION (ADD/EDIT TRUCK)
-  // ==========================================
+  const fetchTrucks = async () => {
+    setIsLoading(true);
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const response = await axios.get(`${API_URL}/api/trucks`);
+
+      const backendData = response.data.data || response.data;
+      let liveData: TruckRecord[] = [];
+
+      if (Array.isArray(backendData)) {
+        liveData = backendData.map((dbTruck: any) => ({
+          id: dbTruck.truckID || crypto.randomUUID(),
+          plateNumber: dbTruck.plateNumber || "N/A",
+          truckType: dbTruck.truckType || "N/A",
+          truckModel: dbTruck.model || "N/A",
+          capacity: dbTruck.capacity ? String(dbTruck.capacity) : "",
+          lastChecked: dbTruck.lastChecked
+            ? dbTruck.lastChecked.split("T")[0]
+            : "",
+          status: dbTruck.truckStatus || "Available",
+        }));
+      }
+
+      setTruckList(liveData);
+    } catch (error) {
+      console.error("Failed to fetch trucks:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const response = await axios.get(`${API_URL}/api/HistoryLogsM`);
+      const result = response.data;
+      if (Array.isArray(result)) {
+        setMaintenanceLogs(result);
+      } else if (result && Array.isArray(result.data)) {
+        setMaintenanceLogs(result.data);
+      }
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+    }
+  };
 
   const handleRowClick = async (id: string | number) => {
     try {
@@ -672,7 +1311,6 @@ export default function FleetStatusPage() {
 
   const handleModalSubmit = async (record: TruckRecord) => {
     try {
-      // Before calling the backend, check if the record was actually modified during an edit
       if (editingTruck) {
         const originalDate = editingTruck.lastChecked
           ? editingTruck.lastChecked.split("T")[0]
@@ -687,7 +1325,6 @@ export default function FleetStatusPage() {
           record.lastChecked !== originalDate;
 
         if (!isChanged) {
-          // If no fields were modified, do not update backend and show info message
           setToastMessage("No changes were made.");
           setEditingTruck(null);
           setIsModalOpen(false);
@@ -698,16 +1335,25 @@ export default function FleetStatusPage() {
       const API_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+      // 🚀 ALIGN PAYLOAD WITH DATABASE SCHEMA COLUMNS
+      const payload = {
+        plateNumber: record.plateNumber,
+        truckType: record.truckType,
+        model: record.truckModel,
+        capacity: Number(record.capacity) || 0,
+        lastChecked: record.lastChecked
+          ? new Date(record.lastChecked).toISOString()
+          : new Date().toISOString(),
+        truckStatus: record.status,
+      };
+
       if (editingTruck) {
         if (!record.id) {
           alert("🚨 Bug Caught: The Truck ID is missing! Cannot update.");
           return;
         }
 
-        console.log(
-          `[FRONTEND] 🟡 Sending PUT to: ${API_URL}/api/trucks/${record.id}`,
-        );
-        await axios.put(`${API_URL}/api/trucks/${record.id}`, record);
+        await axios.put(`${API_URL}/api/trucks/${record.id}`, payload);
 
         setTruckList((prev) =>
           prev.map((t) => (t.id === record.id ? record : t)),
@@ -717,8 +1363,7 @@ export default function FleetStatusPage() {
         }
         setToastMessage("Changes saved successfully.");
       } else {
-        console.log(`[FRONTEND] 🟢 Sending POST to: ${API_URL}/api/trucks`);
-        const response = await axios.post(`${API_URL}/api/trucks`, record);
+        const response = await axios.post(`${API_URL}/api/trucks`, payload);
 
         const dbTruck = response.data;
         const uiRecord: TruckRecord = {
@@ -765,6 +1410,9 @@ export default function FleetStatusPage() {
   const maintenanceCount = truckList.filter(
     (t) => t.status === "On Maintenance",
   ).length;
+  const alreadyBookedCount = truckList.filter(
+    (t) => t.status === "Already Booked",
+  ).length;
   const deliveryCount = truckList.filter(
     (t) => t.status === "On Delivery",
   ).length;
@@ -772,7 +1420,6 @@ export default function FleetStatusPage() {
     (t) => t.status === "Out of Service",
   ).length;
 
-  // 1. Filter the entire list first
   const filteredTrucks = truckList.filter((truck) => {
     const matchesSearch =
       truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -783,33 +1430,42 @@ export default function FleetStatusPage() {
     return matchesSearch && matchesTab;
   });
 
-  // 2. Pagination Math based on filtered results
   const totalPages = Math.ceil(filteredTrucks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-
-  // 3. Slice exactly 10 entries for the current page
   const currentTrucks = filteredTrucks.slice(startIndex, endIndex);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
-      {/* === CONDITIONAL RENDER: SHOW DETAIL VIEW === */}
-      {selectedTruck ? (
-        <>
-          <TruckDetailView
-            truck={selectedTruck}
-            onBack={() => setSelectedTruck(null)}
-            onEdit={(truckRecord) => {
-              setEditingTruck(truckRecord);
-              setIsModalOpen(true);
-            }}
-            onDelete={handleDeleteTruck}
-          />
-        </>
+      {/* ================= CONDITIONAL VIEWS ================= */}
+      {selectedHistoryRecord ? (
+        <LogDetailView
+          log={selectedHistoryRecord}
+          onBack={() => setSelectedHistoryRecord(null)}
+        />
+      ) : showTruckHistoryView && selectedTruck ? (
+        <TruckSpecificHistoryView
+          truck={selectedTruck}
+          logs={maintenanceLogs}
+          onBack={() => setShowTruckHistoryView(false)}
+          onSelectLog={(log) => setSelectedHistoryRecord(log)}
+        />
+      ) : selectedTruck ? (
+        <TruckDetailView
+          truck={selectedTruck}
+          logs={maintenanceLogs}
+          onBack={() => setSelectedTruck(null)}
+          onEdit={(truckRecord) => {
+            setEditingTruck(truckRecord);
+            setIsModalOpen(true);
+          }}
+          onDelete={handleDeleteTruck}
+          onHistoryClick={() => setShowTruckHistoryView(true)}
+        />
       ) : (
         <>
           {/* === MAIN FLEET STATUS LIST VIEW === */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 Fleet Status (Admin Portal)
@@ -835,7 +1491,7 @@ export default function FleetStatusPage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            {/* Search & Filter Bar Container - Cloned from Mechanic logic */}
+            {/* Search & Filter Bar Container */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
                 <button
@@ -848,6 +1504,7 @@ export default function FleetStatusPage() {
                 >
                   All ({totalCount})
                 </button>
+
                 <button
                   onClick={() => setSelectedFilter("Available")}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
@@ -867,6 +1524,16 @@ export default function FleetStatusPage() {
                   }`}
                 >
                   On Maintenance ({maintenanceCount})
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("Already Booked")}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    selectedFilter === "Already Booked"
+                      ? getStatusStyles("Already Booked").tabActive
+                      : getStatusStyles("Already Booked").bgLight
+                  }`}
+                >
+                  Already Booked ({alreadyBookedCount})
                 </button>
                 <button
                   onClick={() => setSelectedFilter("On Delivery")}
@@ -902,7 +1569,7 @@ export default function FleetStatusPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto relative z-10 min-h-75">
+            <div className="overflow-x-auto relative z-10 pb-32 min-h-75">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -953,7 +1620,6 @@ export default function FleetStatusPage() {
                             </div>
                           </td>
 
-                          {/* Display Only - No Dropdown Interactive Elements */}
                           <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                             <div className="relative inline-block text-right z-10">
                               <div
@@ -1053,7 +1719,6 @@ export default function FleetStatusPage() {
               }`}
             >
               {toastMessage === "No changes were made." ? (
-                // Info icon for no changes
                 <svg
                   className="w-3.5 h-3.5 text-white"
                   fill="none"
@@ -1068,7 +1733,6 @@ export default function FleetStatusPage() {
                   />
                 </svg>
               ) : (
-                // Checkmark for success
                 <svg
                   className="w-3.5 h-3.5 text-white"
                   fill="none"

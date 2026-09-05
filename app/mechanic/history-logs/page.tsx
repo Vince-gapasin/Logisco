@@ -3,7 +3,7 @@
 // ==========================================
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   FileText,
@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Truck,
   ChevronDown,
+  Upload,
 } from "lucide-react";
 
 // ==========================================
@@ -34,6 +35,13 @@ export interface HistoryLogRecord {
   issue: string;
   remarks: string;
   date: string;
+  photoUrl?: string; // Ready for Supabase storage URL
+  driversReport?: string;
+  preliminaryRemarks?: string;
+  preliminaryPhotoUrl?: string;
+  additionalIssue?: string;
+  progressRemarks?: string;
+  progressPhotoUrl?: string;
 }
 
 // DEFINE TYPES FOR DROPDOWNS
@@ -76,6 +84,13 @@ function LogMaintenanceModal({
     additionalMechanicID: "",
     issue: "",
     remarks: "",
+    photoUrl: "",
+    driversReport: "",
+    preliminaryRemarks: "",
+    preliminaryPhotoUrl: "",
+    additionalIssue: "",
+    progressRemarks: "",
+    progressPhotoUrl: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -85,6 +100,10 @@ function LogMaintenanceModal({
   const [isPrimaryDropdownOpen, setIsPrimaryDropdownOpen] = useState(false);
   const [isAdditionalDropdownOpen, setIsAdditionalDropdownOpen] =
     useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const prelimFileInputRef = useRef<HTMLInputElement | null>(null);
+  const progressFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -97,6 +116,13 @@ function LogMaintenanceModal({
         additionalMechanicID: editData.additionalMechanicID || "",
         issue: editData.issue || "",
         remarks: editData.remarks || "",
+        photoUrl: editData.photoUrl || "",
+        driversReport: editData.driversReport || "",
+        preliminaryRemarks: editData.preliminaryRemarks || "",
+        preliminaryPhotoUrl: editData.preliminaryPhotoUrl || "",
+        additionalIssue: editData.additionalIssue || "",
+        progressRemarks: editData.progressRemarks || "",
+        progressPhotoUrl: editData.progressPhotoUrl || "",
       });
     } else {
       setFormData(initialFormState);
@@ -126,6 +152,45 @@ function LogMaintenanceModal({
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePrelimFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          preliminaryPhotoUrl: reader.result as string,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleProgressFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          progressPhotoUrl: reader.result as string,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
@@ -141,6 +206,8 @@ function LogMaintenanceModal({
       newErrors.primaryMechanicID = "Primary mechanic is required.";
     if (!formData.issue.trim())
       newErrors.issue = "Issue / work performed is required.";
+    if (!formData.additionalIssue.trim())
+      newErrors.additionalIssue = "Additional issue is required.";
 
     if (
       formData.additionalMechanicID &&
@@ -154,12 +221,9 @@ function LogMaintenanceModal({
       return;
     }
 
-    // Trigger the save operation in the parent component.
-    // The state-clearing logic is removed here to prevent the UI glitch.
     onSubmitSuccess(formData);
   };
 
-  // Filter out Primary Mechanic from Additional Mechanic options
   const availableAdditionalMechanics = mechanicsOptions.filter(
     (emp) => emp.employeeID !== formData.primaryMechanicID,
   );
@@ -175,7 +239,7 @@ function LogMaintenanceModal({
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -471,7 +535,7 @@ function LogMaintenanceModal({
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Issue / Work Performed *
+                  Work Performed *
                 </label>
                 <textarea
                   name="issue"
@@ -508,19 +572,64 @@ function LogMaintenanceModal({
             </div>
           </div>
 
+          {/* Section 3: Photo Evidence */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. {editData ? "Photo Evidence" : "Upload Photo Evidence"}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-black mb-1">
+                {editData
+                  ? "Update Maintenance Photo"
+                  : "Upload Maintenance Photo (Optional)"}
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />{" "}
+                  {formData.photoUrl ? "Change File" : "Choose File"}
+                </button>
+                <span className="text-xs text-slate-500 truncate max-w-xs">
+                  {formData.photoUrl
+                    ? "Photo attached successfully"
+                    : "No file chosen"}
+                </span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+              {formData.photoUrl && (
+                <div className="mt-3 relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                  <img
+                    src={formData.photoUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
             >
               {editData ? "Save Changes" : "Save Log"}
             </button>
@@ -550,7 +659,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to History Logs"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -568,14 +677,14 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => onEdit(log)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Edit3 className="w-4 h-4" />
             <span>Edit Log</span>
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -671,7 +780,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Issue / Work Performed
+                  Work Performed
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
                   {log.issue}
@@ -681,9 +790,115 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
                 <label className="block text-xs font-medium text-black mb-1">
                   Remarks
                 </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-24 whitespace-pre-wrap">
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
                   {log.remarks || "No additional remarks."}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              3. Photo Evidence
+            </div>
+            {log.photoUrl ? (
+              <div className="relative w-48 h-48 sm:w-64 sm:h-64 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                <img
+                  src={log.photoUrl}
+                  alt="Maintenance Evidence"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="text-xs text-slate-500 italic py-2">
+                No photo evidence attached to this record.
+              </div>
+            )}
+          </div>
+
+          {/* Section 4: Preliminary Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Preliminary Notes (Before Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Driver's Report / Observed Vehicle Issues
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.driversReport ||
+                    "No preliminary vehicle issues reported."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.preliminaryRemarks || "No preliminary remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken Before Maintenance
+                </label>
+                {log.preliminaryPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.preliminaryPhotoUrl}
+                      alt="Before Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached before maintenance.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Progress Notes */}
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              Progress Notes (During Maintenance)
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Issue
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.additionalIssue || "No additional issues logged."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Additional Remarks
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">
+                  {log.progressRemarks || "No additional remarks."}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-2">
+                  Picture Taken During Maintenance
+                </label>
+                {log.progressPhotoUrl ? (
+                  <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                    <img
+                      src={log.progressPhotoUrl}
+                      alt="During Maintenance"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic p-3 border border-dashed border-slate-300 rounded-md bg-slate-50 w-fit">
+                    No photo evidence attached during maintenance.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -708,7 +923,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -717,7 +932,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
                   onDelete(log.id);
                   setShowDeleteModal(false);
                 }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer"
               >
                 Confirm Delete
               </button>
@@ -736,11 +951,9 @@ export default function MechanicHistoryLogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // View & Edit States
   const [selectedLog, setSelectedLog] = useState<HistoryLogRecord | null>(null);
   const [editingLog, setEditingLog] = useState<HistoryLogRecord | null>(null);
 
-  // Database States
   const [logsList, setLogsList] = useState<HistoryLogRecord[]>([]);
   const [trucksOptions, setTrucksOptions] = useState<TruckOption[]>([]);
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>(
@@ -748,7 +961,6 @@ export default function MechanicHistoryLogsPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  // Toast Notification State (Mapped from Fleet Status)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -758,15 +970,12 @@ export default function MechanicHistoryLogsPage() {
     }
   }, [toastMessage]);
 
-  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Environment Config
   const API_URL =
     process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
-  // Initial Fetching
   useEffect(() => {
     fetchLogs();
     fetchDropdownOptions();
@@ -796,13 +1005,10 @@ export default function MechanicHistoryLogsPage() {
 
   const fetchDropdownOptions = async () => {
     try {
-      // Assuming you have a /api/trucks route on your Express server
       const truckRes = await fetch(`${API_URL}/api/trucks`);
       const truckData = await truckRes.json();
-      // Ensure we extract the array whether it's wrapped in { data: [...] } or just [...]
       setTrucksOptions(truckData.data || truckData || []);
 
-      // Assuming you have a /api/employees route (can filter by role=Mechanic if needed)
       const empRes = await fetch(`${API_URL}/api/employees?role=Mechanic`);
       const empData = await empRes.json();
       setMechanicsOptions(empData.data || empData || []);
@@ -811,7 +1017,6 @@ export default function MechanicHistoryLogsPage() {
     }
   };
 
-  // Reset pagination when searching
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
@@ -819,7 +1024,6 @@ export default function MechanicHistoryLogsPage() {
   const handleModalSubmit = async (formData: any) => {
     try {
       if (editingLog) {
-        // Detect Actual Changes before executing PUT
         const originalDate = editingLog.date
           ? editingLog.date.split("T")[0]
           : "";
@@ -831,7 +1035,19 @@ export default function MechanicHistoryLogsPage() {
           formData.additionalMechanicID !==
             (editingLog.additionalMechanicID || "") ||
           formData.issue.trim() !== String(editingLog.issue || "").trim() ||
-          formData.remarks.trim() !== String(editingLog.remarks || "").trim();
+          formData.remarks.trim() !== String(editingLog.remarks || "").trim() ||
+          formData.photoUrl !== (editingLog.photoUrl || "") ||
+          formData.driversReport?.trim() !==
+            String(editingLog.driversReport || "").trim() ||
+          formData.preliminaryRemarks?.trim() !==
+            String(editingLog.preliminaryRemarks || "").trim() ||
+          formData.preliminaryPhotoUrl !==
+            (editingLog.preliminaryPhotoUrl || "") ||
+          formData.additionalIssue?.trim() !==
+            String(editingLog.additionalIssue || "").trim() ||
+          formData.progressRemarks?.trim() !==
+            String(editingLog.progressRemarks || "").trim() ||
+          formData.progressPhotoUrl !== (editingLog.progressPhotoUrl || "");
 
         if (!isChanged) {
           setToastMessage("No changes were made.");
@@ -850,11 +1066,14 @@ export default function MechanicHistoryLogsPage() {
         );
         if (response.ok) {
           await fetchLogs();
-          if (selectedLog?.id === editingLog.id) setSelectedLog(null); // Return to list view
+
+          // Re-fetch the updated selected log into view if we just edited it
+          setSelectedLog((prev) =>
+            prev?.id === editingLog.id ? { ...prev, ...formData } : prev,
+          );
           setToastMessage("Changes saved successfully.");
         }
       } else {
-        // CREATE Request
         const response = await fetch(`${API_URL}/api/HistoryLogsM`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -888,7 +1107,6 @@ export default function MechanicHistoryLogsPage() {
     }
   };
 
-  // Search filter
   const filteredLogs = logsList.filter((log) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -900,7 +1118,6 @@ export default function MechanicHistoryLogsPage() {
     );
   });
 
-  // Pagination calculation
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -932,7 +1149,6 @@ export default function MechanicHistoryLogsPage() {
               </p>
             </div>
 
-            {/* Action Button: Log Maintenance */}
             <button
               onClick={() => {
                 setEditingLog(null);
@@ -945,9 +1161,7 @@ export default function MechanicHistoryLogsPage() {
             </button>
           </div>
 
-          {/* ================= MAIN CONTENT CARD ================= */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Search Bar Container */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
@@ -969,8 +1183,7 @@ export default function MechanicHistoryLogsPage() {
               </div>
             </div>
 
-            {/* Data Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto px-4 sm:px-6">
               {isLoading ? (
                 <div className="flex items-center justify-center py-20">
                   <div className="text-sm font-medium text-slate-500 animate-pulse">
@@ -978,21 +1191,25 @@ export default function MechanicHistoryLogsPage() {
                   </div>
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse">
+                <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3.5 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 w-1/2 text-left">
+                      <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
+                      <th className="py-3.5 px-4 w-1/4 text-left">
                         Plate Number
                       </th>
-                      <th className="py-3.5 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 w-1/2 text-right">
-                        Date
+                      <th className="py-3.5 px-4 w-1/4 text-left">
+                        Status Before Change
+                      </th>
+                      <th className="py-3.5 px-4 w-1/4 text-right">
+                        Current Status
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                     {paginatedLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={2} className="py-16 sm:py-20 text-center">
+                        <td colSpan={4} className="py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                               <FileText className="w-6 h-6" />
@@ -1015,8 +1232,17 @@ export default function MechanicHistoryLogsPage() {
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                           title="Click to view complete maintenance log"
                         >
-                          {/* Left Column: Plate Number, Truck Type, Mechanic, Issue */}
-                          <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
+                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                            <div className="text-sm font-medium text-slate-800">
+                              {new Date(log.date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </div>
+                          </td>
+
+                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
                             <div className="font-semibold text-slate-900 truncate">
                               {log.plateNumber}
                               <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
@@ -1034,15 +1260,12 @@ export default function MechanicHistoryLogsPage() {
                             </div>
                           </td>
 
-                          {/* Right Column: Date */}
-                          <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right align-top sm:align-middle">
-                            <div className="text-sm font-medium text-slate-800">
-                              {new Date(log.date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </div>
+                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                            <span className="text-xs text-slate-400">—</span>
+                          </td>
+
+                          <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                            <span className="text-xs text-slate-400">—</span>
                           </td>
                         </tr>
                       ))
@@ -1052,7 +1275,6 @@ export default function MechanicHistoryLogsPage() {
               )}
             </div>
 
-            {/* Dynamic Pagination Footer */}
             <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
               <span>
                 Showing {filteredLogs.length === 0 ? 0 : startIndex + 1} to{" "}
@@ -1092,7 +1314,6 @@ export default function MechanicHistoryLogsPage() {
         </>
       )}
 
-      {/* Global Form Modal */}
       <LogMaintenanceModal
         isOpen={isModalOpen}
         onClose={() => {
@@ -1105,7 +1326,6 @@ export default function MechanicHistoryLogsPage() {
         mechanicsOptions={mechanicsOptions}
       />
 
-      {/* Fleet Status Toast Notification Component */}
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">

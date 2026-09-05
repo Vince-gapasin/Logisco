@@ -89,7 +89,8 @@ export default function LoginPage() {
         } else if (role === "driver") {
           targetRoute = "/driver";
         } else if (role === "mechanic") {
-          targetRoute = "/mechanic"; 
+          // 🚀 FIX: Redirect mechanics to their own isolated portal
+          targetRoute = "/mechanic/fleet-status"; 
         } else if (role === "helper") {
           targetRoute = "/helper";
         } else {
