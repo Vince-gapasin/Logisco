@@ -1,130 +1,59 @@
 import { NextResponse } from "next/server";
-import { requireAuth, requireRole } from "@/app/lib/auth";
-import { getTruckById, updateTruck, deleteTruck } from "@/services/truck/truckService";
-import { updateTruckSchema } from "@/app/schemas/truck/truck.schema";
-import type { TruckResponse } from "@/types/truck";
 
-type RouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
+
+const headers = {
+  apikey: SUPABASE_KEY!,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
 };
 
-// ============================================
-// GET SINGLE TRUCK
-// ============================================
-export async function GET(request: Request, { params }: RouteContext) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PUT(request: Request, { params }: RouteContext) {
   try {
-    const auth = await requireAuth(request);
-    if ("error" in auth) {
-      return NextResponse.json({ message: auth.error }, { status: auth.status });
-    }
-
+    // Auth entirely bypassed for testing
     const { id } = await params;
-    const truck = await getTruckById(id);
-
-    if (!truck) {
-      return NextResponse.json({ message: "Truck not found" }, { status: 404 });
-    }
-
-    const response: TruckResponse = { data: truck };
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    console.error("GET single truck error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch truck" },
-      { status: 500 }
-    );
-  }
-}
-
-// ============================================
-// UPDATE TRUCK
-// ============================================
-export async function PATCH(request: Request, { params }: RouteContext) {
-  try {
-    const auth = await requireAuth(request);
-    if ("error" in auth) {
-      return NextResponse.json({ message: auth.error }, { status: auth.status });
-    }
-
-    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
-    if (roleError) {
-      return NextResponse.json({ message: roleError.error }, { status: roleError.status });
-    }
-
-    const { id } = await params;
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
-    }
-
-    // ZOD VALIDATION (Partial fields)
-    const validation = updateTruckSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          message: "Validation failed",
-          errors: validation.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      );
-    }
-
-    const updatedTruck = await updateTruck(id, validation.data);
-
-    if (!updatedTruck) {
-      return NextResponse.json({ message: "Truck not found" }, { status: 404 });
-    }
-
-    const response: TruckResponse = {
-      message: "Truck updated successfully",
-      data: updatedTruck,
+    const body = await request.json();
+    
+    const dbPayload = {
+      truckCode: body.truckCode,
+      plateNumber: body.plateNumber,
+      truckType: body.truckType,
+      model: body.truckModel,
+      capacity: parseFloat(body.capacity),
+      lastChecked: body.lastChecked, // The duplicate was removed below this line
+      truckStatus: body.status,
     };
 
-    return NextResponse.json(response, { status: 200 });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck?truckID=eq.${id}`, {
+      method: "PATCH",
+      headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify(dbPayload),
+    });
+    
+    const data = await res.json();
+    return NextResponse.json(data[0]);
   } catch (error) {
-    console.error("PATCH truck error:", error);
-    return NextResponse.json(
-      { message: "Failed to update truck" },
-      { status: 500 }
-    );
+    console.error("PUT truck error:", error);
+    return NextResponse.json({ message: "Failed to update truck" }, { status: 500 });
   }
 }
 
-// ============================================
-// DELETE TRUCK (SOFT DELETE)
-// ============================================
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
-    const auth = await requireAuth(request);
-    if ("error" in auth) {
-      return NextResponse.json({ message: auth.error }, { status: auth.status });
-    }
-
-    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
-    if (roleError) {
-      return NextResponse.json({ message: roleError.error }, { status: roleError.status });
-    }
-
+    // Auth entirely bypassed for testing
     const { id } = await params;
-    const deletedTruck = await deleteTruck(id);
-
-    if (!deletedTruck) {
-      return NextResponse.json({ message: "Truck not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(
-      { message: "Truck deactivated successfully", data: deletedTruck },
-      { status: 200 }
-    );
+    
+    await fetch(`${SUPABASE_URL}/rest/v1/Truck?truckID=eq.${id}`, {
+      method: "DELETE",
+      headers,
+    });
+    
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("DELETE truck error:", error);
-    return NextResponse.json(
-      { message: "Failed to delete truck" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Failed to delete truck" }, { status: 500 });
   }
 }

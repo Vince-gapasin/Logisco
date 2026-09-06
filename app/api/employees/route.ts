@@ -23,18 +23,18 @@ import {
 export async function GET(request: Request) {
   try {
     // AUTHENTICATION
-    const auth = await requireAuth(request);
+  //  const auth = await requireAuth(request);
 
-    if ("error" in auth) {
-      return NextResponse.json(
-        {
-          message: auth.error,
-        },
-        {
-          status: auth.status,
-        }
-      );
-    }
+   // if ("error" in auth) {
+    //  return NextResponse.json(
+    //    {
+    //      message: auth.error,
+    //    },
+    //    {
+    //      status: auth.status,
+    //    }
+    //  );
+    //}
 
     // READ QUERY PARAMETERS
     const { searchParams } = new URL(

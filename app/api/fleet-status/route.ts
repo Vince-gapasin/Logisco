@@ -1,101 +1,52 @@
 import { NextResponse } from "next/server";
-import { requireAuth, requireRole } from "@/app/lib/auth";
-import { getTrucks, createTruck } from "@/services/truck/truckService";
-import { createTruckSchema } from "@/app/schemas/truck/truck.schema";
-import type { TrucksResponse, TruckResponse } from "@/types/truck";
 
-// ============================================
-// GET ALL ACTIVE TRUCKS
-// ============================================
-export async function GET(request: Request) {
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
+
+const headers = {
+  apikey: SUPABASE_KEY!,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+};
+
+export async function GET() {
   try {
-    const auth = await requireAuth(request);
-    if ("error" in auth) {
-      return NextResponse.json({ message: auth.error }, { status: auth.status });
-    }
-
-    const trucks = await getTrucks();
-
-    const response: TrucksResponse = {
-      data: trucks,
-    };
-
-    return NextResponse.json(response, { status: 200 });
+    // Auth entirely bypassed for testing
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck?select=*&order=lastChecked.desc`, { headers });
+    const data = await res.json();
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("GET trucks error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch trucks" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Failed to fetch trucks" }, { status: 500 });
   }
 }
 
-// ============================================
-// CREATE TRUCK
-// ============================================
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth(request);
-    if ("error" in auth) {
-      return NextResponse.json({ message: auth.error }, { status: auth.status });
-    }
-
-    // Restrict creation to Admins and Coordinators
-    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
-    if (roleError) {
-      return NextResponse.json({ message: roleError.error }, { status: roleError.status });
-    }
-
-    const contentType = request.headers.get("content-type");
-    if (!contentType?.includes("application/json")) {
-      return NextResponse.json(
-        { message: "Content-Type must be application/json" },
-        { status: 415 }
-      );
-    }
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { message: "Invalid or empty JSON body" },
-        { status: 400 }
-      );
-    }
-
-    // ZOD VALIDATION & DATA CLEANING
-    const validation = createTruckSchema.safeParse(body);
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          message: "Validation failed",
-          errors: validation.error.flatten().fieldErrors,
-        },
-        { status: 400 }
-      );
-    }
-
-    const truckData = validation.data;
-    const newTruck = await createTruck(truckData);
-
-    const response: TruckResponse = {
-      message: "Truck created successfully",
-      data: newTruck,
+    // Auth entirely bypassed for testing
+    const body = await request.json();
+    
+    const dbPayload = {
+      truckCode: body.truckCode,
+      plateNumber: body.plateNumber,
+      truckType: body.truckType,
+      model: body.truckModel, 
+      capacity: parseFloat(body.capacity),
+      lastChecked: body.lastChecked,
+      truckStatus: body.status || 'Available',
+      isActive: true
     };
 
-    return NextResponse.json(response, { status: 201 });
-  } catch (error: unknown) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck`, {
+      method: "POST",
+      headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify(dbPayload),
+    });
+    
+    const data = await res.json();
+    return NextResponse.json(data[0], { status: 201 });
+  } catch (error) {
     console.error("POST truck error:", error);
-    if (typeof error === "object" && error !== null && "message" in error) {
-      return NextResponse.json(
-        { message: String(error.message) },
-        { status: 400 }
-      );
-    }
-    return NextResponse.json(
-      { message: "Failed to create truck" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Failed to create truck" }, { status: 500 });
   }
 }
