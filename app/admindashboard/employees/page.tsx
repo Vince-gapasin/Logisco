@@ -194,7 +194,6 @@ interface MessageResponse {
 // ==========================================
 
 const ITEMS_PER_PAGE = 10;
-
 const SESSION_KEY = "logisco_user_session";
 
 // ==========================================
@@ -264,7 +263,6 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 
     if (response.status === 401) {
       localStorage.removeItem(SESSION_KEY);
-
       sessionStorage.removeItem(SESSION_KEY);
     }
 
@@ -300,68 +298,38 @@ function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
 
   return {
     id: employee.employeeID,
-
     firstName,
-
     middleName: employee.middleName || "",
-
     lastName,
-
     suffix: employee.suffix || "",
-
     role: employee.role,
-
     availability: employee.availability || "",
-
     gender: employee.gender || "",
-
     birthdate: employee.birthdate || "",
-
     address: employee.address || "",
-
     contactNumber: employee.contact || "",
-
     emailAddress: employee.emailAddress || "",
-
     bloodType: employee.bloodType || "",
-
     nationality: employee.nationality || "",
-
     religion: employee.religion || "",
-
     dateEmployed: employee.dateEmployed || "",
-
     driverLicenseType: employee.driverLicenseType || "",
-
     licenseNumber: employee.licenseNumber || "",
-
     licenseExpirationDate: employee.licenseExpirationDate || "",
-
     drivingExperience:
       employee.drivingExperience !== null
         ? String(employee.drivingExperience)
         : "",
-
     healthCondition: employee.healthStatus || "",
-
     drugTestStatus: employee.drugTestStatus || "",
-
     lastMedicalCheckup: employee.lastMedicalCheckup || "",
-
     emergencyContactPerson: employee.emergencyContactPerson || "",
-
     emergencyContactNumber: employee.emergencyContactNumber || "",
-
     relationship: employee.relationship || "",
-
     skills: employee.skills || "",
-
     remarks: employee.remarks || "",
-
     authId: employee.auth_id,
-
     isActive: employee.isActive === true,
-
     activation_sent_at: employee.activation_sent_at,
   };
 }
@@ -394,7 +362,6 @@ function ReadField({ label, value }: { label: string; value?: string | null }) {
       <label className="block text-xs font-medium text-black mb-1">
         {label}
       </label>
-
       <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8">
         {value || "N/A"}
       </div>
@@ -412,39 +379,27 @@ function getInitialFormState(): EmployeeFormState {
     middleName: "",
     lastName: "",
     suffix: "",
-
     gender: "",
     birthdate: "",
-
     address: "",
     contactNumber: "",
     emailAddress: "",
-
     bloodType: "",
     nationality: "Filipino",
     religion: "",
-
     role: "",
-
     availability: "Available",
-
     dateEmployed: "",
-
     driverLicenseType: "",
     licenseNumber: "",
     licenseExpirationDate: "",
     drivingExperience: "",
-
     healthCondition: "",
     drugTestStatus: "",
     lastMedicalCheckup: "",
-
     emergencyContactPerson: "",
-
     emergencyContactNumber: "",
-
     relationship: "",
-
     skills: "",
     certificates: null,
     remarks: "",
@@ -457,14 +412,11 @@ function getInitialFormState(): EmployeeFormState {
 
 interface EmployeeModalProps {
   isOpen: boolean;
-
   onClose: () => void;
-
   onSubmitSuccess: (
     formData: EmployeeFormState,
     editData?: EmployeeRecord | null,
   ) => Promise<void>;
-
   editData?: EmployeeRecord | null;
 }
 
@@ -479,14 +431,7 @@ function EmployeeModal({
   );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Custom Dropdown
-  const [isGenderOpen, setIsGenderOpen] = useState(false);
-  const [isBloodTypeOpen, setIsBloodTypeOpen] = useState(false);
-  const [isRoleOpen, setIsRoleOpen] = useState(false);
-  const [isDrugTestOpen, setIsDrugTestOpen] = useState(false);
 
   // ==========================================
   // LOAD EDIT DATA
@@ -496,71 +441,43 @@ function EmployeeModal({
     if (editData) {
       setFormData({
         firstName: editData.firstName,
-
         middleName: editData.middleName,
-
         lastName: editData.lastName,
-
         suffix: editData.suffix,
-
         gender: editData.gender,
-
         birthdate: editData.birthdate ? editData.birthdate.split("T")[0] : "",
-
         address: editData.address,
-
         contactNumber: editData.contactNumber,
-
         emailAddress: editData.emailAddress,
-
         bloodType: editData.bloodType,
-
         nationality: editData.nationality || "Filipino",
-
         religion: editData.religion,
-
         role: editData.role,
-
         availability: editData.availability,
-
         dateEmployed: editData.dateEmployed
           ? editData.dateEmployed.split("T")[0]
           : "",
-
         driverLicenseType: editData.driverLicenseType,
-
         licenseNumber: editData.licenseNumber,
-
         licenseExpirationDate: editData.licenseExpirationDate
           ? editData.licenseExpirationDate.split("T")[0]
           : "",
-
         drivingExperience: editData.drivingExperience,
-
         healthCondition: editData.healthCondition,
-
         drugTestStatus: editData.drugTestStatus,
-
         lastMedicalCheckup: editData.lastMedicalCheckup
           ? editData.lastMedicalCheckup.split("T")[0]
           : "",
-
         emergencyContactPerson: editData.emergencyContactPerson,
-
         emergencyContactNumber: editData.emergencyContactNumber,
-
         relationship: editData.relationship,
-
         skills: editData.skills,
-
         certificates: null,
-
         remarks: editData.remarks,
       });
     } else {
       setFormData(getInitialFormState());
     }
-
     setErrors({});
   }, [editData, isOpen]);
 
@@ -573,17 +490,14 @@ function EmployeeModal({
   // ==========================================
 
   const handleInputChange = (
-    event:
-      | React.ChangeEvent<
-          HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-        >
-      | { target: { name: string; value: any } },
+    event: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) => {
-    const { name, value } = event.target as HTMLInputElement;
+    const { name, value } = event.target;
 
-    if (name === "certificates" && (event.target as HTMLInputElement).files) {
-      const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-
+    if (name === "certificates" && event.target instanceof HTMLInputElement) {
+      const file = event.target.files?.[0] ?? null;
       setFormData((previous) => ({
         ...previous,
         certificates: file,
@@ -609,12 +523,7 @@ function EmployeeModal({
 
   const handleClose = () => {
     setFormData(getInitialFormState());
-
     setErrors({});
-    setIsGenderOpen(false);
-    setIsBloodTypeOpen(false);
-    setIsRoleOpen(false);
-    setIsDrugTestOpen(false);
     onClose();
   };
 
@@ -680,13 +589,11 @@ function EmployeeModal({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-
       return;
     }
 
     try {
       setIsSubmitting(true);
-
       await onSubmitSuccess(formData, editData);
     } finally {
       setIsSubmitting(false);
@@ -705,7 +612,6 @@ function EmployeeModal({
           <h2 className="text-xl font-bold tracking-wide">
             {editData ? "Edit Employee Record" : "New Employee Form"}
           </h2>
-
           <button
             type="button"
             onClick={handleClose}
@@ -726,7 +632,6 @@ function EmployeeModal({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Personal Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -740,19 +645,16 @@ function EmployeeModal({
                   placeholder="Enter first name"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.firstName && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.firstName}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Middle Name
                 </label>
-
                 <input
                   type="text"
                   name="middleName"
@@ -762,12 +664,10 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Last Name *
                 </label>
-
                 <input
                   type="text"
                   name="lastName"
@@ -776,14 +676,12 @@ function EmployeeModal({
                   placeholder="Enter last name"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.lastName && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.lastName}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Suffix
@@ -797,71 +695,26 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
-              {/* Gender Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Gender
                 </label>
-                <div
-                  className={`relative w-full ${isGenderOpen ? "z-70" : "z-10"}`}
-                  onClick={(e) => e.stopPropagation()}
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleInputChange}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
-                  {isGenderOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsGenderOpen(false)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsGenderOpen(!isGenderOpen)}
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
-                  >
-                    <span
-                      className={
-                        formData.gender ? "text-black" : "text-slate-400"
-                      }
-                    >
-                      {formData.gender || "Select gender"}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
-                        isGenderOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  {isGenderOpen && (
-                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
-                      {["Male", "Female", "Prefer not to say"].map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => {
-                            handleInputChange({
-                              target: { name: "gender", value: opt },
-                            });
-                            setIsGenderOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
-                            formData.gender === opt
-                              ? "bg-blue-50/50 text-blue-700 font-medium"
-                              : "text-slate-700"
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Birthdate
                 </label>
-
                 <input
                   type="date"
                   name="birthdate"
@@ -870,12 +723,10 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-black mb-1">
                   Address *
                 </label>
-
                 <input
                   type="text"
                   name="address"
@@ -884,19 +735,16 @@ function EmployeeModal({
                   placeholder="Enter residential address"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.address && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.address}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Contact Number *
                 </label>
-
                 <input
                   type="text"
                   name="contactNumber"
@@ -905,33 +753,24 @@ function EmployeeModal({
                   placeholder="Enter contact number"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.contactNumber && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.contactNumber}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Email Address *
                 </label>
-
                 <input
                   type="email"
                   name="emailAddress"
                   value={formData.emailAddress}
                   onChange={handleInputChange}
                   disabled={Boolean(editData)}
-                  placeholder="Enter email"
-                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${
-                    Boolean(editData)
-                      ? "bg-slate-100 text-slate-500 border-slate-300"
-                      : errors.emailAddress
-                        ? "bg-red-50/20 border-red-500 text-black"
-                        : "bg-white border-slate-300 text-black"
-                  }`}
+                  placeholder="Enter email address"
+                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-[11px] mt-1">
@@ -939,73 +778,31 @@ function EmployeeModal({
                   </p>
                 )}
               </div>
-
-              {/* Blood Type Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Blood Type
                 </label>
-                <div
-                  className={`relative w-full ${isBloodTypeOpen ? "z-70" : "z-10"}`}
-                  onClick={(e) => e.stopPropagation()}
+                <select
+                  name="bloodType"
+                  value={formData.bloodType}
+                  onChange={handleInputChange}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
-                  {isBloodTypeOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsBloodTypeOpen(false)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsBloodTypeOpen(!isBloodTypeOpen)}
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
-                  >
-                    <span
-                      className={
-                        formData.bloodType ? "text-black" : "text-slate-400"
-                      }
-                    >
-                      {formData.bloodType || "Select blood type"}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
-                        isBloodTypeOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  {isBloodTypeOpen && (
-                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
-                      {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(
-                        (opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => {
-                              handleInputChange({
-                                target: { name: "bloodType", value: opt },
-                              });
-                              setIsBloodTypeOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
-                              formData.bloodType === opt
-                                ? "bg-blue-50/50 text-blue-700 font-medium"
-                                : "text-slate-700"
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  )}
-                </div>
+                  <option value="">Select blood type</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Nationality
                 </label>
-
                 <input
                   type="text"
                   name="nationality"
@@ -1015,12 +812,10 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Religion
                 </label>
-
                 <input
                   type="text"
                   name="religion"
@@ -1040,106 +835,50 @@ function EmployeeModal({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               2. Employee Details
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Role Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Role *
                 </label>
-                <div
-                  className={`relative w-full ${isRoleOpen ? "z-70" : "z-10"}`}
-                  onClick={(e) => e.stopPropagation()}
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.role ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 >
-                  {isRoleOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsRoleOpen(false)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsRoleOpen(!isRoleOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${
-                      errors.role
-                        ? "border-red-500 bg-red-50/20 text-black"
-                        : "border-slate-300 text-black"
-                    }`}
-                  >
-                    <span
-                      className={
-                        formData.role ? "text-black" : "text-slate-400"
-                      }
-                    >
-                      {formData.role || "Select role"}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
-                        isRoleOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  {isRoleOpen && (
-                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
-                      {[
-                        "Admin",
-                        "Coordinator",
-                        "Mechanic",
-                        "Driver",
-                        "Helper",
-                      ].map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => {
-                            handleInputChange({
-                              target: { name: "role", value: opt },
-                            });
-                            setIsRoleOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
-                            formData.role === opt
-                              ? "bg-blue-50/50 text-blue-700 font-medium"
-                              : "text-slate-700"
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  <option value="">Select role</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Coordinator">Coordinator</option>
+                  <option value="Mechanic">Mechanic</option>
+                  <option value="Driver">Driver</option>
+                  <option value="Helper">Helper</option>
+                </select>
                 {errors.role && (
                   <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Availability *
                 </label>
-
                 <input
                   type="text"
                   name="availability"
                   value={formData.availability}
                   onChange={handleInputChange}
-                  placeholder="e.g. Available, On Leave"
+                  placeholder="Enter availability"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.availability ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.availability && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.availability}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Date Employed
                 </label>
-
                 <input
                   type="date"
                   name="dateEmployed"
@@ -1156,9 +895,8 @@ function EmployeeModal({
           {/* ================================== */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. Driver Information
+              3. Driver Information (if applicable)
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -1172,25 +910,22 @@ function EmployeeModal({
                   placeholder="Enter license number"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-
                 {errors.licenseNumber && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.licenseNumber}
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  License Type
+                  License Type / Restriction
                 </label>
-
                 <input
                   type="text"
                   name="driverLicenseType"
                   value={formData.driverLicenseType}
                   onChange={handleInputChange}
-                  placeholder="e.g. Professional / Restriction codes"
+                  placeholder="e.g. Professional / 123"
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.driverLicenseType && (
@@ -1199,12 +934,10 @@ function EmployeeModal({
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  License Expiration
+                  License Expiration Date
                 </label>
-
                 <input
                   type="date"
                   name="licenseExpirationDate"
@@ -1218,12 +951,10 @@ function EmployeeModal({
                   </p>
                 )}
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Driving Experience
+                  Driving Experience (Years)
                 </label>
-
                 <input
                   type="number"
                   min="0"
@@ -1249,95 +980,50 @@ function EmployeeModal({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               4. Health & Emergency Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Health Status *
+                  Health Condition *
                 </label>
-
-                <input
-                  type="text"
+                <select
                   name="healthCondition"
                   value={formData.healthCondition}
                   onChange={handleInputChange}
-                  placeholder="e.g. Fit to Work"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.healthCondition ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                />
-
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.healthCondition ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                >
+                  <option value="">Select status</option>
+                  <option value="Fit to Work">Fit to Work</option>
+                  <option value="Unfit for Work">Unfit for Work</option>
+                  <option value="Pending Medical Clearance">
+                    Pending Medical Clearance
+                  </option>
+                </select>
                 {errors.healthCondition && (
                   <p className="text-red-500 text-[11px] mt-1">
                     {errors.healthCondition}
                   </p>
                 )}
               </div>
-
-              {/* Drug Test Status Custom Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Drug Test Status
                 </label>
-                <div
-                  className={`relative w-full ${isDrugTestOpen ? "z-70" : "z-10"}`}
-                  onClick={(e) => e.stopPropagation()}
+                <select
+                  name="drugTestStatus"
+                  value={formData.drugTestStatus}
+                  onChange={handleInputChange}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 >
-                  {isDrugTestOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsDrugTestOpen(false)}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsDrugTestOpen(!isDrugTestOpen)}
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 text-black transition-all"
-                  >
-                    <span
-                      className={
-                        formData.drugTestStatus
-                          ? "text-black"
-                          : "text-slate-400"
-                      }
-                    >
-                      {formData.drugTestStatus || "Select status"}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${
-                        isDrugTestOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  {isDrugTestOpen && (
-                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
-                      {["Passed", "Failed", "Pending"].map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => {
-                            handleInputChange({
-                              target: { name: "drugTestStatus", value: opt },
-                            });
-                            setIsDrugTestOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${
-                            formData.drugTestStatus === opt
-                              ? "bg-blue-50/50 text-blue-700 font-medium"
-                              : "text-slate-700"
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  <option value="">Select status</option>
+                  <option value="Passed">Passed</option>
+                  <option value="Failed">Failed</option>
+                  <option value="Pending">Pending</option>
+                </select>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Last Medical Check-up
                 </label>
-
                 <input
                   type="date"
                   name="lastMedicalCheckup"
@@ -1346,48 +1032,42 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Emergency Contact Person
                 </label>
-
                 <input
                   type="text"
                   name="emergencyContactPerson"
                   value={formData.emergencyContactPerson}
                   onChange={handleInputChange}
-                  placeholder="Enter contact person"
+                  placeholder="Enter contact person name"
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Emergency Contact Number
                 </label>
-
                 <input
                   type="text"
                   name="emergencyContactNumber"
                   value={formData.emergencyContactNumber}
                   onChange={handleInputChange}
-                  placeholder="Enter emergency number"
+                  placeholder="Enter contact number"
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Relationship
                 </label>
-
                 <input
                   type="text"
                   name="relationship"
                   value={formData.relationship}
                   onChange={handleInputChange}
-                  placeholder="e.g. Spouse, Parent, Sibling"
+                  placeholder="e.g. Spouse, Parent"
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
@@ -1401,13 +1081,11 @@ function EmployeeModal({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               5. Other Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-black mb-1">
                   Skills / Specialization
                 </label>
-
                 <textarea
                   name="skills"
                   rows={2}
@@ -1417,12 +1095,10 @@ function EmployeeModal({
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Upload Certificates
+                  Upload Certificates (PDF, JPG, PNG, DOCX)
                 </label>
-
                 <input
                   type="file"
                   name="certificates"
@@ -1430,23 +1106,20 @@ function EmployeeModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-700 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
-
                 <p className="text-[10px] text-slate-500 mt-1">
                   Certificate upload is not connected yet.
                 </p>
               </div>
-
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Remarks
+                  Other Remarks
                 </label>
-
                 <textarea
                   name="remarks"
                   rows={2}
                   value={formData.remarks}
                   onChange={handleInputChange}
-                  placeholder="Add any additional remarks..."
+                  placeholder="Any additional remarks..."
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
@@ -1454,23 +1127,25 @@ function EmployeeModal({
           </div>
 
           {/* BUTTONS */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={handleClose}
               disabled={isSubmitting}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors disabled:opacity-50"
+              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 disabled:opacity-50"
             >
               Cancel
             </button>
-
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 hover:opacity-95 disabled:opacity-50"
             >
-              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-
+              {isSubmitting && (
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+              )}
               {editData ? "Save Changes" : "Add Employee"}
             </button>
           </div>
@@ -1486,15 +1161,10 @@ function EmployeeModal({
 
 interface EmployeeDetailViewProps {
   employee: EmployeeRecord;
-
   currentRole: string;
-
   onBack: () => void;
-
   onEdit: (employee: EmployeeRecord) => void;
-
   onDelete: (id: string) => Promise<void>;
-
   onActivate: (id: string) => Promise<void>;
 }
 
@@ -1507,18 +1177,14 @@ function EmployeeDetailView({
   onActivate,
 }: EmployeeDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
   const [isDeleting, setIsDeleting] = useState(false);
-
   const [isActivating, setIsActivating] = useState(false);
 
   const isAdmin = currentRole.toLowerCase() === "admin";
-
   const canEdit = ["admin", "coordinator"].includes(currentRole.toLowerCase());
 
   const accountActivated = Boolean(employee.isActive);
-
-  const activationCooldownMs = 0 * 60 * 1000; //set 15
+  const activationCooldownMs = 15 * 60 * 1000;
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -1550,11 +1216,15 @@ function EmployeeDetailView({
 
   const activationRemainingMinutes = Math.ceil(activationRemainingMs / 60000);
 
+  // EXACT LOGIC FROM YOUR UPDATED CODE, modified only to safely close the UI modal
   const confirmDelete = async () => {
     try {
       setIsDeleting(true);
 
       await onDelete(employee.id);
+
+      // Explicitly shut the modal to prevent any React state unmount warnings
+      setShowDeleteModal(false);
     } finally {
       setIsDeleting(false);
     }
@@ -1563,7 +1233,6 @@ function EmployeeDetailView({
   const handleActivation = async () => {
     try {
       setIsActivating(true);
-
       await onActivate(employee.id);
     } finally {
       setIsActivating(false);
@@ -1573,7 +1242,7 @@ function EmployeeDetailView({
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
       {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -1582,12 +1251,10 @@ function EmployeeDetailView({
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Employee Information Record
             </h1>
-
             <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
               Complete employee profile and account management.
             </p>
@@ -1601,7 +1268,7 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default shadow-md"
+                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Account Activated
@@ -1610,9 +1277,9 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-not-allowed shadow-md"
+                className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-not-allowed"
               >
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4" />
                 Resend in {activationRemainingMinutes} min
               </button>
             ) : (
@@ -1627,7 +1294,6 @@ function EmployeeDetailView({
                 ) : (
                   <MailCheck className="w-4 h-4" />
                 )}
-
                 {isActivating
                   ? "Sending Invite..."
                   : activationSentAt
@@ -1666,21 +1332,17 @@ function EmployeeDetailView({
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
               {employee.firstName ? employee.firstName[0] : "E"}
-
               {employee.lastName ? employee.lastName[0] : ""}
             </div>
-
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">
                 {employee.firstName} {employee.middleName} {employee.lastName}{" "}
                 {employee.suffix}
               </h2>
-
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                   {employee.role}
                 </span>
-
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     employee.isActive
@@ -1690,7 +1352,6 @@ function EmployeeDetailView({
                 >
                   {employee.isActive ? "Active" : "Inactive"}
                 </span>
-
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     accountActivated
@@ -1707,44 +1368,32 @@ function EmployeeDetailView({
           </div>
         </div>
 
-        {/* PERSONAL */}
         <div className="space-y-6 text-sm text-slate-900">
+          {/* PERSONAL */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Personal Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <ReadField label="First Name" value={employee.firstName} />
-
               <ReadField label="Middle Name" value={employee.middleName} />
-
               <ReadField label="Last Name" value={employee.lastName} />
-
               <ReadField label="Suffix" value={employee.suffix} />
-
               <ReadField label="Gender" value={employee.gender} />
-
               <ReadField
                 label="Birthdate"
                 value={formatDate(employee.birthdate)}
               />
-
               <div className="sm:col-span-2">
                 <ReadField label="Address" value={employee.address} />
               </div>
-
               <ReadField
                 label="Contact Number"
                 value={employee.contactNumber}
               />
-
               <ReadField label="Email Address" value={employee.emailAddress} />
-
               <ReadField label="Blood Type" value={employee.bloodType} />
-
               <ReadField label="Nationality" value={employee.nationality} />
-
               <ReadField label="Religion" value={employee.religion} />
             </div>
           </div>
@@ -1754,12 +1403,9 @@ function EmployeeDetailView({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               2. Employee Details
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <ReadField label="Role" value={employee.role} />
-
               <ReadField label="Availability" value={employee.availability} />
-
               <ReadField
                 label="Date Employed"
                 value={formatDate(employee.dateEmployed)}
@@ -1770,24 +1416,23 @@ function EmployeeDetailView({
           {/* DRIVER */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. Driver Information
+              3. Driver Information (if applicable)
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <ReadField label="License No." value={employee.licenseNumber} />
-
               <ReadField
-                label="License Type"
+                label="Driver's License No."
+                value={employee.licenseNumber}
+              />
+              <ReadField
+                label="License Type / Restriction"
                 value={employee.driverLicenseType}
               />
-
               <ReadField
-                label="Expiration"
+                label="License Expiration Date"
                 value={formatDate(employee.licenseExpirationDate)}
               />
-
               <ReadField
-                label="Experience"
+                label="Driving Experience (Years)"
                 value={
                   employee.drivingExperience
                     ? `${employee.drivingExperience} years`
@@ -1802,33 +1447,27 @@ function EmployeeDetailView({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               4. Health & Emergency Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <ReadField
-                label="Health Status"
+                label="Health Condition"
                 value={employee.healthCondition}
               />
-
               <ReadField
                 label="Drug Test Status"
                 value={employee.drugTestStatus}
               />
-
               <ReadField
                 label="Last Medical Check-up"
                 value={formatDate(employee.lastMedicalCheckup)}
               />
-
               <ReadField
-                label="Emergency Contact"
+                label="Emergency Contact Person"
                 value={employee.emergencyContactPerson}
               />
-
               <ReadField
-                label="Emergency Number"
+                label="Emergency Contact Number"
                 value={employee.emergencyContactNumber}
               />
-
               <ReadField label="Relationship" value={employee.relationship} />
             </div>
           </div>
@@ -1838,7 +1477,6 @@ function EmployeeDetailView({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               5. Other Information
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
                 <ReadField
@@ -1846,17 +1484,7 @@ function EmployeeDetailView({
                   value={employee.skills}
                 />
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Certificates Record
-                </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  No certificate uploaded or available
-                </div>
-              </div>
-
-              <ReadField label="Remarks" value={employee.remarks} />
+              <ReadField label="Other Remarks" value={employee.remarks} />
             </div>
           </div>
         </div>
@@ -1869,34 +1497,32 @@ function EmployeeDetailView({
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-6 h-6" />
             </div>
-
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               Delete Employee Record
             </h3>
-
             <p className="text-xs sm:text-sm text-slate-600 mb-6">
               Are you sure you want to delete{" "}
               <strong className="text-slate-900">
                 {employee.firstName} {employee.lastName}
               </strong>
-              ? This action is permanent.
+              ? This will permanently remove the record.
             </p>
-
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
               >
                 Cancel
               </button>
-
               <button
                 onClick={confirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md flex items-center justify-center gap-2"
               >
-                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isDeleting && (
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                )}
                 Confirm Delete
               </button>
             </div>
@@ -1917,33 +1543,23 @@ export default function EmployeesPage() {
   );
 
   const [searchTerm, setSearchTerm] = useState("");
-
   const [selectedRole, setSelectedRole] = useState("All Roles");
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const [isLoading, setIsLoading] = useState(true);
 
-  // Exact state restored from original updated code
   const [errorMessage, setErrorMessage] = useState("");
-
   const [successMessage, setSuccessMessage] = useState("");
 
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeRecord | null>(null);
-
   const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(
     null,
   );
 
   const [employeeList, setEmployeeList] = useState<EmployeeRecord[]>([]);
-
   const [currentPage, setCurrentPage] = useState(1);
-
   const [totalPages, setTotalPages] = useState(1);
-
   const [totalEmployees, setTotalEmployees] = useState(0);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -1958,90 +1574,6 @@ export default function EmployeesPage() {
   ];
 
   // ==========================================
-  // TOAST AUTO-HIDE LOGIC
-  // ==========================================
-  useEffect(() => {
-    if (successMessage || errorMessage) {
-      const timer = setTimeout(() => {
-        setSuccessMessage("");
-        setErrorMessage("");
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage, errorMessage]);
-
-  // ==========================================
-  // TOAST RENDERER
-  // ==========================================
-  const renderToast = () => {
-    if (!successMessage && !errorMessage) return null;
-    const isError = !!errorMessage;
-    const message = errorMessage || successMessage;
-    const isNoChanges = message === "No changes were made.";
-
-    return (
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-        <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-          <div
-            className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-              isError
-                ? "bg-red-500"
-                : isNoChanges
-                  ? "bg-blue-500"
-                  : "bg-emerald-500"
-            }`}
-          >
-            {isNoChanges ? (
-              <svg
-                className="w-3.5 h-3.5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            ) : isError ? (
-              <svg
-                className="w-3.5 h-3.5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="w-3.5 h-3.5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            )}
-          </div>
-          {message}
-        </div>
-      </div>
-    );
-  };
-
-  // ==========================================
   // SESSION
   // ==========================================
 
@@ -2053,30 +1585,35 @@ export default function EmployeesPage() {
     }
   }, []);
 
+  // Toast clearing logic
+  useEffect(() => {
+    if (successMessage || errorMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage("");
+        setErrorMessage("");
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, errorMessage]);
+
   // ==========================================
   // FETCH EMPLOYEES
   // ==========================================
 
   const fetchEmployees = useCallback(async () => {
     setIsLoading(true);
-
     setErrorMessage("");
 
     try {
       const params = new URLSearchParams();
-
       params.set("page", String(currentPage));
-
       params.set("limit", String(ITEMS_PER_PAGE));
-
       params.set("sortBy", "employeeName");
-
       params.set("sortOrder", "asc");
 
       if (searchTerm.trim()) {
         params.set("search", searchTerm.trim());
       }
-
       if (selectedRole !== "All Roles") {
         params.set("role", selectedRole);
       }
@@ -2086,15 +1623,11 @@ export default function EmployeesPage() {
       );
 
       setEmployeeList(response.data.map(mapApiEmployee));
-
       setTotalEmployees(response.pagination.total);
-
       setTotalPages(Math.max(response.pagination.totalPages, 1));
     } catch (error) {
       console.error("Fetch employees error:", error);
-
       setEmployeeList([]);
-
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsLoading(false);
@@ -2105,7 +1638,6 @@ export default function EmployeesPage() {
     const timer = window.setTimeout(() => {
       fetchEmployees();
     }, 300);
-
     return () => window.clearTimeout(timer);
   }, [fetchEmployees]);
 
@@ -2120,11 +1652,9 @@ export default function EmployeesPage() {
   const handleRowClick = async (id: string) => {
     try {
       setErrorMessage("");
-
       const response = await apiFetch<EmployeeApiResponse>(
         `/api/employees/${id}`,
       );
-
       setSelectedEmployee(mapApiEmployee(response.data));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -2137,134 +1667,97 @@ export default function EmployeesPage() {
 
   const handleModalSubmit = async (
     formData: EmployeeFormState,
-
     editData?: EmployeeRecord | null,
   ) => {
     try {
       setErrorMessage("");
-
       setSuccessMessage("");
-
-      // ======================================
-      // CHECK IF NO CHANGES WERE MADE
-      // ======================================
-      if (editData) {
-        const originalBirthdate = editData.birthdate
-          ? editData.birthdate.split("T")[0]
-          : "";
-        const originalDateEmployed = editData.dateEmployed
-          ? editData.dateEmployed.split("T")[0]
-          : "";
-        const originalLicenseExp = editData.licenseExpirationDate
-          ? editData.licenseExpirationDate.split("T")[0]
-          : "";
-        const originalMedCheck = editData.lastMedicalCheckup
-          ? editData.lastMedicalCheckup.split("T")[0]
-          : "";
-
-        const isChanged =
-          formData.firstName !== editData.firstName ||
-          formData.middleName !== editData.middleName ||
-          formData.lastName !== editData.lastName ||
-          formData.suffix !== (editData.suffix || "") ||
-          formData.role !== editData.role ||
-          formData.availability !== editData.availability ||
-          formData.gender !== (editData.gender || "") ||
-          formData.birthdate !== originalBirthdate ||
-          formData.address !== editData.address ||
-          formData.contactNumber !== editData.contactNumber ||
-          formData.emailAddress !== editData.emailAddress ||
-          formData.bloodType !== (editData.bloodType || "") ||
-          formData.nationality !== (editData.nationality || "Filipino") ||
-          formData.religion !== (editData.religion || "") ||
-          formData.dateEmployed !== originalDateEmployed ||
-          formData.driverLicenseType !== (editData.driverLicenseType || "") ||
-          formData.licenseNumber !== (editData.licenseNumber || "") ||
-          formData.licenseExpirationDate !== originalLicenseExp ||
-          String(formData.drivingExperience || "") !==
-            String(editData.drivingExperience || "") ||
-          formData.healthCondition !== editData.healthCondition ||
-          formData.drugTestStatus !== (editData.drugTestStatus || "") ||
-          formData.lastMedicalCheckup !== originalMedCheck ||
-          formData.emergencyContactPerson !==
-            (editData.emergencyContactPerson || "") ||
-          formData.emergencyContactNumber !==
-            (editData.emergencyContactNumber || "") ||
-          formData.relationship !== (editData.relationship || "") ||
-          formData.skills !== (editData.skills || "") ||
-          formData.remarks !== (editData.remarks || "") ||
-          Boolean(formData.certificates);
-
-        if (!isChanged) {
-          setSuccessMessage("No changes were made.");
-          setEditingEmployee(null);
-          setIsModalOpen(false);
-          return;
-        }
-      }
-
-      // ======================================
-      // UPDATE
-      // ======================================
 
       if (editData) {
         const updatePayload = {
           employeeName: `${formData.firstName} ${formData.lastName}`.trim(),
-
           middleName: formData.middleName || null,
-
           suffix: formData.suffix || null,
-
           role: formData.role,
-
           availability: formData.availability,
-
           gender: formData.gender || null,
-
           birthdate: formData.birthdate || null,
-
           address: formData.address,
-
           contact: formData.contactNumber,
-
           bloodType: formData.bloodType || null,
-
           nationality: formData.nationality || null,
-
           religion: formData.religion || null,
-
           dateEmployed: formData.dateEmployed || null,
-
           driverLicenseType: formData.driverLicenseType || null,
-
           licenseNumber: formData.licenseNumber || null,
-
           licenseExpirationDate: formData.licenseExpirationDate || null,
-
           drivingExperience: formData.drivingExperience
             ? Number(formData.drivingExperience)
             : null,
-
           healthStatus: formData.healthCondition,
-
           drugTestStatus: formData.drugTestStatus || null,
-
           lastMedicalCheckup: formData.lastMedicalCheckup || null,
-
           emergencyContactPerson: formData.emergencyContactPerson || null,
-
           emergencyContactNumber: formData.emergencyContactNumber || null,
-
           relationship: formData.relationship || null,
-
           skills: formData.skills || null,
-
           remarks: formData.remarks || null,
         };
 
+        const hasChanges =
+          updatePayload.employeeName !==
+            `${editData.firstName} ${editData.lastName}`.trim() ||
+          updatePayload.middleName !== (editData.middleName || null) ||
+          updatePayload.suffix !== (editData.suffix || null) ||
+          updatePayload.role !== editData.role ||
+          updatePayload.availability !== editData.availability ||
+          updatePayload.gender !== (editData.gender || null) ||
+          updatePayload.birthdate !==
+            (editData.birthdate ? editData.birthdate.split("T")[0] : null) ||
+          updatePayload.address !== editData.address ||
+          updatePayload.contact !== editData.contactNumber ||
+          updatePayload.bloodType !== (editData.bloodType || null) ||
+          updatePayload.nationality !== (editData.nationality || null) ||
+          updatePayload.religion !== (editData.religion || null) ||
+          updatePayload.dateEmployed !==
+            (editData.dateEmployed
+              ? editData.dateEmployed.split("T")[0]
+              : null) ||
+          updatePayload.driverLicenseType !==
+            (editData.driverLicenseType || null) ||
+          updatePayload.licenseNumber !== (editData.licenseNumber || null) ||
+          updatePayload.licenseExpirationDate !==
+            (editData.licenseExpirationDate
+              ? editData.licenseExpirationDate.split("T")[0]
+              : null) ||
+          updatePayload.drivingExperience !==
+            (editData.drivingExperience
+              ? Number(editData.drivingExperience)
+              : null) ||
+          updatePayload.healthStatus !== editData.healthCondition ||
+          updatePayload.drugTestStatus !== (editData.drugTestStatus || null) ||
+          updatePayload.lastMedicalCheckup !==
+            (editData.lastMedicalCheckup
+              ? editData.lastMedicalCheckup.split("T")[0]
+              : null) ||
+          updatePayload.emergencyContactPerson !==
+            (editData.emergencyContactPerson || null) ||
+          updatePayload.emergencyContactNumber !==
+            (editData.emergencyContactNumber || null) ||
+          updatePayload.relationship !== (editData.relationship || null) ||
+          updatePayload.skills !== (editData.skills || null) ||
+          updatePayload.remarks !== (editData.remarks || null) ||
+          Boolean(formData.certificates);
+
+        if (!hasChanges) {
+          setErrorMessage("No changes were made.");
+          setIsModalOpen(false);
+          setEditingEmployee(null);
+          return;
+        }
+
         await apiFetch<EmployeeApiResponse>(`/api/employees/${editData.id}`, {
           method: "PATCH",
-
           body: JSON.stringify(updatePayload),
         });
 
@@ -2273,78 +1766,43 @@ export default function EmployeesPage() {
         }
 
         setSuccessMessage("Employee updated successfully.");
-
         setEditingEmployee(null);
       } else {
-        // ======================================
-        // CREATE
-        // NO PASSWORD
-        // ======================================
-
         const createPayload = {
           employeeID: crypto.randomUUID(),
-
           employeeName: `${formData.firstName} ${formData.lastName}`.trim(),
-
           middleName: formData.middleName || null,
-
           suffix: formData.suffix || null,
-
           role: formData.role,
-
           availability: formData.availability,
-
           healthStatus: formData.healthCondition,
-
           address: formData.address,
-
           contact: formData.contactNumber,
-
           emailAddress: formData.emailAddress,
-
-          // Account is not activated yet
           isActive: false,
-
           gender: formData.gender || null,
-
           birthdate: formData.birthdate || null,
-
           bloodType: formData.bloodType || null,
-
           nationality: formData.nationality || null,
-
           religion: formData.religion || null,
-
           dateEmployed: formData.dateEmployed || null,
-
           driverLicenseType: formData.driverLicenseType || null,
-
           licenseNumber: formData.licenseNumber || null,
-
           licenseExpirationDate: formData.licenseExpirationDate || null,
-
           drivingExperience: formData.drivingExperience
             ? Number(formData.drivingExperience)
             : null,
-
           drugTestStatus: formData.drugTestStatus || null,
-
           lastMedicalCheckup: formData.lastMedicalCheckup || null,
-
           emergencyContactPerson: formData.emergencyContactPerson || null,
-
           emergencyContactNumber: formData.emergencyContactNumber || null,
-
           relationship: formData.relationship || null,
-
           skills: formData.skills || null,
-
           remarks: formData.remarks || null,
         };
 
         await apiFetch<EmployeeApiResponse>("/api/employees", {
           method: "POST",
-
           body: JSON.stringify(createPayload),
         });
 
@@ -2354,13 +1812,10 @@ export default function EmployeesPage() {
       }
 
       setIsModalOpen(false);
-
       await fetchEmployees();
     } catch (error) {
       const message = getErrorMessage(error);
-
       setErrorMessage(message);
-
       throw error;
     }
   };
@@ -2372,35 +1827,27 @@ export default function EmployeesPage() {
   const handleActivateEmployee = async (id: string) => {
     try {
       setErrorMessage("");
-
       setSuccessMessage("");
-
       const response = await apiFetch<MessageResponse>(
         `/api/employees/${id}/activate`,
         {
           method: "POST",
         },
       );
-
       setSuccessMessage(
         response.message || "Activation email sent successfully.",
       );
-
-      // Refresh employee profile
       await handleRowClick(id);
-
       await fetchEmployees();
     } catch (error) {
       const message = getErrorMessage(error);
-
       setErrorMessage(message);
-
       throw error;
     }
   };
 
   // ==========================================
-  // DELETE
+  // DELETE (Exactly matched to your updated code logic)
   // ==========================================
 
   const handleDeleteEmployee = async (id: string) => {
@@ -2434,11 +1881,59 @@ export default function EmployeesPage() {
         setIsDropdownOpen(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ==========================================
+  // RENDER HELPERS
+  // ==========================================
+
+  const renderToasts = () => {
+    if (!successMessage && !errorMessage) return null;
+    return (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+        <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+          <div
+            className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+              errorMessage ? "bg-red-500" : "bg-emerald-500"
+            }`}
+          >
+            {errorMessage ? (
+              <svg
+                className="w-3.5 h-3.5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-3.5 h-3.5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            )}
+          </div>
+          {errorMessage || successMessage}
+        </div>
+      </div>
+    );
+  };
 
   // ==========================================
   // DETAIL
@@ -2447,26 +1942,22 @@ export default function EmployeesPage() {
   if (selectedEmployee) {
     return (
       <>
-        {renderToast()}
-
+        {renderToasts()}
         <EmployeeDetailView
           employee={selectedEmployee}
           currentRole={currentSession?.role || ""}
           onBack={() => setSelectedEmployee(null)}
           onEdit={(employee) => {
             setEditingEmployee(employee);
-
             setIsModalOpen(true);
           }}
           onDelete={handleDeleteEmployee}
           onActivate={handleActivateEmployee}
         />
-
         <EmployeeModal
           isOpen={isModalOpen}
           onClose={() => {
             setIsModalOpen(false);
-
             setEditingEmployee(null);
           }}
           onSubmitSuccess={handleModalSubmit}
@@ -2477,20 +1968,13 @@ export default function EmployeesPage() {
   }
 
   // ==========================================
-  // PAGINATION
+  // PAGINATION SETUP
   // ==========================================
 
   const startIndex =
     totalEmployees === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
-
-  const endIndex = Math.min(
-    currentPage * ITEMS_PER_PAGE,
-
-    totalEmployees,
-  );
-
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalEmployees);
   const currentRole = currentSession?.role?.toLowerCase() || "";
-
   const canCreate = ["admin", "coordinator"].includes(currentRole);
 
   // ==========================================
@@ -2499,17 +1983,15 @@ export default function EmployeesPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
-      {renderToast()}
-
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Employee Directory
           </h1>
-
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Manage staff profiles and employee accounts.
+            Manage your staff listings, employee profiles, and directory
+            records.
           </p>
         </div>
 
@@ -2518,7 +2000,6 @@ export default function EmployeesPage() {
             <button
               onClick={() => {
                 setEditingEmployee(null);
-
                 setIsModalOpen(true);
               }}
               className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
@@ -2538,8 +2019,7 @@ export default function EmployeesPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchTerm}
@@ -2549,7 +2029,7 @@ export default function EmployeesPage() {
                     ? "Search employees..."
                     : `Search ${selectedRole.toLowerCase()}s...`
                 }
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
               />
             </div>
 
@@ -2569,9 +2049,7 @@ export default function EmployeesPage() {
                   </span>
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${
-                    isDropdownOpen ? "rotate-180" : ""
-                  }`}
+                  className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
                 />
               </button>
 
@@ -2581,11 +2059,10 @@ export default function EmployeesPage() {
                     const isSelected = selectedRole === role;
                     return (
                       <button
-                        key={role}
                         type="button"
+                        key={role}
                         onClick={() => {
                           setSelectedRole(role);
-
                           setIsDropdownOpen(false);
                         }}
                         className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
@@ -2608,28 +2085,23 @@ export default function EmployeesPage() {
         </div>
 
         {/* TABLE */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-135">
           <table className="w-full text-left border-collapse min-w-200 table-fixed">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th className="py-3.5 px-4 sm:px-6 w-[25%]">Name</th>
-
                 <th className="py-3.5 px-4 sm:px-6 w-[15%]">Role</th>
-
                 <th className="py-3.5 px-4 sm:px-6 w-[20%]">Address</th>
-
                 <th className="py-3.5 px-4 sm:px-6 w-[20%]">Contact</th>
-
                 <th className="py-3.5 px-4 sm:px-6 w-[20%]">Account</th>
               </tr>
             </thead>
-
             <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
-                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+                      <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-3" />
                       <p className="text-slate-900 font-medium text-sm">
                         Loading records...
                       </p>
@@ -2652,27 +2124,23 @@ export default function EmployeesPage() {
                       {employee.middleName ? `${employee.middleName[0]}. ` : ""}
                       {employee.lastName} {employee.suffix}
                     </td>
-
                     <td className="py-3.5 px-4 sm:px-6 truncate">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
                         {employee.role}
                       </span>
                     </td>
-
                     <td
                       className="py-3.5 px-4 sm:px-6 truncate"
                       title={employee.address}
                     >
                       {employee.address || "N/A"}
                     </td>
-
                     <td
                       className="py-3.5 px-4 sm:px-6 truncate"
                       title={employee.contactNumber}
                     >
                       {employee.contactNumber || "N/A"}
                     </td>
-
                     <td className="py-3.5 px-4 sm:px-6 truncate">
                       {employee.isActive ? (
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 whitespace-nowrap">
@@ -2717,7 +2185,6 @@ export default function EmployeesPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalEmployees} entries
           </span>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() =>
@@ -2732,20 +2199,16 @@ export default function EmployeesPage() {
             >
               Previous
             </button>
-
-            <span className="mx-1">
+            <span className="mx-2">
               Page {currentPage} of {totalPages}
             </span>
-
             <button
               onClick={() =>
                 setCurrentPage((previous) => Math.min(previous + 1, totalPages))
               }
-              disabled={
-                currentPage >= totalPages || totalPages === 0 || isLoading
-              }
+              disabled={currentPage >= totalPages || isLoading}
               className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
-                currentPage >= totalPages || totalPages === 0 || isLoading
+                currentPage >= totalPages || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               }`}
@@ -2760,12 +2223,13 @@ export default function EmployeesPage() {
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
-
           setEditingEmployee(null);
         }}
         onSubmitSuccess={handleModalSubmit}
         editData={editingEmployee}
       />
+
+      {renderToasts()}
     </div>
   );
 }

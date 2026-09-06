@@ -131,11 +131,19 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
 interface TruckModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (formData: any, editData?: TruckRecord | null) => Promise<void>;
+  onSubmitSuccess: (
+    formData: any,
+    editData?: TruckRecord | null,
+  ) => Promise<void>;
   editData?: TruckRecord | null;
 }
 
-function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalProps) {
+function TruckModal({
+  isOpen,
+  onClose,
+  onSubmitSuccess,
+  editData,
+}: TruckModalProps) {
   const initialTruckState = {
     plateNumber: "",
     truckType: "",
@@ -174,7 +182,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -187,11 +195,14 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    if (!formData.plateNumber.trim()) newErrors.plateNumber = "Plate number is required.";
+    if (!formData.plateNumber.trim())
+      newErrors.plateNumber = "Plate number is required.";
     if (!formData.truckType) newErrors.truckType = "Type of truck is required.";
-    if (!formData.truckModel.trim()) newErrors.truckModel = "Truck model is required.";
-    if (!String(formData.capacity).trim()) newErrors.capacity = "Capacity is required.";
-    
+    if (!formData.truckModel.trim())
+      newErrors.truckModel = "Truck model is required.";
+    if (!String(formData.capacity).trim())
+      newErrors.capacity = "Capacity is required.";
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -224,7 +235,10 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+        >
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Truck Information
@@ -232,7 +246,9 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Plate Number *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Plate Number *
+                </label>
                 <input
                   type="text"
                   name="plateNumber"
@@ -241,18 +257,26 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.plateNumber && <p className="text-red-500 text-[11px] mt-1">{errors.plateNumber}</p>}
+                {errors.plateNumber && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.plateNumber}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Type of Truck *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Type of Truck *
+                </label>
                 <select
                   name="truckType"
                   value={formData.truckType}
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="" disabled>Select truck type</option>
+                  <option value="" disabled>
+                    Select truck type
+                  </option>
                   <option value="Closed Van">Closed Van</option>
                   <option value="Wing Van">Wing Van</option>
                   <option value="Dry Van">Dry Van</option>
@@ -265,11 +289,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
                   <option value="Pickup Truck">Pickup Truck</option>
                   <option value="Others">Others</option>
                 </select>
-                {errors.truckType && <p className="text-red-500 text-[11px] mt-1">{errors.truckType}</p>}
+                {errors.truckType && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.truckType}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Truck Model *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Truck Model *
+                </label>
                 <input
                   type="text"
                   name="truckModel"
@@ -278,11 +308,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.truckModel && <p className="text-red-500 text-[11px] mt-1">{errors.truckModel}</p>}
+                {errors.truckModel && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.truckModel}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Capacity *</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Capacity *
+                </label>
                 <input
                   type="text"
                   name="capacity"
@@ -291,11 +327,17 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 />
-                {errors.capacity && <p className="text-red-500 text-[11px] mt-1">{errors.capacity}</p>}
+                {errors.capacity && (
+                  <p className="text-red-500 text-[11px] mt-1">
+                    {errors.capacity}
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-black mb-1">Last Checked (Optional)</label>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Checked (Optional)
+                </label>
                 <input
                   type="date"
                   name="lastChecked"
@@ -342,7 +384,12 @@ interface TruckDetailViewProps {
   onDelete: (id: string) => Promise<void>;
 }
 
-function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewProps) {
+function TruckDetailView({
+  truck,
+  onBack,
+  onEdit,
+  onDelete,
+}: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -360,12 +407,19 @@ function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewPro
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100">
+          <button
+            onClick={onBack}
+            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Truck Information Record</h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">Complete truck details from the database.</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+              Truck Information Record
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              Complete truck details from the database.
+            </p>
           </div>
         </div>
 
@@ -394,7 +448,9 @@ function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewPro
               <Truck className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">{truck.plateNumber}</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                {truck.plateNumber}
+              </h2>
               <div className="flex items-center gap-2 mt-1">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                   {truck.truckType}
@@ -409,20 +465,26 @@ function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewPro
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-black mb-1">Truck Model</label>
-            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+            <label className="block text-xs font-medium text-black mb-1">
+              Truck Model
+            </label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
               {truck.truckModel}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-black mb-1">Capacity</label>
-            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+            <label className="block text-xs font-medium text-black mb-1">
+              Capacity
+            </label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
               {truck.capacity}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-black mb-1">Last Checked</label>
-            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[34px]">
+            <label className="block text-xs font-medium text-black mb-1">
+              Last Checked
+            </label>
+            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
               {truck.lastChecked || "N/A"}
             </div>
           </div>
@@ -433,9 +495,12 @@ function TruckDetailView({ truck, onBack, onEdit, onDelete }: TruckDetailViewPro
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
             <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Truck Record</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Delete Truck Record
+            </h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-6">
-              Are you sure you want to delete <strong className="text-slate-900">{truck.plateNumber}</strong>?
+              Are you sure you want to delete{" "}
+              <strong className="text-slate-900">{truck.plateNumber}</strong>?
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -509,7 +574,10 @@ export default function FleetStatusPage() {
     }
   };
 
-  const handleModalSubmit = async (formData: any, editData?: TruckRecord | null) => {
+  const handleModalSubmit = async (
+    formData: any,
+    editData?: TruckRecord | null,
+  ) => {
     try {
       setErrorMessage("");
       setSuccessMessage("");
@@ -528,7 +596,7 @@ export default function FleetStatusPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        
+
         setSuccessMessage("Truck updated successfully.");
         if (selectedTruck) await handleRowClick(editData.id);
       } else {
@@ -545,10 +613,10 @@ export default function FleetStatusPage() {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        
+
         setSuccessMessage("Truck added successfully.");
       }
-      
+
       await fetchTrucks();
     } catch (error) {
       const msg = getErrorMessage(error);
@@ -569,15 +637,19 @@ export default function FleetStatusPage() {
     }
   };
 
-  const filteredTrucks = truckList.filter((truck) =>
-    truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    truck.truckType.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTrucks = truckList.filter(
+    (truck) =>
+      truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const totalPages = Math.ceil(filteredTrucks.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentTrucks = filteredTrucks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentTrucks = filteredTrucks.slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE,
+  );
 
   if (selectedTruck) {
     return (
@@ -618,8 +690,12 @@ export default function FleetStatusPage() {
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Fleet Status</h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">Monitor and manage fleet availability.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+            Fleet Status
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+            Monitor and manage fleet availability.
+          </p>
         </div>
         <button
           onClick={() => {
@@ -633,8 +709,16 @@ export default function FleetStatusPage() {
         </button>
       </div>
 
-      {successMessage && <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">{successMessage}</div>}
-      {errorMessage && <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{errorMessage}</div>}
+      {successMessage && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100">
@@ -651,7 +735,7 @@ export default function FleetStatusPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[600px]">
+          <table className="w-full text-left min-w-150">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase">
                 <th className="py-3.5 px-4 sm:px-6">Plate Number</th>
@@ -675,9 +759,14 @@ export default function FleetStatusPage() {
                     className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer text-sm"
                   >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
-                      {truck.plateNumber} <span className="text-xs text-slate-500 font-normal">({truck.truckType})</span>
+                      {truck.plateNumber}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        ({truck.truckType})
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6">{truck.lastChecked || "N/A"}</td>
+                    <td className="py-3.5 px-4 sm:px-6">
+                      {truck.lastChecked || "N/A"}
+                    </td>
                     <td className="py-3.5 px-4 sm:px-6">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         {truck.status}
@@ -698,7 +787,11 @@ export default function FleetStatusPage() {
         </div>
 
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between text-xs border-t">
-          <span>Showing {filteredTrucks.length === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filteredTrucks.length)} of {filteredTrucks.length} entries</span>
+          <span>
+            Showing {filteredTrucks.length === 0 ? 0 : startIndex + 1} to{" "}
+            {Math.min(startIndex + ITEMS_PER_PAGE, filteredTrucks.length)} of{" "}
+            {filteredTrucks.length} entries
+          </span>
           <div className="flex gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -707,9 +800,19 @@ export default function FleetStatusPage() {
             >
               Previous
             </button>
+            <span className="mx-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <span className="mx-2">
+              Page {currentPage} of {totalPages}
+            </span>
             <button
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages || totalPages === 0 || isLoading}
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={
+                currentPage === totalPages || totalPages === 0 || isLoading
+              }
               className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Next

@@ -205,7 +205,7 @@ function ViewOrderModal({ isOpen, onClose, order }: { isOpen: boolean; onClose: 
   const inputClass = "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
 
   const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
-  const isCrewConfirmed = order.driverConfirmed && (!hasHelper || order.helperConfirmed);
+  const isCrewConfirmed = order.dispatchStatus === "Accepted" || (order.driverConfirmed && (!hasHelper || order.helperConfirmed));
 
   const headerColors = {
     "Pending Bookings": "bg-[#000c31] border-slate-800",
@@ -1233,9 +1233,10 @@ function FeedTable({ tabConfig, bookings, onViewOrder }: any) {
             {data.map((b: any) => {
               let displayStatus = tabConfig.statusLabel;
               if (tabConfig.name === "Pending Bookings") {
-                const hasHelper = b.helper && b.helper !== "None" && b.helper !== "N/A";
-                const isCrewConfirmed = b.driverConfirmed && (!hasHelper || b.helperConfirmed);
-                displayStatus = isCrewConfirmed ? "Pending" : "Waiting for Crew Confirmation";
+                const hasHelper = b.helper && b.helper !== "None" && b.helper !== "N/A" && b.helper !== "Unassigned";
+                // If dispatch status is Accepted, the driver confirmed. If there's a helper, wait for helper too.
+                const isCrewConfirmed = b.dispatchStatus === "Accepted" || (b.driverConfirmed && (!hasHelper || b.helperConfirmed));
+                displayStatus = isCrewConfirmed ? "Crew Confirmed - Awaiting Dispatch" : "Waiting for Crew Confirmation";
               }
               return (
                 <div key={b.orderId} onClick={() => onViewOrder(b)} className="cursor-pointer bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 group" title="Click to view details">
@@ -1313,21 +1314,31 @@ export default function AdminDashboardPage() {
           const reqDate = requestDateMatch ? requestDateMatch[1].trim() : new Date(o.createdAt).toLocaleDateString();
           const dateTime = rawTime ? `${reqDate} @ ${rawTime}` : new Date(o.createdAt).toLocaleString();
 
-          const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
-          const driver = driverMatch ? driverMatch[1].trim() : "Unassigned";
-          const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
-          const helper = helperMatch ? helperMatch[1].trim() : "None";
+          // Safely grab the actual dispatch record attached to the order
+          const dispatchRecord = Array.isArray(o.DispatchOrder) ? o.DispatchOrder[0] : (o.DispatchOrder || o.dispatch_order);
+          const dispatchStatus = dispatchRecord?.status || "Pending";
 
-          const driverConfirmed = Boolean(o.driverConfirmed || o.driver_confirmed);
-          const helperConfirmed = Boolean(o.helperConfirmed || o.helper_confirmed);
+          const truck = dispatchRecord?.Truck?.plateNumber || o.notes?.match(/Truck:\s*(.*)/)?.[1] || "Unassigned";
+          
+          const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
+          const driver = dispatchRecord?.Driver?.employeeName || (driverMatch ? driverMatch[1].trim() : "Unassigned");
+          
+          const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
+          const helper = dispatchRecord?.Helper1?.employeeName || (helperMatch ? helperMatch[1].trim() : "None");
+
+          // Force confirmation to TRUE if the live dispatchStatus shows it was accepted!
+          const driverConfirmed = Boolean(o.driverConfirmed || o.driver_confirmed || dispatchStatus === "Accepted" || dispatchStatus === "In Transit");
+          const helperConfirmed = Boolean(o.helperConfirmed || o.helper_confirmed || dispatchStatus === "Accepted" || dispatchStatus === "In Transit");
 
           let category = "Pending Bookings";
           const stopStatus = (stopsArr[0]?.stopStatus || "pending").toLowerCase();
-          if (stopStatus.includes("transit") || stopStatus.includes("progress")) { category = "In-Transit"; } 
-          else if (stopStatus.includes("complete") || stopStatus.includes("delivered")) { category = "Completed"; } 
-          else if (stopStatus.includes("foul") || stopStatus.includes("fail") || stopStatus.includes("cancel")) { category = "Foul Trip"; }
+          
+          // Allow the main dispatch status to also dictate the category tab
+          if (dispatchStatus === "In Transit" || stopStatus.includes("transit") || stopStatus.includes("progress")) { category = "In-Transit"; } 
+          else if (dispatchStatus === "Completed" || stopStatus.includes("complete") || stopStatus.includes("delivered")) { category = "Completed"; } 
+          else if (dispatchStatus === "Rejected" || stopStatus.includes("foul") || stopStatus.includes("fail") || stopStatus.includes("cancel")) { category = "Foul Trip"; }
 
-          categorized[category].push({ orderId: o.orderCode || o.orderID, client: displayClient, product, driver, helper, dateTime, driverConfirmed, helperConfirmed, rawOrder: o, statusCategory: category });
+          categorized[category].push({ orderId: o.orderCode || o.orderID, client: displayClient, product, driver, helper, dateTime, driverConfirmed, helperConfirmed, dispatchStatus, rawOrder: o, statusCategory: category });
         });
       }
       setBookingsData(categorized);
