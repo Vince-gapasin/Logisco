@@ -172,11 +172,11 @@ export default function ForecastingPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans relative">
+    <div className="flex min-h-screen w-full bg-slate-50 font-sans relative">
       {/* 2. MAIN RIGHT CONTAINER CANVAS */}
-      <div className="flex flex-col flex-1 w-full overflow-hidden">
-        {/* Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
+      <div className="flex flex-col flex-1 w-full">
+        {/* Main Content */}
+        <main className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
           <div className="space-y-6">
             {/* PAGE TITLE & ACTION BUTTONS */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

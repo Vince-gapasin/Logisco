@@ -622,6 +622,9 @@ export default function ReportsForecastingPage() {
             >
               Previous
             </button>
+            <span className="mx-2">
+              Page {currentPage} of {totalPages}
+            </span>
             <button
               onClick={() =>
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
