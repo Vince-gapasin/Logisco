@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,9 +15,10 @@ import {
 } from "lucide-react";
 
 export default function CalendarPage() {
+  const router = useRouter();
   const [currentMonth] = useState("August 2026");
   const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0); // For mobile single-day view
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
   const miniWeekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
   const miniCalendarDays = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -56,7 +58,7 @@ export default function CalendarPage() {
       )}
 
       {/* ========================================== */}
-      {/* 1. MINI-CALENDAR & ACTIONS SIDEBAR (Drawer on Mobile, Inline on Desktop) */}
+      {/* 1. MINI-CALENDAR & ACTIONS SIDEBAR */}
       {/* ========================================== */}
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-20 w-80 border-r border-gray-200 flex flex-col p-5 bg-white lg:bg-gray-50/40 h-full overflow-y-auto shrink-0 transition-transform duration-300 ease-in-out ${
@@ -131,7 +133,12 @@ export default function CalendarPage() {
 
         {/* Action Dispatch & Confirmation Buttons */}
         <div className="flex flex-col gap-3">
-          <button className="flex items-center gap-3 w-full px-4 py-3 bg-white text-slate-800 rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-all text-sm font-medium text-left group">
+          <button
+            onClick={() =>
+              router.push("/admindashboard/calendar/unassigned-bookings")
+            }
+            className="flex items-center gap-3 w-full px-4 py-3 bg-white text-slate-800 rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-all text-sm font-medium text-left group cursor-pointer"
+          >
             <Inbox
               size={18}
               className="text-orange-500 group-hover:scale-110 transition-transform shrink-0"
@@ -146,7 +153,12 @@ export default function CalendarPage() {
             </div>
           </button>
 
-          <button className="flex items-center gap-3 w-full px-4 py-3 bg-white text-slate-800 rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-all text-sm font-medium text-left group">
+          <button
+            onClick={() =>
+              router.push("/admindashboard/calendar/awaiting-confirmation")
+            }
+            className="flex items-center gap-3 w-full px-4 py-3 bg-white text-slate-800 rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 hover:bg-gray-50 transition-all text-sm font-medium text-left group cursor-pointer"
+          >
             <Clock
               size={18}
               className="text-blue-500 group-hover:scale-110 transition-transform shrink-0"
@@ -164,7 +176,7 @@ export default function CalendarPage() {
       </aside>
 
       {/* ========================================== */}
-      {/* 2. MAIN CALENDAR VIEW CANVAS              */}
+      {/* 2. MAIN CALENDAR VIEW CANVAS               */}
       {/* ========================================== */}
       <main className="flex flex-col flex-1 min-w-0 bg-white relative">
         {/* Calendar Toolbar / Controls */}
@@ -195,7 +207,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* ================= MOBILE VIEW (Single Day View) ================= */}
+        {/* MOBILE VIEW (Single Day View) */}
         <div className="flex lg:hidden flex-col flex-1">
           {/* Mobile Day Navigation Bar */}
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">

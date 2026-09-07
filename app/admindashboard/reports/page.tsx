@@ -11,6 +11,10 @@ import {
   CheckCircle2,
   Calendar,
   Loader2,
+  Clock,
+  Truck,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 
 // ==========================================
@@ -115,6 +119,470 @@ export interface ReportRecord {
   status: string;
   crew: string;
   remarks: string;
+  rawOrder?: any;
+  dispatchStatus?: string;
+  driverConfirmed?: boolean;
+  helperConfirmed?: boolean;
+}
+
+// ==========================================
+// VIEW BOOKING MODAL (READ-ONLY) - REUSED FROM DASHBOARD
+// ==========================================
+
+function ViewOrderModal({
+  isOpen,
+  onClose,
+  order,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  order: any;
+}) {
+  if (!isOpen || !order) return null;
+
+  const raw = order.rawOrder || {};
+  const notes = raw.notes || "";
+  const category = order.statusCategory || order.status || "Pending Bookings";
+  const isPending = category === "Pending Bookings" || category === "Pending";
+
+  const clientInfo = raw.Client || raw.client || {};
+  const cName =
+    clientInfo.company ||
+    clientInfo.companyName ||
+    notes.match(/Name:\s*(.*)/)?.[1] ||
+    order.client ||
+    "Walk-in Customer";
+  const cPerson =
+    clientInfo.contactName ||
+    clientInfo.contactPerson ||
+    notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] ||
+    "N/A";
+  const cNum =
+    clientInfo.contact ||
+    clientInfo.contactNumber ||
+    notes.match(/\((.*?)\)/)?.[1] ||
+    "N/A";
+  const cEmail =
+    clientInfo.emailAdd || clientInfo.emailAddress || clientInfo.email || "N/A";
+  const cAddr =
+    clientInfo.businessAdd ||
+    clientInfo.businessAddress ||
+    clientInfo.address ||
+    "N/A";
+
+  const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
+  const reqDate =
+    notes.match(/Request Date:\s*(.*)/)?.[1] ||
+    new Date(raw.createdAt || Date.now()).toLocaleDateString();
+  const delSchedule =
+    notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || order.date || "N/A";
+
+  const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
+  const pickupParts = pickupLine.split(" @ ");
+  const pickupAddr = pickupParts[0]?.trim() || "N/A";
+  const pickupTime = pickupParts[1]?.trim() || "N/A";
+
+  const dispatchRecord = Array.isArray(raw.DispatchOrder)
+    ? raw.DispatchOrder[0]
+    : raw.DispatchOrder || raw.dispatch_order;
+
+  const truck =
+    dispatchRecord?.Truck?.plateNumber ||
+    notes.match(/Truck:\s*(.*)/)?.[1] ||
+    "Unassigned";
+  const driver =
+    dispatchRecord?.Driver?.employeeName ||
+    notes.match(/Driver:\s*(.*)/)?.[1] ||
+    "Unassigned";
+  const h1 =
+    dispatchRecord?.Helper1?.employeeName ||
+    notes.match(/Helper 1:\s*(.*)/)?.[1] ||
+    "None";
+  const h2 =
+    dispatchRecord?.Helper2?.employeeName ||
+    notes.match(/Helper 2:\s*(.*)/)?.[1] ||
+    "None";
+
+  const actualNotesParts = notes.split("[NOTES]");
+  const actualNotes =
+    actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
+
+  const itemsArr =
+    raw.OrderDetails || raw.orderdetails || raw.order_details || [];
+  const product = itemsArr[0]?.productName || order.product || "Multiple Items";
+  const quantity = itemsArr[0]?.quantity || 1;
+
+  const stopsArr = raw.BranchStops || raw.branchstops || raw.branch_stops || [];
+  const deliveries =
+    stopsArr.length > 0
+      ? stopsArr
+      : [
+          {
+            branchName: "N/A",
+            deliveryAddress: "N/A",
+            contactPerson: cPerson,
+            contactNum: cNum,
+            expectedTime: "N/A",
+            quantity: quantity,
+            stopStatus: "Pending",
+          },
+        ];
+
+  const inputClass =
+    "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
+
+  const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
+  const isCrewConfirmed =
+    order.dispatchStatus === "Accepted" ||
+    (order.driverConfirmed && (!hasHelper || order.helperConfirmed));
+
+  const headerColors: Record<string, string> = {
+    "Pending Bookings": "bg-[#000c31] border-slate-800",
+    Pending: "bg-[#000c31] border-slate-800",
+    "In-Transit": "bg-blue-600 border-blue-800",
+    Completed: "bg-green-600 border-green-800",
+    Delivered: "bg-green-600 border-green-800",
+    "Foul Trip": "bg-red-600 border-red-800",
+  };
+  const headerClass =
+    headerColors[category] || headerColors["Pending Bookings"];
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+        <div
+          className={`flex items-center justify-between px-6 py-4 text-white border-b transition-colors ${headerClass}`}
+        >
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              Booking Details: {order.orderId}
+            </h2>
+            <p className="text-xs font-medium opacity-80 mt-0.5">
+              Created on{" "}
+              {raw.createdAt
+                ? new Date(raw.createdAt).toLocaleString()
+                : order.date}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+          <div
+            className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
+              isPending && !isCrewConfirmed
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : category === "In-Transit"
+                  ? "bg-blue-50 border-blue-200 text-blue-800"
+                  : category === "Completed" || category === "Delivered"
+                    ? "bg-green-50 border-green-200 text-green-800"
+                    : category === "Foul Trip"
+                      ? "bg-red-50 border-red-200 text-red-800"
+                      : "bg-orange-50 border-orange-200 text-orange-800"
+            }`}
+          >
+            {isPending && !isCrewConfirmed ? (
+              <>
+                <Clock className="w-5 h-5 text-amber-600" /> Waiting for Crew
+                Confirmation
+              </>
+            ) : category === "In-Transit" ? (
+              <>
+                <Truck className="w-5 h-5 text-blue-600" /> Currently In-Transit
+              </>
+            ) : category === "Completed" || category === "Delivered" ? (
+              <>
+                <CheckCircle2 className="w-5 h-5 text-green-600" /> Delivery
+                Completed
+              </>
+            ) : category === "Foul Trip" ? (
+              <>
+                <AlertTriangle className="w-5 h-5 text-red-600" /> Foul Trip /
+                Cancelled
+              </>
+            ) : (
+              <>
+                <Clock className="w-5 h-5 text-orange-600" /> Crew Confirmed -
+                Awaiting Dispatch
+              </>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                1. Client Information
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Company Name
+                  </label>
+                  <input readOnly value={cName} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Contact Person
+                  </label>
+                  <input readOnly value={cPerson} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Contact Number
+                  </label>
+                  <input readOnly value={cNum} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Email Address
+                  </label>
+                  <input readOnly value={cEmail} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Business Address
+                  </label>
+                  <input readOnly value={cAddr} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                2. Pickup Address
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Warehouse Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Pick Up Time
+                      </th>
+                      <th className="p-2.5 text-center">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-slate-200 font-medium text-slate-700">
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        Origin Location
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pickupAddr}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cPerson}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cNum}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pickupTime}
+                      </td>
+                      <td className="p-2 text-center bg-slate-50">
+                        {quantity}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                3. Delivery Itinerary & Status
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Delivery Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[10%]">
+                        Expected Time
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 text-center w-[10%]">
+                        Quantity
+                      </th>
+                      <th className="p-2.5 text-center w-[10%]">Stop Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveries.map((d: any, idx: number) => {
+                      const st = d.stopStatus?.toLowerCase() || "pending";
+                      let badgeClass = "bg-orange-100 text-orange-700";
+                      if (st.includes("transit") || st.includes("progress"))
+                        badgeClass = "bg-blue-100 text-blue-700";
+                      if (st.includes("complete") || st.includes("delivered"))
+                        badgeClass = "bg-green-100 text-green-700";
+                      if (
+                        st.includes("fail") ||
+                        st.includes("foul") ||
+                        st.includes("cancel")
+                      )
+                        badgeClass = "bg-red-100 text-red-700";
+
+                      return (
+                        <tr
+                          key={idx}
+                          className="border-b border-slate-200 font-medium text-slate-700"
+                        >
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.branchName || "Branch"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.deliveryAddress || d.branchName || "N/A"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.contactPerson || cPerson}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.contactNum || d.contactNumber || cNum}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.expectedTime || "N/A"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                            {d.quantity || quantity}
+                          </td>
+                          <td className="p-2 text-center bg-slate-50">
+                            <span
+                              className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
+                            >
+                              {d.stopStatus || order.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                4. Booking Details & Schedule
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Request Date
+                  </label>
+                  <input readOnly value={reqDate} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Delivery Schedule
+                  </label>
+                  <input readOnly value={delSchedule} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Product To Deliver
+                  </label>
+                  <input readOnly value={product} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Priority Level
+                  </label>
+                  <input readOnly value={priority} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                5. Assigned Delivery Crew & Vehicle
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Truck Plate No.
+                  </label>
+                  <input readOnly value={truck} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Driver
+                  </label>
+                  <input readOnly value={driver} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Helper #1
+                  </label>
+                  <input readOnly value={h1} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Helper #2
+                  </label>
+                  <input readOnly value={h2} className={inputClass} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                6. Notes / Instructions
+              </div>
+              <textarea
+                readOnly
+                rows={3}
+                value={actualNotes}
+                className="w-full resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none cursor-default"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50">
+          <button
+            onClick={onClose}
+            className={`w-full sm:w-auto px-8 py-2.5 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer ${
+              category === "In-Transit"
+                ? "bg-blue-600 hover:bg-blue-700"
+                : category === "Completed" || category === "Delivered"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : category === "Foul Trip"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-[#000c31] hover:bg-slate-800"
+            }`}
+          >
+            Close Details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ==========================================
@@ -146,7 +614,7 @@ const FilterDropdown = ({
       </label>
       <button
         onClick={() => setActiveDropdown(isOpen ? null : id)}
-        className="w-full flex items-center justify-between bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+        className="w-full flex items-center justify-between bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm cursor-pointer"
       >
         <span className="truncate pr-2">{value}</span>
         <ChevronDown
@@ -163,7 +631,7 @@ const FilterDropdown = ({
                 setValue(opt);
                 setActiveDropdown(null);
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${
+              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
                 value === opt
                   ? "bg-blue-50 text-blue-600 font-medium"
                   : "text-slate-700"
@@ -196,6 +664,10 @@ export default function ReportsForecastingPage() {
   const [clientOptions, setClientOptions] = useState<string[]>(["Client"]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Modal State for Booking details view
+  const [selectedOrderForView, setSelectedOrderForView] = useState<any>(null);
+  const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
+
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -207,7 +679,6 @@ export default function ReportsForecastingPage() {
     const fetchReports = async () => {
       setIsLoading(true);
       try {
-        // Changed to use our secure custom wrapper and the new /api/bookings route!
         const orders = await apiFetch<any[]>("/api/bookings");
 
         const uniqueClients = new Set<string>();
@@ -215,7 +686,6 @@ export default function ReportsForecastingPage() {
 
         if (Array.isArray(orders)) {
           orders.forEach((o: any) => {
-            // 1. Client Formatting
             const clientObj = o.Client || o.client || {};
             let displayClient = clientObj.company || clientObj.companyName;
             if (!displayClient) {
@@ -226,13 +696,11 @@ export default function ReportsForecastingPage() {
             }
             uniqueClients.add(displayClient);
 
-            // 2. Date Formatting
             const requestDateMatch = o.notes?.match(/Request Date:\s*([^\n]*)/);
             const reqDate = requestDateMatch
               ? requestDateMatch[1].trim()
               : new Date(o.createdAt).toISOString().split("T")[0];
 
-            // 3. Crew Formatting (Check live dispatch order first, fallback to notes)
             const dispatchRecord = Array.isArray(o.DispatchOrder)
               ? o.DispatchOrder[0]
               : o.DispatchOrder || o.dispatch_order;
@@ -246,7 +714,6 @@ export default function ReportsForecastingPage() {
               "None";
             const crewString = `Driver: ${driverName} | Helper: ${helperName}`;
 
-            // 4. Status Routing
             const stopsArr =
               o.BranchStops || o.branchstops || o.branch_stops || [];
             const rawStatus = (
@@ -280,12 +747,16 @@ export default function ReportsForecastingPage() {
               status: category,
               crew: crewString,
               remarks: "Retrieved from DB",
+              rawOrder: o,
+              dispatchStatus: dispatchRecord?.status,
+              driverConfirmed: Boolean(o.driverConfirmed || o.driver_confirmed),
+              helperConfirmed: Boolean(o.helperConfirmed || o.helper_confirmed),
             });
           });
         }
 
         formattedRecords.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+          (a, b) => new Date(b.date).getTime() - new Date(b.date).getTime(),
         );
         setRecords(formattedRecords);
         setClientOptions(["Client", ...Array.from(uniqueClients)]);
@@ -392,6 +863,11 @@ export default function ReportsForecastingPage() {
       default:
         return "bg-slate-100 text-slate-700";
     }
+  };
+
+  const handleRowClick = (record: ReportRecord) => {
+    setSelectedOrderForView(record);
+    setIsViewOrderModalOpen(true);
   };
 
   return (
@@ -559,7 +1035,8 @@ export default function ReportsForecastingPage() {
                 paginatedRecords.map((record, idx) => (
                   <tr
                     key={record.id || idx}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
+                    onClick={() => handleRowClick(record)}
+                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
                     <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
                       {record.date}
@@ -637,6 +1114,13 @@ export default function ReportsForecastingPage() {
           </div>
         </div>
       </div>
+
+      {/* Reused View Booking Modal */}
+      <ViewOrderModal
+        isOpen={isViewOrderModalOpen}
+        onClose={() => setIsViewOrderModalOpen(false)}
+        order={selectedOrderForView}
+      />
     </div>
   );
 }
