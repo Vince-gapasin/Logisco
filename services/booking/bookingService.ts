@@ -16,7 +16,12 @@ const generateOrderCode = (): string => {
 // ==========================================
 
 export async function getBookings(): Promise<Order[]> {
-const { data, error } = await supabase
+  const batchSize = 1000;
+  let start = 0;
+  const allBookings: Order[] = [];
+
+  while (true) {
+    const { data, error } = await supabase
       .from("Order")
       .select(`
         *,
@@ -25,17 +30,39 @@ const { data, error } = await supabase
         BranchStops (*),
         DispatchOrder (
           *,
-          Truck (plateNumber, model),
-          Driver:Employee!driverID (employeeName)
+          Truck (
+            plateNumber,
+            model
+          ),
+          Driver:Employee!driverID (
+            employeeName
+          ),
+          DispatchHelper (
+            helperID,
+            Helper:Employee!helperID (
+              employeeName
+            )
+          )
         )
       `)
-      .order('createdAt', { ascending: false });
+      .order("createdAt", { ascending: false })
+      .range(start, start + batchSize - 1);
 
-  if (error) {
-    throw error;
+    if (error) {
+      throw error;
+    }
+
+    const batch = (data ?? []) as Order[];
+    allBookings.push(...batch);
+
+    if (batch.length < batchSize) {
+      break;
+    }
+
+    start += batchSize;
   }
 
-  return data as Order[];
+  return allBookings;
 }
 
 export async function createBooking(dto: CreateOrderDto) {

@@ -708,8 +708,11 @@ export default function ReportsForecastingPage() {
               dispatchRecord?.Driver?.employeeName ||
               o.notes?.match(/Driver:\s*([^\n]*)/)?.[1]?.trim() ||
               "Unassigned";
+            const helperAssignment = Array.isArray(dispatchRecord?.DispatchHelper)
+              ? dispatchRecord.DispatchHelper[0]
+              : dispatchRecord?.DispatchHelper;
             const helperName =
-              dispatchRecord?.Helper1?.employeeName ||
+              helperAssignment?.Helper?.employeeName ||
               o.notes?.match(/Helper 1:\s*([^\n]*)/)?.[1]?.trim() ||
               "None";
             const crewString = `Driver: ${driverName} | Helper: ${helperName}`;
