@@ -139,7 +139,10 @@ export async function completeDispatch(dispatchID: string) {
   // 2. Complete the dispatch
   const { error: dispatchError } = await supabase
     .from("DispatchOrder")
-    .update({ status: "Completed" })
+    .update({
+      status: "Completed",
+      completedAt: new Date().toISOString(),
+    })
     .eq("dispatchID", dispatchID);
 
   if (dispatchError) {
@@ -179,8 +182,6 @@ export async function completeDispatch(dispatchID: string) {
       "Delivery completed! Truck, driver, and helpers are now available.",
   };
 }
-
-  
 
 export async function getAvailableResources(targetDate: string) {
   // targetDate is retained for future date-based scheduling.

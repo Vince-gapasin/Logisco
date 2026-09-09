@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
@@ -24,298 +24,494 @@ import {
   Legend,
 } from "recharts";
 
-// ==========================================
-// MOCK DATA LAYER (BACKEND-READY)
-// ==========================================
+interface ForecastFactors {
+  averageTemperature: number | null;
+  totalRainfall: number | null;
+  rainyDays: number | null;
+  averageWindSpeed: number | null;
+  averageDieselPrice: number | null;
+  averageFuelAdjustment: number | null;
+}
 
-export interface ForecastRecord {
+interface ForecastRecord {
   id: string;
+  periodStart: string;
   period: string;
   expectedVolume: number;
   actualVolume: number | null;
+  variance: number | null;
+  variancePercentage: number | null;
+  trendStatus:
+    | "Above Normal"
+    | "Below Normal"
+    | "Normal"
+    | "In Progress";
+  factors: ForecastFactors;
 }
 
-const MOCK_PERIOD_OPTIONS = ["This Year"];
+interface ForecastSummary {
+  expectedVolume: number;
+  actualVolume: number;
+  totalVariance: number;
+  variancePercentage: number;
+  trendStatus: string;
+}
 
-// Dummy records constrained strictly within 100-200 range
-const MOCK_FORECAST_DATA: ForecastRecord[] = [
-  { id: "1", period: "Jan 2026", expectedVolume: 110, actualVolume: 108 },
-  { id: "2", period: "Feb 2026", expectedVolume: 125, actualVolume: 130 },
-  { id: "3", period: "Mar 2026", expectedVolume: 135, actualVolume: 132 },
-  { id: "4", period: "Apr 2026", expectedVolume: 145, actualVolume: 150 },
-  { id: "5", period: "May 2026", expectedVolume: 155, actualVolume: 151 },
-  { id: "6", period: "Jun 2026", expectedVolume: 165, actualVolume: 170 },
-  { id: "7", period: "Jul 2026", expectedVolume: 175, actualVolume: 172 },
-  { id: "8", period: "Aug 2026", expectedVolume: 185, actualVolume: 190 },
-  { id: "9", period: "Sep 2026", expectedVolume: 190, actualVolume: null },
-  { id: "10", period: "Oct 2026", expectedVolume: 192, actualVolume: null },
-  { id: "11", period: "Nov 2026", expectedVolume: 195, actualVolume: null },
-  { id: "12", period: "Dec 2026", expectedVolume: 200, actualVolume: null },
-];
+interface ForecastResponse {
+  model: string;
+  generatedAt: string;
+  trainingMonths: number;
+  summary: ForecastSummary;
+  records: ForecastRecord[];
+  remarks: string[];
+}
 
-const MOCK_REMARKS = [
-  {
-    id: "r1",
-    text: "In September, actual delivery performance stabilized as normal weather patterns resumed and fleet maintenance backlogs were fully cleared, aligning output closely with the initial pre-season forecasts.",
-  },
-  {
-    id: "r2",
-    text: "In August, delivery volumes experienced a temporary surge due to a back-to-school promotional campaign launched by major retail clients, prompting the deployment of auxiliary fleet units to meet the sudden uptick in orders.",
-  },
-  {
-    id: "r3",
-    text: "In July, operational efficiency improved as delivery teams streamlined travel paths and reduced transit times despite ongoing regional weather disruptions.",
-  },
-  {
-    id: "r4",
-    text: "In June, manpower shortages and vehicle availability issues further reduced delivery operations, causing actual deliveries to remain below the expected forecasted volume.",
-  },
-  {
-    id: "r5",
-    text: "By May, continuous heavy rainfall and traffic congestion caused delivery delays and reduced completed delivery volume compared to the forecasted trend.",
-  },
-  {
-    id: "r6",
-    text: "In April, both forecasted and actual deliveries peaked due to seasonal demand growth and promotional activities from partner clients, resulting in a higher number of delivery requests.",
-  },
-  {
-    id: "r7",
-    text: "During March, fuel prices increased significantly, causing delivery schedules to be reduced and routes to be consolidated to minimize operational expenses.",
-  },
-  {
-    id: "r8",
-    text: "In February, delivery activity declined because several delivery vehicles underwent scheduled maintenance, reducing the number of available delivery units.",
-  },
-  {
-    id: "r9",
-    text: "In January, actual deliveries exceeded the forecasted volume due to increased customer demand after the holiday season and the addition of temporary delivery crews to handle the higher workload.",
-  },
-];
+const PERIOD_OPTIONS = ["This Year"];
 
-function calculateMetrics(expected: number, actual: number | null) {
-  if (actual === null) {
+function getStoredToken(): string | null {
+  const storedSession =
+    sessionStorage.getItem("logisco_user_session") ??
+    localStorage.getItem("logisco_user_session");
+
+  if (!storedSession) {
+    return null;
+  }
+
+  try {
+    const parsedSession = JSON.parse(storedSession);
+    return parsedSession.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function formatVariance(record: ForecastRecord): string {
+  if (
+    record.actualVolume === null ||
+    record.variance === null ||
+    record.variancePercentage === null
+  ) {
+    return "Pending";
+  }
+
+  const varianceSign = record.variance > 0 ? "+" : "";
+  const percentageSign =
+    record.variancePercentage > 0 ? "+" : "";
+
+  return `${varianceSign}${record.variance} (${percentageSign}${record.variancePercentage}%)`;
+}
+
+function getVarianceClass(record: ForecastRecord): string {
+  if (record.actualVolume === null) {
+    return "text-slate-500";
+  }
+
+  if ((record.variance ?? 0) > 0) {
+    return "text-blue-600";
+  }
+
+  if ((record.variance ?? 0) < 0) {
+    return "text-amber-600";
+  }
+
+  return "text-slate-500";
+}
+
+function getStatusClass(status: ForecastRecord["trendStatus"]) {
+  switch (status) {
+    case "Above Normal":
+      return "bg-blue-100 text-blue-800 border-blue-200";
+
+    case "Below Normal":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+
+    case "Normal":
+      return "bg-emerald-100 text-emerald-800 border-emerald-200";
+
+    default:
+      return "bg-slate-100 text-slate-700 border-slate-200";
+  }
+}
+
+function getSummaryStatusClass(status: string) {
+  if (status === "Below Normal") {
     return {
-      variance: "Pending",
-      varianceVal: 0,
-      status: "In Progress",
-      statusClass: "bg-slate-100 text-slate-700 border-slate-200",
+      card: "bg-amber-50/50 border-amber-100",
+      circle: "bg-amber-100",
+      icon: "text-amber-600",
+      label: "text-amber-700",
+      value: "text-amber-900",
     };
   }
 
-  const diff = actual - expected;
-  const percentage = ((diff / expected) * 100).toFixed(1);
-  const sign = diff > 0 ? "+" : "";
-  const varianceStr = `${sign}${diff} (${sign}${percentage}%)`;
-
-  const ratio = diff / expected;
-  if (ratio > 0.03) {
+  if (status === "Above Normal") {
     return {
-      variance: varianceStr,
-      varianceVal: diff,
-      status: "Above Normal",
-      statusClass: "bg-[#dbeafe] text-[#1e40af] border-blue-200",
-    };
-  } else if (ratio < -0.03) {
-    return {
-      variance: varianceStr,
-      varianceVal: diff,
-      status: "Below Normal",
-      statusClass: "bg-[#fef3c7] text-[#92400e] border-amber-200",
-    };
-  } else {
-    return {
-      variance: varianceStr,
-      varianceVal: diff,
-      status: "Normal",
-      statusClass: "bg-[#d1fae5] text-[#065f46] border-emerald-200",
+      card: "bg-blue-50/50 border-blue-100",
+      circle: "bg-blue-100",
+      icon: "text-blue-600",
+      label: "text-blue-700",
+      value: "text-blue-900",
     };
   }
+
+  return {
+    card: "bg-emerald-50/50 border-emerald-100",
+    circle: "bg-emerald-100",
+    icon: "text-emerald-600",
+    label: "text-emerald-700",
+    value: "text-emerald-900",
+  };
+}
+
+function escapeCsvValue(value: unknown): string {
+  const stringValue =
+    value === null || value === undefined ? "" : String(value);
+
+  return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
 export default function ForecastingPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState(MOCK_PERIOD_OPTIONS[0]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState(
+    PERIOD_OPTIONS[0]
+  );
+  const [isDropdownOpen, setIsDropdownOpen] =
+    useState(false);
+  const [forecastData, setForecastData] =
+    useState<ForecastResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Calculates single period averages (100–200 scale) for summary cards
-  const summary = useMemo(() => {
-    const completedRecords = MOCK_FORECAST_DATA.filter(
-      (r) => r.actualVolume !== null,
-    );
+  useEffect(() => {
+    async function loadForecast() {
+      try {
+        setLoading(true);
+        setError("");
 
-    const count = completedRecords.length || 1;
-    const avgExpected = Math.round(
-      completedRecords.reduce((acc, curr) => acc + curr.expectedVolume, 0) /
-        count,
-    );
-    const avgActual = Math.round(
-      completedRecords.reduce(
-        (acc, curr) => acc + (curr.actualVolume || 0),
-        0,
-      ) / count,
-    );
+        const token = getStoredToken();
 
-    const netVariance = avgActual - avgExpected;
-    const netVariancePct = avgExpected
-      ? ((netVariance / avgExpected) * 100).toFixed(1)
-      : "0.0";
+        if (!token) {
+          throw new Error(
+            "Authentication session was not found. Please log in again."
+          );
+        }
 
-    return {
-      avgExpected,
-      avgActual,
-      netVariance: `${netVariance >= 0 ? "+" : ""}${netVariance} (${netVariance >= 0 ? "+" : ""}${netVariancePct}%)`,
-      trendStatus: "Normal",
-    };
+        const response = await fetch(
+          "/api/forecasting/data",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              "Failed to retrieve forecasting data."
+          );
+        }
+
+        setForecastData(result);
+      } catch (fetchError) {
+        console.error(
+          "Forecasting page error:",
+          fetchError
+        );
+
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Unable to load forecasting data."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadForecast();
   }, []);
 
   const handleExport = () => {
-    alert("Exporting forecasting report data...");
+    if (!forecastData) return;
+
+    const headers = [
+      "Period",
+      "Expected Delivery Volume",
+      "Actual Delivery Volume",
+      "Variance",
+      "Variance Percentage",
+      "Trend Status",
+      "Average Temperature",
+      "Total Rainfall",
+      "Rainy Days",
+      "Average Wind Speed",
+      "Average Diesel Price",
+      "Average Fuel Adjustment",
+    ];
+
+    const rows = forecastData.records.map((record) => [
+      record.period,
+      record.expectedVolume,
+      record.actualVolume,
+      record.variance,
+      record.variancePercentage,
+      record.trendStatus,
+      record.factors.averageTemperature,
+      record.factors.totalRainfall,
+      record.factors.rainyDays,
+      record.factors.averageWindSpeed,
+      record.factors.averageDieselPrice,
+      record.factors.averageFuelAdjustment,
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCsvValue).join(","),
+      ...rows.map((row) =>
+        row.map(escapeCsvValue).join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = `forecasting-report-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(downloadUrl);
   };
 
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-blue-700" />
+
+          <p className="text-sm font-medium text-slate-700">
+            Generating forecast from historical records...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !forecastData) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-xl border border-red-200 bg-red-50 p-5 text-center">
+          <p className="text-sm font-semibold text-red-700">
+            Unable to load forecasting data
+          </p>
+
+          <p className="mt-2 text-xs text-red-600">
+            {error}
+          </p>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const {
+    summary,
+    records: forecastRecords,
+    remarks: forecastingRemarks,
+  } = forecastData;
+
+  const summaryStatusClass = getSummaryStatusClass(
+    summary.trendStatus
+  );
+
+  const varianceText =
+    `${summary.totalVariance > 0 ? "+" : ""}` +
+    `${summary.totalVariance.toLocaleString()} (` +
+    `${summary.variancePercentage > 0 ? "+" : ""}` +
+    `${summary.variancePercentage}%)`;
+
   return (
-    <div className="flex min-h-screen w-full bg-slate-50 font-sans relative">
-      {/* 2. MAIN RIGHT CONTAINER CANVAS */}
-      <div className="flex flex-col flex-1 w-full">
-        {/* Main Content */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
+    <div className="relative flex h-screen w-full overflow-hidden bg-slate-50 font-sans">
+      <div className="flex w-full flex-1 flex-col overflow-hidden">
+        <main className="mx-auto w-full max-w-7xl flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
           <div className="space-y-6">
-            {/* PAGE TITLE & ACTION BUTTONS */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* PAGE HEADER */}
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                   Forecasting
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-700 mt-1">
-                  Multiple Linear Regression (MLR) predictive delivery volumes
-                  vs actual performance.
+
+                <p className="mt-1 text-xs text-slate-700 sm:text-sm">
+                  Multiple Linear Regression predictive delivery
+                  volumes versus actual performance.
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Trained using {forecastData.trainingMonths} months
+                  of historical delivery and weather records.
                 </p>
               </div>
 
-              {/* Action Buttons Container */}
-              <div className="w-full sm:w-auto flex items-center gap-3">
+              <div className="flex w-full items-center gap-3 sm:w-auto">
                 <Link
                   href="/admindashboard/reports"
-                  className="w-full sm:w-auto h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl border border-slate-200 shadow-sm transition-all duration-200 text-sm px-4 cursor-pointer"
+                  className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-black sm:w-auto"
                 >
-                  <ArrowLeft className="w-4 h-4 shrink-0 text-white" />
+                  <ArrowLeft className="h-4 w-4 shrink-0" />
                   <span>Back to Reports</span>
                 </Link>
+
                 <button
                   onClick={handleExport}
-                  className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
+                  className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:bg-black sm:w-40"
                 >
-                  <Download className="w-4 h-4 shrink-0" />
+                  <Download className="h-4 w-4 shrink-0" />
                   <span>Export Report</span>
                 </button>
               </div>
             </div>
 
-            {/* SUMMARY CARDS SECTION */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-              {/* Expected Volume */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                  <Layers className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
+            {/* SUMMARY CARDS */}
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 sm:h-12 sm:w-12">
+                  <Layers className="h-5 w-5 text-slate-500 sm:h-6 sm:w-6" />
                 </div>
+
                 <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                     Expected Delivery Volume
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.avgExpected}
+
+                  <h3 className="mt-0.5 text-xl font-bold text-slate-900 sm:text-2xl">
+                    {summary.expectedVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
 
-              {/* Actual Volume */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                  <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+                  <Truck className="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
                 </div>
+
                 <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                     Actual Delivery Volume
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.avgActual}
+
+                  <h3 className="mt-0.5 text-xl font-bold text-slate-900 sm:text-2xl">
+                    {summary.actualVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
 
-              {/* Total Variance */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-900" />
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 sm:h-12 sm:w-12">
+                  <TrendingUp className="h-5 w-5 text-indigo-900 sm:h-6 sm:w-6" />
                 </div>
+
                 <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">
                     Total Variance
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.netVariance}
+
+                  <h3 className="mt-0.5 text-xl font-bold text-slate-900 sm:text-2xl">
+                    {varianceText}
                   </h3>
                 </div>
               </div>
 
-              {/* Trend Status */}
-              <div className="bg-emerald-50/50 p-4 sm:p-5 rounded-2xl border border-emerald-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+              <div
+                className={`flex items-center gap-4 rounded-2xl border p-4 shadow-sm sm:p-5 ${summaryStatusClass.card}`}
+              >
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 ${summaryStatusClass.circle}`}
+                >
+                  <CheckCircle2
+                    className={`h-5 w-5 sm:h-6 sm:w-6 ${summaryStatusClass.icon}`}
+                  />
                 </div>
+
                 <div>
-                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-wider ${summaryStatusClass.label}`}
+                  >
                     Trend Status
                   </p>
-                  <h3 className="text-lg sm:text-xl font-bold text-emerald-900 mt-0.5">
+
+                  <h3
+                    className={`mt-0.5 text-lg font-bold sm:text-xl ${summaryStatusClass.value}`}
+                  >
                     {summary.trendStatus}
                   </h3>
                 </div>
               </div>
             </div>
 
-            {/* CHART & REMARKS SECTION */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-              {/* MLR Trend Line Chart */}
-              <div className="lg:col-span-2 bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            {/* GRAPH AND REMARKS */}
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6 lg:col-span-2">
+                <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                   <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-slate-900">
+                    <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
                       MLR Forecast vs Actual Trend
                     </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Comparison between predicted expectations and completed
-                      actuals
+
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Comparison between predicted expectations and
+                      completed actual deliveries
                     </p>
                   </div>
 
-                  {/* Period Dropdown */}
                   <div className="relative w-full sm:w-40">
                     <button
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all"
+                      onClick={() =>
+                        setIsDropdownOpen(!isDropdownOpen)
+                      }
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-900 shadow-sm transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     >
                       <span className="flex items-center gap-1.5 truncate">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
                         {selectedPeriod}
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                     </button>
 
                     {isDropdownOpen && (
-                      <div className="absolute z-50 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1">
-                        {MOCK_PERIOD_OPTIONS.map((opt) => (
+                      <div className="absolute right-0 top-full z-50 mt-2 w-full rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                        {PERIOD_OPTIONS.map((option) => (
                           <button
-                            key={opt}
+                            key={option}
                             onClick={() => {
-                              setSelectedPeriod(opt);
+                              setSelectedPeriod(option);
                               setIsDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 ${
-                              selectedPeriod === opt
-                                ? "bg-blue-50 text-blue-600 font-medium"
+                            className={`w-full px-4 py-2 text-left text-xs transition-colors hover:bg-slate-50 ${
+                              selectedPeriod === option
+                                ? "bg-blue-50 font-medium text-blue-600"
                                 : "text-slate-700"
                             }`}
                           >
-                            {opt}
+                            {option}
                           </button>
                         ))}
                       </div>
@@ -323,36 +519,59 @@ export default function ForecastingPage() {
                   </div>
                 </div>
 
-                {/* Recharts Container */}
-                <div className="w-full h-72 sm:h-80">
+                <div className="h-72 w-full sm:h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={MOCK_FORECAST_DATA}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      data={forecastRecords}
+                      margin={{
+                        top: 10,
+                        right: 10,
+                        left: -20,
+                        bottom: 0,
+                      }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#f1f5f9"
+                      />
+
                       <XAxis
                         dataKey="period"
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tick={{
+                          fontSize: 11,
+                          fill: "#64748b",
+                        }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
+
                       <YAxis
-                        domain={[100, 210]}
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        domain={["auto", "auto"]}
+                        allowDecimals={false}
+                        tick={{
+                          fontSize: 11,
+                          fill: "#64748b",
+                        }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
+
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "#ffffff",
                           borderRadius: "0.75rem",
                           borderColor: "#e2e8f0",
-                          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                          boxShadow:
+                            "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                           fontSize: "12px",
                         }}
                       />
+
                       <Legend
-                        wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }}
+                        wrapperStyle={{
+                          fontSize: "12px",
+                          paddingTop: "10px",
+                        }}
                       />
+
                       <Line
                         type="monotone"
                         dataKey="expectedVolume"
@@ -362,6 +581,7 @@ export default function ForecastingPage() {
                         dot={{ r: 3 }}
                         activeDot={{ r: 6 }}
                       />
+
                       <Line
                         type="monotone"
                         dataKey="actualVolume"
@@ -377,115 +597,136 @@ export default function ForecastingPage() {
                 </div>
               </div>
 
-              {/* Forecasting Remarks Panel (Scrollable) */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+              {/* AUTOMATED FINDINGS */}
+              <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6">
                 <div>
-                  <div className="flex items-center gap-2 mb-4 text-slate-900 font-semibold text-sm">
-                    <Info className="w-4 h-4 text-blue-600" />
-                    <h2>Forecasting Remarks</h2>
+                  <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <h2>Automated Forecasting Findings</h2>
                   </div>
 
-                  {/* Scrollable Container with custom scrollbar styling */}
-                  <div className="space-y-3 max-h-60 sm:max-h-72 overflow-y-auto pr-1">
-                    {MOCK_REMARKS.map((remark) => (
-                      <div
-                        key={remark.id}
-                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed"
-                      >
-                        {remark.text}
+                  <div className="max-h-60 space-y-3 overflow-y-auto pr-1 sm:max-h-72">
+                    {forecastingRemarks.length > 0 ? (
+                      forecastingRemarks.map(
+                        (remark, index) => (
+                          <div
+                            key={`${index}-${remark}`}
+                            className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600"
+                          >
+                            {remark}
+                          </div>
+                        )
+                      )
+                    ) : (
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs text-slate-500">
+                        No forecasting findings are currently
+                        available.
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                  <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>
-                    MLR Model updates monthly based on fresh dispatch records.
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-blue-800">
+                    <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                    The model recalculates from the latest completed
+                    dispatch and external-factor records.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* FORECAST HISTORY TABLE */}
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full mt-6">
-              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+            {/* FORECAST HISTORY */}
+            <div className="mt-6 flex w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-900">
                     Forecast History (MLR Results)
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Itemized period breakdown calculating volume variances
-                    dynamically
+
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Monthly forecast and actual delivery volume
+                    comparison
                   </p>
                 </div>
               </div>
 
-              <div className="w-full overflow-x-auto pb-2 min-h-75">
-                <table className="w-full text-left border-collapse min-w-225">
+              <div className="min-h-75 w-full overflow-x-auto pb-2">
+                <table className="min-w-225 w-full border-collapse text-left">
                   <thead>
-                    <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                      <th className="py-3.5 px-4 sm:px-6">Period</th>
-                      <th className="py-3.5 px-4 sm:px-6">
+                    <tr className="border-b border-slate-100 bg-slate-50/70 text-xs font-semibold uppercase tracking-wider text-slate-700">
+                      <th className="px-4 py-3.5 sm:px-6">
+                        Period
+                      </th>
+
+                      <th className="px-4 py-3.5 sm:px-6">
                         Expected Delivery Volume
                       </th>
-                      <th className="py-3.5 px-4 sm:px-6">
+
+                      <th className="px-4 py-3.5 sm:px-6">
                         Actual Delivery Volume
                       </th>
-                      <th className="py-3.5 px-4 sm:px-6">
+
+                      <th className="px-4 py-3.5 sm:px-6">
                         Calculated Variance
                       </th>
-                      <th className="py-3.5 px-4 sm:px-6">Trend Status</th>
+
+                      <th className="px-4 py-3.5 sm:px-6">
+                        Trend Status
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
-                    {MOCK_FORECAST_DATA.map((row) => {
-                      const metrics = calculateMetrics(
-                        row.expectedVolume,
-                        row.actualVolume,
-                      );
 
-                      return (
-                        <tr
-                          key={row.id}
-                          className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
-                        >
-                          <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
-                            {row.period}
-                          </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-slate-600">
-                            {row.expectedVolume.toLocaleString()}
-                          </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-medium text-slate-900">
-                            {row.actualVolume !== null
-                              ? row.actualVolume.toLocaleString()
-                              : "-"}
-                          </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs font-semibold">
-                            <span
-                              className={
-                                metrics.varianceVal > 0
-                                  ? "text-blue-600"
-                                  : metrics.varianceVal < 0
-                                    ? "text-amber-600"
-                                    : "text-slate-500"
-                              }
-                            >
-                              {metrics.variance}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium ${metrics.statusClass}`}
-                            >
-                              {metrics.status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
+                    {forecastRecords.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="border-b border-slate-100 text-sm text-slate-800 transition-colors hover:bg-slate-50/80"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3.5 font-medium text-slate-900 sm:px-6">
+                          {record.period}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6">
+                          {record.expectedVolume.toLocaleString()}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-3.5 font-medium text-slate-900 sm:px-6">
+                          {record.actualVolume !== null
+                            ? record.actualVolume.toLocaleString()
+                            : "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-3.5 text-xs font-semibold sm:px-6">
+                          <span
+                            className={getVarianceClass(record)}
+                          >
+                            {formatVariance(record)}
+                          </span>
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClass(
+                              record.trendStatus
+                            )}`}
+                          >
+                            {record.trendStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+                <p className="text-xs text-slate-500">
+                  Model generated:{" "}
+                  {new Date(
+                    forecastData.generatedAt
+                  ).toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
