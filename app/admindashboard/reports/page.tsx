@@ -15,6 +15,7 @@ import {
   Truck,
   AlertTriangle,
   X,
+  Search,
 } from "lucide-react";
 
 // ==========================================
@@ -76,30 +77,18 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 // ==========================================
-// STATIC FILTER OPTIONS
+// STATIC FILTER OPTIONS & DUMMY DATA
 // ==========================================
 const TIMEFRAME_OPTIONS = [
-  "Time Frame",
+  "All Time",
   "Today",
+  "Tomorrow",
+  "Last 7 Days",
+  "Last 30 Days",
   "This Week",
   "This Month",
-  "This Year",
-];
-
-const MONTH_OPTIONS = [
-  "Month",
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "Up to Date",
+  "Custom Date Range",
 ];
 
 const STATUS_OPTIONS = [
@@ -109,7 +98,43 @@ const STATUS_OPTIONS = [
   "Pending",
   "In-Transit",
 ];
-const CREW_OPTIONS = ["Delivery Crew", "Driver", "Helper"];
+
+const DUMMY_CLIENTS = [
+  "Jollibee – Katipunan",
+  "Popeyes – Sta. Mesa",
+  "KFC – Cubao",
+  "McDonald’s – Ortigas",
+  "Chowking – Quezon Avenue",
+  "Mang Inasal - Diliman",
+  "Burger King - Timog",
+  "Greenwich - Trinoma",
+  "Pizza Hut - SM North",
+  "Shakey's - Tomas Morato",
+];
+
+const DUMMY_DRIVERS = [
+  "Juan Dela Cruz",
+  "Luis Manzano",
+  "Pedro Penduko",
+  "Cardo Dalisay",
+  "Coco Martin",
+  "Vic Sotto",
+  "Joey de Leon",
+  "Daniel Padilla",
+  "Dingdong Dantes",
+];
+
+const DUMMY_HELPERS = [
+  "Mark Reyes",
+  "John Doe",
+  "Andres Bonifacio",
+  "Apolinario Mabini",
+  "Emilio Aguinaldo",
+  "Jose Rizal",
+  "Antonio Luna",
+  "Marcelo Del Pilar",
+  "Lapu-Lapu",
+];
 
 export interface ReportRecord {
   id: string;
@@ -586,7 +611,7 @@ function ViewOrderModal({
 }
 
 // ==========================================
-// REUSABLE DROPDOWN COMPONENT
+// REUSABLE DROPDOWN COMPONENTS
 // ==========================================
 const FilterDropdown = ({
   id,
@@ -646,6 +671,110 @@ const FilterDropdown = ({
   );
 };
 
+const MultiSelectDropdown = ({
+  id,
+  label,
+  options,
+  selectedValues,
+  setSelectedValues,
+  activeDropdown,
+  setActiveDropdown,
+  placeholder,
+}: {
+  id: string;
+  label: string;
+  options: string[];
+  selectedValues: string[];
+  setSelectedValues: React.Dispatch<React.SetStateAction<string[]>>;
+  activeDropdown: string | null;
+  setActiveDropdown: (id: string | null) => void;
+  placeholder: string;
+}) => {
+  const isOpen = activeDropdown === id;
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchTerm("");
+    }
+  }, [isOpen]);
+
+  const toggleSelection = (opt: string) => {
+    if (selectedValues.includes(opt)) {
+      setSelectedValues(selectedValues.filter((v) => v !== opt));
+    } else {
+      setSelectedValues([...selectedValues, opt]);
+    }
+  };
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  return (
+    <div className="relative w-full">
+      <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+        {label}
+      </label>
+      <button
+        onClick={() => setActiveDropdown(isOpen ? null : id)}
+        className="w-full flex items-center justify-between bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm cursor-pointer"
+      >
+        <span className="truncate pr-2">
+          {selectedValues.length === 0
+            ? placeholder
+            : selectedValues.length === 1
+              ? selectedValues[0]
+              : `${selectedValues.length} Selected`}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 top-full left-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-60 overflow-hidden flex flex-col">
+          <div className="p-2 border-b border-slate-100 shrink-0">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </div>
+          <div className="overflow-y-auto flex-1 p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-slate-500 italic text-center">
+                No results found
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <label
+                  key={opt}
+                  className="flex items-center w-full px-3 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer text-slate-700 rounded-md"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(opt)}
+                    onChange={() => toggleSelection(opt)}
+                    className="mr-3 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="truncate">{opt}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ReportsForecastingPage() {
   // ==========================================
   // STATE MANAGEMENT
@@ -654,14 +783,22 @@ export default function ReportsForecastingPage() {
 
   // Filter States
   const [timeframe, setTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
-  const [month, setMonth] = useState(MONTH_OPTIONS[0]);
-  const [client, setClient] = useState("Client");
-  const [crew, setCrew] = useState(CREW_OPTIONS[0]);
   const [status, setStatus] = useState(STATUS_OPTIONS[0]);
+
+  // Multi-Select Filter States
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [selectedHelpers, setSelectedHelpers] = useState<string[]>([]);
+
+  // Custom Date Range States
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   // Data States
   const [records, setRecords] = useState<ReportRecord[]>([]);
-  const [clientOptions, setClientOptions] = useState<string[]>(["Client"]);
+  const [clientOptions, setClientOptions] = useState<string[]>(DUMMY_CLIENTS);
+  const [driverOptions, setDriverOptions] = useState<string[]>(DUMMY_DRIVERS);
+  const [helperOptions, setHelperOptions] = useState<string[]>(DUMMY_HELPERS);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State for Booking details view
@@ -682,6 +819,8 @@ export default function ReportsForecastingPage() {
         const orders = await apiFetch<any[]>("/api/bookings");
 
         const uniqueClients = new Set<string>();
+        const uniqueDrivers = new Set<string>();
+        const uniqueHelpers = new Set<string>();
         const formattedRecords: ReportRecord[] = [];
 
         if (Array.isArray(orders)) {
@@ -704,18 +843,27 @@ export default function ReportsForecastingPage() {
             const dispatchRecord = Array.isArray(o.DispatchOrder)
               ? o.DispatchOrder[0]
               : o.DispatchOrder || o.dispatch_order;
+
             const driverName =
               dispatchRecord?.Driver?.employeeName ||
               o.notes?.match(/Driver:\s*([^\n]*)/)?.[1]?.trim() ||
               "Unassigned";
-            const helperAssignment = Array.isArray(dispatchRecord?.DispatchHelper)
+
+            const helperAssignment = Array.isArray(
+              dispatchRecord?.DispatchHelper,
+            )
               ? dispatchRecord.DispatchHelper[0]
               : dispatchRecord?.DispatchHelper;
+
             const helperName =
               helperAssignment?.Helper?.employeeName ||
               o.notes?.match(/Helper 1:\s*([^\n]*)/)?.[1]?.trim() ||
               "None";
+
             const crewString = `Driver: ${driverName} | Helper: ${helperName}`;
+
+            uniqueDrivers.add(driverName);
+            uniqueHelpers.add(helperName);
 
             const stopsArr =
               o.BranchStops || o.branchstops || o.branch_stops || [];
@@ -759,10 +907,26 @@ export default function ReportsForecastingPage() {
         }
 
         formattedRecords.sort(
-          (a, b) => new Date(b.date).getTime() - new Date(b.date).getTime(),
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
         );
         setRecords(formattedRecords);
-        setClientOptions(["Client", ...Array.from(uniqueClients)]);
+
+        // Populate options arrays
+        setClientOptions(
+          Array.from(
+            new Set([...DUMMY_CLIENTS, ...Array.from(uniqueClients)]),
+          ).sort(),
+        );
+        setDriverOptions(
+          Array.from(
+            new Set([...DUMMY_DRIVERS, ...Array.from(uniqueDrivers)]),
+          ).sort(),
+        );
+        setHelperOptions(
+          Array.from(
+            new Set([...DUMMY_HELPERS, ...Array.from(uniqueHelpers)]),
+          ).sort(),
+        );
       } catch (error) {
         console.error("Failed to fetch reports:", error);
       } finally {
@@ -779,45 +943,93 @@ export default function ReportsForecastingPage() {
   const filteredRecords = useMemo(() => {
     return records.filter((rec) => {
       if (status !== "Final Status" && rec.status !== status) return false;
-      if (client !== "Client" && rec.client !== client) return false;
-      if (crew === "Driver" && !rec.crew.includes("Driver:")) return false;
-      if (
-        crew === "Helper" &&
-        (!rec.crew.includes("Helper:") || rec.crew.includes("None"))
-      )
+
+      // Client Filter (Multi-select)
+      if (selectedClients.length > 0 && !selectedClients.includes(rec.client))
         return false;
 
-      if (month !== "Month") {
-        const recMonth = new Date(rec.date).toLocaleString("default", {
-          month: "long",
-        });
-        if (recMonth !== month) return false;
-      }
+      // Extract specific driver/helper values from the combined crew string for filtering
+      const recDriverMatch = rec.crew.match(/Driver:\s*(.*?)\s*\|/);
+      const recDriver = recDriverMatch
+        ? recDriverMatch[1].trim()
+        : "Unassigned";
+      if (selectedDrivers.length > 0 && !selectedDrivers.includes(recDriver))
+        return false;
 
-      if (timeframe !== "Time Frame") {
+      const recHelperMatch = rec.crew.match(/Helper:\s*(.*)/);
+      const recHelper = recHelperMatch ? recHelperMatch[1].trim() : "None";
+      if (selectedHelpers.length > 0 && !selectedHelpers.includes(recHelper))
+        return false;
+
+      if (timeframe !== "All Time") {
         const d = new Date(rec.date);
         const t = new Date();
         d.setHours(0, 0, 0, 0);
         t.setHours(0, 0, 0, 0);
 
         if (timeframe === "Today" && d.getTime() !== t.getTime()) return false;
+
+        if (timeframe === "Tomorrow") {
+          const tomorrow = new Date(t);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          if (d.getTime() !== tomorrow.getTime()) return false;
+        }
+
+        if (timeframe === "Last 7 Days") {
+          const last7 = new Date(t);
+          last7.setDate(last7.getDate() - 7);
+          if (d < last7 || d > t) return false;
+        }
+
+        if (timeframe === "Last 30 Days") {
+          const last30 = new Date(t);
+          last30.setDate(last30.getDate() - 30);
+          if (d < last30 || d > t) return false;
+        }
+
         if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear())
           return false;
+
         if (
           timeframe === "This Month" &&
           (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())
         )
           return false;
+
         if (timeframe === "This Week") {
           const startOfWeek = new Date(t);
           startOfWeek.setDate(t.getDate() - t.getDay());
           if (d < startOfWeek) return false;
         }
+
+        if (timeframe === "Up to Date" && d > t) return false;
+
+        if (timeframe === "Custom Date Range") {
+          if (customStartDate) {
+            const start = new Date(customStartDate);
+            start.setHours(0, 0, 0, 0);
+            if (d < start) return false;
+          }
+          if (customEndDate) {
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            if (d > end) return false;
+          }
+        }
       }
 
       return true;
     });
-  }, [records, timeframe, month, client, crew, status]);
+  }, [
+    records,
+    timeframe,
+    selectedClients,
+    selectedDrivers,
+    selectedHelpers,
+    status,
+    customStartDate,
+    customEndDate,
+  ]);
 
   // Summary Math
   const totalHistorical = filteredRecords.length;
@@ -836,7 +1048,15 @@ export default function ReportsForecastingPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [timeframe, month, client, crew, status]);
+  }, [
+    timeframe,
+    selectedClients,
+    selectedDrivers,
+    selectedHelpers,
+    status,
+    customStartDate,
+    customEndDate,
+  ]);
 
   const dropdownsRef = useRef<HTMLDivElement>(null);
 
@@ -920,32 +1140,35 @@ export default function ReportsForecastingPage() {
             activeDropdown={activeDropdown}
             setActiveDropdown={setActiveDropdown}
           />
-          <FilterDropdown
-            id="month"
-            label="Month"
-            options={MONTH_OPTIONS}
-            value={month}
-            setValue={setMonth}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-          />
-          <FilterDropdown
+          <MultiSelectDropdown
             id="client"
             label="Client"
             options={clientOptions}
-            value={client}
-            setValue={setClient}
+            selectedValues={selectedClients}
+            setSelectedValues={setSelectedClients}
             activeDropdown={activeDropdown}
             setActiveDropdown={setActiveDropdown}
+            placeholder="All Clients"
           />
-          <FilterDropdown
-            id="crew"
-            label="Delivery Crew"
-            options={CREW_OPTIONS}
-            value={crew}
-            setValue={setCrew}
+          <MultiSelectDropdown
+            id="drivers"
+            label="Drivers"
+            options={driverOptions}
+            selectedValues={selectedDrivers}
+            setSelectedValues={setSelectedDrivers}
             activeDropdown={activeDropdown}
             setActiveDropdown={setActiveDropdown}
+            placeholder="All Drivers"
+          />
+          <MultiSelectDropdown
+            id="helpers"
+            label="Helpers"
+            options={helperOptions}
+            selectedValues={selectedHelpers}
+            setSelectedValues={setSelectedHelpers}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+            placeholder="All Helpers"
           />
           <FilterDropdown
             id="status"
@@ -957,6 +1180,34 @@ export default function ReportsForecastingPage() {
             setActiveDropdown={setActiveDropdown}
           />
         </div>
+
+        {/* CUSTOM DATE RANGE FIELDS */}
+        {timeframe === "Custom Date Range" && (
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-4 border-t border-slate-100 animate-fade-in mt-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SUMMARY CARDS SECTION */}

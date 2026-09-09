@@ -45,6 +45,7 @@ interface ForecastRecord {
   factors: ForecastFactors;
 }
 
+<<<<<<< HEAD
 interface ForecastSummary {
   expectedVolume: number;
   actualVolume: number;
@@ -52,6 +53,19 @@ interface ForecastSummary {
   variancePercentage: number;
   trendStatus: string;
 }
+=======
+const TIMEFRAME_OPTIONS = [
+  "All Time",
+  "Today",
+  "Tomorrow",
+  "Last 7 Days",
+  "Last 30 Days",
+  "This Week",
+  "This Month",
+  "Up to Date",
+  "Custom Date Range",
+];
+>>>>>>> 4d56926d2a31d18cea3dd6bfe358b06ae1e0cdc6
 
 interface ForecastResponse {
   model: string;
@@ -91,11 +105,28 @@ function getStoredToken(): string | null {
   }
 }
 
+<<<<<<< HEAD
 function startOfDay(date: Date) {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
   return value;
 }
+=======
+export default function ForecastingPage() {
+  // Chart Filter States
+  const [chartTimeframe, setChartTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
+  const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
+  const [chartStartDate, setChartStartDate] = useState("");
+  const [chartEndDate, setChartEndDate] = useState("");
+
+  // History Filter States
+  const [historyTimeframe, setHistoryTimeframe] = useState(
+    TIMEFRAME_OPTIONS[0],
+  );
+  const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false);
+  const [historyStartDate, setHistoryStartDate] = useState("");
+  const [historyEndDate, setHistoryEndDate] = useState("");
+>>>>>>> 4d56926d2a31d18cea3dd6bfe358b06ae1e0cdc6
 
 function endOfDay(date: Date) {
   const value = new Date(date);
@@ -225,6 +256,7 @@ function TimeframeFilter({
   onEndDateChange: (value: string) => void;
 }) {
   return (
+<<<<<<< HEAD
     <div className="relative w-full sm:w-48">
       <button
         type="button"
@@ -237,6 +269,23 @@ function TimeframeFilter({
         </span>
         <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
+=======
+    <div className="flex min-h-screen w-full bg-slate-50 font-sans relative">
+      <div className="flex flex-col flex-1 w-full">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
+          <div className="space-y-6">
+            {/* PAGE TITLE & ACTION BUTTONS */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                  Forecasting
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-700 mt-1">
+                  Multiple Linear Regression (MLR) predictive delivery volumes
+                  vs actual performance.
+                </p>
+              </div>
+>>>>>>> 4d56926d2a31d18cea3dd6bfe358b06ae1e0cdc6
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
@@ -435,8 +484,88 @@ export default function ForecastingPage() {
                 />
               </div>
 
+<<<<<<< HEAD
               <div className="h-80 w-full">
                 {chartRecords.length ? (
+=======
+                  {/* Chart Period Dropdown & Custom Range */}
+                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                    <div className="relative w-full sm:w-48">
+                      <button
+                        onClick={() =>
+                          setIsChartDropdownOpen(!isChartDropdownOpen)
+                        }
+                        className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {chartTimeframe}
+                        </span>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isChartDropdownOpen ? "rotate-180" : ""}`}
+                        />
+                      </button>
+
+                      {isChartDropdownOpen && (
+                        <div className="absolute z-10 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
+                          {TIMEFRAME_OPTIONS.map((opt) => (
+                            <button
+                              key={opt}
+                              onClick={() => {
+                                setChartTimeframe(opt);
+                                setIsChartDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
+                                chartTimeframe === opt
+                                  ? "bg-blue-50 text-blue-600 font-medium"
+                                  : "text-slate-700"
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Custom Date Range Dropdown Panel */}
+                      {chartTimeframe === "Custom Date Range" &&
+                        !isChartDropdownOpen && (
+                          <div className="absolute z-10 top-full right-0 mt-2 w-full sm:w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-fade-in flex flex-col gap-3">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs font-semibold text-slate-700">
+                                Start Date
+                              </label>
+                              <input
+                                type="date"
+                                value={chartStartDate}
+                                onChange={(e) =>
+                                  setChartStartDate(e.target.value)
+                                }
+                                className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs font-semibold text-slate-700">
+                                End Date
+                              </label>
+                              <input
+                                type="date"
+                                value={chartEndDate}
+                                onChange={(e) =>
+                                  setChartEndDate(e.target.value)
+                                }
+                                className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
+                              />
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recharts Container */}
+                <div className="w-full h-72 sm:h-80">
+>>>>>>> 4d56926d2a31d18cea3dd6bfe358b06ae1e0cdc6
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartRecords} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -471,11 +600,100 @@ export default function ForecastingPage() {
             </div>
           </div>
 
+<<<<<<< HEAD
           <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="flex flex-col justify-between gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-center">
               <div>
                 <h2 className="text-sm font-semibold text-slate-900">Forecast History (MLR Results)</h2>
                 <p className="mt-0.5 text-xs text-slate-500">Monthly forecast and actual delivery volume comparison</p>
+=======
+            {/* FORECAST HISTORY TABLE */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full mt-6">
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Forecast History (MLR Results)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Itemized period breakdown calculating volume variances
+                    dynamically
+                  </p>
+                </div>
+
+                {/* History Filter Dropdown & Custom Range */}
+                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                  <div className="relative w-full sm:w-48">
+                    <button
+                      onClick={() =>
+                        setIsHistoryDropdownOpen(!isHistoryDropdownOpen)
+                      }
+                      className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        {historyTimeframe}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isHistoryDropdownOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+
+                    {isHistoryDropdownOpen && (
+                      <div className="absolute z-10 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
+                        {TIMEFRAME_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            onClick={() => {
+                              setHistoryTimeframe(opt);
+                              setIsHistoryDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
+                              historyTimeframe === opt
+                                ? "bg-blue-50 text-blue-600 font-medium"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Custom Date Range Dropdown Panel */}
+                    {historyTimeframe === "Custom Date Range" &&
+                      !isHistoryDropdownOpen && (
+                        <div className="absolute z-10 top-full right-0 mt-2 w-full sm:w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-fade-in flex flex-col gap-3">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold text-slate-700">
+                              Start Date
+                            </label>
+                            <input
+                              type="date"
+                              value={historyStartDate}
+                              onChange={(e) =>
+                                setHistoryStartDate(e.target.value)
+                              }
+                              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold text-slate-700">
+                              End Date
+                            </label>
+                            <input
+                              type="date"
+                              value={historyEndDate}
+                              onChange={(e) =>
+                                setHistoryEndDate(e.target.value)
+                              }
+                              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </div>
+>>>>>>> 4d56926d2a31d18cea3dd6bfe358b06ae1e0cdc6
               </div>
               <TimeframeFilter
                 value={historyTimeframe}
