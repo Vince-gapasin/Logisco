@@ -19,6 +19,8 @@ import {
   Upload,
   Loader2,
   ClipboardCheck,
+  Archive,
+  MoreHorizontal 
 } from "lucide-react";
 
 export interface TruckRecord {
@@ -120,6 +122,16 @@ const getStatusStyles = (status: string) => {
         badgeBg: "bg-rose-500",
         pill: "bg-rose-600 hover:bg-rose-700 text-white border-rose-600",
       };
+    case "Disabled":
+      return {
+        bgLight: "bg-slate-100 text-slate-500 border-slate-200",
+        tabActive: "bg-slate-800 text-white shadow-md",
+        btn: "bg-slate-200 text-slate-500 border-slate-300",
+        modalIcon: "bg-slate-100 text-slate-600",
+        modalBtn: "bg-slate-600 hover:bg-slate-700",
+        badgeBg: "bg-slate-400",
+        pill: "bg-slate-500 hover:bg-slate-600 text-white border-slate-500",
+      };
     default:
       return {
         bgLight: "bg-slate-50 text-slate-700 border-slate-200/50",
@@ -141,10 +153,21 @@ const formatDisplayDate = (dateString: string) => {
       month: "long",
       day: "numeric",
       year: "numeric",
-      timeZone: "UTC"
     }).format(date);
   } catch (error) {
     return dateString;
+  }
+};
+
+// --- NEW: Helper to format dates correctly for <input type="date"> in local time ---
+const formatInputDate = (dateString: string) => {
+  if (!dateString) return "";
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString.split("T")[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  } catch (error) {
+    return dateString.split("T")[0];
   }
 };
 
@@ -156,9 +179,10 @@ interface TruckModalProps {
   onClose: () => void;
   onSubmitSuccess: (record: TruckRecord) => void;
   editData?: TruckRecord | null;
+  existingFleet: TruckRecord[];
 }
 
-function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalProps) {
+function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet }: TruckModalProps) {
   const initialTruckState = {
    truckCode: "", plateNumber: "", truckType: "", truckModel: "", capacity: "", lastChecked: "",
   };
@@ -184,7 +208,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
         truckType: editData.truckType || "",
         truckModel: editData.truckModel || "",
         capacity: editData.capacity ? String(editData.capacity) : "",
-        lastChecked: editData.lastChecked ? editData.lastChecked.split("T")[0] : "",
+        lastChecked: editData.lastChecked ? formatInputDate(editData.lastChecked) : "",
       });
     } else {
       setFormData(initialTruckState);
@@ -216,6 +240,20 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData }: TruckModalPr
     if (!String(formData.capacity).trim()) newErrors.capacity = "Capacity is required.";
     if (!formData.lastChecked) newErrors.lastChecked = "Last checked date is required.";
     else if (formData.lastChecked > today) newErrors.lastChecked = "Date cannot be in the future.";
+
+    // --- NEW: Duplicate Plate Number Validation ---
+    if (formData.plateNumber.trim()) {
+      const cleanInputPlate = formData.plateNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const isDuplicate = existingFleet.some((t) => {
+        const cleanExistingPlate = String(t.plateNumber || "").replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        // Ensure we don't flag the truck as a duplicate of itself during an edit
+        return cleanExistingPlate === cleanInputPlate && String(t.id) !== String(editData?.id);
+      });
+      
+      if (isDuplicate) {
+        newErrors.plateNumber = "This truck is already on record.";
+      }
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -324,9 +362,11 @@ interface LogMaintenanceModalProps {
   mechanicsOptions: EmployeeOption[];
   preselectedTruckId?: string | number | null;
   formType?: "inspection" | "update" | "log";
+  loggedInMechanic: { employeeID: string | number; employeeName: string };
+  inheritedAdditionalMechanicID?: string; 
 }
 
-function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log" }: LogMaintenanceModalProps) {
+function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID }: LogMaintenanceModalProps) {
   const initialFormState = {
     date: "", truckID: "", primaryMechanicID: "", additionalMechanicID: "",
     issue: "", remarks: "", photoUrl: "", driversReport: "", preliminaryRemarks: "",
@@ -357,13 +397,14 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
   };
   const activeFields = fieldMapping[formType] || fieldMapping.log;
 
-  // 3. Add `today` to the dependency array and ensure it exists before setting form state
+  // 3. Add `today` and `loggedInMechanic` to the dependency array
   useEffect(() => {
     if (editData) {
       setFormData({
-        date: editData.date ? editData.date.split("T")[0] : "",
+        // --- UPDATED: Use the new helper to stop the edit form from shifting the date back ---
+        date: editData.date ? formatInputDate(editData.date) : "",
         truckID: editData.truckID ? String(editData.truckID) : "",
-        primaryMechanicID: editData.primaryMechanicID ? String(editData.primaryMechanicID) : "",
+        primaryMechanicID: editData.primaryMechanicID ? String(editData.primaryMechanicID) : String(loggedInMechanic.employeeID), 
         additionalMechanicID: editData.additionalMechanicID ? String(editData.additionalMechanicID) : "",
         issue: editData.issue || "",
         remarks: editData.remarks || "",
@@ -375,10 +416,16 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
         progressRemarks: editData.progressRemarks || "",
         progressPhotoUrl: editData.progressPhotoUrl || "",
       });
-    } else if (isOpen && today) { 
-      setFormData({ ...initialFormState, date: today, truckID: preselectedTruckId ? String(preselectedTruckId) : "" });
+    } else if (isOpen && today) {
+      setFormData({ 
+        ...initialFormState, 
+        date: today, 
+        truckID: preselectedTruckId ? String(preselectedTruckId) : "",
+        primaryMechanicID: String(loggedInMechanic.employeeID), 
+        additionalMechanicID: inheritedAdditionalMechanicID || "" 
+      });
     }
-  }, [editData, isOpen, preselectedTruckId, today]);
+  }, [editData, isOpen, preselectedTruckId, today, loggedInMechanic, inheritedAdditionalMechanicID]);
 
   if (!isOpen) return null;
 
@@ -502,32 +549,14 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                 {errors.truckID && <p className="text-red-500 text-[11px] mt-1">{errors.truckID}</p>}
               </div>
 
-              {/* Primary Mechanic */}
+              {/* Primary Mechanic (Auto-filled & Read-only) */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">Primary Mechanic *</label>
-                <div className="relative">
-                  <select
-                    name="primaryMechanicID"
-                    value={formData.primaryMechanicID || ""}
-                    onChange={(e) => {
-                      handleInputChange(e);
-                      // Clear additional mechanic if it matches the newly selected primary
-                      if (String(formData.additionalMechanicID) === String(e.target.value)) {
-                        handleInputChange({ target: { name: "additionalMechanicID", value: "" } });
-                      }
-                    }}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none cursor-pointer ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
-                  >
-                    <option value="" disabled>Choose mechanic...</option>
-                    {mechanicsOptions.map((mech) => (
-                      <option key={mech.employeeID} value={String(mech.employeeID)}>
-                        {mech.employeeName}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 font-medium text-slate-500 cursor-not-allowed">
+                  {editData ? editData.mechanicName : loggedInMechanic.employeeName}
                 </div>
-                {errors.primaryMechanicID && <p className="text-red-500 text-[11px] mt-1">{errors.primaryMechanicID}</p>}
+                {/* Hidden input preserves the value for form submission */}
+                <input type="hidden" name="primaryMechanicID" value={formData.primaryMechanicID} />
               </div>
 
               {/* Additional Mechanic */}
@@ -647,56 +676,76 @@ interface LogDetailViewProps {
   onBack: () => void;
   onEdit: (logRecord: HistoryLogRecord) => void;
   onDelete: (id: string | number) => void;
+  currentUserId: string; // <-- ADD THIS
 }
 
-function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete }: LogDetailViewProps) {
+function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId }: LogDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // --- CONSOLIDATION LOGIC: Find all logs in this specific maintenance cycle ---
   const isMaintenance = (status?: string) => status === "On Maintenance" || status === "Out of Service";
   
-  // The global truckLogs is already perfectly sorted Newest-First. 
-  // We simply .reverse() it to get Chronological order (Oldest-First) to walk the cycle properly.
-  // We CANNOT use Number(a.id) here because UUIDs result in NaN and scramble the array!
   const sorted = [...(truckLogs || [])].reverse(); 
   const clickedIdx = sorted.findIndex(l => String(l.id) === String(log.id));
 
-  // Walk backwards to find the start of the cycle
   let startIdx = clickedIdx !== -1 ? clickedIdx : 0;
   while (startIdx > 0 && isMaintenance(sorted[startIdx].statusBefore)) {
       startIdx--;
   }
 
-  // Walk forwards to find the end of the cycle
   let endIdx = clickedIdx !== -1 ? clickedIdx : 0;
   while (endIdx < sorted.length - 1 && isMaintenance(sorted[endIdx].statusAfter)) {
       endIdx++;
   }
 
-  // Extract the full cycle and categorize the forms
   const cycleLogs = clickedIdx !== -1 ? sorted.slice(startIdx, endIdx + 1) : [log];
   
   const preliminaryLogs = cycleLogs.filter((l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl);
   const progressLogs = cycleLogs.filter((l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl);
   const finalLogs = cycleLogs.filter((l) => l.issue || l.remarks || l.photoUrl);
 
+  const mechanicSourceLog = preliminaryLogs.length > 0 ? preliminaryLogs[0] : (cycleLogs[0] || log);
+
+  // --- NEW: Strict Latest-Mechanic Access Control (Explicitly Newest-First) ---
+  // Sort the logs by exact timestamp to guarantee index 0 is the most recent update
+  const newestFirstCycleLogs = [...cycleLogs].sort((a: any, b: any) => {
+    const timeA = new Date(a.created_at || a.createdAt || a.date).getTime();
+    const timeB = new Date(b.created_at || b.createdAt || b.date).getTime();
+    return timeB - timeA;
+  });
+
+  const activeCycleLog = newestFirstCycleLogs[0];
+  const currentUserStr = String(currentUserId).trim();
+  const hasMechanicAccess = activeCycleLog ? (
+    String(activeCycleLog.primaryMechanicID).trim() === currentUserStr || 
+    String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
+  ) : false;
+
   // --- MERGE PROGRESS UPDATES (SECTION 3) INTO SINGLE CONSOLIDATED BLOCKS ---
-  // Explicitly sort by exact timestamp (Newest-First) to prevent any array scrambling
   const sortedProgressLogs = [...progressLogs].sort((a, b) => {
     const timeA = new Date(a.created_at || a.date).getTime();
     const timeB = new Date(b.created_at || b.date).getTime();
     return timeB - timeA;
   });
 
-  const combinedIssues = sortedProgressLogs
+  const combinedIssuesList = sortedProgressLogs
     .filter(u => u.additionalIssue)
-    .map((u, idx, arr) => `Update #${arr.length - idx} [${formatDisplayDate(u.date)} - ${u.mechanicName || 'Mechanic'}]:\n${u.additionalIssue}`)
-    .join('\n\n');
+    .map((u, idx, arr) => (
+      <div key={`issue-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
+        <span className="font-bold">Update #{arr.length - idx} [{formatDisplayDate(u.date)} - {u.mechanicName || 'Mechanic'}]:</span>
+        <br />
+        {u.additionalIssue}
+      </div>
+    ));
 
-  const combinedRemarks = sortedProgressLogs
+  const combinedRemarksList = sortedProgressLogs
     .filter(u => u.progressRemarks)
-    .map((u, idx, arr) => `Update #${arr.length - idx} [${formatDisplayDate(u.date)} - ${u.mechanicName || 'Mechanic'}]:\n${u.progressRemarks}`)
-    .join('\n\n');
+    .map((u, idx, arr) => (
+      <div key={`remark-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
+        <span className="font-bold">Update #{arr.length - idx} [{formatDisplayDate(u.date)} - {u.mechanicName || 'Mechanic'}]:</span>
+        <br />
+        {u.progressRemarks}
+      </div>
+    ));
 
   const combinedPhotos = sortedProgressLogs
     .map(u => u.progressPhotoUrl)
@@ -714,14 +763,18 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete }: LogDetailVi
             <p className="text-xs sm:text-sm text-slate-600 mt-0.5">Showing all logs related to this maintenance cycle.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
-            <Edit3 className="w-4 h-4" /><span>Edit This Row</span>
-          </button>
-          <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
-            <Trash2 className="w-4 h-4" /><span>Delete This Row</span>
-          </button>
-        </div>
+        
+        {/* UPDATED: Only show Edit/Delete if authorized mechanic */}
+        {hasMechanicAccess && (
+          <div className="flex items-center gap-3">
+            <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
+              <Edit3 className="w-4 h-4" /><span>Edit This Row</span>
+            </button>
+            <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
+              <Trash2 className="w-4 h-4" /><span>Delete This Row</span>
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
@@ -743,9 +796,10 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete }: LogDetailVi
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div><label className="block text-xs font-medium text-black mb-1">Plate Number</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.plateNumber}</div></div>
               <div><label className="block text-xs font-medium text-black mb-1">Type of Truck</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.truckType}</div></div>
-              <div><label className="block text-xs font-medium text-black mb-1">Date</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.date ? log.date.split("T")[0] : "N/A"}</div></div>
-              <div><label className="block text-xs font-medium text-black mb-1">Primary Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.mechanicName || "N/A"}</div></div>
-              <div className="sm:col-span-2"><label className="block text-xs font-medium text-black mb-1">Additional Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.additionalMechanic || "None"}</div></div>
+              <div><label className="block text-xs font-medium text-black mb-1">Date</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.date ? formatDisplayDate(log.date) : "N/A"}</div></div>              
+             {/* UPDATED: Pulls mechanics from the preliminary log, falling back to current log */}
+              <div><label className="block text-xs font-medium text-black mb-1">Primary Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{mechanicSourceLog?.mechanicName || log.mechanicName || "N/A"}</div></div>
+              <div className="sm:col-span-2"><label className="block text-xs font-medium text-black mb-1">Additional Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{mechanicSourceLog?.additionalMechanic || log.additionalMechanic || "None"}</div></div>
             </div>
           </div>
 
@@ -792,13 +846,13 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete }: LogDetailVi
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Additional Issues</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[2.5rem] whitespace-pre-wrap">
-                    {combinedIssues || "N/A"}
+                    {combinedIssuesList.length > 0 ? combinedIssuesList : "N/A"}
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1"> Progress Remarks</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[2.5rem] whitespace-pre-wrap">
-                    {combinedRemarks || "None"}
+                    {combinedRemarksList.length > 0 ? combinedRemarksList : "None"}
                   </div>
                 </div>
                 {combinedPhotos.length > 0 && (
@@ -884,18 +938,26 @@ function TruckSpecificHistoryView({ truck, logs, onBack, onSelectLog }: TruckSpe
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // 1. Filter logs for this truck (Already safely sorted newest-to-oldest globally)
-  const truckLogs = logs.filter((l) => 
-    String(l.truckID) === String(truck.id) || 
-    String(l.plateNumber).toLowerCase() === String(truck.plateNumber).toLowerCase()
-  );
+  // 1. Filter logs for this truck (Ultra-aggressive match ensures IDs and Plates link)
+  const truckLogs = logs.filter((l) => {
+    if (!l) return false; // <-- ADD THIS GUARD
+
+    const safeLogTruckID = String(l.truckID || "log_null").trim();
+    const safeTruckID = String(truck.id || "truck_null").trim();
+    const matchID = safeLogTruckID === safeTruckID;
+    
+    const cleanLogPlate = String(l.plateNumber || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    const cleanTruckPlate = String(truck.plateNumber || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    const matchPlate = cleanLogPlate === cleanTruckPlate && cleanLogPlate !== "" && cleanLogPlate !== "na";
+
+    return matchID || matchPlate;
+  });
 
   const filteredLogs = truckLogs.filter((log) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      log.plateNumber?.toLowerCase().includes(searchLower) ||
-      log.truckType?.toLowerCase().includes(searchLower)
-    );
+    const searchLower = (searchTerm || "").toLowerCase();
+    const p = String(log.plateNumber || "").toLowerCase();
+    const t = String(log.truckType || "").toLowerCase();
+    return p.includes(searchLower) || t.includes(searchLower);
   });
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
@@ -930,29 +992,33 @@ function TruckSpecificHistoryView({ truck, logs, onBack, onSelectLog }: TruckSpe
                   </td>
                 </tr>
               ) : (
-                paginatedLogs.map((log) => (
-                  <tr key={log.id} onClick={() => onSelectLog(log)} className="hover:bg-slate-50/80 cursor-pointer transition-colors">
-                    <td className="py-4 px-4 w-1/4 text-left align-middle font-medium text-slate-800">
-                      {formatDisplayDate(log.date)}
-                    </td>
-                    <td className="py-4 px-4 w-1/4 text-left align-middle">
-                      <div className="font-bold text-slate-900">
-                        {log.plateNumber} <span className="font-normal text-slate-500">— {log.truckType}</span>
-                      </div>
-                      <div className="text-xs text-slate-500 mt-0.5">{log.mechanicName || "Mechanic"}</div>
-                    </td>
-                    <td className="py-4 px-4 w-1/4 text-left align-middle">
-                      <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${getStatusStyles(log.statusBefore || "").bgLight}`}>
-                        {log.statusBefore || "N/A"}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 w-1/4 text-right align-middle">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold border ${getStatusStyles(log.statusAfter || "").bgLight}`}>
-                        {log.statusAfter || "N/A"}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                paginatedLogs.map((log) => {
+                  const stylesBefore = getStatusStyles(log.statusBefore || "");
+                  const stylesAfter = getStatusStyles(log.statusAfter || "");
+                  return (
+                    <tr key={log.id} onClick={() => onSelectLog(log)} className="hover:bg-slate-50/80 cursor-pointer transition-colors">
+                      <td className="py-4 px-4 w-1/4 text-left align-middle font-medium text-slate-800">
+                        {formatDisplayDate(log.date)}
+                      </td>
+                      <td className="py-4 px-4 w-1/4 text-left align-middle">
+                        <div className="font-bold text-slate-900">
+                          {log.plateNumber} <span className="font-normal text-slate-500">— {log.truckType}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{log.mechanicName || "Mechanic"}</div>
+                      </td>
+                      <td className="py-4 px-4 w-1/4 text-left align-middle">
+                        <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${stylesBefore.bgLight}`}>
+                          {log.statusBefore || "N/A"}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 w-1/4 text-right align-middle">
+                        <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold border ${stylesAfter.bgLight}`}>
+                          {log.statusAfter || "N/A"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -981,25 +1047,55 @@ interface TruckDetailViewProps {
   onUpdateStatusClick: () => void;
   onHistoryClick: () => void;
   onLogMaintenanceClick: () => void;
+  onDisableClick: () => void;
+  currentUserId: string; // <-- ADD THIS PROP
 }
 
-function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatusClick, onHistoryClick, onLogMaintenanceClick }: TruckDetailViewProps) {
+function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatusClick, onHistoryClick, onLogMaintenanceClick, onDisableClick, currentUserId }: TruckDetailViewProps) {
   const styles = getStatusStyles(truck.status);
+  
+  // --- NEW: Dropdown State ---
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   
   // Only true if the truck is actively broken down or being worked on
   const isUnderMaintenance = truck.status === "On Maintenance" || truck.status === "Out of Service";
 
-  // 1. Isolate logs for this truck (Already safely sorted newest-to-oldest globally)
-  const sortedTruckLogs = logs.filter((l) => String(l.truckID) === String(truck.id));
+ // 1. Isolate logs for this truck (Ultra-aggressive match ensures IDs and Plates link)
+  const sortedTruckLogs = logs.filter((l) => {
+    if (!l) return false; // <-- ADD THIS GUARD
+
+    const safeLogTruckID = String(l.truckID || "log_null").trim();
+    const safeTruckID = String(truck.id || "truck_null").trim();
+    const matchID = safeLogTruckID === safeTruckID;
+    
+    const cleanLogPlate = String(l.plateNumber || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    const cleanTruckPlate = String(truck.plateNumber || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    const matchPlate = cleanLogPlate === cleanTruckPlate && cleanLogPlate !== "" && cleanLogPlate !== "na";
+
+    return matchID || matchPlate;
+  });
+
+  //  Check if the truck has any existing maintenance logs
+  const hasHistory = sortedTruckLogs.length > 0;
     
   // 2. Isolate the newest log that contains preliminary inspection data
   const prelimIndex = sortedTruckLogs.findIndex(l => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl);
   const latestPreliminaryLog = prelimIndex !== -1 ? sortedTruckLogs[prelimIndex] : null;
 
-  // 3. Extract all logs belonging to the current maintenance cycle
+  // 3. Extract all logs belonging to the current maintenance cycle FIRST
+  // sortedTruckLogs is Newest-First, meaning index 0 is the most recent update.
   const currentCycleLogs = prelimIndex !== -1 ? sortedTruckLogs.slice(0, prelimIndex + 1) : sortedTruckLogs;
+
+  // --- NEW: Strict Latest-Mechanic Access Control ---
+  // A mechanic is ONLY unblocked if they are assigned on the MOST RECENT log of the active cycle.
+  // If they are replaced or removed in a newer update, they lose access.
+  const currentUserStr = String(currentUserId).trim();
+  const activeCycleLog = currentCycleLogs[0];
+  const hasMechanicAccess = activeCycleLog ? (
+    String(activeCycleLog.primaryMechanicID).trim() === currentUserStr || 
+    String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
+  ) : true;
   
- // 4. Isolate all progress updates in this cycle and sort Newest-First explicitly
   const progressUpdates = currentCycleLogs
     .filter(l => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl)
     .sort((a: any, b: any) => {
@@ -1008,16 +1104,25 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
       return timeB - timeA;
     });
 
-  // 5. Combine all update data into consolidated strings (Newest at top, dynamically numbered)
-  const combinedIssues = progressUpdates
+  const combinedIssuesList = progressUpdates
     .filter(u => u.additionalIssue)
-    .map((u, idx, arr) => `Update #${arr.length - idx} [${formatDisplayDate(u.date)} - ${u.mechanicName || 'Mechanic'}]:\n${u.additionalIssue}`)
-    .join('\n\n');
+    .map((u, idx, arr) => (
+      <div key={`issue-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
+        <span className="font-bold">Update #{arr.length - idx} [{formatDisplayDate(u.date)} - {u.mechanicName || 'Mechanic'}]:</span>
+        <br />
+        {u.additionalIssue}
+      </div>
+    ));
 
-  const combinedRemarks = progressUpdates
+  const combinedRemarksList = progressUpdates
     .filter(u => u.progressRemarks)
-    .map((u, idx, arr) => `Update #${arr.length - idx} [${formatDisplayDate(u.date)} - ${u.mechanicName || 'Mechanic'}]:\n${u.progressRemarks}`)
-    .join('\n\n');
+    .map((u, idx, arr) => (
+      <div key={`remark-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
+        <span className="font-bold">Update #{arr.length - idx} [{formatDisplayDate(u.date)} - {u.mechanicName || 'Mechanic'}]:</span>
+        <br />
+        {u.progressRemarks}
+      </div>
+    ));
 
   const combinedPhotos = progressUpdates
     .map(u => u.progressPhotoUrl)
@@ -1025,13 +1130,62 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"><ArrowLeft className="w-5 h-5" /></button>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
-          <button onClick={() => onEdit(truck)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><Edit3 className="w-4 h-4" /><span>Edit Truck</span></button>
-          <button onClick={onDelete} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><Trash2 className="w-4 h-4" /><span>Delete</span></button>
-        </div>
+        
+        {/* Hide top action buttons if the truck is being fixed by another mechanic */}
+        {(!isUnderMaintenance || hasMechanicAccess) && (
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
+            <button onClick={() => onEdit(truck)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><Edit3 className="w-4 h-4" /><span>Edit Truck</span></button>
+            
+            {/* NEW: More Actions Dropdown Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)} 
+                className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
+                title="More Actions"
+              >
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+
+              {isMoreMenuOpen && (
+                <>
+                  {/* Invisible overlay to close dropdown when clicking outside */}
+                  <div className="fixed inset-0 z-10" onClick={() => setIsMoreMenuOpen(false)}></div>
+                  
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden py-1 animate-fade-in">
+                    
+                    {/* Disable Button inside Dropdown */}
+                    {truck.status !== "Disabled" && (
+                      <button 
+                        onClick={() => { setIsMoreMenuOpen(false); onDisableClick(); }} 
+                        className="w-full text-left px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Archive className="w-4 h-4 text-slate-500" /> Disable Truck
+                      </button>
+                    )}
+
+                    {/* Delete Button inside Dropdown */}
+                    <button 
+                      onClick={hasHistory ? undefined : () => { setIsMoreMenuOpen(false); onDelete(); }} 
+                      disabled={hasHistory}
+                      title={hasHistory ? "Cannot delete a truck with existing repair history" : "Delete Truck"}
+                      className={`w-full text-left px-4 py-2.5 text-xs sm:text-sm flex items-center gap-2 transition-colors ${
+                        hasHistory 
+                          ? "text-slate-400 bg-slate-50 cursor-not-allowed" 
+                          : "text-red-600 hover:bg-red-50 cursor-pointer"
+                      }`}
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete Truck
+                    </button>
+
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
@@ -1050,7 +1204,8 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
           </div>
           
           <div className="flex items-center gap-2">
-            {isUnderMaintenance && (
+            {/* UPDATED: Only authorized mechanics see the Maintenance Update Form button */}
+            {isUnderMaintenance && hasMechanicAccess && (
               <button 
                 onClick={onLogMaintenanceClick} 
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition-colors border border-amber-200 cursor-pointer"
@@ -1118,15 +1273,15 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">Consolidated Additional Issues</label>
+                  <label className="block text-xs font-medium text-black mb-1">Additional Issue/s</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[2.5rem] whitespace-pre-wrap">
-                    {combinedIssues || "N/A"}
+                    {combinedIssuesList.length > 0 ? combinedIssuesList : "N/A"}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black mb-1">Consolidated Progress Remarks</label>
+                  <label className="block text-xs font-medium text-black mb-1">Progress Remark/s (Optional)</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-[2.5rem] whitespace-pre-wrap">
-                    {combinedRemarks || "N/A"}
+                    {combinedRemarksList.length > 0 ? combinedRemarksList : "N/A"}
                   </div>
                 </div>
                 {combinedPhotos.length > 0 && (
@@ -1160,8 +1315,42 @@ interface MechanicFleetStatusProps {
 }
 
 export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicFleetStatusProps) {
+  // 1. Dynamic state for the logged-in mechanic
+  const [currentUser, setCurrentUser] = useState({ employeeID: "", employeeName: "Loading..." });
+
+  // 2. Fetch the real user session on component mount
+  useEffect(() => {
+    // FIX: Check both storages using the exact key from your login page
+    const storedUser = 
+      localStorage.getItem("logisco_user_session") || 
+      sessionStorage.getItem("logisco_user_session"); 
+    
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        
+        // 3. Strict Role Validation: Only assign if the user is actually a mechanic
+        if (parsedUser.role && parsedUser.role.toLowerCase().includes("mechanic")) {
+          setCurrentUser({
+            employeeID: String(parsedUser.id || parsedUser.employeeID),
+            employeeName: parsedUser.employeeName || parsedUser.name || "Unknown Mechanic",
+          });
+        } else {
+          setCurrentUser({ employeeID: "", employeeName: "Unauthorized Role" });
+        }
+      } catch (error) {
+        console.error("Failed to parse user session", error);
+        setCurrentUser({ employeeID: "", employeeName: "Error loading data" });
+      }
+    } else {
+      // Catch-all if you test the page without logging in first
+      setCurrentUser({ employeeID: "", employeeName: "No user session found" });
+    }
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "Already Booked" | "On Delivery" | "Out of Service">("All");
+  const [showArchived, setShowArchived] = useState(false); // <-- NEW STATE
 
   const [truckToDelete, setTruckToDelete] = useState<string | number | null>(null);
 
@@ -1239,7 +1428,11 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
       const response = await fetch(`/api/historyLogsM?t=${Date.now()}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
-      const rawLogs = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+      
+      // Safely extract the array whether the API wraps it in 'data', 'logs', or returns it directly
+      const rawLogs = Array.isArray(result) ? result : 
+                      Array.isArray(result?.data) ? result.data : 
+                      Array.isArray(result?.logs) ? result.logs : [];
 
       const mappedLogs = rawLogs.map((log: any) => {
         const primaryMech = log.LogMechanics?.find((m: any) => m.role === 'Primary');
@@ -1247,53 +1440,42 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
         const prelimNote = log.LogNotes?.find((n: any) => n.phase === 'Preliminary');
         const progNote = log.LogNotes?.find((n: any) => n.phase === 'Progress');
         const finalNote = log.LogNotes?.find((n: any) => n.phase === 'Final');
+
         const prelimPhoto = log.LogPhotos?.find((p: any) => p.phase === 'Preliminary');
         const progPhoto = log.LogPhotos?.find((p: any) => p.phase === 'Progress');
         const finalPhoto = log.LogPhotos?.find((p: any) => p.phase === 'Final');
 
         return {
           id: log.id,
-          truckID: log.truckID,
-          date: log.date,
+          // Aggressively capture IDs and Plates regardless of database casing
+          truckID: log.truckID || log.truck_id || log.truckId || log.Truck?.id || log.truck?.id,
+          plateNumber: log.plateNumber || log.plate_number || log.Truck?.plateNumber || log.truck?.plateNumber || "N/A",
+          truckType: log.truckType || log.truck_type || log.Truck?.truckType || log.truck?.truckType || "N/A",
+          date: log.date || log.created_at,
           createdAt: log.created_at || log.createdAt || log.date,
-          plateNumber: log.plateNumber || log.Truck?.plateNumber || "N/A",
-          truckType: log.truckType || log.Truck?.truckType || "N/A",
-          statusBefore: log.statusBefore || "N/A",
-          statusAfter: log.statusAfter || "N/A",
-          primaryMechanicID: primaryMech?.employeeID,
-          additionalMechanicID: addMech?.employeeID,
+          statusBefore: log.statusBefore || log.status_before || "N/A",
+          statusAfter: log.statusAfter || log.status_after || "N/A",
+          primaryMechanicID: primaryMech?.employeeID || log.primaryMechanicID,
+          mechanicName: primaryMech?.Employee?.employeeName || log.mechanicName, 
+          additionalMechanicID: addMech?.employeeID || log.additionalMechanicID,
+          additionalMechanic: addMech?.Employee?.employeeName || log.additionalMechanic, 
           driversReport: prelimNote?.issue || log.driversReport,
           preliminaryRemarks: prelimNote?.remarks || log.preliminaryRemarks,
-          preliminaryPhotoUrl: prelimPhoto?.photoUrl || log.preliminaryPhotoUrl,
           additionalIssue: progNote?.issue || log.additionalIssue,
           progressRemarks: progNote?.remarks || log.progressRemarks,
-          progressPhotoUrl: progPhoto?.photoUrl || log.progressPhotoUrl,
           issue: finalNote?.issue || log.issue,
           remarks: finalNote?.remarks || log.remarks,
-          photoUrl: finalPhoto?.photoUrl || log.photoUrl,
+          preliminaryPhotoUrl: prelimPhoto?.photoUrl || log.preliminaryPhotoUrl || log.preliminary_photo_url,
+          progressPhotoUrl: progPhoto?.photoUrl || log.progressPhotoUrl || log.progress_photo_url,
+          photoUrl: finalPhoto?.photoUrl || log.photoUrl || log.photo_url,
         };
       });
 
-      // GLOBALLY SORT ALL LOGS: Guarantee newest-first order safely.
-      const sortedAllLogs = mappedLogs.sort((a: any, b: any) => {
-        // 1. Sort by precise database timestamp first
+      const sortedAllLogs = [...mappedLogs].reverse().sort((a: any, b: any) => {
         const timeA = new Date(a.createdAt).getTime();
         const timeB = new Date(b.createdAt).getTime();
-        
-        if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
-          return timeB - timeA; 
-        }
-        
-        // 2. Structural Tie-Breaker for exact millisecond ties:
-        // Final Logs (3) sort above Progress Updates (2), which sort above Preliminary (1)
-        const getPhaseWeight = (log: any) => {
-          if (log.issue || (log.remarks && !log.progressRemarks && !log.preliminaryRemarks)) return 3;
-          if (log.additionalIssue || log.progressRemarks || log.progressPhotoUrl) return 2;
-          if (log.driversReport || log.preliminaryRemarks || log.preliminaryPhotoUrl) return 1;
-          return 0;
-        };
-        
-        return getPhaseWeight(b) - getPhaseWeight(a);
+        const diff = timeB - timeA;
+        return diff !== 0 && !isNaN(diff) ? diff : 0; 
       });
 
       setMaintenanceLogs(sortedAllLogs);
@@ -1302,11 +1484,9 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
     }
   };
 
-
   const fetchMechanics = async () => {
     try {
-      // 1. Pass page/limit to satisfy employeeQuerySchema
-      // 2. credentials: "include" ensures Next.js auth cookies reach requireAuth()
+     
       const response = await fetch(`/api/employees?page=1&limit=100`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
@@ -1417,6 +1597,11 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
     // 4. Standard status updates (e.g., to On Delivery)
     else {
       await executeStatusUpdate(statusConfirmTruck, targetStatus);
+
+      if (targetStatus === "Disabled") {
+        setSelectedTruck(null); 
+      }
+
       setStatusConfirmTruck(null); 
       setPendingStatusTarget("");
     }
@@ -1469,6 +1654,13 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
     try {
       const finalPayload = {
         ...formData,
+        // FORCE BACKEND TO SAVE IDs REGARDLESS OF SCHEMA CASING
+        primary_mechanic_id: formData.primaryMechanicID,
+        primaryMechanicId: formData.primaryMechanicID,
+        additional_mechanic_id: formData.additionalMechanicID,
+        additionalMechanicId: formData.additionalMechanicID,
+        truck_id: formData.truckID,
+
         statusBefore: editingHistoryRecord ? editingHistoryRecord.statusBefore : (statusConfirmTruck?.status || selectedTruck?.status || "Available"),
         statusAfter: pendingStatusTarget 
           ? pendingStatusTarget 
@@ -1517,14 +1709,21 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
     }
   };
 
-  const totalCount = fleetList.length;
-  const operationalCount = fleetList.filter((t) => t.status === "Available").length;
-  const alreadyBookedCount = fleetList.filter((t) => t.status === "Already Booked").length;
-  const deliveryCount = fleetList.filter((t) => t.status === "On Delivery").length;
-  const maintenanceCount = fleetList.filter((t) => t.status === "On Maintenance").length;
-  const outOfServiceCount = fleetList.filter((t) => t.status === "Out of Service").length;
+  const activeFleet = fleetList.filter((t) => t.status !== "Disabled");
+  const disabledFleet = fleetList.filter((t) => t.status === "Disabled");
+  
+  const totalCount = activeFleet.length;
+  const operationalCount = activeFleet.filter((t) => t.status === "Available").length;
+  const alreadyBookedCount = activeFleet.filter((t) => t.status === "Already Booked").length;
+  const deliveryCount = activeFleet.filter((t) => t.status === "On Delivery").length;
+  const maintenanceCount = activeFleet.filter((t) => t.status === "On Maintenance").length;
+  const outOfServiceCount = activeFleet.filter((t) => t.status === "Out of Service").length;
+  const disabledCount = disabledFleet.length;
 
-  const filteredFleet = fleetList.filter((truck) => {
+  // Swap to the disabled array if the Archive view is toggled on
+  const baseFleet = showArchived ? disabledFleet : activeFleet;
+
+  const filteredFleet = baseFleet.filter((truck) => {
     const matchesSearch = truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) || truck.truckType.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesTab = selectedFilter === "All" || truck.status.toLowerCase() === selectedFilter.toLowerCase();
     return matchesSearch && matchesTab;
@@ -1537,15 +1736,26 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
 
   const trucksOptionsForModal = fleetList.map((t) => ({ truckID: t.id, plateNumber: t.plateNumber, truckType: t.truckType }));
 
+ // --- NEW: Calculate the inherited additional mechanic from the active maintenance cycle ---
+  const activeModalTruckId = statusConfirmTruck?.id || selectedTruck?.id;
+  const activeModalTruckStatus = statusConfirmTruck?.status || selectedTruck?.status;
+  const isCurrentlyUnderMaintenance = activeModalTruckStatus === "On Maintenance" || activeModalTruckStatus === "Out of Service";
+  
+  let inheritedAdditionalMechanicID = "";
+  if (isCurrentlyUnderMaintenance) {
+    // <-- UPDATED: Added `l &&` to safely bypass undefined logs
+    const latestTruckLog = maintenanceLogs.find(l => l && String(l.truckID) === String(activeModalTruckId));
+    inheritedAdditionalMechanicID = String(latestTruckLog?.additionalMechanicID || "");
+  }
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
-      {/* View Routing Logic */}
       {/* View Routing Logic */}
       {selectedHistoryRecord ? (
         <LogDetailView
           log={selectedHistoryRecord}
-          // Pass the filtered logs so the component can consolidate them
-          truckLogs={maintenanceLogs.filter((l) => String(l.truckID) === String(selectedHistoryRecord.truckID))}
+          // <-- UPDATED: Added `l &&` to safely bypass undefined logs
+          truckLogs={maintenanceLogs.filter((l) => l && String(l.truckID) === String(selectedHistoryRecord.truckID))}
           onBack={() => setSelectedHistoryRecord(null)}
           onEdit={(logRecord) => {
             setEditingHistoryRecord(logRecord);
@@ -1560,6 +1770,7 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
             setShowLogMaintenanceModal(true);
           }}
           onDelete={handleDeleteHistoryLog}
+          currentUserId={String(currentUser.employeeID)} // <-- ADD THIS
         />
       ) : showTruckHistoryView && selectedTruck ? (
         <TruckSpecificHistoryView
@@ -1574,7 +1785,7 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
           }}
           onDeleteLog={handleDeleteHistoryLog}
         />
-      ) : selectedTruck ? (
+     ) : selectedTruck ? (
         <TruckDetailView 
           truck={selectedTruck} 
           logs={maintenanceLogs}
@@ -1590,29 +1801,59 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
             setEditingHistoryRecord(null); // Force a NEW row for the progress update
             setShowLogMaintenanceModal(true);
           }}
+
+          // --- 1. ADD THIS BLOCK ---
+          onDisableClick={() => {
+            setStatusConfirmTruck(selectedTruck);
+            setPendingStatusTarget("Disabled");
+            setShowConfirmationModal(true);
+          }}
+          
+          currentUserId={String(currentUser.employeeID)} 
         />
       ) : (
         
         <>
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Fleet Status (Mechanic Portal)</h1>
-              <p className="text-xs sm:text-sm text-slate-700 mt-1">Monitor truck diagnostic health, asset availability, and maintenance conditions.</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {showArchived ? "Archived Trucks" : "Fleet Status (Mechanic Portal)"}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-700 mt-1">
+                {showArchived ? "View and manage disabled or retired trucks." : "Monitor truck diagnostic health, asset availability, and maintenance conditions."}
+              </p>
             </div>
-            <button onClick={() => { setEditingTruck(null); setIsModalOpen(true); }} className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer">
-              <Truck className="w-4 h-4 shrink-0" /><span>Add Truck</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+              <button 
+                onClick={() => { setShowArchived(!showArchived); setSelectedFilter("All"); setCurrentPage(1); }} 
+                className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer"
+              >
+                <Archive className="w-4 h-4 shrink-0" /><span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
+              </button>
+              
+              {!showArchived && (
+                <button onClick={() => { setEditingTruck(null); setIsModalOpen(true); }} className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer">
+                  <Truck className="w-4 h-4 shrink-0" /><span>Add Truck</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
-                <button onClick={() => setSelectedFilter("All")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}>All ({totalCount})</button>
-                <button onClick={() => setSelectedFilter("On Maintenance")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}>On Maintenance ({maintenanceCount})</button>
-                <button onClick={() => setSelectedFilter("Available")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}>Available ({operationalCount})</button>
-                <button onClick={() => setSelectedFilter("Already Booked")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}>Already Booked ({alreadyBookedCount})</button>
-                <button onClick={() => setSelectedFilter("On Delivery")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}>On Delivery ({deliveryCount})</button>
-                <button onClick={() => setSelectedFilter("Out of Service")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}>Out of Service ({outOfServiceCount})</button>
+                <button onClick={() => setSelectedFilter("All")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}>All ({showArchived ? disabledCount : totalCount})</button>
+                
+                {/* Hide active status tabs when viewing the archive */}
+                {!showArchived && (
+                  <>
+                    <button onClick={() => setSelectedFilter("On Maintenance")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}>On Maintenance ({maintenanceCount})</button>
+                    <button onClick={() => setSelectedFilter("Available")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}>Available ({operationalCount})</button>
+                    <button onClick={() => setSelectedFilter("Already Booked")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}>Already Booked ({alreadyBookedCount})</button>
+                    <button onClick={() => setSelectedFilter("On Delivery")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}>On Delivery ({deliveryCount})</button>
+                    <button onClick={() => setSelectedFilter("Out of Service")} className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}>Out of Service ({outOfServiceCount})</button>
+                  </>
+                )}
               </div>
               <div className="relative w-full lg:w-80">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
@@ -1722,7 +1963,7 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
         </div>
       )}
 
-      <TruckModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingTruck(null); }} onSubmitSuccess={handleModalSubmit} editData={editingTruck} />
+      <TruckModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingTruck(null); }} onSubmitSuccess={handleModalSubmit} editData={editingTruck} existingFleet={fleetList}/>
 
       <LogMaintenanceModal
         isOpen={showLogMaintenanceModal}
@@ -1733,6 +1974,8 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
         mechanicsOptions={mechanicsOptions}
         preselectedTruckId={statusConfirmTruck?.id || selectedTruck?.id}
         formType={maintenanceFormType}
+        loggedInMechanic={currentUser}
+        inheritedAdditionalMechanicID={inheritedAdditionalMechanicID}
       />
 
       {truckToDelete && (
