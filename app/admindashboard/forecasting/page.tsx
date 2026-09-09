@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
@@ -24,15 +24,42 @@ import {
   Legend,
 } from "recharts";
 
-// ==========================================
-// MOCK DATA LAYER (BACKEND-READY)
-// ==========================================
+// Forecasting API response types
 
 export interface ForecastRecord {
   id: string;
+  periodStart: string;
   period: string;
   expectedVolume: number;
   actualVolume: number | null;
+  variance: number | null;
+  variancePercentage: number | null;
+  trendStatus: "Above Normal" | "Below Normal" | "Normal" | "In Progress";
+  factors: {
+    averageTemperature: number | null;
+    totalRainfall: number | null;
+    rainyDays: number | null;
+    averageWindSpeed: number | null;
+    averageDieselPrice: number | null;
+    averageFuelAdjustment: number | null;
+  };
+}
+
+interface ForecastSummary {
+  expectedVolume: number;
+  actualVolume: number;
+  totalVariance: number;
+  variancePercentage: number;
+  trendStatus: string;
+}
+
+interface ForecastResponse {
+  model: string;
+  generatedAt: string;
+  trainingMonths: number;
+  summary: ForecastSummary;
+  records: ForecastRecord[];
+  remarks: string[];
 }
 
 const TIMEFRAME_OPTIONS = [
@@ -47,60 +74,70 @@ const TIMEFRAME_OPTIONS = [
   "Custom Date Range",
 ];
 
-// Dummy records constrained strictly within 100-200 range
-const MOCK_FORECAST_DATA: ForecastRecord[] = [
-  { id: "1", period: "Jan 2026", expectedVolume: 110, actualVolume: 108 },
-  { id: "2", period: "Feb 2026", expectedVolume: 125, actualVolume: 130 },
-  { id: "3", period: "Mar 2026", expectedVolume: 135, actualVolume: 132 },
-  { id: "4", period: "Apr 2026", expectedVolume: 145, actualVolume: 150 },
-  { id: "5", period: "May 2026", expectedVolume: 155, actualVolume: 151 },
-  { id: "6", period: "Jun 2026", expectedVolume: 165, actualVolume: 170 },
-  { id: "7", period: "Jul 2026", expectedVolume: 175, actualVolume: 172 },
-  { id: "8", period: "Aug 2026", expectedVolume: 185, actualVolume: 190 },
-  { id: "9", period: "Sep 2026", expectedVolume: 190, actualVolume: null },
-  { id: "10", period: "Oct 2026", expectedVolume: 192, actualVolume: null },
-  { id: "11", period: "Nov 2026", expectedVolume: 195, actualVolume: null },
-  { id: "12", period: "Dec 2026", expectedVolume: 200, actualVolume: null },
-];
+function getStoredToken(): string | null {
+  const storedSession =
+    sessionStorage.getItem("logisco_user_session") ??
+    localStorage.getItem("logisco_user_session");
 
-const MOCK_REMARKS = [
-  {
-    id: "r1",
-    text: "In September, actual delivery performance stabilized as normal weather patterns resumed and fleet maintenance backlogs were fully cleared, aligning output closely with the initial pre-season forecasts.",
-  },
-  {
-    id: "r2",
-    text: "In August, delivery volumes experienced a temporary surge due to a back-to-school promotional campaign launched by major retail clients, prompting the deployment of auxiliary fleet units to meet the sudden uptick in orders.",
-  },
-  {
-    id: "r3",
-    text: "In July, operational efficiency improved as delivery teams streamlined travel paths and reduced transit times despite ongoing regional weather disruptions.",
-  },
-  {
-    id: "r4",
-    text: "In June, manpower shortages and vehicle availability issues further reduced delivery operations, causing actual deliveries to remain below the expected forecasted volume.",
-  },
-  {
-    id: "r5",
-    text: "By May, continuous heavy rainfall and traffic congestion caused delivery delays and reduced completed delivery volume compared to the forecasted trend.",
-  },
-  {
-    id: "r6",
-    text: "In April, both forecasted and actual deliveries peaked due to seasonal demand growth and promotional activities from partner clients, resulting in a higher number of delivery requests.",
-  },
-  {
-    id: "r7",
-    text: "During March, fuel prices increased significantly, causing delivery schedules to be reduced and routes to be consolidated to minimize operational expenses.",
-  },
-  {
-    id: "r8",
-    text: "In February, delivery activity declined because several delivery vehicles underwent scheduled maintenance, reducing the number of available delivery units.",
-  },
-  {
-    id: "r9",
-    text: "In January, actual deliveries exceeded the forecasted volume due to increased customer demand after the holiday season and the addition of temporary delivery crews to handle the higher workload.",
-  },
-];
+  if (!storedSession) return null;
+
+  try {
+    const parsedSession = JSON.parse(storedSession) as { token?: string };
+    return parsedSession.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function filterByTimeframe(
+  records: ForecastRecord[],
+  timeframe: string,
+  customStart: string,
+  customEnd: string,
+) {
+  if (timeframe === "All Time") return records;
+
+  const today = startOfDay(new Date());
+  let start: Date | null = null;
+  let end: Date | null = null;
+
+  if (timeframe === "Custom Date Range") {
+    start = customStart ? startOfDay(new Date(`${customStart}T00:00:00`)) : null;
+    end = customEnd ? startOfDay(new Date(`${customEnd}T00:00:00`)) : null;
+  } else if (timeframe === "Today") {
+    start = today;
+    end = today;
+  } else if (timeframe === "Tomorrow") {
+    start = new Date(today);
+    start.setDate(start.getDate() + 1);
+    end = start;
+  } else if (timeframe === "Last 7 Days" || timeframe === "Last 30 Days") {
+    end = today;
+    start = new Date(today);
+    start.setDate(start.getDate() - (timeframe === "Last 7 Days" ? 6 : 29));
+  } else if (timeframe === "This Week") {
+    start = new Date(today);
+    start.setDate(start.getDate() - start.getDay());
+    end = new Date(start);
+    end.setDate(end.getDate() + 6);
+  } else if (timeframe === "This Month") {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  } else if (timeframe === "Up to Date") {
+    end = today;
+  }
+
+  return records.filter((record) => {
+    const recordDate = startOfDay(new Date(`${record.periodStart}T00:00:00`));
+    return (!start || recordDate >= start) && (!end || recordDate <= end);
+  });
+}
 
 function calculateMetrics(expected: number, actual: number | null) {
   if (actual === null) {
@@ -143,6 +180,10 @@ function calculateMetrics(expected: number, actual: number | null) {
 }
 
 export default function ForecastingPage() {
+  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // Chart Filter States
   const [chartTimeframe, setChartTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
   const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
@@ -157,40 +198,115 @@ export default function ForecastingPage() {
   const [historyStartDate, setHistoryStartDate] = useState("");
   const [historyEndDate, setHistoryEndDate] = useState("");
 
-  // Calculates single period averages (100–200 scale) for summary cards
-  const summary = useMemo(() => {
-    const completedRecords = MOCK_FORECAST_DATA.filter(
-      (r) => r.actualVolume !== null,
-    );
+  const loadForecast = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
 
-    const count = completedRecords.length || 1;
-    const avgExpected = Math.round(
-      completedRecords.reduce((acc, curr) => acc + curr.expectedVolume, 0) /
-        count,
-    );
-    const avgActual = Math.round(
-      completedRecords.reduce(
-        (acc, curr) => acc + (curr.actualVolume || 0),
-        0,
-      ) / count,
-    );
+    try {
+      const token = getStoredToken();
+      if (!token) {
+        throw new Error("Authentication session was not found. Please log in again.");
+      }
 
-    const netVariance = avgActual - avgExpected;
-    const netVariancePct = avgExpected
-      ? ((netVariance / avgExpected) * 100).toFixed(1)
-      : "0.0";
+      const response = await fetch("/api/forecasting/data", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const body = (await response.json()) as ForecastResponse & { message?: string };
 
-    return {
-      avgExpected,
-      avgActual,
-      netVariance: `${netVariance >= 0 ? "+" : ""}${netVariance} (${netVariance >= 0 ? "+" : ""}${netVariancePct}%)`,
-      trendStatus: "Normal",
-    };
+      if (!response.ok) {
+        throw new Error(body.message ?? "Failed to load forecasting data.");
+      }
+
+      setForecast(body);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Failed to load forecasting data.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void loadForecast();
+  }, [loadForecast]);
+
+  const chartRecords = useMemo(
+    () =>
+      filterByTimeframe(
+        forecast?.records ?? [],
+        chartTimeframe,
+        chartStartDate,
+        chartEndDate,
+      ),
+    [forecast, chartTimeframe, chartStartDate, chartEndDate],
+  );
+
+  const historyRecords = useMemo(
+    () =>
+      filterByTimeframe(
+        forecast?.records ?? [],
+        historyTimeframe,
+        historyStartDate,
+        historyEndDate,
+      ),
+    [forecast, historyTimeframe, historyStartDate, historyEndDate],
+  );
+
+  const summary = forecast?.summary;
+
+  const formattedVariance = summary
+    ? `${summary.totalVariance >= 0 ? "+" : ""}${summary.totalVariance.toLocaleString()} (${summary.variancePercentage >= 0 ? "+" : ""}${summary.variancePercentage.toFixed(1)}%)`
+    : "—";
+
   const handleExport = () => {
-    alert("Exporting forecasting report data...");
+    if (!historyRecords.length) return;
+
+    const csvRows = [
+      ["Period", "Expected Volume", "Actual Volume", "Variance", "Variance %", "Trend Status"],
+      ...historyRecords.map((row) => [
+        row.period,
+        row.expectedVolume,
+        row.actualVolume ?? "",
+        row.variance ?? "",
+        row.variancePercentage ?? "",
+        row.trendStatus,
+      ]),
+    ];
+    const csv = csvRows
+      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `forecast-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-600">
+        Loading forecasting data…
+      </div>
+    );
+  }
+
+  if (loadError || !forecast || !summary) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+          <h2 className="font-semibold text-red-700">Unable to load forecasting data</h2>
+          <p className="mt-2 text-sm text-red-600">{loadError}</p>
+          <button onClick={() => void loadForecast()} className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full bg-slate-50 font-sans relative">
@@ -240,7 +356,7 @@ export default function ForecastingPage() {
                     Expected Delivery Volume
                   </p>
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.avgExpected}
+                    {summary.expectedVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -255,7 +371,7 @@ export default function ForecastingPage() {
                     Actual Delivery Volume
                   </p>
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.avgActual}
+                    {summary.actualVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -270,7 +386,7 @@ export default function ForecastingPage() {
                     Total Variance
                   </p>
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.netVariance}
+                    {formattedVariance}
                   </h3>
                 </div>
               </div>
@@ -385,7 +501,7 @@ export default function ForecastingPage() {
                 <div className="w-full h-72 sm:h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={MOCK_FORECAST_DATA}
+                      data={chartRecords}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -395,7 +511,7 @@ export default function ForecastingPage() {
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
                       <YAxis
-                        domain={[100, 210]}
+                        domain={["auto", "auto"]}
                         tick={{ fontSize: 11, fill: "#64748b" }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
@@ -445,12 +561,12 @@ export default function ForecastingPage() {
 
                   {/* Scrollable Container with custom scrollbar styling */}
                   <div className="space-y-3 max-h-60 sm:max-h-72 overflow-y-auto pr-1">
-                    {MOCK_REMARKS.map((remark) => (
+                    {forecast.remarks.map((remark, index) => (
                       <div
-                        key={remark.id}
+                        key={`${index}-${remark}`}
                         className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed"
                       >
-                        {remark.text}
+                        {remark}
                       </div>
                     ))}
                   </div>
@@ -571,7 +687,7 @@ export default function ForecastingPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
-                    {MOCK_FORECAST_DATA.map((row) => {
+                    {historyRecords.map((row) => {
                       const metrics = calculateMetrics(
                         row.expectedVolume,
                         row.actualVolume,
@@ -616,6 +732,13 @@ export default function ForecastingPage() {
                         </tr>
                       );
                     })}
+                    {historyRecords.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-10 px-6 text-center text-sm text-slate-500">
+                          No forecasting records match this timeframe.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
