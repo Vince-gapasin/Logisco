@@ -11,6 +11,7 @@ const headers = {
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+
 export async function PUT(request: Request, { params }: RouteContext) {
   try {
     // Auth entirely bypassed for testing
@@ -23,7 +24,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
       truckType: body.truckType,
       model: body.truckModel,
       capacity: parseFloat(body.capacity),
-      lastChecked: body.lastChecked, // The duplicate was removed below this line
+      lastChecked: body.lastChecked, 
       truckStatus: body.status,
     };
 
@@ -34,6 +35,21 @@ export async function PUT(request: Request, { params }: RouteContext) {
     });
     
     const data = await res.json();
+      
+      // 1. Check if the database returned an error object instead of an array
+      if (!Array.isArray(data)) {
+        return NextResponse.json(data, { status: res.ok ? 200 : 400 });
+      }
+      
+      // 2. Prevent undefined crashes if the array is unexpectedly empty
+      if (data.length === 0) {
+        return NextResponse.json({ message: "Update executed, but no record returned." });
+      }
+
+      // 3. Normal successful array response
+      return NextResponse.json(data[0]);
+
+
     return NextResponse.json(data[0]);
   } catch (error) {
     console.error("PUT truck error:", error);
