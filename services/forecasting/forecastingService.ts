@@ -674,6 +674,30 @@ function generateRemarks(
   return remarks;
 }
 
+function generateRecentRemarks(records: ForecastRecord[]): string[] {
+  return records
+    .filter((record) => record.actualVolume !== null)
+    .slice(-3)
+    .reverse()
+    .map((record) => {
+      const direction =
+        (record.variance ?? 0) > 0
+          ? "above"
+          : (record.variance ?? 0) < 0
+            ? "below"
+            : "in line with";
+      const percentage = Math.abs(record.variancePercentage ?? 0);
+
+      return (
+        `${record.period} recorded ${record.actualVolume} completed deliveries, ` +
+        `${percentage}% ${direction} the MLR forecast of ${record.expectedVolume}. ` +
+        `Average temperature was ${record.factors.averageTemperature?.toFixed(1) ?? "N/A"}°C, ` +
+        `total rainfall was ${record.factors.totalRainfall?.toFixed(1) ?? "N/A"} mm, ` +
+        `and the average NCR diesel price was ₱${record.factors.averageDieselPrice?.toFixed(2) ?? "N/A"} per liter.`
+      );
+    });
+}
+
 export async function generateForecast() {
   const { data, error } = await supabase
     .from("ForecastingMonthlyData")
@@ -749,31 +773,34 @@ export async function generateForecast() {
   );
 
   const currentYear = currentMonth.getUTCFullYear();
+  const firstOutputYear = 2022;
   const outputRows: MonthlyData[] = [];
 
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
-    const periodDate = new Date(Date.UTC(currentYear, monthIndex, 1));
-    const periodStart = toDateString(periodDate);
-    const existingRow = allRows.find(
-      (row) => row.periodStart === periodStart
-    );
-    const factorAverage = monthlyFactorAverages[monthIndex];
+  for (let year = firstOutputYear; year <= currentYear; year++) {
+    for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+      const periodDate = new Date(Date.UTC(year, monthIndex, 1));
+      const periodStart = toDateString(periodDate);
+      const existingRow = allRows.find(
+        (row) => row.periodStart === periodStart
+      );
+      const factorAverage = monthlyFactorAverages[monthIndex];
 
-    outputRows.push({
-      periodStart,
-      actualVolume:
-        periodDate < currentMonth ? existingRow?.actualVolume ?? 0 : null,
-      averageTemperature:
-        existingRow?.averageTemperature ?? factorAverage.averageTemperature,
-      totalRainfall:
-        existingRow?.totalRainfall ?? factorAverage.totalRainfall,
-      rainyDays: existingRow?.rainyDays ?? factorAverage.rainyDays,
-      averageWindSpeed:
-        existingRow?.averageWindSpeed ?? factorAverage.averageWindSpeed,
-      averageDieselPrice:
-        existingRow?.averageDieselPrice ?? latestDieselPrice,
-      averageFuelAdjustment: existingRow?.averageFuelAdjustment ?? 0,
-    });
+      outputRows.push({
+        periodStart,
+        actualVolume:
+          periodDate < currentMonth ? existingRow?.actualVolume ?? 0 : null,
+        averageTemperature:
+          existingRow?.averageTemperature ?? factorAverage.averageTemperature,
+        totalRainfall:
+          existingRow?.totalRainfall ?? factorAverage.totalRainfall,
+        rainyDays: existingRow?.rainyDays ?? factorAverage.rainyDays,
+        averageWindSpeed:
+          existingRow?.averageWindSpeed ?? factorAverage.averageWindSpeed,
+        averageDieselPrice:
+          existingRow?.averageDieselPrice ?? latestDieselPrice,
+        averageFuelAdjustment: existingRow?.averageFuelAdjustment ?? 0,
+      });
+    }
   }
 
   const records: ForecastRecord[] = [];
@@ -837,7 +864,10 @@ export async function generateForecast() {
     }
   }
 
-  const completedRecords = records.filter(
+  const currentYearRecords = records.filter(
+    (record) => record.periodStart.startsWith(String(currentYear))
+  );
+  const completedRecords = currentYearRecords.filter(
     (record) => record.actualVolume !== null
   );
   const expectedTotal = completedRecords.reduce(
@@ -851,6 +881,23 @@ export async function generateForecast() {
   const totalVariance = actualTotal - expectedTotal;
   const usesFuel =
     selected.name === "ridge_history_fuel" || selected.name === "ridge_all";
+  const remarksByYear = Object.fromEntries(
+    Array.from(
+      { length: currentYear - firstOutputYear + 1 },
+      (_, index) => firstOutputYear + index
+    ).map((year) => {
+      const yearlyRecords = records.filter((record) =>
+        record.periodStart.startsWith(String(year))
+      );
+
+      return [
+        String(year),
+        year === currentYear
+          ? generateRecentRemarks(yearlyRecords)
+          : generateRemarks(yearlyRecords, selected.label, usesFuel),
+      ];
+    })
+  );
 
   return {
     model: selected.label,
@@ -889,6 +936,7 @@ export async function generateForecast() {
       })),
     },
     records,
-    remarks: generateRemarks(records, selected.label, usesFuel),
+    remarks: remarksByYear[String(currentYear)],
+    remarksByYear,
   };
 }

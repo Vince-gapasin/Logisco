@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ArrowLeft,
   Truck,
+  FileText,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -67,18 +69,15 @@ interface ForecastResponse {
   summary: ForecastSummary;
   records: ForecastRecord[];
   remarks: string[];
+  remarksByYear: Record<string, string[]>;
 }
 
 const TIMEFRAME_OPTIONS = [
-  "All Time",
-  "Today",
-  "Tomorrow",
-  "Last 7 Days",
-  "Last 30 Days",
-  "This Week",
-  "This Year",
-  "Up to Date",
-  "Custom Date Range",
+  "2022",
+  "2023",
+  "2024",
+  "2025",
+  "2026",
 ];
 
 function getStoredToken(): string | null {
@@ -96,54 +95,11 @@ function getStoredToken(): string | null {
   }
 }
 
-function startOfDay(date: Date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
 function filterByTimeframe(
   records: ForecastRecord[],
   timeframe: string,
-  customStart: string,
-  customEnd: string,
 ) {
-  if (timeframe === "All Time") return records;
-
-  const today = startOfDay(new Date());
-  let start: Date | null = null;
-  let end: Date | null = null;
-
-  if (timeframe === "Custom Date Range") {
-    start = customStart ? startOfDay(new Date(`${customStart}T00:00:00`)) : null;
-    end = customEnd ? startOfDay(new Date(`${customEnd}T00:00:00`)) : null;
-  } else if (timeframe === "Today") {
-    start = today;
-    end = today;
-  } else if (timeframe === "Tomorrow") {
-    start = new Date(today);
-    start.setDate(start.getDate() + 1);
-    end = start;
-  } else if (timeframe === "Last 7 Days" || timeframe === "Last 30 Days") {
-    end = today;
-    start = new Date(today);
-    start.setDate(start.getDate() - (timeframe === "Last 7 Days" ? 6 : 29));
-  } else if (timeframe === "This Week") {
-    start = new Date(today);
-    start.setDate(start.getDate() - start.getDay());
-    end = new Date(start);
-    end.setDate(end.getDate() + 6);
-  } else if (timeframe === "This Year") {
-    start = new Date(today.getFullYear(), 0, 1);
-    end = new Date(today.getFullYear(), 11, 31);
-  } else if (timeframe === "Up to Date") {
-    end = today;
-  }
-
-  return records.filter((record) => {
-    const recordDate = startOfDay(new Date(`${record.periodStart}T00:00:00`));
-    return (!start || recordDate >= start) && (!end || recordDate <= end);
-  });
+  return records.filter((record) => record.periodStart.startsWith(timeframe));
 }
 
 function calculateMetrics(expected: number, actual: number | null) {
@@ -191,19 +147,13 @@ export default function ForecastingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Chart Filter States
-  const [chartTimeframe, setChartTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
-  const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
-  const [chartStartDate, setChartStartDate] = useState("");
-  const [chartEndDate, setChartEndDate] = useState("");
-
-  // History Filter States
-  const [historyTimeframe, setHistoryTimeframe] = useState(
-    TIMEFRAME_OPTIONS[0],
+  const [selectedYear, setSelectedYear] = useState(
+    TIMEFRAME_OPTIONS[TIMEFRAME_OPTIONS.length - 1],
   );
-  const [isHistoryDropdownOpen, setIsHistoryDropdownOpen] = useState(false);
-  const [historyStartDate, setHistoryStartDate] = useState("");
-  const [historyEndDate, setHistoryEndDate] = useState("");
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "excel">("pdf");
+  const [isExporting, setIsExporting] = useState(false);
 
   const loadForecast = useCallback(async () => {
     setIsLoading(true);
@@ -240,35 +190,41 @@ export default function ForecastingPage() {
     void loadForecast();
   }, [loadForecast]);
 
-  const chartRecords = useMemo(
-    () =>
-      filterByTimeframe(
-        forecast?.records ?? [],
-        chartTimeframe,
-        chartStartDate,
-        chartEndDate,
-      ),
-    [forecast, chartTimeframe, chartStartDate, chartEndDate],
+  const filteredRecords = useMemo(
+    () => filterByTimeframe(forecast?.records ?? [], selectedYear),
+    [forecast, selectedYear],
   );
 
-  const historyRecords = useMemo(
-    () =>
-      filterByTimeframe(
-        forecast?.records ?? [],
-        historyTimeframe,
-        historyStartDate,
-        historyEndDate,
-      ),
-    [forecast, historyTimeframe, historyStartDate, historyEndDate],
+  const chartRecords = filteredRecords;
+  const historyRecords = filteredRecords;
+  const completedRecords = filteredRecords.filter(
+    (record) => record.actualVolume !== null,
   );
+  const expectedVolume = completedRecords.reduce(
+    (sum, record) => sum + record.expectedVolume,
+    0,
+  );
+  const actualVolume = completedRecords.reduce(
+    (sum, record) => sum + (record.actualVolume ?? 0),
+    0,
+  );
+  const totalVariance = actualVolume - expectedVolume;
+  const variancePercentage =
+    expectedVolume === 0 ? 0 : (totalVariance / expectedVolume) * 100;
+  const selectedTrendStatus =
+    variancePercentage > 5
+      ? "Above Normal"
+      : variancePercentage < -5
+        ? "Below Normal"
+        : "Normal";
 
   const summary = forecast?.summary;
+  const displayedRemarks =
+    forecast?.remarksByYear?.[selectedYear] ?? forecast?.remarks ?? [];
 
-  const formattedVariance = summary
-    ? `${summary.totalVariance >= 0 ? "+" : ""}${summary.totalVariance.toLocaleString()} (${summary.variancePercentage >= 0 ? "+" : ""}${summary.variancePercentage.toFixed(1)}%)`
-    : "—";
+  const formattedVariance = `${totalVariance >= 0 ? "+" : ""}${totalVariance.toLocaleString()} (${variancePercentage >= 0 ? "+" : ""}${variancePercentage.toFixed(1)}%)`;
 
-  const handleExport = () => {
+  const handleExcelExport = () => {
     if (!historyRecords.length || !forecast || !summary) return;
 
     const csvRows = [
@@ -292,12 +248,120 @@ export default function ForecastingPage() {
     const csv = csvRows
       .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
       .join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(
+      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
+    );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `forecast-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `forecast-table-${selectedYear}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
+    setIsExportModalOpen(false);
+  };
+
+  const handlePdfExport = async () => {
+    const report = document.getElementById("forecast-report-content");
+    const historySection = document.getElementById("forecast-history-section");
+    if (!report || !historySection) return;
+
+    setIsExporting(true);
+
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas-pro"),
+        import("jspdf"),
+      ]);
+      const sharedCaptureOptions = {
+        backgroundColor: "#f8fafc",
+        scale: 1.5,
+        useCORS: true,
+        logging: false,
+      };
+
+      const overviewCanvas = await html2canvas(report, {
+        ...sharedCaptureOptions,
+        onclone: (clonedDocument: Document) => {
+          const clonedHistory = clonedDocument.getElementById(
+            "forecast-history-section",
+          );
+          if (clonedHistory) clonedHistory.style.display = "none";
+        },
+      });
+
+      const historyCanvas = await html2canvas(historySection, {
+        ...sharedCaptureOptions,
+        onclone: (clonedDocument: Document) => {
+          clonedDocument.querySelectorAll<HTMLElement>(".pdf-expand").forEach(
+            (element) => {
+              element.style.maxHeight = "none";
+              element.style.height = "auto";
+              element.style.overflow = "visible";
+            },
+          );
+        },
+      });
+
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const margin = 8;
+      const pageWidth = pdf.internal.pageSize.getWidth() - margin * 2;
+      const pageHeight = pdf.internal.pageSize.getHeight() - margin * 2;
+      const addCanvasToPdf = (
+        canvas: HTMLCanvasElement,
+        startOnNewPage: boolean,
+      ) => {
+        if (startOnNewPage) pdf.addPage();
+
+        const imageHeight = (canvas.height * pageWidth) / canvas.width;
+        const imageData = canvas.toDataURL("image/jpeg", 0.92);
+        let remainingHeight = imageHeight;
+        let position = margin;
+
+        pdf.addImage(imageData, "JPEG", margin, position, pageWidth, imageHeight);
+        remainingHeight -= pageHeight;
+
+        while (remainingHeight > 0) {
+          position = margin - (imageHeight - remainingHeight);
+          pdf.addPage();
+          pdf.addImage(imageData, "JPEG", margin, position, pageWidth, imageHeight);
+          remainingHeight -= pageHeight;
+        }
+      };
+
+      const overviewImageData = overviewCanvas.toDataURL("image/jpeg", 0.92);
+      const overviewRatio = Math.min(
+        pageWidth / overviewCanvas.width,
+        pageHeight / overviewCanvas.height,
+      );
+      const overviewWidth = overviewCanvas.width * overviewRatio;
+      const overviewHeight = overviewCanvas.height * overviewRatio;
+      const overviewX = (pdf.internal.pageSize.getWidth() - overviewWidth) / 2;
+
+      pdf.addImage(
+        overviewImageData,
+        "JPEG",
+        overviewX,
+        margin,
+        overviewWidth,
+        overviewHeight,
+      );
+      addCanvasToPdf(historyCanvas, true);
+
+      pdf.save(`forecast-report-${selectedYear}.pdf`);
+      setIsExportModalOpen(false);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      window.alert("The PDF could not be generated. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleConfirmedExport = async () => {
+    if (exportFormat === "pdf") {
+      await handlePdfExport();
+    } else {
+      handleExcelExport();
+    }
   };
 
   if (isLoading) {
@@ -323,9 +387,42 @@ export default function ForecastingPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50 font-sans relative">
+    <div id="forecast-report" className="flex min-h-screen w-full bg-slate-50 font-sans relative">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: landscape;
+            margin: 10mm;
+          }
+
+          body {
+            background: white !important;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+
+          #forecast-report {
+            background: white !important;
+          }
+
+          #forecast-report main {
+            max-width: none !important;
+            padding: 0 !important;
+          }
+
+          #forecast-report .overflow-y-auto,
+          #forecast-report .overflow-x-auto {
+            max-height: none !important;
+            overflow: visible !important;
+          }
+
+          #forecast-report table {
+            min-width: 0 !important;
+          }
+        }
+      `}</style>
       <div className="flex flex-col flex-1 w-full">
-        <main className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
+        <main id="forecast-report-content" className="flex-1 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
           <div className="space-y-6">
             {/* PAGE TITLE & ACTION BUTTONS */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -339,7 +436,10 @@ export default function ForecastingPage() {
               </div>
 
               {/* Action Buttons Container */}
-              <div className="w-full sm:w-auto flex items-center gap-3">
+              <div
+                className="w-full sm:w-auto flex flex-wrap items-center gap-3 print:hidden"
+                data-html2canvas-ignore="true"
+              >
                 <Link
                   href="/admindashboard/reports"
                   className="w-full sm:w-auto h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl border border-slate-200 shadow-sm transition-all duration-200 text-sm px-4 cursor-pointer"
@@ -348,7 +448,7 @@ export default function ForecastingPage() {
                   <span>Back to Reports</span>
                 </Link>
                 <button
-                  onClick={handleExport}
+                  onClick={() => setIsExportModalOpen(true)}
                   className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
                 >
                   <Download className="w-4 h-4 shrink-0" />
@@ -369,7 +469,7 @@ export default function ForecastingPage() {
                     Expected Delivery Volume
                   </p>
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.expectedVolume.toLocaleString()}
+                    {expectedVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -384,7 +484,7 @@ export default function ForecastingPage() {
                     Actual Delivery Volume
                   </p>
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                    {summary.actualVolume.toLocaleString()}
+                    {actualVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
@@ -414,7 +514,7 @@ export default function ForecastingPage() {
                     Trend Status
                   </p>
                   <h3 className="text-lg sm:text-xl font-bold text-emerald-900 mt-0.5">
-                    {summary.trendStatus}
+                    {selectedTrendStatus}
                   </h3>
                 </div>
               </div>
@@ -435,79 +535,38 @@ export default function ForecastingPage() {
                     </p>
                   </div>
 
-                  {/* Chart Period Dropdown & Custom Range */}
-                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                    <div className="relative w-full sm:w-48">
-                      <button
-                        onClick={() =>
-                          setIsChartDropdownOpen(!isChartDropdownOpen)
-                        }
-                        className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all cursor-pointer"
-                      >
-                        <span className="flex items-center gap-1.5 truncate">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {chartTimeframe}
-                        </span>
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isChartDropdownOpen ? "rotate-180" : ""}`}
-                        />
-                      </button>
+                  <div className="relative w-full sm:w-48" data-html2canvas-ignore="true">
+                    <button
+                      onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
+                      className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        {selectedYear}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isYearDropdownOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
 
-                      {isChartDropdownOpen && (
-                        <div className="absolute z-10 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
-                          {TIMEFRAME_OPTIONS.map((opt) => (
-                            <button
-                              key={opt}
-                              onClick={() => {
-                                setChartTimeframe(opt);
-                                setIsChartDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
-                                chartTimeframe === opt
-                                  ? "bg-blue-50 text-blue-600 font-medium"
-                                  : "text-slate-700"
-                              }`}
-                            >
-                              {opt}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Custom Date Range Dropdown Panel */}
-                      {chartTimeframe === "Custom Date Range" &&
-                        !isChartDropdownOpen && (
-                          <div className="absolute z-10 top-full right-0 mt-2 w-full sm:w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-fade-in flex flex-col gap-3">
-                            <div className="flex flex-col gap-1">
-                              <label className="text-xs font-semibold text-slate-700">
-                                Start Date
-                              </label>
-                              <input
-                                type="date"
-                                value={chartStartDate}
-                                onChange={(e) =>
-                                  setChartStartDate(e.target.value)
-                                }
-                                className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <label className="text-xs font-semibold text-slate-700">
-                                End Date
-                              </label>
-                              <input
-                                type="date"
-                                value={chartEndDate}
-                                onChange={(e) =>
-                                  setChartEndDate(e.target.value)
-                                }
-                                className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
-                              />
-                            </div>
-                          </div>
-                        )}
-                    </div>
+                    {isYearDropdownOpen && (
+                      <div className="absolute z-20 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+                        {TIMEFRAME_OPTIONS.map((year) => (
+                          <button
+                            key={year}
+                            onClick={() => {
+                              setSelectedYear(year);
+                              setIsYearDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-xs hover:bg-slate-50 cursor-pointer ${selectedYear === year ? "bg-blue-50 text-blue-600 font-medium" : "text-slate-700"}`}
+                          >
+                            {year}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
                 </div>
 
                 {/* Recharts Container */}
@@ -576,8 +635,8 @@ export default function ForecastingPage() {
                   </div>
 
                   {/* Scrollable Container with custom scrollbar styling */}
-                  <div className="space-y-3 max-h-60 sm:max-h-72 overflow-y-auto pr-1">
-                    {forecast.remarks.map((remark, index) => (
+                  <div className="pdf-expand space-y-3 max-h-60 sm:max-h-72 overflow-y-auto pr-1">
+                    {displayedRemarks.map((remark, index) => (
                       <div
                         key={`${index}-${remark}`}
                         className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed"
@@ -599,7 +658,10 @@ export default function ForecastingPage() {
             </div>
 
             {/* FORECAST HISTORY TABLE */}
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full mt-6">
+            <div
+              id="forecast-history-section"
+              className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full mt-6"
+            >
               <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-900">
@@ -611,82 +673,9 @@ export default function ForecastingPage() {
                   </p>
                 </div>
 
-                {/* History Filter Dropdown & Custom Range */}
-                <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                  <div className="relative w-full sm:w-48">
-                    <button
-                      onClick={() =>
-                        setIsHistoryDropdownOpen(!isHistoryDropdownOpen)
-                      }
-                      className="w-full flex items-center justify-between bg-white border border-slate-200 text-xs font-medium text-slate-900 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        {historyTimeframe}
-                      </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isHistoryDropdownOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-
-                    {isHistoryDropdownOpen && (
-                      <div className="absolute z-10 top-full right-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto">
-                        {TIMEFRAME_OPTIONS.map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() => {
-                              setHistoryTimeframe(opt);
-                              setIsHistoryDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-2 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
-                              historyTimeframe === opt
-                                ? "bg-blue-50 text-blue-600 font-medium"
-                                : "text-slate-700"
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Custom Date Range Dropdown Panel */}
-                    {historyTimeframe === "Custom Date Range" &&
-                      !isHistoryDropdownOpen && (
-                        <div className="absolute z-10 top-full right-0 mt-2 w-full sm:w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-fade-in flex flex-col gap-3">
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-semibold text-slate-700">
-                              Start Date
-                            </label>
-                            <input
-                              type="date"
-                              value={historyStartDate}
-                              onChange={(e) =>
-                                setHistoryStartDate(e.target.value)
-                              }
-                              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-semibold text-slate-700">
-                              End Date
-                            </label>
-                            <input
-                              type="date"
-                              value={historyEndDate}
-                              onChange={(e) =>
-                                setHistoryEndDate(e.target.value)
-                              }
-                              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
-                            />
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                </div>
               </div>
 
-              <div className="w-full overflow-x-auto pb-2 min-h-75">
+              <div className="pdf-expand w-full overflow-x-auto pb-2 min-h-75">
                 <table className="w-full text-left border-collapse min-w-225">
                   <thead>
                     <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
@@ -763,6 +752,73 @@ export default function ForecastingPage() {
           </div>
         </main>
       </div>
+
+      {isExportModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 print:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-report-title"
+          onClick={() => setIsExportModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="export-report-title" className="text-lg font-bold text-slate-900">
+              Export Forecast Report
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Choose the export format for {selectedYear}.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              <button
+                onClick={() => setExportFormat("pdf")}
+                className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors cursor-pointer ${exportFormat === "pdf" ? "border-blue-600 bg-blue-50" : "border-slate-200 hover:bg-slate-50"}`}
+              >
+                <FileText className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">PDF</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Export the complete forecasting screen.
+                  </span>
+                </span>
+              </button>
+
+              <button
+                onClick={() => setExportFormat("excel")}
+                className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-colors cursor-pointer ${exportFormat === "excel" ? "border-blue-600 bg-blue-50" : "border-slate-200 hover:bg-slate-50"}`}
+              >
+                <FileSpreadsheet className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                <span>
+                  <span className="block text-sm font-semibold text-slate-900">Excel</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Export only the filtered forecast history table.
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmedExport}
+                disabled={isExporting}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:cursor-wait disabled:opacity-60 cursor-pointer"
+              >
+                <Download className="h-4 w-4" />
+                {isExporting ? "Exporting…" : "Export"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
