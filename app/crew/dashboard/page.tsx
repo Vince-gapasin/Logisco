@@ -53,7 +53,7 @@ export interface DeliveryRecord {
   pod_url?: string;      
   multiplePickups?: PickupRecord[];
   multipleDeliveries?: DeliveryDestinationRecord[];
-  localUpdatedAt?: number; // NEW: Tracks real-time UI interactions to auto-sort to top
+  localUpdatedAt?: number;
 }
 
 interface CrewDashboardProps {
@@ -89,20 +89,52 @@ const generateDynamicStops = (delivery: DeliveryRecord) => {
 };
 
 // Smart filter that strips out the redundant system-generated text
-const formatDispatchNote = (note?: string) => {
-  if (!note) return "No additional remarks logged by the crew.";
+const formatDispatchNote = (note?: string, delivery?: DeliveryRecord) => {
+  if (!note) return "No final remarks logged.";
   
-  // Use Regex to find and obliterate the [DELIVERY DETAILS] and [ASSIGNED CREW] blocks
-  const cleanedNote = note
-    .replace(/\[DELIVERY DETAILS\][\s\S]*?(?=\[|$)/gi, '')
-    .replace(/\[ASSIGNED CREW\][\s\S]*?(?=\[|$)/gi, '')
-    .trim();
+  const formatted = note
+    .replace(/\[DELIVERY DETAILS\]/gi, '\n[DELIVERY DETAILS]\n')
+    .replace(/\[ASSIGNED CREW\]/gi, '\n[ASSIGNED CREW]\n')
+    .replace(/(Priority:|Request Date:|Delivery Schedule:|Pickup:|Truck:|Driver:|Helper 1:|Helper 2:)/gi, '\n$1');
 
-  if (!cleanedNote) {
-    return "No additional remarks logged by the crew.";
-  }
+  return (
+    <div className="space-y-1.5">
+      {formatted.split('\n').map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
 
-  return cleanedNote;
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          return (
+            <div key={idx} className="font-bold text-emerald-800 text-[11px] tracking-wider uppercase mt-4 mb-2 border-b border-emerald-200/50 pb-1 first:mt-0">
+              {trimmed.replace(/\[|\]/g, '')}
+            </div>
+          );
+        }
+
+        const colonIdx = trimmed.indexOf(':');
+        if (colonIdx > -1) {
+          const label = trimmed.substring(0, colonIdx + 1);
+          let value = trimmed.substring(colonIdx + 1).trim();
+
+          if (delivery) {
+            if (label === 'Truck:' && delivery.assignedVehicle) value = delivery.assignedVehicle;
+            if (label === 'Driver:' && delivery.driver) value = delivery.driver;
+            if (label === 'Helper 1:' && delivery.helper) value = delivery.helper;
+            if (label === 'Helper 2:' && delivery.helper2) value = delivery.helper2;
+          }
+
+          return (
+            <div key={idx} className="text-xs text-slate-700 pl-2 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="font-semibold text-slate-900 shrink-0 sm:w-32">{label}</span>
+              <span className="break-words text-slate-600">{value}</span>
+            </div>
+          );
+        }
+
+        return <div key={idx} className="text-xs text-slate-700 pl-2">{trimmed}</div>;
+      })}
+    </div>
+  );
 };
 
 export default function CrewDashboardPage({
@@ -135,15 +167,9 @@ export default function CrewDashboardPage({
   const [emergencySubmitted, setEmergencySubmitted] = useState<boolean>(false);
 
   const [showTripReportModal, setShowTripReportModal] = useState<boolean>(false);
-  const [tripReportNoIssue, setTripReportNoIssue] = useState<boolean>(false);
-  const [showVehicleProblemModal, setShowVehicleProblemModal] = useState<boolean>(false);
-  const [showRemarksSuccess, setShowRemarksSuccess] = useState<boolean>(false);
-  const [showProblemSuccess, setShowProblemSuccess] = useState<boolean>(false);
-
   const [tripRemarks, setTripRemarks] = useState<string>("");
-  const [tripNotes, setTripNotes] = useState<string>("");
   const [vehicleIssues, setVehicleIssues] = useState<string>("");
-  const [vehicleNotes, setVehicleNotes] = useState<string>("");
+  const [showRemarksSuccess, setShowRemarksSuccess] = useState<boolean>(false);
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [dynamicStops, setDynamicStops] = useState<any[]>([]);
@@ -193,13 +219,35 @@ export default function CrewDashboardPage({
     setCurrentPage(1);
   }, [selectedFilter, searchTerm]);
 
-  const activeStatuses = ["assigned", "start delivery", "in warehouse", "in transit", "arrived", "ongoing delivery", "accepted"];
+  // Status Checkers
+  const activeStatuses = ["start delivery", "in warehouse", "in transit", "arrived", "ongoing delivery", "accepted"];
   const completedStatuses = ["completed", "delivered", "returned", "foul trip", "declined"];
 
   const isActive = (status?: string) => status ? activeStatuses.includes(status.toLowerCase()) : false;
   const isCompleted = (status?: string) => status ? completedStatuses.includes(status.toLowerCase()) : false;
-  const isUnconfirmed = (status?: string) => !status || status.toLowerCase() === "pending" || (!isActive(status) && !isCompleted(status));
+  const isSuccessfulFinish = (status?: string) => status ? ["completed", "delivered", "returned"].includes(status.toLowerCase()) : false;
+  const isAbortedTrip = (status?: string) => status ? ["foul trip", "declined"].includes(status.toLowerCase()) : false;
+  
+  const isUnconfirmed = (status?: string) => {
+    if (!status) return true;
+    const s = status.toLowerCase();
+    return s === "pending" || s === "assigned" || (!isActive(status) && !isCompleted(status));
+  };
+  
   const isAccepted = (status?: string) => isActive(status) || isCompleted(status);
+
+  const getDisplayStatus = (delivery: DeliveryRecord) => {
+    if (isUnconfirmed(delivery.status)) return "Awaiting Confirmation";
+    if (isAbortedTrip(delivery.status)) return "Foul Trip / Aborted";
+    if (isSuccessfulFinish(delivery.status)) return "Delivery Concluded";
+    
+    const currentStep = delivery.current_step || 0;
+    if (delivery.status.toLowerCase() === "accepted" && currentStep === 0) return "Accepted - Awaiting Start";
+    if (currentStep === 1) return "Heading to Warehouse"; 
+    if (currentStep > 1) return "Products Loaded - Delivering"; 
+    
+    return delivery.status;
+  };
 
   const unconfirmedCount = deliveryList.filter((d) => isUnconfirmed(d.status)).length;
   const activeCount = deliveryList.filter((d) => isActive(d.status)).length;
@@ -221,12 +269,10 @@ export default function CrewDashboardPage({
       return true;
     })
     .sort((a, b) => {
-      // 1. Instantly bubble the most recently updated item to the very top
       const modA = a.localUpdatedAt || 0;
       const modB = b.localUpdatedAt || 0;
       if (modA !== modB) return modB - modA;
 
-      // 2. Fallback to Scheduled Date sorting
       const timeA = new Date(`${a.scheduledDate} ${a.pickupTime || '00:00'}`).getTime() || Infinity;
       const timeB = new Date(`${b.scheduledDate} ${b.pickupTime || '00:00'}`).getTime() || Infinity;
       return selectedFilter === "Completed" ? timeB - timeA : timeA - timeB; 
@@ -244,13 +290,6 @@ export default function CrewDashboardPage({
     setShowAcceptConfirmModal(false);
     setShowDeclineConfirmModal(false);
     setShowSubmitConfirmModal(false);
-  };
-
-  const handleEmergencyImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setEmergencyImage(URL.createObjectURL(file));
-    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,8 +324,11 @@ export default function CrewDashboardPage({
       const isLastStep = nextStep === dynamicStops.length;
       
       let macroStatus = "In Transit"; 
-      if (isLastStep) macroStatus = "Completed";
-      if (currentStepIndex === 0) macroStatus = "In Transit";
+      if (isLastStep) {
+        macroStatus = "Completed";
+      } else if (currentStepIndex > 0) {
+        macroStatus = "Ongoing Delivery";
+      }
 
       const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
       const token = sessionStr ? JSON.parse(sessionStr).token : "";
@@ -467,8 +509,11 @@ export default function CrewDashboardPage({
   };
 
   const getStatusBadgeClass = (status?: string) => {
-    if (isCompleted(status)) return "bg-slate-100 text-slate-800 border border-slate-300";
-    if (status?.toLowerCase() === "ongoing delivery") return "bg-blue-100 text-blue-800 border border-blue-300";
+    if (!status) return "bg-slate-100 text-slate-500 border border-slate-200";
+    const s = status.toLowerCase();
+    if (s === "aborted" || s === "foul trip" || s === "declined") return "bg-red-100 text-red-800 border border-red-300";
+    if (isSuccessfulFinish(status)) return "bg-slate-100 text-slate-800 border border-slate-300";
+    if (s === "ongoing delivery") return "bg-blue-100 text-blue-800 border border-blue-300";
     if (isActive(status)) return "bg-blue-100 text-blue-800 border border-blue-300";
     return "bg-amber-100 text-amber-800 border border-amber-300";
   };
@@ -476,7 +521,6 @@ export default function CrewDashboardPage({
   return (
     <>
       {viewMode === "update-status" && selectedDelivery ? (
-        // ======================= UPDATE STATUS VIEW =======================
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">
             <div className="flex items-center gap-3">
@@ -522,7 +566,7 @@ export default function CrewDashboardPage({
                   const x = 15 + (progress * 70);
                   const y = 50 + Math.sin(progress * Math.PI) * 30; 
 
-                  const isNodeCompleted = index < currentStepIndex;
+                  const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || index < currentStepIndex;
                   const isCurrent = index === currentStepIndex;
 
                   return (
@@ -566,7 +610,7 @@ export default function CrewDashboardPage({
                   <div className="absolute left-8 top-1/2 -translate-y-1/2 h-1 bg-blue-600 z-0 transition-all duration-500" style={{ width: `calc(${ (currentStepIndex / (Math.max(1, dynamicStops.length - 1))) * 100 }% - 64px)` }}></div>
 
                   {dynamicStops.map((stop, index) => {
-                    const isNodeCompleted = index < currentStepIndex;
+                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || index < currentStepIndex;
                     const isCurrent = index === currentStepIndex;
                     
                     return (
@@ -583,14 +627,15 @@ export default function CrewDashboardPage({
             </div>
 
             <div className="space-y-4 text-sm text-slate-900">
-              
               {/* CURRENT OBJECTIVE DETAILS */}
               <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/50 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
                 <div className="border-b border-blue-200 pb-2 mb-4 font-bold text-blue-900 text-sm tracking-wide uppercase flex justify-between items-center">
                   <span>Current Objective Details</span>
-                  {dynamicStops[currentStepIndex]?.type === 'pickup' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-md font-semibold">Picking Up</span>}
-                  {dynamicStops[currentStepIndex]?.type === 'delivery' && <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-md font-semibold">Dropping Off</span>}
+                  {dynamicStops[currentStepIndex]?.title === 'Start Delivery' && <span className="bg-slate-100 text-slate-800 text-xs px-2 py-0.5 rounded-md font-semibold border border-slate-300">Awaiting Departure</span>}
+                  {dynamicStops[currentStepIndex]?.type === 'pickup' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-md font-semibold border border-amber-300">Heading to Warehouse</span>}
+                  {dynamicStops[currentStepIndex]?.type === 'delivery' && <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-md font-semibold border border-indigo-300">Products Loaded - Delivering</span>}
+                  {dynamicStops[currentStepIndex]?.title === 'Returned' && <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-md font-semibold border border-emerald-300">Returning to Base</span>}
                 </div>
                 
                 {dynamicStops[currentStepIndex]?.data ? (
@@ -621,20 +666,17 @@ export default function CrewDashboardPage({
                     selectedDelivery.multiplePickups.map((pickup, idx) => {
                       const stopIndex = 1 + idx; 
                       const calculatedStep = selectedDelivery.current_step || 0;
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
                           <span className="text-slate-700 truncate">{pickup.address}</span>
@@ -649,14 +691,17 @@ export default function CrewDashboardPage({
                     (() => {
                       const stopIndex = 1;
                       const calculatedStep = selectedDelivery.current_step || 0;
-                      let status = "Pending";
-                      if (calculatedStep > stopIndex) status = "Completed";
-                      else if (calculatedStep === stopIndex) status = "Ongoing Delivery";
+                      
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                      
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
                       return (
-                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
+                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-blue-600 font-bold truncate">Pickup Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #1</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Base"}</span>
                           <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
@@ -683,20 +728,17 @@ export default function CrewDashboardPage({
                       const stopIndex = 1 + pickupCount + idx;
                       const calculatedStep = selectedDelivery.current_step || 0;
                       
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
                           <span className="text-slate-700 truncate">{deliv.address}</span>
@@ -713,19 +755,16 @@ export default function CrewDashboardPage({
                       const stopIndex = 1 + pickupCount;
                       const calculatedStep = selectedDelivery.current_step || 0;
                       
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
                       return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Delivery Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #1</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.clientName}</span>
                           <span className="text-slate-700 truncate">{selectedDelivery.deliveryAddress}</span>
@@ -740,17 +779,47 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* Remarks */}
-              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
-                  <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24" />
+              {/* COMPLETION SUMMARY */}
+              {isCompleted(selectedDelivery.status) && (
+                <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/50 shadow-xs mt-4">
+                  <div className="border-b border-emerald-200 pb-2 mb-4 font-semibold text-emerald-900 text-sm tracking-wide flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    Completion Summary
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <span className="block text-xs font-semibold text-emerald-800 mb-2">Final Remarks / Feedback</span>
+                      <div className="w-full bg-white border border-emerald-200 rounded-md px-4 py-3 text-sm text-slate-800 shadow-sm leading-relaxed overflow-hidden">
+                        {formatDispatchNote(selectedDelivery.dispatchNote || selectedDelivery.notes, selectedDelivery)}
+                      </div>
+                    </div>
+                    {selectedDelivery.pod_url && (
+                      <div>
+                        <span className="block text-xs font-semibold text-emerald-800 mb-2">Final Proof of Delivery</span>
+                        <img 
+                          src={selectedDelivery.pod_url} 
+                          alt="Global POD" 
+                          className="w-full max-w-sm h-auto object-cover rounded-xl border border-emerald-200 shadow-sm" 
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* POD (Only visible if required for this step) */}
-              {dynamicStops[currentStepIndex]?.reqPod && (
+              {/* Remarks (Only show if NOT completed) */}
+              {!isCompleted(selectedDelivery.status) && (
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                  <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
+                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24" />
+                  </div>
+                </div>
+              )}
+
+              {/* POD (Only visible if required for this step and NOT completed) */}
+              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
                 <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
                   <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
                     <span className="truncate">Proof of Location / Delivery</span>
@@ -784,22 +853,28 @@ export default function CrewDashboardPage({
                   </label>
                 </div>
               )}
-
             </div>
 
             <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200">
-              <button
-                onClick={() => setShowSubmitConfirmModal(true)}
-                className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-              >
-                {currentStepIndex === dynamicStops.length - 1 ? "Complete Trip" : "Confirm Location"}
-              </button>
+              {isCompleted(selectedDelivery.status) ? (
+                <button
+                  onClick={() => setViewMode("list")}
+                  className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  Close Route
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowSubmitConfirmModal(true)}
+                  className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  {currentStepIndex === dynamicStops.length - 1 ? "Complete Trip" : "Confirm Location"}
+                </button>
+              )}
             </div>
           </div>
         </div>
-
       ) : (
-
         // ======================= LIST VIEW =======================
         <div className="p-3 sm:p-5 md:p-6 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans relative">
           <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 pl-1 lg:pl-0">
@@ -852,7 +927,7 @@ export default function CrewDashboardPage({
                           <div className="flex flex-col items-end justify-start gap-1 h-full">
                             <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700 transition-colors text-right whitespace-nowrap"><Eye className="w-3.5 h-3.5 shrink-0" /><span>Click to View</span></div>
                             <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${getStatusBadgeClass(delivery.status)}`}>
-                              {isUnconfirmed(delivery.status) ? "Awaiting Confirmation" : delivery.status}
+                              {getDisplayStatus(delivery)}
                             </span>
                           </div>
                         </td>
@@ -891,7 +966,7 @@ export default function CrewDashboardPage({
               </div>
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                 {isAccepted(selectedDelivery.status) ? (
-                  <span className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap ${isCompleted(selectedDelivery.status) ? "bg-slate-500 text-white" : "bg-emerald-500 text-white"}`}>{selectedDelivery.status}</span>
+                  <span className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap ${getStatusBadgeClass(selectedDelivery.status)}`}>{getDisplayStatus(selectedDelivery)}</span>
                 ) : (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Awaiting Confirmation</span>
                 )}
@@ -942,20 +1017,17 @@ export default function CrewDashboardPage({
                     selectedDelivery.multiplePickups.map((pickup, idx) => {
                       const stopIndex = 1 + idx; 
                       const calculatedStep = selectedDelivery.current_step || 0;
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
                           <span className="text-slate-700 truncate">{pickup.address}</span>
@@ -970,14 +1042,17 @@ export default function CrewDashboardPage({
                     (() => {
                       const stopIndex = 1;
                       const calculatedStep = selectedDelivery.current_step || 0;
-                      let status = "Pending";
-                      if (calculatedStep > stopIndex) status = "Completed";
-                      else if (calculatedStep === stopIndex) status = "Ongoing Delivery";
+                      
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                      
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
                       return (
-                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
+                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-blue-600 font-bold truncate">Pickup Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #1</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Base"}</span>
                           <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
@@ -992,7 +1067,7 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* ORIGINAL DELIVERY ADDRESSES LIST */}
+              {/* ORIGINAL DELIVERY ADDRESSES LIST (PREVIEW) */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   Delivery Addresses
@@ -1004,20 +1079,17 @@ export default function CrewDashboardPage({
                       const stopIndex = 1 + pickupCount + idx;
                       const calculatedStep = selectedDelivery.current_step || 0;
                       
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
                           <span className="text-slate-700 truncate">{deliv.address}</span>
@@ -1034,19 +1106,16 @@ export default function CrewDashboardPage({
                       const stopIndex = 1 + pickupCount;
                       const calculatedStep = selectedDelivery.current_step || 0;
                       
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                       const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                       
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
                       return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Delivery Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #1</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.clientName}</span>
                           <span className="text-slate-700 truncate">{selectedDelivery.deliveryAddress}</span>
@@ -1061,7 +1130,7 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* NEW: COMPLETION SUMMARY (Only shows if status is Completed) */}
+              {/* COMPLETION SUMMARY */}
               {isCompleted(selectedDelivery.status) && (
                 <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/50 shadow-xs mt-4">
                   <div className="border-b border-emerald-200 pb-2 mb-4 font-semibold text-emerald-900 text-sm tracking-wide flex items-center gap-2">
@@ -1072,7 +1141,7 @@ export default function CrewDashboardPage({
                     <div>
                       <span className="block text-xs font-semibold text-emerald-800 mb-2">Final Remarks / Feedback</span>
                       <div className="w-full bg-white border border-emerald-200 rounded-md px-4 py-3 text-sm text-slate-800 shadow-sm leading-relaxed overflow-hidden">
-                        {formatDispatchNote(selectedDelivery.dispatchNote || selectedDelivery.notes)}
+                        {formatDispatchNote(selectedDelivery.dispatchNote || selectedDelivery.notes, selectedDelivery)}
                       </div>
                     </div>
                     {selectedDelivery.pod_url && (
@@ -1089,25 +1158,69 @@ export default function CrewDashboardPage({
                 </div>
               )}
 
+              {/* Remarks (Only show if NOT completed) */}
+              {!isCompleted(selectedDelivery.status) && (
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+                  <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
+                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24" />
+                  </div>
+                </div>
+              )}
+
+              {/* POD (Only visible if required for this step and NOT completed) */}
+              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
+                <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
+                  <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
+                    <span className="truncate">Proof of Location / Delivery</span>
+                    <span className="text-xs font-semibold whitespace-nowrap shrink-0 text-red-500">
+                      * Required for this location
+                    </span>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver's Name <span className="text-red-500">*</span></label>
+                    <input 
+                      type="text" 
+                      value={receiverName} 
+                      onChange={(e) => setReceiverName(e.target.value)} 
+                      placeholder="Ex. Juan Dela Cruz" 
+                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      required
+                    />
+                  </div>
+
+                  <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-blue-300 rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative">
+                    {selectedImage ? (
+                      <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
+                        <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                        <span className="text-xs font-semibold text-blue-700">Tap to upload photo</span>
+                      </div>
+                    )}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                </div>
+              )}
             </div>
 
-            <div className="px-4 sm:px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              {isUnconfirmed(selectedDelivery.status) ? (
-                <>
-                  <span className="text-xs sm:text-sm text-red-500 font-semibold text-center sm:text-left truncate">Please confirm assignment.</span>
-                  <div className="flex w-full sm:w-auto gap-2 shrink-0">
-                    <button type="button" onClick={() => setShowDeclineConfirmModal(true)} className="flex-1 sm:flex-none px-4 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors cursor-pointer whitespace-nowrap">Decline</button>
-                    <button type="button" onClick={() => setShowAcceptConfirmModal(true)} className="flex-1 sm:flex-none px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-colors cursor-pointer whitespace-nowrap">Accept</button>
-                  </div>
-                </>
-              ) : isCompleted(selectedDelivery.status) ? (
-                <div className="flex justify-end w-full"><span className="text-sm font-semibold text-slate-500 italic">This delivery has been completed.</span></div>
+            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200">
+              {isCompleted(selectedDelivery.status) ? (
+                <button
+                  onClick={() => setViewMode("list")}
+                  className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  Close Route
+                </button>
               ) : (
-                <div className="flex justify-end w-full">
-                  <button type="button" onClick={() => setShowStartConfirmModal(true)} className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer whitespace-nowrap">
-                    Start / Update Delivery
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowSubmitConfirmModal(true)}
+                  className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  {currentStepIndex === dynamicStops.length - 1 ? "Complete Trip" : "Confirm Location"}
+                </button>
               )}
             </div>
           </div>
