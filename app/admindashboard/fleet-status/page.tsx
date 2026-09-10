@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 // ==========================================
 // LOGISCO - FLEET STATUS PAGE
 // ==========================================
@@ -22,8 +21,6 @@ import type {
   Truck as ApiTruck,
   CreateTruckDto,
   UpdateTruckDto,
-  TrucksResponse,
-  TruckResponse,
 } from "@/types/truck";
 
 // ==========================================
@@ -113,6 +110,7 @@ export interface TruckRecord {
 }
 
 function mapApiTruck(truck: ApiTruck): TruckRecord {
+  if (!truck) return {} as TruckRecord; // Safety guard
   return {
     id: truck.truckID,
     plateNumber: truck.plateNumber || "N/A",
@@ -550,8 +548,10 @@ export default function FleetStatusPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const response = await apiFetch<TrucksResponse>("/api/fleet-status");
-      setTruckList(response.data.map(mapApiTruck));
+      const response = await apiFetch<any>("/api/fleet-status");
+      // Safety fix: handle array natively or wrapped in .data
+      const trucksArray = Array.isArray(response) ? response : (response.data || []);
+      setTruckList(trucksArray.map(mapApiTruck));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setTruckList([]);
@@ -567,8 +567,10 @@ export default function FleetStatusPage() {
   const handleRowClick = async (id: string) => {
     try {
       setErrorMessage("");
-      const response = await apiFetch<TruckResponse>(`/api/fleet-status/${id}`);
-      setSelectedTruck(mapApiTruck(response.data));
+      const response = await apiFetch<any>(`/api/fleet-status/${id}`);
+      // Safety fix: handle object natively or wrapped in .data
+      const truckData = response.data || response;
+      setSelectedTruck(mapApiTruck(truckData));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     }
@@ -592,7 +594,7 @@ export default function FleetStatusPage() {
           truckStatus: formData.status,
         };
 
-        await apiFetch<TruckResponse>(`/api/fleet-status/${editData.id}`, {
+        await apiFetch<any>(`/api/fleet-status/${editData.id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
@@ -609,7 +611,7 @@ export default function FleetStatusPage() {
           truckStatus: "Available",
         };
 
-        await apiFetch<TruckResponse>("/api/fleet-status", {
+        await apiFetch<any>("/api/fleet-status", {
           method: "POST",
           body: JSON.stringify(payload),
         });
@@ -800,9 +802,6 @@ export default function FleetStatusPage() {
             >
               Previous
             </button>
-            <span className="mx-2">
-              Page {currentPage} of {totalPages}
-            </span>
             <span className="mx-2">
               Page {currentPage} of {totalPages}
             </span>

@@ -53,6 +53,7 @@ export interface DeliveryRecord {
   pod_url?: string;      
   multiplePickups?: PickupRecord[];
   multipleDeliveries?: DeliveryDestinationRecord[];
+  localUpdatedAt?: number; // NEW: Tracks real-time UI interactions to auto-sort to top
 }
 
 interface CrewDashboardProps {
@@ -87,7 +88,7 @@ const generateDynamicStops = (delivery: DeliveryRecord) => {
   return stops;
 };
 
-// NEW: Smart filter that strips out the redundant system-generated text
+// Smart filter that strips out the redundant system-generated text
 const formatDispatchNote = (note?: string) => {
   if (!note) return "No additional remarks logged by the crew.";
   
@@ -97,7 +98,6 @@ const formatDispatchNote = (note?: string) => {
     .replace(/\[ASSIGNED CREW\][\s\S]*?(?=\[|$)/gi, '')
     .trim();
 
-  // If there's nothing left after stripping the system text, show the fallback
   if (!cleanedNote) {
     return "No additional remarks logged by the crew.";
   }
@@ -221,6 +221,12 @@ export default function CrewDashboardPage({
       return true;
     })
     .sort((a, b) => {
+      // 1. Instantly bubble the most recently updated item to the very top
+      const modA = a.localUpdatedAt || 0;
+      const modB = b.localUpdatedAt || 0;
+      if (modA !== modB) return modB - modA;
+
+      // 2. Fallback to Scheduled Date sorting
       const timeA = new Date(`${a.scheduledDate} ${a.pickupTime || '00:00'}`).getTime() || Infinity;
       const timeB = new Date(`${b.scheduledDate} ${b.pickupTime || '00:00'}`).getTime() || Infinity;
       return selectedFilter === "Completed" ? timeB - timeA : timeA - timeB; 
@@ -306,9 +312,9 @@ export default function CrewDashboardPage({
       }
 
       setDeliveryList((prev) =>
-        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: macroStatus, current_step: nextStep } : d)
+        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: macroStatus, current_step: nextStep, localUpdatedAt: Date.now() } : d)
       );
-      setSelectedDelivery({ ...selectedDelivery, status: macroStatus, current_step: nextStep });
+      setSelectedDelivery({ ...selectedDelivery, status: macroStatus, current_step: nextStep, localUpdatedAt: Date.now() });
 
       if (isLastStep) {
         setShowTripReportModal(true);
@@ -328,18 +334,52 @@ export default function CrewDashboardPage({
     }
   };
 
-  const handleSendEmergencyAlert = () => {
-    setEmergencySubmitted(true);
-    setTimeout(() => {
-      setEmergencySubmitted(false);
-      setShowEmergencyModal(false);
-      setEmergencyMessage("");
-      setOtherReason("");
-      if (emergencyImage) {
-        URL.revokeObjectURL(emergencyImage);
-        setEmergencyImage(null);
+  const handleSendEmergencyAlert = async () => {
+    if (!selectedDelivery) return;
+
+    try {
+      const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+      const token = sessionStr ? JSON.parse(sessionStr).token : "";
+
+      const formData = new FormData();
+      formData.append("dispatchID", String(selectedDelivery.id));
+      formData.append("issueType", emergencyReason === "Other" && otherReason ? otherReason : emergencyReason);
+      formData.append("details", emergencyMessage);
+      
+      if (selectedFile) {
+        formData.append("emergencyImage", selectedFile);
       }
-    }, 2000);
+
+      const response = await fetch("/api/crew/dispatches/emergency", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Failed to send emergency alert");
+
+      setEmergencySubmitted(true);
+      
+      setDeliveryList((prev) =>
+        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: "Foul Trip", localUpdatedAt: Date.now() } : d)
+      );
+
+      setTimeout(() => {
+        setEmergencySubmitted(false);
+        setShowEmergencyModal(false);
+        setEmergencyMessage("");
+        setOtherReason("");
+        if (emergencyImage) {
+          URL.revokeObjectURL(emergencyImage);
+          setEmergencyImage(null);
+        }
+        setViewMode("list");
+        setSelectedDelivery(null);
+      }, 2000);
+
+    } catch (error: any) {
+      alert(`Error sending alert: ${error.message}`);
+    }
   };
 
   const completeTripWorkflow = () => {
@@ -411,7 +451,7 @@ export default function CrewDashboardPage({
       if (!response.ok) throw new Error("Failed to update status");
 
       setDeliveryList((prev) =>
-        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: action === "accept" ? "Accepted" : "Declined" } : d)
+        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: action === "accept" ? "Accepted" : "Declined", localUpdatedAt: Date.now() } : d)
       );
       
       setShowAcceptConfirmModal(false);
@@ -891,7 +931,7 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* ORIGINAL PICKUP ADDRESSES LIST (PREVIEW) */}
+              {/* ORIGINAL PICKUP ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between">
                   <span>Pickup Addresses</span>
@@ -930,19 +970,14 @@ export default function CrewDashboardPage({
                     (() => {
                       const stopIndex = 1;
                       const calculatedStep = selectedDelivery.current_step || 0;
-                      const isNodeCompleted = isCompleted(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                      let status = "Pending";
+                      if (calculatedStep > stopIndex) status = "Completed";
+                      else if (calculatedStep === stopIndex) status = "Ongoing Delivery";
                       return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-sm">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : 'text-blue-700'}`}>Pickup Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${
-                              isNodeCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                              isNodeOngoing ? 'bg-blue-100 text-blue-800 border border-blue-200 animate-pulse' :
-                              'bg-slate-100 text-slate-500 border border-slate-200'
-                            }`}>{status}</span>
+                            <span className="text-blue-600 font-bold truncate">Pickup Address #1</span>
+                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs whitespace-nowrap shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                           </div>
                           <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Base"}</span>
                           <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
@@ -957,7 +992,7 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* ORIGINAL DELIVERY ADDRESSES LIST (PREVIEW) */}
+              {/* ORIGINAL DELIVERY ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   Delivery Addresses

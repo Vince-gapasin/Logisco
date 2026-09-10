@@ -1,4 +1,3 @@
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY; 
 
 const HEADERS = {
@@ -8,9 +7,15 @@ const HEADERS = {
 };
 
 export async function getHistoryLogs() {
+  // Safely grab the URL whether it's running on the server or client
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) {
+    throw new Error("CRITICAL: Supabase URL environment variable is missing.");
+  }
+
   // 1. MUST sort by created_at.desc natively in the database
   const query = `select=id,truckID,date,statusBefore,statusAfter,created_at,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase,photoUrl)&order=created_at.desc`;
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/HistoryLogsM?${query}`, { headers: HEADERS });
+  const res = await fetch(`${baseUrl}/rest/v1/HistoryLogsM?${query}`, { headers: HEADERS });
 
   if (!res.ok) throw new Error(await res.text());
   const rawLogs = await res.json();
@@ -54,7 +59,10 @@ export async function getHistoryLogs() {
 }
 
 export async function createHistoryLog(body: any) {
-  const logRes = await fetch(`${SUPABASE_URL}/rest/v1/HistoryLogsM`, {
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) throw new Error("CRITICAL: Supabase URL environment variable is missing.");
+
+  const logRes = await fetch(`${baseUrl}/rest/v1/HistoryLogsM`, {
     method: "POST",
     headers: { ...HEADERS, Prefer: "return=representation" },
     body: JSON.stringify({ truckID: body.truckID, date: body.date, statusBefore: body.statusBefore, statusAfter: body.statusAfter })
@@ -66,58 +74,64 @@ export async function createHistoryLog(body: any) {
   const mechanics = [];
   if (body.primaryMechanicID) mechanics.push({ logID, employeeID: body.primaryMechanicID, role: 'Primary' });
   if (body.additionalMechanicID) mechanics.push({ logID, employeeID: body.additionalMechanicID, role: 'Additional' });
-  if (mechanics.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogMechanics`, { method: "POST", headers: HEADERS, body: JSON.stringify(mechanics) });
+  if (mechanics.length > 0) await fetch(`${baseUrl}/rest/v1/LogMechanics`, { method: "POST", headers: HEADERS, body: JSON.stringify(mechanics) });
 
   const notes = [];
   if (body.preliminaryRemarks || body.driversReport) notes.push({ logID, phase: 'Preliminary', issue: body.driversReport, remarks: body.preliminaryRemarks });
   if (body.progressRemarks || body.additionalIssue) notes.push({ logID, phase: 'Progress', issue: body.additionalIssue, remarks: body.progressRemarks });
   if (body.remarks || body.issue) notes.push({ logID, phase: 'Final', issue: body.issue, remarks: body.remarks });
-  if (notes.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogNotes`, { method: "POST", headers: HEADERS, body: JSON.stringify(notes) });
+  if (notes.length > 0) await fetch(`${baseUrl}/rest/v1/LogNotes`, { method: "POST", headers: HEADERS, body: JSON.stringify(notes) });
 
   const photos = [];
   if (body.preliminaryPhotoUrl) photos.push({ logID, phase: 'Preliminary', photoUrl: body.preliminaryPhotoUrl });
   if (body.progressPhotoUrl) photos.push({ logID, phase: 'Progress', photoUrl: body.progressPhotoUrl });
   if (body.photoUrl) photos.push({ logID, phase: 'Final', photoUrl: body.photoUrl });
-  if (photos.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogPhotos`, { method: "POST", headers: HEADERS, body: JSON.stringify(photos) });
+  if (photos.length > 0) await fetch(`${baseUrl}/rest/v1/LogPhotos`, { method: "POST", headers: HEADERS, body: JSON.stringify(photos) });
 
   return { id: logID };
 }
 
 export async function updateHistoryLog(id: string, body: any) {
-  await fetch(`${SUPABASE_URL}/rest/v1/HistoryLogsM?id=eq.${id}`, {
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) throw new Error("CRITICAL: Supabase URL environment variable is missing.");
+
+  await fetch(`${baseUrl}/rest/v1/HistoryLogsM?id=eq.${id}`, {
     method: "PATCH",
     headers: HEADERS,
     body: JSON.stringify({ date: body.date, statusBefore: body.statusBefore, statusAfter: body.statusAfter })
   });
 
   await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/LogMechanics?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
-    fetch(`${SUPABASE_URL}/rest/v1/LogNotes?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
-    fetch(`${SUPABASE_URL}/rest/v1/LogPhotos?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
+    fetch(`${baseUrl}/rest/v1/LogMechanics?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
+    fetch(`${baseUrl}/rest/v1/LogNotes?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
+    fetch(`${baseUrl}/rest/v1/LogPhotos?logID=eq.${id}`, { method: "DELETE", headers: HEADERS }),
   ]);
 
   const mechanics = [];
   if (body.primaryMechanicID) mechanics.push({ logID: id, employeeID: body.primaryMechanicID, role: 'Primary' });
   if (body.additionalMechanicID) mechanics.push({ logID: id, employeeID: body.additionalMechanicID, role: 'Additional' });
-  if (mechanics.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogMechanics`, { method: "POST", headers: HEADERS, body: JSON.stringify(mechanics) });
+  if (mechanics.length > 0) await fetch(`${baseUrl}/rest/v1/LogMechanics`, { method: "POST", headers: HEADERS, body: JSON.stringify(mechanics) });
 
   const notes = [];
   if (body.preliminaryRemarks || body.driversReport) notes.push({ logID: id, phase: 'Preliminary', issue: body.driversReport, remarks: body.preliminaryRemarks });
   if (body.progressRemarks || body.additionalIssue) notes.push({ logID: id, phase: 'Progress', issue: body.additionalIssue, remarks: body.progressRemarks });
   if (body.remarks || body.issue) notes.push({ logID: id, phase: 'Final', issue: body.issue, remarks: body.remarks });
-  if (notes.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogNotes`, { method: "POST", headers: HEADERS, body: JSON.stringify(notes) });
+  if (notes.length > 0) await fetch(`${baseUrl}/rest/v1/LogNotes`, { method: "POST", headers: HEADERS, body: JSON.stringify(notes) });
 
   const photos = [];
   if (body.preliminaryPhotoUrl) photos.push({ logID: id, phase: 'Preliminary', photoUrl: body.preliminaryPhotoUrl });
   if (body.progressPhotoUrl) photos.push({ logID: id, phase: 'Progress', photoUrl: body.progressPhotoUrl });
   if (body.photoUrl) photos.push({ logID: id, phase: 'Final', photoUrl: body.photoUrl });
-  if (photos.length > 0) await fetch(`${SUPABASE_URL}/rest/v1/LogPhotos`, { method: "POST", headers: HEADERS, body: JSON.stringify(photos) });
+  if (photos.length > 0) await fetch(`${baseUrl}/rest/v1/LogPhotos`, { method: "POST", headers: HEADERS, body: JSON.stringify(photos) });
 
   return { id };
 }
 
 export async function deleteHistoryLog(id: string) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/HistoryLogsM?id=eq.${id}`, { method: "DELETE", headers: HEADERS });
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) throw new Error("CRITICAL: Supabase URL environment variable is missing.");
+
+  const res = await fetch(`${baseUrl}/rest/v1/HistoryLogsM?id=eq.${id}`, { method: "DELETE", headers: HEADERS });
   if (!res.ok) throw new Error(await res.text());
   return true;
 }
