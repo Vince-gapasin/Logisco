@@ -507,6 +507,9 @@ export default function ForecastingPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                       <XAxis
                         dataKey="period"
+                        interval={0}
+                        minTickGap={0}
+                        tickFormatter={(period: string) => period.split(" ")[0]}
                         tick={{ fontSize: 11, fill: "#64748b" }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
