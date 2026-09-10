@@ -223,3 +223,207 @@ export async function synchronizeLatestFuelPrice() {
     record: data,
   };
 }
+
+type ParsedFuelAdjustment = {
+  effectiveDate: string;
+  weeklyAdjustment: number;
+  sourceUrl: string;
+};
+
+function findAllAdjustmentPdfUrls(html: string): string[] {
+  const links = Array.from(
+    html.matchAll(/href=["']([^"']+\.pdf[^"']*)["']/gi),
+  )
+    .map((match) => decodeHtml(match[1]))
+    .filter((url) => {
+      try {
+        return decodeURIComponent(url)
+          .toLowerCase()
+          .includes("price adjustment");
+      } catch {
+        return false;
+      }
+    })
+    .map((url) => new URL(url, DOE_ADJUSTMENT_PAGE).toString());
+
+  return [...new Set(links)];
+}
+
+function subtractMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setUTCMonth(result.getUTCMonth() - months);
+  return result;
+}
+
+export async function backfillFuelPriceHistory(months = 24) {
+  if (!Number.isInteger(months) || months < 1 || months > 60) {
+    throw new Error("Backfill months must be between 1 and 60.");
+  }
+
+  const { data: baseline, error: baselineError } = await supabase
+    .from("FuelPriceHistory")
+    .select("*")
+    .eq("fuelType", "Diesel")
+    .eq("region", "NCR")
+    .not("pricePerLiter", "is", null)
+    .order("effectiveDate", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (baselineError) {
+    throw baselineError;
+  }
+
+  if (!baseline?.pricePerLiter || !baseline?.effectiveDate) {
+    throw new Error(
+      "A baseline diesel price is required before running the backfill.",
+    );
+  }
+
+  const pageResponse = await fetch(DOE_ADJUSTMENT_PAGE, {
+    cache: "no-store",
+  });
+
+  if (!pageResponse.ok) {
+    throw new Error(
+      `Failed to access DOE page: ${pageResponse.status}`,
+    );
+  }
+
+  const html = await pageResponse.text();
+  const pdfUrls = findAllAdjustmentPdfUrls(html);
+
+  if (pdfUrls.length === 0) {
+    throw new Error("No historical DOE adjustment PDFs were found.");
+  }
+
+  const parsedAdjustments: ParsedFuelAdjustment[] = [];
+  const skipped: Array<{ sourceUrl: string; reason: string }> = [];
+
+  /*
+   * Process sequentially to avoid sending too many simultaneous
+   * requests to the DOE website.
+   */
+  for (const pdfUrl of pdfUrls) {
+    try {
+      const text = await extractPdfText(pdfUrl);
+
+      parsedAdjustments.push({
+        effectiveDate: extractEffectiveDate(text),
+        weeklyAdjustment: extractAverageDieselAdjustment(text),
+        sourceUrl: pdfUrl,
+      });
+    } catch (error) {
+      skipped.push({
+        sourceUrl: pdfUrl,
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Unable to process PDF.",
+      });
+    }
+  }
+
+  const uniqueAdjustments = Array.from(
+    new Map(
+      parsedAdjustments.map((item) => [
+        item.effectiveDate,
+        item,
+      ]),
+    ).values(),
+  );
+
+  const baselineDate = new Date(
+    `${baseline.effectiveDate}T00:00:00Z`,
+  );
+  const minimumDate = subtractMonths(baselineDate, months);
+
+  const applicableAdjustments = uniqueAdjustments
+    .filter((item) => {
+      const date = new Date(`${item.effectiveDate}T00:00:00Z`);
+
+      return date <= baselineDate && date >= minimumDate;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.effectiveDate).getTime() -
+        new Date(a.effectiveDate).getTime(),
+    );
+
+  const baselineIndex = applicableAdjustments.findIndex(
+    (item) => item.effectiveDate === baseline.effectiveDate,
+  );
+
+  if (baselineIndex === -1) {
+    throw new Error(
+      `The DOE adjustment PDF for baseline ${baseline.effectiveDate} was not found.`,
+    );
+  }
+
+  const orderedAdjustments =
+    applicableAdjustments.slice(baselineIndex);
+
+  if (orderedAdjustments.length < 2) {
+    throw new Error(
+      "Not enough historical DOE adjustments were found for backfilling.",
+    );
+  }
+
+  let calculatedPrice = Number(baseline.pricePerLiter);
+  const records = [];
+
+  for (let index = 0; index < orderedAdjustments.length; index++) {
+    const current = orderedAdjustments[index];
+
+    if (index > 0) {
+      const newerAdjustment =
+        orderedAdjustments[index - 1].weeklyAdjustment;
+
+      calculatedPrice = Number(
+        (calculatedPrice - newerAdjustment).toFixed(2),
+      );
+    }
+
+    if (calculatedPrice < 20 || calculatedPrice > 200) {
+      throw new Error(
+        `Calculated price ${calculatedPrice} for ${current.effectiveDate} failed validation.`,
+      );
+    }
+
+    records.push({
+      effectiveDate: current.effectiveDate,
+      fuelType: "Diesel",
+      region: "NCR",
+      pricePerLiter: calculatedPrice,
+      weeklyAdjustment: current.weeklyAdjustment,
+      source: "DOE Philippines",
+      sourceUrl: current.sourceUrl,
+      retrievedAt: new Date().toISOString(),
+    });
+  }
+
+  const { data, error } = await supabase
+    .from("FuelPriceHistory")
+    .upsert(records, {
+      onConflict: "effectiveDate,fuelType,region",
+    })
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    baselineDate: baseline.effectiveDate,
+    baselinePrice: Number(baseline.pricePerLiter),
+    requestedMonths: months,
+    pdfsFound: pdfUrls.length,
+    pdfsProcessed: parsedAdjustments.length,
+    recordsSaved: data?.length ?? 0,
+    earliestDate:
+      records[records.length - 1]?.effectiveDate ?? null,
+    latestDate: records[0]?.effectiveDate ?? null,
+    skipped,
+    records: data ?? [],
+  };
+}
