@@ -51,6 +51,13 @@ interface ForecastSummary {
   totalVariance: number;
   variancePercentage: number;
   trendStatus: string;
+  accuracy: {
+    method: string;
+    evaluatedMonths: number;
+    mae: number;
+    rmse: number;
+    rSquared: number | null;
+  };
 }
 
 interface ForecastResponse {
@@ -69,7 +76,7 @@ const TIMEFRAME_OPTIONS = [
   "Last 7 Days",
   "Last 30 Days",
   "This Week",
-  "This Month",
+  "This Year",
   "Up to Date",
   "Custom Date Range",
 ];
@@ -126,9 +133,9 @@ function filterByTimeframe(
     start.setDate(start.getDate() - start.getDay());
     end = new Date(start);
     end.setDate(end.getDate() + 6);
-  } else if (timeframe === "This Month") {
-    start = new Date(today.getFullYear(), today.getMonth(), 1);
-    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  } else if (timeframe === "This Year") {
+    start = new Date(today.getFullYear(), 0, 1);
+    end = new Date(today.getFullYear(), 11, 31);
   } else if (timeframe === "Up to Date") {
     end = today;
   }
@@ -262,9 +269,16 @@ export default function ForecastingPage() {
     : "—";
 
   const handleExport = () => {
-    if (!historyRecords.length) return;
+    if (!historyRecords.length || !forecast || !summary) return;
 
     const csvRows = [
+      ["Forecast Model", forecast.model],
+      ["Validation Method", summary.accuracy.method],
+      ["Evaluated Months", summary.accuracy.evaluatedMonths],
+      ["Validation MAE", summary.accuracy.mae],
+      ["Validation RMSE", summary.accuracy.rmse],
+      ["Validation R Squared", summary.accuracy.rSquared ?? "Not available"],
+      [],
       ["Period", "Expected Volume", "Actual Volume", "Variance", "Variance %", "Trend Status"],
       ...historyRecords.map((row) => [
         row.period,
@@ -320,8 +334,7 @@ export default function ForecastingPage() {
                   Forecasting
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-700 mt-1">
-                  Multiple Linear Regression (MLR) predictive delivery volumes
-                  vs actual performance.
+                  Data-driven delivery volume forecasts compared with actual performance.
                 </p>
               </div>
 
@@ -414,7 +427,7 @@ export default function ForecastingPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
                     <h2 className="text-sm sm:text-base font-semibold text-slate-900">
-                      MLR Forecast vs Actual Trend
+                      Forecast vs Actual Trend
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Comparison between predicted expectations and completed
@@ -533,7 +546,7 @@ export default function ForecastingPage() {
                       <Line
                         type="monotone"
                         dataKey="expectedVolume"
-                        name="Expected (MLR)"
+                        name="Expected Forecast"
                         stroke="#1d4ed8"
                         strokeWidth={2.5}
                         dot={{ r: 3 }}
@@ -578,7 +591,8 @@ export default function ForecastingPage() {
                 <div className="mt-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                   <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>
-                    MLR Model updates monthly based on fresh dispatch records.
+                    {forecast.model} · MAE {summary.accuracy.mae.toFixed(2)} · R²{" "}
+                    {summary.accuracy.rSquared?.toFixed(3) ?? "N/A"}
                   </p>
                 </div>
               </div>
