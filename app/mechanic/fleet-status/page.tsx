@@ -20,7 +20,8 @@ import {
   Loader2,
   ClipboardCheck,
   Archive,
-  MoreHorizontal 
+  MoreHorizontal,
+  Download
 } from "lucide-react";
 
 export interface TruckRecord {
@@ -170,6 +171,43 @@ const formatInputDate = (dateString: string) => {
     return dateString.split("T")[0];
   }
 };
+
+// ==========================================
+// IMAGE LIGHTBOX MODAL
+// ==========================================
+function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
+  if (!src) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      
+      {/* Top Right Controls (Download + Close) */}
+      <div className="absolute top-6 right-6 flex items-center gap-3">
+        <a 
+          href={src} 
+          download="maintenance_attachment.jpg" 
+          target="_blank" 
+          rel="noreferrer" 
+          onClick={(e) => e.stopPropagation()} 
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-lg cursor-pointer"
+        >
+          <Download className="w-4 h-4" /> Download
+        </a>
+        
+        <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer" title="Close">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      
+      <img 
+        src={src} 
+        alt="Zoomed View" 
+        className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" 
+        onClick={(e) => e.stopPropagation()} 
+      />
+      
+    </div>
+  );
+}
 
 // ==========================================
 // TRUCK MODAL (ADD/EDIT FLEET)
@@ -375,6 +413,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
 
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const [isTruckDropdownOpen, setIsTruckDropdownOpen] = useState(false);
   const [isPrimaryDropdownOpen, setIsPrimaryDropdownOpen] = useState(false);
@@ -630,7 +669,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
 
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. {editData ? "Photo Evidence" : "Upload Photo Evidence"}
+              3. {editData ? "Photo Evidence" : "Upload Attachment"}
             </div>
             <div>
               <label className="block text-xs font-medium text-black mb-1">
@@ -651,7 +690,12 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
               </div>
               {(formData as any)[activeFields.photo] && (
                 <div className="mt-3 relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                  <img src={(formData as any)[activeFields.photo]} alt="Preview" className="w-full h-full object-cover" />
+                  <img 
+                    src={(formData as any)[activeFields.photo]} 
+                    alt="Preview" 
+                    onClick={() => setZoomedImage((formData as any)[activeFields.photo])}
+                    className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                  />
                 </div>
               )}
             </div>
@@ -663,6 +707,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
           </div>
         </form>
       </div>
+      {zoomedImage && <ImageModal src={zoomedImage} onClose={() => setZoomedImage(null)} />}
     </div>
   );
 }
@@ -681,6 +726,7 @@ interface LogDetailViewProps {
 
 function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId }: LogDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const isMaintenance = (status?: string) => status === "On Maintenance" || status === "Out of Service";
   
@@ -823,9 +869,14 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId
                       </div>
                       {pLog.preliminaryPhotoUrl && (
                         <div className="sm:col-span-2 mt-2">
-                          <label className="block text-xs font-medium text-black mb-1">Photo Evidence</label>
+                          <label className="block text-xs font-medium text-black mb-1">Attachment/s</label>
                           <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                            <img src={pLog.preliminaryPhotoUrl} alt="Preliminary Evidence" className="w-full h-full object-cover" />
+                            <img 
+                              src={pLog.preliminaryPhotoUrl} 
+                              alt="Preliminary Evidence" 
+                              onClick={() => setZoomedImage(pLog.preliminaryPhotoUrl!)}
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                            />
                           </div>
                         </div>
                       )}
@@ -857,11 +908,16 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId
                 </div>
                 {combinedPhotos.length > 0 && (
                   <div className="sm:col-span-2 mt-2">
-                    <label className="block text-xs font-medium text-black mb-1">Photo Evidence ({combinedPhotos.length})</label>
+                    <label className="block text-xs font-medium text-black mb-1">Attachment/s ({combinedPhotos.length})</label>
                     <div className="flex flex-wrap gap-3">
                       {combinedPhotos.map((url, idx) => (
                         <div key={idx} className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                          <img src={url as string} alt={`Progress Evidence ${idx + 1}`} className="w-full h-full object-cover" />
+                          <img 
+                            src={url as string} 
+                            alt={`Progress Evidence ${idx + 1}`} 
+                            onClick={() => setZoomedImage(url as string)}
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                          />
                         </div>
                       ))}
                     </div>
@@ -891,9 +947,14 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId
                       </div>
                       {fLog.photoUrl && (
                         <div className="sm:col-span-2 mt-2">
-                          <label className="block text-xs font-medium text-black mb-1">Photo Evidence</label>
+                          <label className="block text-xs font-medium text-black mb-1">Attachment/s</label>
                           <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                            <img src={fLog.photoUrl} alt="Final Evidence" className="w-full h-full object-cover" />
+                            <img 
+                              src={fLog.photoUrl} 
+                              alt="Final Evidence" 
+                              onClick={() => setZoomedImage(fLog.photoUrl!)}
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                            />
                           </div>
                         </div>
                       )}
@@ -917,6 +978,7 @@ function LogDetailView({ log, truckLogs, onBack, onEdit, onDelete, currentUserId
           </div>
         </div>
       )}
+      {zoomedImage && <ImageModal src={zoomedImage} onClose={() => setZoomedImage(null)} />}
     </div>
   );
 }
@@ -1031,6 +1093,7 @@ function TruckSpecificHistoryView({ truck, logs, onBack, onSelectLog }: TruckSpe
           </div>
         </div>
       </div>
+  
     </div>
   );
 }
@@ -1056,6 +1119,8 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
   
   // --- NEW: Dropdown State ---
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   
   // Only true if the truck is actively broken down or being worked on
   const isUnderMaintenance = truck.status === "On Maintenance" || truck.status === "Out of Service";
@@ -1130,17 +1195,61 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
-     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-        <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"><ArrowLeft className="w-5 h-5" /></button>
-        
-        {/* Hide top action buttons if the truck is being fixed by another mechanic */}
-        {(!isUnderMaintenance || hasMechanicAccess) && (
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
-            <button onClick={() => onEdit(truck)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><Edit3 className="w-4 h-4" /><span>Edit Truck</span></button>
+     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        {/* LEFT SIDE: Back Button + Truck Identity */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          
+          {/* NEW: Subtle Vertical Divider */}
+          <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
+          
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* NEW: Inline Truck Icon for context */}
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Truck className="w-5 h-5 text-slate-400" />
+              {truck.plateNumber}
+            </h2>
             
-            {/* NEW: More Actions Dropdown Menu */}
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-700">
+              {truck.truckType}
+            </span>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${styles.bgLight.split(" border")[0]}`}>
+              {truck.status}
+            </span>
+          </div>
+        </div>
+        
+        {/* RIGHT SIDE: Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          
+          {/* Maintenance Update Form (Only visible to assigned mechanic when broken down) */}
+          {isUnderMaintenance && hasMechanicAccess && (
+            <button 
+              onClick={onLogMaintenanceClick} 
+              className="inline-flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
+            >
+              <Wrench className="w-4 h-4" /><span>Maintenance Update Form</span>
+            </button>
+          )}
+
+          {/* Hide top action buttons if the truck is being fixed by another mechanic */}
+          {(!isUnderMaintenance || hasMechanicAccess) && (
+            <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
+          )}
+
+          {/* History Button (Always visible) */}
+          <button 
+            onClick={onHistoryClick} 
+            className="inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+          >
+            <HistoryIcon className="w-4 h-4" /><span>History</span>
+          </button>
+
+          {(!isUnderMaintenance || hasMechanicAccess) && (
             <div className="relative">
+              {/* More Actions Dropdown Menu */}
               <button 
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)} 
                 className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
@@ -1156,6 +1265,14 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
                   
                   <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden py-1 animate-fade-in">
                     
+                    {/* Edit Button inside Dropdown */}
+                    <button 
+                      onClick={() => { setIsMoreMenuOpen(false); onEdit(truck); }} 
+                      className="w-full text-left px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4 text-slate-500" /> Edit Truck
+                    </button>
+
                     {/* Disable Button inside Dropdown */}
                     {truck.status !== "Disabled" && (
                       <button 
@@ -1184,44 +1301,11 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
                 </>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100"><Truck className="w-8 h-8" /></div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900">{truck.plateNumber}</h2>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}>{truck.status}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{truck.truckType}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* UPDATED: Only authorized mechanics see the Maintenance Update Form button */}
-            {isUnderMaintenance && hasMechanicAccess && (
-              <button 
-                onClick={onLogMaintenanceClick} 
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition-colors border border-amber-200 cursor-pointer"
-              >
-                <Wrench className="w-4 h-4" /> Maintenance Update Form
-              </button>
-            )}
-            <button 
-              onClick={onHistoryClick} 
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
-            >
-              <HistoryIcon className="w-4 h-4" /> History
-            </button>
-          </div>
-        </div>
-
         <div className="space-y-6 text-sm text-slate-900">
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">1. Truck Information</div>
@@ -1255,9 +1339,14 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
                 </div>
                 {latestPreliminaryLog.preliminaryPhotoUrl && (
                   <div className="sm:col-span-2 mt-2">
-                    <label className="block text-xs font-medium text-black mb-1">Photo Evidence</label>
+                    <label className="block text-xs font-medium text-black mb-1">Attachment/s</label>
                     <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                      <img src={latestPreliminaryLog.preliminaryPhotoUrl} alt="Preliminary Evidence" className="w-full h-full object-cover" />
+                      <img 
+                        src={latestPreliminaryLog.preliminaryPhotoUrl} 
+                        alt="Preliminary Evidence" 
+                        onClick={() => setZoomedImage(latestPreliminaryLog.preliminaryPhotoUrl!)}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                      />
                     </div>
                   </div>
                 )}
@@ -1286,11 +1375,16 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
                 </div>
                 {combinedPhotos.length > 0 && (
                   <div className="sm:col-span-2 mt-2">
-                    <label className="block text-xs font-medium text-black mb-1">Photo Evidence ({combinedPhotos.length})</label>
+                    <label className="block text-xs font-medium text-black mb-1">Attachment/s ({combinedPhotos.length})</label>
                     <div className="flex flex-wrap gap-3">
                       {combinedPhotos.map((url, idx) => (
                         <div key={idx} className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                          <img src={url as string} alt={`Progress Evidence ${idx + 1}`} className="w-full h-full object-cover" />
+                          <img 
+                            src={url as string} 
+                            alt={`Progress Evidence ${idx + 1}`} 
+                            onClick={() => setZoomedImage(url as string)}
+                            className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                          />
                         </div>
                       ))}
                     </div>
@@ -1302,6 +1396,7 @@ function TruckDetailView({ truck, logs, onBack, onEdit, onDelete, onUpdateStatus
 
         </div>
       </div>
+      {zoomedImage && <ImageModal src={zoomedImage} onClose={() => setZoomedImage(null)} />}
     </div>
   );
 }
@@ -1817,7 +1912,7 @@ export default function MechanicFleetStatusPage({ isOpen, setIsopen }: MechanicF
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {showArchived ? "Archived Trucks" : "Fleet Status (Mechanic Portal)"}
+                {showArchived ? "Archived Trucks" : "Fleet Status"}
               </h1>
               <p className="text-xs sm:text-sm text-slate-700 mt-1">
                 {showArchived ? "View and manage disabled or retired trucks." : "Monitor truck diagnostic health, asset availability, and maintenance conditions."}
