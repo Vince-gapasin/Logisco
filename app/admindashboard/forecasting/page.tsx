@@ -1,6 +1,6 @@
 "use client";
 
-// PDF_PAGE_FIX_V2: overview, forecast history, and accuracy history are captured separately.
+// FORECAST_ASYNC_V3: main forecast renders without waiting for snapshot history.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -181,6 +181,8 @@ export default function ForecastingPage() {
   const [snapshots, setSnapshots] = useState<ForecastSnapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(true);
+  const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
 
   const [selectedYear, setSelectedYear] = useState(
     TIMEFRAME_OPTIONS[TIMEFRAME_OPTIONS.length - 1],
@@ -200,29 +202,18 @@ export default function ForecastingPage() {
         throw new Error("Authentication session was not found. Please log in again.");
       }
 
-      const requestOptions = {
+      const response = await fetch("/api/forecasting/data", {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store" as const,
-      };
-      const [response, snapshotResponse] = await Promise.all([
-        fetch("/api/forecasting/data", requestOptions),
-        fetch("/api/forecasting/snapshots", requestOptions),
-      ]);
+        cache: "no-store",
+      });
       const body = (await response.json()) as ForecastResponse & { message?: string };
-      const snapshotBody = (await snapshotResponse.json()) as SnapshotResponse;
 
       if (!response.ok) {
         throw new Error(body.message ?? "Failed to load forecasting data.");
       }
-      if (!snapshotResponse.ok) {
-        throw new Error(
-          snapshotBody.message ?? "Failed to load forecast accuracy history.",
-        );
-      }
 
       setForecast(body);
-      setSnapshots(snapshotBody.data ?? []);
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : "Failed to load forecasting data.",
@@ -232,9 +223,43 @@ export default function ForecastingPage() {
     }
   }, []);
 
+  const loadSnapshots = useCallback(async () => {
+    setIsSnapshotLoading(true);
+    setSnapshotLoadError(null);
+
+    try {
+      const token = getStoredToken();
+      if (!token) return;
+
+      const response = await fetch("/api/forecasting/snapshots", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const body = (await response.json()) as SnapshotResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          body.message ?? "Failed to load forecast accuracy history.",
+        );
+      }
+
+      setSnapshots(body.data ?? []);
+    } catch (error) {
+      setSnapshotLoadError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load forecast accuracy history.",
+      );
+    } finally {
+      setIsSnapshotLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadForecast();
-  }, [loadForecast]);
+    void loadSnapshots();
+  }, [loadForecast, loadSnapshots]);
 
   const filteredRecords = useMemo(
     () => filterByTimeframe(forecast?.records ?? [], selectedYear),
@@ -883,7 +908,7 @@ export default function ForecastingPage() {
                         Evaluated Snapshots
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
-                        {evaluatedSnapshots.length}
+                        {isSnapshotLoading ? "…" : evaluatedSnapshots.length}
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
@@ -891,7 +916,7 @@ export default function ForecastingPage() {
                         Snapshot MAE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
-                        {snapshotAccuracy.mae ?? "N/A"}
+                        {isSnapshotLoading ? "…" : snapshotAccuracy.mae ?? "N/A"}
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
@@ -899,7 +924,7 @@ export default function ForecastingPage() {
                         Snapshot RMSE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
-                        {snapshotAccuracy.rmse ?? "N/A"}
+                        {isSnapshotLoading ? "…" : snapshotAccuracy.rmse ?? "N/A"}
                       </p>
                     </div>
                   </div>
@@ -918,7 +943,7 @@ export default function ForecastingPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
-                      {evaluatedSnapshots.map((snapshot) => (
+                      {!isSnapshotLoading && !snapshotLoadError && evaluatedSnapshots.map((snapshot) => (
                         <tr
                           key={snapshot.forecastSnapshotID}
                           className="hover:bg-slate-50/80 transition-colors"
@@ -945,7 +970,27 @@ export default function ForecastingPage() {
                           </td>
                         </tr>
                       ))}
-                      {evaluatedSnapshots.length === 0 && (
+                      {isSnapshotLoading && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-10 px-6 text-center text-sm text-slate-500"
+                          >
+                            Loading forecast accuracy history…
+                          </td>
+                        </tr>
+                      )}
+                      {!isSnapshotLoading && snapshotLoadError && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-10 px-6 text-center text-sm text-red-600"
+                          >
+                            {snapshotLoadError}
+                          </td>
+                        </tr>
+                      )}
+                      {!isSnapshotLoading && !snapshotLoadError && evaluatedSnapshots.length === 0 && (
                         <tr>
                           <td
                             colSpan={6}
