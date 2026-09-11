@@ -196,7 +196,6 @@ function ViewOrderModal({
   const raw = order.rawOrder || {};
   const notes = raw.notes || "";
   const category = order.statusCategory;
-  const isPending = category === "Pending Bookings";
   const currentStep = order.currentStep || 0;
 
   const clientInfo = raw.Client || raw.client || {};
@@ -287,11 +286,6 @@ function ViewOrderModal({
   const inputClass =
     "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
 
-  const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
-  const isCrewConfirmed =
-    order.dispatchStatus === "Accepted" ||
-    (order.driverConfirmed && (!hasHelper || order.helperConfirmed));
-
   const headerColors = {
     "Pending Bookings": "bg-[#000c31] border-slate-800",
     "In-Transit": "bg-blue-600 border-blue-800",
@@ -301,6 +295,51 @@ function ViewOrderModal({
   const headerClass =
     headerColors[category as keyof typeof headerColors] ||
     headerColors["Pending Bookings"];
+
+  // Determine dynamic Status Banner Configuration
+  let bannerBg = "bg-slate-50 border-slate-200 text-slate-800";
+  let bannerContent = null;
+
+  if (category === "Pending Bookings") {
+    const hasDriver = driver && driver !== "Unassigned" && driver !== "N/A";
+    
+    if (!hasDriver) {
+      bannerBg = "bg-amber-50 border-amber-200 text-amber-800";
+      bannerContent = <><AlertTriangle className="w-5 h-5 text-amber-600" /> Assign Crew</>;
+    } else if (dispatchRecord?.status === "Accepted") {
+      bannerBg = "bg-blue-50 border-blue-200 text-blue-800";
+      bannerContent = <><Clock className="w-5 h-5 text-blue-600" /> Waiting Crew Dispatch</>;
+    } else {
+      bannerBg = "bg-orange-50 border-orange-200 text-orange-800";
+      bannerContent = <><Clock className="w-5 h-5 text-orange-600" /> Pending Crew</>;
+    }
+  } else if (category === "In-Transit") {
+    bannerBg = "bg-blue-50 border-blue-200 text-blue-800";
+    bannerContent = (
+      <>
+        <Truck className="w-5 h-5 text-blue-600 animate-pulse" />
+        {currentStep === 1
+          ? "Heading to Warehouse (Pickup in Progress)"
+          : currentStep > 1
+            ? "Products Loaded (Delivering to Destination)"
+            : "Awaiting Departure from Base"}
+      </>
+    );
+  } else if (category === "Completed") {
+    bannerBg = "bg-green-50 border-green-200 text-green-800";
+    bannerContent = (
+      <>
+        <CheckCircle2 className="w-5 h-5 text-green-600" /> Delivery Completed
+      </>
+    );
+  } else if (category === "Foul Trip") {
+    bannerBg = "bg-red-50 border-red-200 text-red-800";
+    bannerContent = (
+      <>
+        <AlertTriangle className="w-5 h-5 text-red-600" /> Foul Trip / Cancelled
+      </>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
@@ -325,45 +364,10 @@ function ViewOrderModal({
         </div>
 
         <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          <div
-            className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
-              isPending && !isCrewConfirmed
-                ? "bg-amber-50 border-amber-200 text-amber-800"
-                : category === "In-Transit"
-                  ? "bg-blue-50 border-blue-200 text-blue-800"
-                  : category === "Completed"
-                    ? "bg-green-50 border-green-200 text-green-800"
-                    : category === "Foul Trip"
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-orange-50 border-orange-200 text-orange-800"
-            }`}
-          >
-            {isPending && !isCrewConfirmed ? (
-              <>
-                <Clock className="w-5 h-5 text-amber-600" /> Waiting for Crew Confirmation
-              </>
-            ) : category === "In-Transit" ? (
-              <>
-                <Truck className="w-5 h-5 text-blue-600 animate-pulse" />
-                {currentStep === 1
-                  ? "Heading to Warehouse (Pickup in Progress)"
-                  : currentStep > 1
-                    ? "Products Loaded (Delivering to Destination)"
-                    : "Awaiting Departure from Base"}
-              </>
-            ) : category === "Completed" ? (
-              <>
-                <CheckCircle2 className="w-5 h-5 text-green-600" /> Delivery Completed
-              </>
-            ) : category === "Foul Trip" ? (
-              <>
-                <AlertTriangle className="w-5 h-5 text-red-600" /> Foul Trip / Cancelled
-              </>
-            ) : (
-              <>
-                <Clock className="w-5 h-5 text-orange-600" /> Crew Confirmed - Awaiting Dispatch
-              </>
-            )}
+          
+          {/* DYNAMIC STATUS BANNER */}
+          <div className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${bannerBg}`}>
+            {bannerContent}
           </div>
 
           <div className="space-y-6">
@@ -373,23 +377,33 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Company Name</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Company Name
+                  </label>
                   <input readOnly value={cName} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Contact Person</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Contact Person
+                  </label>
                   <input readOnly value={cPerson} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Contact Number</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Contact Number
+                  </label>
                   <input readOnly value={cNum} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Email Address</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Email Address
+                  </label>
                   <input readOnly value={cEmail} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Business Address</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Business Address
+                  </label>
                   <input readOnly value={cAddr} className={inputClass} />
                 </div>
               </div>
@@ -405,23 +419,47 @@ function ViewOrderModal({
                 <table className="w-full text-left border-collapse text-xs min-w-150">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 border-r border-slate-200 w-[18%]">Warehouse Name</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[24%]">Address</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[10%]">Pick Up Time</th>
-                      <th className="p-2.5 border-r border-slate-200 text-center w-[8%]">Quantity</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[18%]">
+                        Warehouse Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[24%]">
+                        Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[10%]">
+                        Pick Up Time
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 text-center w-[8%]">
+                        Quantity
+                      </th>
                       <th className="p-2.5 text-center w-[10%]">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr className="border-b border-slate-200 font-medium text-slate-700">
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">Origin Location</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">{pickupAddr}</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">{cPerson}</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">{cNum}</td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">{pickupTime}</td>
-                      <td className="p-2 border-r border-slate-200 text-center bg-slate-50">{quantity}</td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        Origin Location
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pickupAddr}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cPerson}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {cNum}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 bg-slate-50">
+                        {pickupTime}
+                      </td>
+                      <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                        {quantity}
+                      </td>
                       <td className="p-2 text-center bg-slate-50">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -454,18 +492,30 @@ function ViewOrderModal({
                 <table className="w-full text-left border-collapse text-xs min-w-150">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">Delivery Address</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[10%]">Expected Time</th>
-                      <th className="p-2.5 border-r border-slate-200 text-center w-[10%]">Quantity</th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Delivery Address
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[10%]">
+                        Expected Time
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 text-center w-[10%]">
+                        Quantity
+                      </th>
                       <th className="p-2.5 text-center w-[10%]">Stop Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {deliveries.map((d: any, idx: number) => {
-                      const stopStepIndex = 2 + idx; // Step 0: Start, Step 1: Pickup, Step 2+: Delivery stops
+                      const stopStepIndex = 2 + idx; 
                       const isStopDelivered = category === "Completed" || currentStep > stopStepIndex;
                       const isStopOngoing = category === "In-Transit" && currentStep === stopStepIndex;
                       
@@ -481,15 +531,32 @@ function ViewOrderModal({
                       else if (category === "Foul Trip") badgeClass = "bg-red-100 text-red-700";
 
                       return (
-                        <tr key={idx} className="border-b border-slate-200 font-medium text-slate-700">
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.branchName || "Branch"}</td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.deliveryAddress || d.branchName || "N/A"}</td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactPerson || cPerson}</td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.contactNum || d.contactNumber || cNum}</td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">{d.expectedTime || "N/A"}</td>
-                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">{d.quantity || quantity}</td>
+                        <tr
+                          key={idx}
+                          className="border-b border-slate-200 font-medium text-slate-700"
+                        >
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.branchName || "Branch"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.deliveryAddress || d.branchName || "N/A"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.contactPerson || cPerson}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.contactNum || d.contactNumber || cNum}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {d.expectedTime || "N/A"}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                            {d.quantity || quantity}
+                          </td>
                           <td className="p-2 text-center bg-slate-50">
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                            <span
+                              className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
+                            >
                               {stopLabel}
                             </span>
                           </td>
@@ -507,19 +574,27 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Request Date</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Request Date
+                  </label>
                   <input readOnly value={reqDate} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Delivery Schedule</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Delivery Schedule
+                  </label>
                   <input readOnly value={delSchedule} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Product To Deliver</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Product To Deliver
+                  </label>
                   <input readOnly value={product} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Priority Level</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Priority Level
+                  </label>
                   <input readOnly value={priority} className={inputClass} />
                 </div>
               </div>
@@ -531,19 +606,27 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Truck Plate No.</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Truck Plate No.
+                  </label>
                   <input readOnly value={truck} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Driver</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Driver
+                  </label>
                   <input readOnly value={driver} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Helper #1</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Helper #1
+                  </label>
                   <input readOnly value={h1} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">Helper #2</label>
+                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Helper #2
+                  </label>
                   <input readOnly value={h2} className={inputClass} />
                 </div>
               </div>
@@ -590,6 +673,7 @@ function ViewOrderModal({
                 </div>
               </div>
             )}
+            
           </div>
         </div>
 
@@ -720,509 +804,6 @@ function ClientSearchModal({
 }
 
 // ==========================================
-// NEW CLIENT BOOKING MODAL
-// ==========================================
-
-interface NewClientBookingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  trucks: any[];
-  drivers: any[];
-  helpers: any[];
-  subcontractors: any[];
-  onSubmitSuccess: (data: any) => void;
-}
-
-function NewClientBookingModal({
-  isOpen,
-  onClose,
-  trucks,
-  drivers,
-  helpers,
-  subcontractors,
-  onSubmitSuccess,
-}: NewClientBookingModalProps) {
-  const currentDate = new Date().toISOString().split("T")[0];
-  const initialFormState = {
-    clientName: "",
-    contactPerson: "",
-    contactNumber: "",
-    emailAddress: "",
-    businessAddress: "",
-    deliverySchedule: "",
-    product: "",
-    priorityLevel: "",
-    subconPartner: "",
-    truckPlate: "",
-    driver: "",
-    helper1: "",
-    helper2: "",
-    notes: "",
-  };
-
-  const [formData, setFormData] = useState(initialFormState);
-  const [isSubconMode, setIsSubconMode] = useState(false);
-  const [availableTrucks, setAvailableTrucks] = useState<any[]>(trucks);
-  const [availableDrivers, setAvailableDrivers] = useState<any[]>(drivers);
-  const [availableHelpers, setAvailableHelpers] = useState<any[]>(helpers);
-  const [pickupList, setPickupList] = useState<any[]>([
-    {
-      warehouseName: "",
-      warehouseAddress: "",
-      contactPerson: "",
-      contactNumber: "",
-      pickupTime: "",
-      quantity: "",
-    },
-  ]);
-  const [deliveryList, setDeliveryList] = useState<any[]>([
-    {
-      branchName: "",
-      deliveryAddress: "",
-      contactPerson: "",
-      contactNumber: "",
-      deliveryTime: "",
-      quantity: "",
-    },
-  ]);
-  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  useEffect(() => {
-    setAvailableTrucks(trucks);
-    setAvailableDrivers(drivers);
-    setAvailableHelpers(helpers);
-  }, [trucks, drivers, helpers]);
-
-  useEffect(() => {
-    const fetchAvailable = async () => {
-      if (!formData.deliverySchedule) return;
-      try {
-        const res = await apiFetch<any>(
-          `/api/dispatch/available-resources?date=${formData.deliverySchedule}`,
-        );
-        if (res && res.data) {
-          const fetchedTrucks = (res.data.trucks || []).map((t: any) => ({
-            ...t,
-            truckID: t.truckID || t.id,
-            plateNumber: t.plateNumber || t.plate_number || "Unknown",
-          }));
-          const fetchedDrivers = (res.data.drivers || []).map((d: any) => ({
-            ...d,
-            employeeID: d.employeeID || d.id,
-            employeeName:
-              d.employeeName ||
-              `${d.firstName || ""} ${d.lastName || ""}`.trim() ||
-              "Unknown",
-          }));
-          const fetchedHelpers = (res.data.helpers || []).map((h: any) => ({
-            ...h,
-            employeeID: h.employeeID || h.id,
-            employeeName:
-              h.employeeName ||
-              `${h.firstName || ""} ${h.lastName || ""}`.trim() ||
-              "Unknown",
-          }));
-
-          setAvailableTrucks(fetchedTrucks);
-          setAvailableDrivers(fetchedDrivers);
-          setAvailableHelpers(fetchedHelpers);
-        }
-      } catch (error) {
-        console.error("Failed to load resources for this date:", error);
-      }
-    };
-    fetchAvailable();
-  }, [formData.deliverySchedule]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsSubconMode(false);
-      setFormData(initialFormState);
-      setPickupList([
-        {
-          warehouseName: "",
-          warehouseAddress: "",
-          contactPerson: "",
-          contactNumber: "",
-          pickupTime: "",
-          quantity: "",
-        },
-      ]);
-      setDeliveryList([
-        {
-          branchName: "",
-          deliveryAddress: "",
-          contactPerson: "",
-          contactNumber: "",
-          deliveryTime: "",
-          quantity: "",
-        },
-      ]);
-      setDeleteConfirm({});
-      setErrors({});
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const handlePickupChange = (index: number, field: string, value: string) => {
-    const updated = [...pickupList];
-    updated[index][field] = value;
-    setPickupList(updated);
-    if (errors[`pickup_${index}_${field}`])
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[`pickup_${index}_${field}`];
-        return newErrors;
-      });
-  };
-
-  const handleDeliveryChange = (
-    index: number,
-    field: string,
-    value: string,
-  ) => {
-    const updated = [...deliveryList];
-    updated[index][field] = value;
-    setDeliveryList(updated);
-    if (errors[`delivery_${index}_${field}`])
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[`delivery_${index}_${field}`];
-        return newErrors;
-      });
-  };
-
-  const addPickupRow = () =>
-    setPickupList([
-      ...pickupList,
-      {
-        warehouseName: "",
-        warehouseAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-        pickupTime: "",
-        quantity: "",
-      },
-    ]);
-  const removePickupRow = (index: number) => {
-    if (pickupList.length === 1) return;
-    setPickupList(pickupList.filter((_, idx) => idx !== index));
-    setDeleteConfirm((prev) => ({ ...prev, [`pickup-${index}`]: false }));
-  };
-
-  const addDeliveryRow = () =>
-    setDeliveryList([
-      ...deliveryList,
-      {
-        branchName: "",
-        deliveryAddress: "",
-        contactPerson: "",
-        contactNumber: "",
-        deliveryTime: "",
-        quantity: "",
-      },
-    ]);
-  const removeDeliveryRow = (index: number) => {
-    if (deliveryList.length === 1) return;
-    setDeliveryList(deliveryList.filter((_, idx) => idx !== index));
-    setDeleteConfirm((prev) => ({ ...prev, [`delivery-${index}`]: false }));
-  };
-
-  const handleAutoRecommend = () => {
-    if (!formData.deliverySchedule) {
-      alert("Please select a Delivery Schedule date first to check availability.");
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      truckPlate:
-        availableTrucks.length > 0
-          ? availableTrucks[0].truckID
-          : prev.truckPlate,
-      driver:
-        availableDrivers.length > 0
-          ? availableDrivers[0].employeeID
-          : prev.driver,
-      helper1:
-        availableHelpers.length > 0
-          ? availableHelpers[0].employeeID
-          : prev.helper1,
-      helper2:
-        availableHelpers.length > 1
-          ? availableHelpers[1].employeeID
-          : prev.helper2,
-    }));
-  };
-
-  const validateAndSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newErrors: { [key: string]: string } = {};
-    if (!formData.clientName.trim()) newErrors.clientName = "Client Name is required.";
-    if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
-    if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
-    if (!formData.product.trim()) newErrors.product = "Product description is required.";
-    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
-
-    if (isSubconMode && !formData.subconPartner) newErrors.subconPartner = "Subcon partner is required.";
-    if (!isSubconMode && !formData.truckPlate) newErrors.truckPlate = "Truck plate number is required.";
-    if (!isSubconMode && !formData.driver) newErrors.driver = "Driver assignment is required.";
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    const selectedTruck = availableTrucks.find((t) => t.truckID === formData.truckPlate);
-    const selectedDriver = availableDrivers.find((d) => d.employeeID === formData.driver);
-    const selectedHelper1 = availableHelpers.find((h) => h.employeeID === formData.helper1);
-    const selectedHelper2 = availableHelpers.find((h) => h.employeeID === formData.helper2);
-
-    onSubmitSuccess({
-      ...formData,
-      emailAddress: formData.emailAddress.trim() || "N/A",
-      businessAddress: formData.businessAddress.trim() || "N/A",
-      pickupList,
-      deliveryList,
-      resolvedNames: {
-        truck: selectedTruck ? selectedTruck.plateNumber : formData.truckPlate,
-        driver: selectedDriver ? selectedDriver.employeeName : formData.driver,
-        helper1: selectedHelper1 ? selectedHelper1.employeeName : formData.helper1,
-        helper2: selectedHelper2 ? selectedHelper2.employeeName : formData.helper2,
-      },
-    });
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">New Client Booking Form</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
-              <span>1. Client Information</span>
-              <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">New Client</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Company Name *</label>
-                <input type="text" name="clientName" value={formData.clientName} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
-                <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
-                <input type="text" name="contactNumber" value={formData.contactNumber} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Email Address</label>
-                <input type="email" name="emailAddress" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Business Address</label>
-                <input type="text" name="businessAddress" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" />
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses *</span>
-              <button type="button" onClick={addPickupRow} className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"><Plus className="w-4 h-4" /> New Pickup</button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Address *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Time *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Qty*</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pickupList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 min-w-15 border-slate-200" /></td>
-                      <td className="p-2 text-center"><button type="button" onClick={() => removePickupRow(idx)} disabled={pickupList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address *</span>
-              <button type="button" onClick={addDeliveryRow} className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"><Plus className="w-4 h-4" /> Branch</button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Address *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Time *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Qty*</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 min-w-15 border-slate-200" /></td>
-                      <td className="p-2 text-center"><button type="button" onClick={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">4. Booking Details & Schedule</div>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
-                <input type="date" name="deliverySchedule" min={currentDate} value={formData.deliverySchedule} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
-                <input type="text" name="product" value={formData.product} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
-                <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                  <option value="" disabled>Select</option>
-                  <option value="Standard">Standard</option>
-                  <option value="Urgent">Urgent / Rush</option>
-                  <option value="High Priority">High Priority</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}</span>
-              <div className="flex gap-4">
-                {isSubconMode ? (
-                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Own Resources</button>
-                ) : (
-                  <>
-                    <button type="button" onClick={handleAutoRecommend} className="text-xs text-emerald-600 font-bold underline hover:text-emerald-800">Auto-Recommend Resources</button>
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Subcon Partner</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {isSubconMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
-                  <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select partner</option>
-                    {subcontractors.map((s: any) => (<option key={s.id || s.companyName} value={s.companyName}>{s.companyName}</option>))}
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select truck</option>
-                    {availableTrucks.map((t) => (<option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <select name="driver" value={formData.driver} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select driver</option>
-                    {availableDrivers.map((d) => (<option key={d.employeeID} value={d.employeeID}>{d.employeeName}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1</label>
-                  <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs">
-                    <option value="">Select helper</option>
-                    {availableHelpers.map((h) => (<option key={h.employeeID} value={h.employeeID}>{h.employeeName}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2</label>
-                  <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs">
-                    <option value="">Select helper</option>
-                    {availableHelpers.map((h) => (<option key={h.employeeID} value={h.employeeID}>{h.employeeName}</option>))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">6. Notes / Instructions (Optional)</div>
-            <textarea name="notes" rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
-          </div>
-
-          <div className="flex gap-4 pt-4 border-t border-slate-200 justify-end">
-            <button type="button" onClick={onClose} className="px-6 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm">Cancel</button>
-            <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm">Generate Booking</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
 // UNIVERSAL BOOKING MODAL
 // ==========================================
 
@@ -1345,6 +926,15 @@ function BookingModal({
           setAvailableTrucks(fetchedTrucks);
           setAvailableDrivers(fetchedDrivers);
           setAvailableHelpers(fetchedHelpers);
+
+          // Auto-populate the first available resources
+          setFormData((prev) => ({
+            ...prev,
+            truckPlate: fetchedTrucks.length > 0 ? fetchedTrucks[0].truckID : "",
+            driver: fetchedDrivers.length > 0 ? fetchedDrivers[0].employeeID : "",
+            helper1: fetchedHelpers.length > 0 ? fetchedHelpers[0].employeeID : "",
+            helper2: fetchedHelpers.length > 1 ? fetchedHelpers[1].employeeID : "",
+          }));
         }
       } catch (error) {
         console.error("Failed to load resources for this date:", error);
@@ -1376,8 +966,26 @@ function BookingModal({
           deliverySchedule: "",
         });
       }
-      setPickupList([{ warehouseName: "", warehouseAddress: "", contactPerson: "", contactNumber: "", pickupTime: "", quantity: "" }]);
-      setDeliveryList([{ branchName: "", deliveryAddress: "", contactPerson: "", contactNumber: "", deliveryTime: "", quantity: "" }]);
+      setPickupList([
+        {
+          warehouseName: "",
+          warehouseAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+          pickupTime: "",
+          quantity: "",
+        },
+      ]);
+      setDeliveryList([
+        {
+          branchName: "",
+          deliveryAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+          deliveryTime: "",
+          quantity: "",
+        },
+      ]);
       setDeleteConfirm({});
       setErrors({});
     }
@@ -1385,7 +993,9 @@ function BookingModal({
 
   if (!isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -1416,72 +1026,137 @@ function BookingModal({
   };
 
   const addPickupRow = () =>
-    setPickupList([...pickupList, { warehouseName: "", warehouseAddress: "", contactPerson: "", contactNumber: "", pickupTime: "", quantity: "" }]);
+    setPickupList([
+      ...pickupList,
+      {
+        warehouseName: "",
+        warehouseAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+        pickupTime: "",
+        quantity: "",
+      },
+    ]);
   const removePickupRow = (index: number) => {
     if (pickupList.length === 1) return;
     setPickupList(pickupList.filter((_, idx) => idx !== index));
+    setDeleteConfirm((prev) => ({ ...prev, [`pickup-${index}`]: false }));
   };
 
   const addDeliveryRow = () =>
-    setDeliveryList([...deliveryList, { branchName: "", deliveryAddress: "", contactPerson: "", contactNumber: "", deliveryTime: "", quantity: "" }]);
+    setDeliveryList([
+      ...deliveryList,
+      {
+        branchName: "",
+        deliveryAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+        deliveryTime: "",
+        quantity: "",
+      },
+    ]);
   const removeDeliveryRow = (index: number) => {
     if (deliveryList.length === 1) return;
     setDeliveryList(deliveryList.filter((_, idx) => idx !== index));
+    setDeleteConfirm((prev) => ({ ...prev, [`delivery-${index}`]: false }));
   };
 
   const handleWarehouseSelect = (index: number, selectedName: string) => {
-    const selectedClientRecord = preSelectedClientID ? clients.find((c) => c.clientID === preSelectedClientID) : null;
-    const registeredWarehouses = selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
-    const matchedWarehouse = registeredWarehouses.find((w: any) => (w.whName || w.warehouseName) === selectedName);
+    const selectedClientRecord = preSelectedClientID
+      ? clients.find((c) => c.clientID === preSelectedClientID)
+      : null;
+    const registeredWarehouses =
+      selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
+    const matchedWarehouse = registeredWarehouses.find(
+      (w: any) => (w.whName || w.warehouseName) === selectedName
+    );
     const updated = [...pickupList];
     updated[index] = {
       ...updated[index],
       warehouseName: selectedName,
-      warehouseAddress: matchedWarehouse ? matchedWarehouse.warehouseLoc || matchedWarehouse.warehouseAddress || "" : "",
+      warehouseAddress: matchedWarehouse
+        ? matchedWarehouse.warehouseLoc || matchedWarehouse.warehouseAddress || ""
+        : "",
       contactPerson: matchedWarehouse ? matchedWarehouse.contactPerson || "" : "",
-      contactNumber: matchedWarehouse ? matchedWarehouse.contactNum || matchedWarehouse.contactNumber || "" : "",
+      contactNumber: matchedWarehouse
+        ? matchedWarehouse.contactNum || matchedWarehouse.contactNumber || ""
+        : "",
     };
     setPickupList(updated);
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      ["warehouseName", "warehouseAddress", "contactPerson", "contactNumber"].forEach(
+        (field) => delete newErrors[`pickup_${index}_${field}`]
+      );
+      return newErrors;
+    });
   };
 
   const handleBranchSelect = (index: number, selectedName: string) => {
-    const selectedClientRecord = preSelectedClientID ? clients.find((c) => c.clientID === preSelectedClientID) : null;
-    const registeredBranches = selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
-    const matchedBranch = registeredBranches.find((b: any) => b.branchName === selectedName);
+    const selectedClientRecord = preSelectedClientID
+      ? clients.find((c) => c.clientID === preSelectedClientID)
+      : null;
+    const registeredBranches =
+      selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
+    const matchedBranch = registeredBranches.find(
+      (b: any) => b.branchName === selectedName
+    );
     const updated = [...deliveryList];
     updated[index] = {
       ...updated[index],
       branchName: selectedName,
-      deliveryAddress: matchedBranch ? matchedBranch.deliveryAddress || matchedBranch.branchAddress || "" : "",
+      deliveryAddress: matchedBranch
+        ? matchedBranch.deliveryAddress || matchedBranch.branchAddress || ""
+        : "",
       contactPerson: matchedBranch ? matchedBranch.contactPerson || "" : "",
-      contactNumber: matchedBranch ? matchedBranch.contactNumber || matchedBranch.contactNum || "" : "",
+      contactNumber: matchedBranch
+        ? matchedBranch.contactNumber || matchedBranch.contactNum || ""
+        : "",
     };
     setDeliveryList(updated);
-  };
-
-  const handleAutoRecommend = () => {
-    if (!formData.deliverySchedule) {
-      alert("Please select a Delivery Schedule date first to check availability.");
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      truckPlate: availableTrucks.length > 0 ? availableTrucks[0].truckID : prev.truckPlate,
-      driver: availableDrivers.length > 0 ? availableDrivers[0].employeeID : prev.driver,
-      helper1: availableHelpers.length > 0 ? availableHelpers[0].employeeID : prev.helper1,
-      helper2: availableHelpers.length > 1 ? availableHelpers[1].employeeID : prev.helper2,
-    }));
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      ["branchName", "deliveryAddress", "contactPerson", "contactNumber"].forEach(
+        (field) => delete newErrors[`delivery_${index}_${field}`]
+      );
+      return newErrors;
+    });
   };
 
   const validateAndSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
-    if (!formData.clientName.trim()) newErrors.clientName = "Client / Company Name is required.";
+    if (!formData.clientName.trim()) newErrors.clientName = "Client Name is required.";
     if (!formData.contactPerson.trim()) newErrors.contactPerson = "Contact person is required.";
     if (!formData.contactNumber.trim()) newErrors.contactNumber = "Contact number is required.";
     if (!formData.deliverySchedule) newErrors.deliverySchedule = "Delivery schedule is required.";
-    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
     if (!formData.product.trim()) newErrors.product = "Product description is required.";
+    if (!formData.priorityLevel) newErrors.priorityLevel = "Priority level is required.";
+
+    pickupList.forEach((p, idx) => {
+      if (!p.warehouseName.trim()) newErrors[`pickup_${idx}_warehouseName`] = "Required";
+      if (!p.warehouseAddress.trim()) newErrors[`pickup_${idx}_warehouseAddress`] = "Required";
+      if (!p.contactPerson.trim()) newErrors[`pickup_${idx}_contactPerson`] = "Required";
+      if (!p.contactNumber.trim()) newErrors[`pickup_${idx}_contactNumber`] = "Required";
+      if (!p.pickupTime) newErrors[`pickup_${idx}_pickupTime`] = "Required";
+      if (!p.quantity.toString().trim()) newErrors[`pickup_${idx}_quantity`] = "Required";
+    });
+
+    deliveryList.forEach((d, idx) => {
+      if (!d.branchName.trim()) newErrors[`delivery_${idx}_branchName`] = "Required";
+      if (!d.deliveryAddress.trim()) newErrors[`delivery_${idx}_deliveryAddress`] = "Required";
+      if (!d.contactPerson.trim()) newErrors[`delivery_${idx}_contactPerson`] = "Required";
+      if (!d.contactNumber.trim()) newErrors[`delivery_${idx}_contactNumber`] = "Required";
+      if (!d.deliveryTime) newErrors[`delivery_${idx}_deliveryTime`] = "Required";
+      if (!d.quantity.toString().trim()) newErrors[`delivery_${idx}_quantity`] = "Required";
+    });
+
+    if (isSubconMode && !formData.subconPartner)
+      newErrors.subconPartner = "Subcon partner is required.";
+    if (!isSubconMode && !formData.truckPlate)
+      newErrors.truckPlate = "Truck plate number is required.";
+    if (!isSubconMode && !formData.driver)
+      newErrors.driver = "Driver assignment is required.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -1509,246 +1184,1666 @@ function BookingModal({
     onClose();
   };
 
-  const selectedClientRecord = preSelectedClientID ? clients.find((c) => c.clientID === preSelectedClientID) : null;
-  const registeredWarehouses = selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
-  const registeredBranches = selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
+  const selectedClientRecord = preSelectedClientID
+    ? clients.find((c) => c.clientID === preSelectedClientID)
+    : null;
+  const registeredWarehouses =
+    selectedClientRecord?.Warehouse || selectedClientRecord?.warehouses || [];
+  const registeredBranches =
+    selectedClientRecord?.Branch || selectedClientRecord?.branches || [];
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
-          <h2 className="text-xl font-bold text-white tracking-wide">
-            {preSelectedClientID ? "Registered Client Booking" : "On-Call Booking Form"}
-          </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+    <>
+      <style>{`.btn-booking-cancel { background-color: oklch(63.7% 0.237 25.331); } .btn-booking-cancel:hover { background-color: black !important; color: white !important; } .btn-booking-generate { background-color: oklch(54.6% 0.245 262.881); } .btn-booking-generate:hover { background-color: black !important; color: white !important; }`}</style>
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+          <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              {preSelectedClientID
+                ? "Registered Client Booking"
+                : "On-Call Booking Form"}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form
+            onSubmit={validateAndSubmit}
+            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+          >
+            {/* Client Info */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
+                <span>1. Client Information</span>
+                {!preSelectedClientID && (
+                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                    Walk-in / On-Call
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Company Name *
+                  </label>
+                  {preSelectedClientID ? (
+                    <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">
+                      {formData.clientName}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      name="clientName"
+                      placeholder="e.g., Acme Corp"
+                      value={formData.clientName}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Person *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactPerson"
+                    placeholder="e.g., Juan Dela Cruz"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactNumber"
+                    placeholder="e.g., 09123456789"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="emailAddress"
+                    placeholder="company@email.com"
+                    value={formData.emailAddress}
+                    onChange={handleChange}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Business Address
+                  </label>
+                  <input
+                    type="text"
+                    name="businessAddress"
+                    placeholder="Enter full business address"
+                    value={formData.businessAddress}
+                    onChange={handleChange}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pickup */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  2. Pickup Addresses *
+                </span>
+                <button
+                  type="button"
+                  onClick={addPickupRow}
+                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                >
+                  <Plus className="w-4 h-4" /> New Pickup
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Warehouse Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Pick Up Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Quantity*
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pickupList.map((row, idx) => (
+                      <tr key={idx} className="border-b border-slate-200">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          {preSelectedClientID ? (
+                            <select
+                              value={row.warehouseName}
+                              onChange={(e) => handleWarehouseSelect(idx, e.target.value)}
+                              className="w-full bg-transparent border rounded px-1.5 py-1"
+                            >
+                              <option value="">Select Warehouse</option>
+                              {registeredWarehouses.map((w: any, i: number) => (
+                                <option key={i} value={w.whName || w.warehouseName}>
+                                  {w.whName || w.warehouseName}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="Warehouse Name"
+                              value={row.warehouseName}
+                              onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)}
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                            />
+                          )}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Full Address"
+                            value={row.warehouseAddress}
+                            onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Contact Person"
+                            value={row.contactPerson}
+                            onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="09XX-XXX-XXXX"
+                            value={row.contactNumber}
+                            onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.pickupTime}
+                            onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={row.quantity}
+                            onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removePickupRow(idx)}
+                            disabled={pickupList.length === 1}
+                            className="p-1.5 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4 mx-auto" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Delivery */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  3. Delivery Address *
+                </span>
+                <button
+                  type="button"
+                  onClick={addDeliveryRow}
+                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                >
+                  <Plus className="w-4 h-4" /> Branch
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Delivery Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Delivery Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Quantity*
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveryList.map((row, idx) => (
+                      <tr key={idx} className="border-b border-slate-200">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          {preSelectedClientID ? (
+                            <select
+                              value={row.branchName}
+                              onChange={(e) => handleBranchSelect(idx, e.target.value)}
+                              className="w-full bg-transparent border rounded px-1.5 py-1"
+                            >
+                              <option value="">Select Branch</option>
+                              {registeredBranches.map((b: any, i: number) => (
+                                <option key={i} value={b.branchName}>
+                                  {b.branchName}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="Branch Name"
+                              value={row.branchName}
+                              onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)}
+                              className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                            />
+                          )}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Full Address"
+                            value={row.deliveryAddress}
+                            onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Contact Person"
+                            value={row.contactPerson}
+                            onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="09XX-XXX-XXXX"
+                            value={row.contactNumber}
+                            onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.deliveryTime}
+                            onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={row.quantity}
+                            onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeDeliveryRow(idx)}
+                            disabled={deliveryList.length === 1}
+                            className="p-1.5 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4 mx-auto" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Schedule */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                4. Booking Details & Schedule
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-4 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Delivery Schedule *
+                  </label>
+                  <input
+                    type="date"
+                    name="deliverySchedule"
+                    min={currentDate}
+                    value={formData.deliverySchedule}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`}
+                  />
+                </div>
+                <div className="sm:col-span-5 md:col-span-6">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Product To Deliver *
+                  </label>
+                  <input
+                    type="text"
+                    name="product"
+                    placeholder="e.g., 50 boxes of tile"
+                    value={formData.product}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`}
+                  />
+                </div>
+                <div className="sm:col-span-3 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Priority Level *
+                  </label>
+                  <select
+                    name="priorityLevel"
+                    value={formData.priorityLevel}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.priorityLevel ? "border-red-500" : "border-slate-300"}`}
+                  >
+                    <option value="" disabled>
+                      Select
+                    </option>
+                    <option value="Standard">Standard</option>
+                    <option value="Urgent">Urgent / Rush</option>
+                    <option value="High Priority">High Priority</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Assign Crew / Subcon */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  5. Assign Delivery Crews & Vehicle{" "}
+                  {isSubconMode && "(Subcon)"}
+                </span>
+                <div className="flex gap-4">
+                  {isSubconMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(false)}
+                      className="text-xs text-blue-600 underline hover:text-blue-800"
+                    >
+                      Assign to Own Resources
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(true)}
+                      className="text-xs text-blue-600 underline hover:text-blue-800"
+                    >
+                      Assign to Subcon Partner
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {isSubconMode ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Select Subcon Partner *
+                    </label>
+                    <select
+                      name="subconPartner"
+                      value={formData.subconPartner}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.subconPartner ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select partner
+                      </option>
+                      {subcontractors.map((s: any) => (
+                        <option
+                          key={s.id || s.companyName}
+                          value={s.companyName}
+                        >
+                          {s.companyName}
+                        </option>
+                      ))}
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck / Plate No.
+                    </label>
+                    <input
+                      type="text"
+                      name="truckPlate"
+                      placeholder="Optional"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver Name
+                    </label>
+                    <input
+                      type="text"
+                      name="driver"
+                      placeholder="Optional"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1
+                    </label>
+                    <input
+                      type="text"
+                      name="helper1"
+                      placeholder="Optional"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2
+                    </label>
+                    <input
+                      type="text"
+                      name="helper2"
+                      placeholder="Optional"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <select
+                      name="truckPlate"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.truckPlate ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select truck
+                      </option>
+                      {availableTrucks.map((t) => (
+                        <option key={t.truckID} value={t.truckID}>
+                          {t.plateNumber} ({t.model})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <select
+                      name="driver"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.driver ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select driver
+                      </option>
+                      {availableDrivers.map((d) => (
+                        <option key={d.employeeID} value={d.employeeID}>
+                          {d.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1
+                    </label>
+                    <select
+                      name="helper1"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    >
+                      <option value="">Select helper</option>
+                      {availableHelpers.map((h) => (
+                        <option key={h.employeeID} value={h.employeeID}>
+                          {h.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2
+                    </label>
+                    <select
+                      name="helper2"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    >
+                      <option value="">Select helper</option>
+                      {availableHelpers.map((h) => (
+                        <option key={h.employeeID} value={h.employeeID}>
+                          {h.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                6. Notes / Instructions (Optional)
+              </div>
+              <textarea
+                name="notes"
+                placeholder="Any specific handling instructions..."
+                rows={3}
+                value={formData.notes}
+                onChange={handleChange}
+                className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 pt-4 border-t border-slate-200 justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm"
+              >
+                Generate Booking
+              </button>
+            </div>
+          </form>
         </div>
-
-        <form onSubmit={validateAndSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
-              <span>1. Client Information</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Company Name *</label>
-                {preSelectedClientID ? (
-                  <div className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700 truncate">{formData.clientName}</div>
-                ) : (
-                  <input type="text" name="clientName" value={formData.clientName} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Person *</label>
-                <input type="text" name="contactPerson" value={formData.contactPerson} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Contact Number *</label>
-                <input type="text" name="contactNumber" value={formData.contactNumber} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Email Address</label>
-                <input type="email" name="emailAddress" value={formData.emailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">Business Address</label>
-                <input type="text" name="businessAddress" value={formData.businessAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" />
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">2. Pickup Addresses *</span>
-              <button type="button" onClick={addPickupRow} className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"><Plus className="w-4 h-4" /> New Pickup</button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Address *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Time *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Qty*</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pickupList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-200">
-                        {preSelectedClientID ? (
-                          <select value={row.warehouseName} onChange={(e) => handleWarehouseSelect(idx, e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1">
-                            <option value="">Select</option>
-                            {registeredWarehouses.map((w: any, i: number) => (<option key={i} value={w.whName || w.warehouseName}>{w.whName || w.warehouseName}</option>))}
-                          </select>
-                        ) : (
-                          <input type="text" value={row.warehouseName} onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" />
-                        )}
-                      </td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.warehouseAddress} onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="time" value={row.pickupTime} onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handlePickupChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 min-w-15 border-slate-200" /></td>
-                      <td className="p-2 text-center"><button type="button" onClick={() => removePickupRow(idx)} disabled={pickupList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">3. Delivery Address *</span>
-              <button type="button" onClick={addDeliveryRow} className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"><Plus className="w-4 h-4" /> Branch</button>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">Address *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">Time *</th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">Qty*</th>
-                    <th className="p-2.5 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                      <td className="p-2 border-r border-slate-200">
-                        {preSelectedClientID ? (
-                          <select value={row.branchName} onChange={(e) => handleBranchSelect(idx, e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1">
-                            <option value="">Select</option>
-                            {registeredBranches.map((b: any, i: number) => (<option key={i} value={b.branchName}>{b.branchName}</option>))}
-                          </select>
-                        ) : (
-                          <input type="text" value={row.branchName} onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" />
-                        )}
-                      </td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.deliveryAddress} onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactPerson} onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="text" value={row.contactNumber} onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="time" value={row.deliveryTime} onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 border-slate-200" /></td>
-                      <td className="p-2 border-r border-slate-200"><input type="number" value={row.quantity} onChange={(e) => handleDeliveryChange(idx, "quantity", e.target.value)} className="w-full bg-transparent border rounded px-1.5 py-1 min-w-15 border-slate-200" /></td>
-                      <td className="p-2 text-center"><button type="button" onClick={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} className="p-1.5 hover:text-red-700 disabled:opacity-50"><Trash2 className="w-4 h-4 mx-auto" /></button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">4. Booking Details & Schedule</div>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
-                <input type="date" name="deliverySchedule" min={currentDate} value={formData.deliverySchedule} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
-                <input type="text" name="product" value={formData.product} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300" />
-              </div>
-              <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
-                <select name="priorityLevel" value={formData.priorityLevel} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                  <option value="" disabled>Select</option>
-                  <option value="Standard">Standard</option>
-                  <option value="Urgent">Urgent / Rush</option>
-                  <option value="High Priority">High Priority</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">5. Assign Delivery Crews & Vehicle {isSubconMode && "(Subcon)"}</span>
-              <div className="flex gap-4">
-                {isSubconMode ? (
-                  <button type="button" onClick={() => setIsSubconMode(false)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Own Resources</button>
-                ) : (
-                  <>
-                    <button type="button" onClick={handleAutoRecommend} className="text-xs text-emerald-600 font-bold underline hover:text-emerald-800">Auto-Recommend Resources</button>
-                    <button type="button" onClick={() => setIsSubconMode(true)} className="text-xs text-blue-600 underline hover:text-blue-800">Assign to Subcon Partner</button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {isSubconMode ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Select Subcon Partner *</label>
-                  <select name="subconPartner" value={formData.subconPartner} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select partner</option>
-                    {subcontractors.map((s: any) => (<option key={s.id || s.companyName} value={s.companyName}>{s.companyName}</option>))}
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div><label className="block text-xs font-medium text-black mb-1">Truck / Plate No.</label><input type="text" name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Driver Name</label><input type="text" name="driver" value={formData.driver} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Helper #1</label><input type="text" name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-                <div><label className="block text-xs font-medium text-black mb-1">Helper #2</label><input type="text" name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs" /></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Truck Plate No. *</label>
-                  <select name="truckPlate" value={formData.truckPlate} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select truck</option>
-                    {availableTrucks.map((t) => (<option key={t.truckID} value={t.truckID}>{t.plateNumber} ({t.model})</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Driver *</label>
-                  <select name="driver" value={formData.driver} onChange={handleChange} className="w-full border rounded-md px-3 py-2 text-xs border-slate-300">
-                    <option value="" disabled>Select driver</option>
-                    {availableDrivers.map((d) => (<option key={d.employeeID} value={d.employeeID}>{d.employeeName}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #1</label>
-                  <select name="helper1" value={formData.helper1} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs">
-                    <option value="">Select helper</option>
-                    {availableHelpers.map((h) => (<option key={h.employeeID} value={h.employeeID}>{h.employeeName}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">Helper #2</label>
-                  <select name="helper2" value={formData.helper2} onChange={handleChange} className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs">
-                    <option value="">Select helper</option>
-                    {availableHelpers.map((h) => (<option key={h.employeeID} value={h.employeeID}>{h.employeeName}</option>))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">6. Notes / Instructions (Optional)</div>
-            <textarea name="notes" rows={3} value={formData.notes} onChange={handleChange} className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs" />
-          </div>
-
-          <div className="flex gap-4 pt-4 border-t border-slate-200 justify-end">
-            <button type="button" onClick={onClose} className="px-6 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm">Cancel</button>
-            <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm">Generate Booking</button>
-          </div>
-        </form>
       </div>
-    </div>
+    </>
+  );
+}
+
+// ==========================================
+// NEW CLIENT BOOKING MODAL
+// ==========================================
+
+interface NewClientBookingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  trucks: any[];
+  drivers: any[];
+  helpers: any[];
+  subcontractors: any[];
+  onSubmitSuccess: (data: any) => void;
+}
+
+function NewClientBookingModal({
+  isOpen,
+  onClose,
+  trucks,
+  drivers,
+  helpers,
+  subcontractors,
+  onSubmitSuccess,
+}: NewClientBookingModalProps) {
+  const currentDate = new Date().toISOString().split("T")[0];
+  const initialFormState = {
+    clientName: "",
+    contactPerson: "",
+    contactNumber: "",
+    emailAddress: "",
+    businessAddress: "",
+    deliverySchedule: "",
+    product: "",
+    priorityLevel: "",
+    subconPartner: "",
+    truckPlate: "",
+    driver: "",
+    helper1: "",
+    helper2: "",
+    notes: "",
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+  const [isSubconMode, setIsSubconMode] = useState(false);
+  const [availableTrucks, setAvailableTrucks] = useState<any[]>(trucks);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>(drivers);
+  const [availableHelpers, setAvailableHelpers] = useState<any[]>(helpers);
+  const [pickupList, setPickupList] = useState<any[]>([
+    {
+      warehouseName: "",
+      warehouseAddress: "",
+      contactPerson: "",
+      contactNumber: "",
+      pickupTime: "",
+      quantity: "",
+    },
+  ]);
+  const [deliveryList, setDeliveryList] = useState<any[]>([
+    {
+      branchName: "",
+      deliveryAddress: "",
+      contactPerson: "",
+      contactNumber: "",
+      deliveryTime: "",
+      quantity: "",
+    },
+  ]);
+  const [deleteConfirm, setDeleteConfirm] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    setAvailableTrucks(trucks);
+    setAvailableDrivers(drivers);
+    setAvailableHelpers(helpers);
+  }, [trucks, drivers, helpers]);
+
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      if (!formData.deliverySchedule) return;
+      try {
+        const res = await apiFetch<any>(
+          `/api/dispatch/available-resources?date=${formData.deliverySchedule}`,
+        );
+        if (res && res.data) {
+          const fetchedTrucks = (res.data.trucks || []).map((t: any) => ({
+            ...t,
+            truckID: t.truckID || t.id,
+            plateNumber: t.plateNumber || t.plate_number || "Unknown",
+          }));
+          const fetchedDrivers = (res.data.drivers || []).map((d: any) => ({
+            ...d,
+            employeeID: d.employeeID || d.id,
+            employeeName:
+              d.employeeName ||
+              `${d.firstName || ""} ${d.lastName || ""}`.trim() ||
+              "Unknown",
+          }));
+          const fetchedHelpers = (res.data.helpers || []).map((h: any) => ({
+            ...h,
+            employeeID: h.employeeID || h.id,
+            employeeName:
+              h.employeeName ||
+              `${h.firstName || ""} ${h.lastName || ""}`.trim() ||
+              "Unknown",
+          }));
+
+          setAvailableTrucks(fetchedTrucks);
+          setAvailableDrivers(fetchedDrivers);
+          setAvailableHelpers(fetchedHelpers);
+
+          // Auto-populate the first available resources
+          setFormData((prev) => ({
+            ...prev,
+            truckPlate: fetchedTrucks.length > 0 ? fetchedTrucks[0].truckID : "",
+            driver: fetchedDrivers.length > 0 ? fetchedDrivers[0].employeeID : "",
+            helper1: fetchedHelpers.length > 0 ? fetchedHelpers[0].employeeID : "",
+            helper2: fetchedHelpers.length > 1 ? fetchedHelpers[1].employeeID : "",
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to load resources for this date:", error);
+      }
+    };
+    fetchAvailable();
+  }, [formData.deliverySchedule]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsSubconMode(false);
+      setFormData(initialFormState);
+      setPickupList([
+        {
+          warehouseName: "",
+          warehouseAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+          pickupTime: "",
+          quantity: "",
+        },
+      ]);
+      setDeliveryList([
+        {
+          branchName: "",
+          deliveryAddress: "",
+          contactPerson: "",
+          contactNumber: "",
+          deliveryTime: "",
+          quantity: "",
+        },
+      ]);
+      setDeleteConfirm({});
+      setErrors({});
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handlePickupChange = (index: number, field: string, value: string) => {
+    const updated = [...pickupList];
+    updated[index][field] = value;
+    setPickupList(updated);
+    if (errors[`pickup_${index}_${field}`])
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`pickup_${index}_${field}`];
+        return newErrors;
+      });
+  };
+
+  const handleDeliveryChange = (
+    index: number,
+    field: string,
+    value: string,
+  ) => {
+    const updated = [...deliveryList];
+    updated[index][field] = value;
+    setDeliveryList(updated);
+    if (errors[`delivery_${index}_${field}`])
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`delivery_${index}_${field}`];
+        return newErrors;
+      });
+  };
+
+  const addPickupRow = () =>
+    setPickupList([
+      ...pickupList,
+      {
+        warehouseName: "",
+        warehouseAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+        pickupTime: "",
+        quantity: "",
+      },
+    ]);
+  const removePickupRow = (index: number) => {
+    if (pickupList.length === 1) return;
+    setPickupList(pickupList.filter((_, idx) => idx !== index));
+    setDeleteConfirm((prev) => ({ ...prev, [`pickup-${index}`]: false }));
+  };
+
+  const addDeliveryRow = () =>
+    setDeliveryList([
+      ...deliveryList,
+      {
+        branchName: "",
+        deliveryAddress: "",
+        contactPerson: "",
+        contactNumber: "",
+        deliveryTime: "",
+        quantity: "",
+      },
+    ]);
+  const removeDeliveryRow = (index: number) => {
+    if (deliveryList.length === 1) return;
+    setDeliveryList(deliveryList.filter((_, idx) => idx !== index));
+    setDeleteConfirm((prev) => ({ ...prev, [`delivery-${index}`]: false }));
+  };
+
+  const validateAndSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: { [key: string]: string } = {};
+    if (!formData.clientName.trim())
+      newErrors.clientName = "Client Name is required.";
+    if (!formData.contactPerson.trim())
+      newErrors.contactPerson = "Contact person is required.";
+    if (!formData.contactNumber.trim())
+      newErrors.contactNumber = "Contact number is required.";
+    if (!formData.deliverySchedule)
+      newErrors.deliverySchedule = "Delivery schedule is required.";
+    if (!formData.product.trim())
+      newErrors.product = "Product description is required.";
+    if (!formData.priorityLevel)
+      newErrors.priorityLevel = "Priority level is required.";
+
+    pickupList.forEach((p, idx) => {
+      if (!p.warehouseName.trim())
+        newErrors[`pickup_${idx}_warehouseName`] = "Required";
+      if (!p.warehouseAddress.trim())
+        newErrors[`pickup_${idx}_warehouseAddress`] = "Required";
+      if (!p.contactPerson.trim())
+        newErrors[`pickup_${idx}_contactPerson`] = "Required";
+      if (!p.contactNumber.trim())
+        newErrors[`pickup_${idx}_contactNumber`] = "Required";
+      if (!p.pickupTime) newErrors[`pickup_${idx}_pickupTime`] = "Required";
+      if (!p.quantity.toString().trim())
+        newErrors[`pickup_${idx}_quantity`] = "Required";
+    });
+
+    deliveryList.forEach((d, idx) => {
+      if (!d.branchName.trim())
+        newErrors[`delivery_${idx}_branchName`] = "Required";
+      if (!d.deliveryAddress.trim())
+        newErrors[`delivery_${idx}_deliveryAddress`] = "Required";
+      if (!d.contactPerson.trim())
+        newErrors[`delivery_${idx}_contactPerson`] = "Required";
+      if (!d.contactNumber.trim())
+        newErrors[`delivery_${idx}_contactNumber`] = "Required";
+      if (!d.deliveryTime)
+        newErrors[`delivery_${idx}_deliveryTime`] = "Required";
+      if (!d.quantity.toString().trim())
+        newErrors[`delivery_${idx}_quantity`] = "Required";
+    });
+
+    if (isSubconMode && !formData.subconPartner)
+      newErrors.subconPartner = "Subcon partner is required.";
+    if (!isSubconMode && !formData.truckPlate)
+      newErrors.truckPlate = "Truck plate number is required.";
+    if (!isSubconMode && !formData.driver)
+      newErrors.driver = "Driver assignment is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    const selectedTruck = availableTrucks.find(
+      (t) => t.truckID === formData.truckPlate,
+    );
+    const selectedDriver = availableDrivers.find(
+      (d) => d.employeeID === formData.driver,
+    );
+    const selectedHelper1 = availableHelpers.find(
+      (h) => h.employeeID === formData.helper1,
+    );
+    const selectedHelper2 = availableHelpers.find(
+      (h) => h.employeeID === formData.helper2,
+    );
+
+    onSubmitSuccess({
+      ...formData,
+      emailAddress: formData.emailAddress.trim() || "N/A",
+      businessAddress: formData.businessAddress.trim() || "N/A",
+      pickupList,
+      deliveryList,
+      resolvedNames: {
+        truck: selectedTruck ? selectedTruck.plateNumber : formData.truckPlate,
+        driver: selectedDriver ? selectedDriver.employeeName : formData.driver,
+        helper1: selectedHelper1
+          ? selectedHelper1.employeeName
+          : formData.helper1,
+        helper2: selectedHelper2
+          ? selectedHelper2.employeeName
+          : formData.helper2,
+      },
+    });
+    onClose();
+  };
+
+  return (
+    <>
+      <style>{`.btn-booking-cancel { background-color: oklch(63.7% 0.237 25.331); } .btn-booking-cancel:hover { background-color: black !important; color: white !important; } .btn-booking-generate { background-color: oklch(54.6% 0.245 262.881); } .btn-booking-generate:hover { background-color: black !important; color: white !important; }`}</style>
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
+          <div className="flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              New Client Booking Form
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form
+            onSubmit={validateAndSubmit}
+            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+          >
+            {/* Client Info */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
+                <span>1. Client Information</span>
+                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                  New Client
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="clientName"
+                    placeholder="e.g., Acme Corp"
+                    value={formData.clientName}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.clientName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Person *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactPerson"
+                    placeholder="e.g., Juan Dela Cruz"
+                    value={formData.contactPerson}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Contact Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="contactNumber"
+                    placeholder="e.g., 09123456789"
+                    value={formData.contactNumber}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="emailAddress"
+                    placeholder="company@email.com"
+                    value={formData.emailAddress}
+                    onChange={handleChange}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Business Address
+                  </label>
+                  <input
+                    type="text"
+                    name="businessAddress"
+                    placeholder="Enter full business address"
+                    value={formData.businessAddress}
+                    onChange={handleChange}
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pickup */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  2. Pickup Addresses *
+                </span>
+                <button
+                  type="button"
+                  onClick={addPickupRow}
+                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                >
+                  <Plus className="w-4 h-4" /> New Pickup
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Warehouse Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Qty*
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pickupList.map((row, idx) => (
+                      <tr key={idx} className="border-b border-slate-200">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Warehouse Name"
+                            value={row.warehouseName}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "warehouseName",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Full Address"
+                            value={row.warehouseAddress}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "warehouseAddress",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_warehouseAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Contact Person"
+                            value={row.contactPerson}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "contactPerson",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="09XX-XXX-XXXX"
+                            value={row.contactNumber}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "contactNumber",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.pickupTime}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "pickupTime",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`pickup_${idx}_pickupTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={row.quantity}
+                            onChange={(e) =>
+                              handlePickupChange(
+                                idx,
+                                "quantity",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`pickup_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removePickupRow(idx)}
+                            disabled={pickupList.length === 1}
+                            className="p-1.5 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4 mx-auto" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Delivery */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  3. Delivery Address *
+                </span>
+                <button
+                  type="button"
+                  onClick={addDeliveryRow}
+                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                >
+                  <Plus className="w-4 h-4" /> Branch
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs min-w-150">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
+                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
+                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
+                        Branch Name *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
+                        Delivery Address *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Person *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
+                        Contact Number *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
+                        Delivery Time *
+                      </th>
+                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">
+                        Quantity*
+                      </th>
+                      <th className="p-2.5 w-16 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveryList.map((row, idx) => (
+                      <tr key={idx} className="border-b border-slate-200">
+                        <td className="p-2 border-r border-slate-200 text-center font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Branch Name"
+                            value={row.branchName}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "branchName",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_branchName`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Full Address"
+                            value={row.deliveryAddress}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "deliveryAddress",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryAddress`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="Contact Person"
+                            value={row.contactPerson}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "contactPerson",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactPerson`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="text"
+                            placeholder="09XX-XXX-XXXX"
+                            value={row.contactNumber}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "contactNumber",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_contactNumber`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.deliveryTime}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "deliveryTime",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 ${errors[`delivery_${idx}_deliveryTime`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 border-r border-slate-200">
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={row.quantity}
+                            onChange={(e) =>
+                              handleDeliveryChange(
+                                idx,
+                                "quantity",
+                                e.target.value,
+                              )
+                            }
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 min-w-15 ${errors[`delivery_${idx}_quantity`] ? "border-red-500 bg-red-50" : "border-slate-200"}`}
+                          />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeDeliveryRow(idx)}
+                            disabled={deliveryList.length === 1}
+                            className="p-1.5 hover:text-red-700 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4 mx-auto" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Schedule */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                4. Booking Details & Schedule
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-4 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Delivery Schedule *
+                  </label>
+                  <input
+                    type="date"
+                    name="deliverySchedule"
+                    min={currentDate}
+                    value={formData.deliverySchedule}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`}
+                  />
+                </div>
+                <div className="sm:col-span-5 md:col-span-6">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Product To Deliver *
+                  </label>
+                  <input
+                    type="text"
+                    name="product"
+                    placeholder="e.g., 50 boxes of tile"
+                    value={formData.product}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`}
+                  />
+                </div>
+                <div className="sm:col-span-3 md:col-span-3">
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Priority Level *
+                  </label>
+                  <select
+                    name="priorityLevel"
+                    value={formData.priorityLevel}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.priorityLevel ? "border-red-500" : "border-slate-300"}`}
+                  >
+                    <option value="" disabled>
+                      Select
+                    </option>
+                    <option value="Standard">Standard</option>
+                    <option value="Urgent">Urgent / Rush</option>
+                    <option value="High Priority">High Priority</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Assign Crew / Subcon */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <span className="font-semibold text-black text-sm tracking-wide">
+                  5. Assign Delivery Crews & Vehicle{" "}
+                  {isSubconMode && "(Subcon)"}
+                </span>
+                <div className="flex gap-4">
+                  {isSubconMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(false)}
+                      className="text-xs text-blue-600 underline hover:text-blue-800"
+                    >
+                      Assign to Own Resources
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsSubconMode(true)}
+                      className="text-xs text-blue-600 underline hover:text-blue-800"
+                    >
+                      Assign to Subcon Partner
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {isSubconMode ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Select Subcon Partner *
+                    </label>
+                    <select
+                      name="subconPartner"
+                      value={formData.subconPartner}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.subconPartner ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select partner
+                      </option>
+                      {subcontractors.map((s: any) => (
+                        <option
+                          key={s.id || s.companyName}
+                          value={s.companyName}
+                        >
+                          {s.companyName}
+                        </option>
+                      ))}
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck / Plate No.
+                    </label>
+                    <input
+                      type="text"
+                      name="truckPlate"
+                      placeholder="Optional"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver Name
+                    </label>
+                    <input
+                      type="text"
+                      name="driver"
+                      placeholder="Optional"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1
+                    </label>
+                    <input
+                      type="text"
+                      name="helper1"
+                      placeholder="Optional"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2
+                    </label>
+                    <input
+                      type="text"
+                      name="helper2"
+                      placeholder="Optional"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Truck Plate No. *
+                    </label>
+                    <select
+                      name="truckPlate"
+                      value={formData.truckPlate}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.truckPlate ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select truck
+                      </option>
+                      {availableTrucks.map((t) => (
+                        <option key={t.truckID} value={t.truckID}>
+                          {t.plateNumber} ({t.model})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Driver *
+                    </label>
+                    <select
+                      name="driver"
+                      value={formData.driver}
+                      onChange={handleChange}
+                      className={`w-full border rounded-md px-3 py-2 text-xs ${errors.driver ? "border-red-500" : "border-slate-300"}`}
+                    >
+                      <option value="" disabled>
+                        Select driver
+                      </option>
+                      {availableDrivers.map((d) => (
+                        <option key={d.employeeID} value={d.employeeID}>
+                          {d.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #1
+                    </label>
+                    <select
+                      name="helper1"
+                      value={formData.helper1}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    >
+                      <option value="">Select helper</option>
+                      {availableHelpers.map((h) => (
+                        <option key={h.employeeID} value={h.employeeID}>
+                          {h.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-black mb-1">
+                      Helper #2
+                    </label>
+                    <select
+                      name="helper2"
+                      value={formData.helper2}
+                      onChange={handleChange}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                    >
+                      <option value="">Select helper</option>
+                      {availableHelpers.map((h) => (
+                        <option key={h.employeeID} value={h.employeeID}>
+                          {h.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                6. Notes / Instructions (Optional)
+              </div>
+              <textarea
+                name="notes"
+                placeholder="Any specific handling instructions..."
+                rows={3}
+                value={formData.notes}
+                onChange={handleChange}
+                className="w-full resize-y border border-slate-300 rounded-md px-3 py-2 text-xs"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 pt-4 border-t border-slate-200 justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm"
+              >
+                Generate Booking
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1832,27 +2927,18 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
             {data.map((b: any) => {
               let displayStatus = tabConfig.statusLabel;
               if (tabConfig.name === "Pending Bookings") {
-                const hasHelper =
-                  b.helper &&
-                  b.helper !== "None" &&
-                  b.helper !== "N/A" &&
-                  b.helper !== "Unassigned";
-                const isCrewConfirmed =
-                  b.dispatchStatus === "Accepted" ||
-                  (b.driverConfirmed && (!hasHelper || b.helperConfirmed));
-                displayStatus = isCrewConfirmed
-                  ? "Crew Confirmed - Awaiting Dispatch"
-                  : "Waiting for Crew Confirmation";
-              } else if (tabConfig.name === "In-Transit") {
-                if (b.currentStep === 1) {
-                  displayStatus = "Heading to Warehouse";
-                } else if (b.currentStep > 1) {
-                  displayStatus = "Products Loaded - Delivering";
+                const ds = b.dispatchStatus;
+                const drv = b.driver;
+                const hasDriver = drv && drv !== "Unassigned" && drv !== "N/A";
+                
+                if (!hasDriver) {
+                  displayStatus = "Assign Crew";
+                } else if (ds === "Accepted") {
+                  displayStatus = "Waiting Crew Dispatch";
                 } else {
-                  displayStatus = "Awaiting Departure";
+                  displayStatus = "Pending Crew";
                 }
               }
-
               return (
                 <div
                   key={b.orderId}
@@ -1949,6 +3035,7 @@ export default function AdminDashboardPage() {
     clientIds: [],
   });
 
+  // Separate dropdown open states & independent search states
   const [isCrewDropdownOpen, setIsCrewDropdownOpen] = useState(false);
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [crewSearchTerm, setCrewSearchTerm] = useState("");
@@ -2089,6 +3176,7 @@ export default function AdminDashboardPage() {
         });
       }
 
+      // Sort each category by highest update/creation date
       Object.keys(categorized).forEach((cat) => {
         categorized[cat].sort((a, b) => {
           return new Date(b.rawOrder.updatedAt || b.rawOrder.createdAt).getTime() - new Date(a.rawOrder.updatedAt || a.rawOrder.createdAt).getTime();
@@ -2268,6 +3356,7 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Convert real db clients and drivers to format needed for the dropdowns
   const activeClientsForFilter = useMemo(() => 
     clients.map(c => ({ id: c.clientID || c.id, name: c.company || c.companyName || "Unknown" })), 
   [clients]);
@@ -2276,6 +3365,7 @@ export default function AdminDashboardPage() {
     drivers.map(d => ({ id: d.employeeID, name: d.employeeName })), 
   [drivers]);
 
+  // Apply Search inside Filter Modals
   const filteredCrews = activeCrewsForFilter.filter((c) =>
     c.name.toLowerCase().includes(crewSearchTerm.toLowerCase()),
   );
@@ -2284,6 +3374,7 @@ export default function AdminDashboardPage() {
     cl.name.toLowerCase().includes(clientSearchTerm.toLowerCase()),
   );
 
+  // Apply Filter Logic to Data
   const filteredBookingsData = useMemo(() => {
     const result: { [key: string]: any[] } = {
       "Pending Bookings": [],
@@ -2297,6 +3388,7 @@ export default function AdminDashboardPage() {
 
     Object.keys(bookingsData).forEach(cat => {
       result[cat] = bookingsData[cat].filter((b: any) => {
+        // 1. Client Filter
         if (dashboardFilters.clientIds.length > 0) {
           const bookingClientId = b.rawOrder?.clientID || b.rawOrder?.client?.id || b.rawOrder?.client_id;
           const matchById = dashboardFilters.clientIds.includes(bookingClientId);
@@ -2306,6 +3398,7 @@ export default function AdminDashboardPage() {
           if (!matchById && !matchByName) return false;
         }
 
+        // 2. Crew Filter
         if (dashboardFilters.crewIds.length > 0) {
           const dispatchRecord = Array.isArray(b.rawOrder?.DispatchOrder) ? b.rawOrder.DispatchOrder[0] : (b.rawOrder?.DispatchOrder || b.rawOrder?.dispatch_order);
           const driverId = dispatchRecord?.driverID;
@@ -2316,6 +3409,7 @@ export default function AdminDashboardPage() {
           if (!matchById && !matchByName) return false;
         }
 
+        // 3. Date Filter
         if (dashboardFilters.dateRange) {
           const reqDateStr = b.rawOrder?.notes?.match(/Delivery Schedule:\s*(.*)/)?.[1] 
                           || b.rawOrder?.notes?.match(/Request Date:\s*(.*)/)?.[1] 
@@ -2344,6 +3438,8 @@ export default function AdminDashboardPage() {
             if (bDate < firstDay) return false;
           } else if (dashboardFilters.dateRange === "thisMonth") {
             if (bDate.getMonth() !== today.getMonth() || bDate.getFullYear() !== today.getFullYear()) return false;
+          } else if (dashboardFilters.dateRange === "thisYear") {
+            if (bDate.getFullYear() !== today.getFullYear()) return false;
           } else if (dashboardFilters.dateRange === "custom") {
             if (dashboardFilters.customStartDate) {
               const sDate = new Date(dashboardFilters.customStartDate);
@@ -2386,6 +3482,7 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
+        {/* Buttons Flex Container */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto relative z-10">
           <button
             onClick={() => {
@@ -2414,6 +3511,7 @@ export default function AdminDashboardPage() {
             <Filter className="w-4 h-4 mr-2" />
             Filters
           </button>
+          {/* Filter Dropdown Panel */}
           {isFilterOpen && (
             <div className="absolute top-full mt-1.5 right-0 w-56 sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in">
               <div className="flex justify-between items-center mb-2 border-b border-slate-100 pb-1.5">
@@ -2426,9 +3524,12 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
 
+              {/* Main Panel Scrollable Container */}
               <div className="max-h-[68vh] overflow-y-auto pr-1 space-y-4 feed-scrollbar">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Date</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Date
+                  </label>
                   <select
                     value={dashboardFilters.dateRange}
                     onChange={(e) =>
@@ -2446,6 +3547,7 @@ export default function AdminDashboardPage() {
                     <option value="last30">Last 30 Days</option>
                     <option value="thisWeek">This Week</option>
                     <option value="thisMonth">This Month</option>
+                    <option value="thisYear">This Year</option>
                     <option value="upToDate">Up to Date</option>
                     <option value="custom">Custom Date Range</option>
                   </select>
@@ -2454,7 +3556,9 @@ export default function AdminDashboardPage() {
                 {dashboardFilters.dateRange === "custom" && (
                   <div className="flex gap-3">
                     <div className="w-1/2">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">Start Date</label>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                        Start Date
+                      </label>
                       <input
                         type="date"
                         value={dashboardFilters.customStartDate}
@@ -2468,7 +3572,9 @@ export default function AdminDashboardPage() {
                       />
                     </div>
                     <div className="w-1/2">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">End Date</label>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                        End Date
+                      </label>
                       <input
                         type="date"
                         value={dashboardFilters.customEndDate}
@@ -2484,8 +3590,11 @@ export default function AdminDashboardPage() {
                   </div>
                 )}
 
+                {/* Assigned Crew Dropdown with Dedicated Search & Scrollbar */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Assigned Crew</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Assigned Crew
+                  </label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2496,11 +3605,16 @@ export default function AdminDashboardPage() {
                       className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">{selectedCrewLabel}</span>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCrewDropdownOpen ? "rotate-180" : ""}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 transition-transform ${
+                          isCrewDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
                     </button>
 
                     {isCrewDropdownOpen && (
                       <div className="mt-1.5 p-2 bg-white border border-slate-200 rounded-lg shadow-lg">
+                        {/* Dedicated Crew Search Field */}
                         <div className="relative mb-2">
                           <input
                             type="text"
@@ -2512,36 +3626,65 @@ export default function AdminDashboardPage() {
                           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         </div>
 
+                        {/* Scrollable Crew Options with Checkboxes */}
                         <div className="max-h-40 overflow-y-auto feed-scrollbar space-y-0.5">
                           <div
-                            onClick={() => setDashboardFilters((f) => ({ ...f, crewIds: [] }))}
-                            className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${dashboardFilters.crewIds.length === 0 ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-700 hover:bg-slate-100"}`}
+                            onClick={() => {
+                              setDashboardFilters((f) => ({
+                                ...f,
+                                crewIds: [],
+                              }));
+                            }}
+                            className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${
+                              dashboardFilters.crewIds.length === 0
+                                ? "bg-blue-50 text-blue-600 font-semibold"
+                                : "text-slate-700 hover:bg-slate-100"
+                            }`}
                           >
-                            <input type="checkbox" checked={dashboardFilters.crewIds.length === 0} readOnly className="mr-2 cursor-pointer shrink-0" />
+                            <input
+                              type="checkbox"
+                              checked={dashboardFilters.crewIds.length === 0}
+                              readOnly
+                              className="mr-2 cursor-pointer shrink-0"
+                            />
                             <span className="truncate">All Crews</span>
                           </div>
                           {filteredCrews.length > 0 ? (
                             filteredCrews.map((c) => {
-                              const isSelected = dashboardFilters.crewIds.includes(c.id);
+                              const isSelected =
+                                dashboardFilters.crewIds.includes(c.id);
                               return (
                                 <div
                                   key={c.id}
                                   onClick={() => {
                                     setDashboardFilters((f) => {
-                                      const newIds = isSelected ? f.crewIds.filter((id) => id !== c.id) : [...f.crewIds, c.id];
+                                      const newIds = isSelected
+                                        ? f.crewIds.filter((id) => id !== c.id)
+                                        : [...f.crewIds, c.id];
                                       return { ...f, crewIds: newIds };
                                     });
                                   }}
-                                  className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${isSelected ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-700 hover:bg-slate-100"}`}
+                                  className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${
+                                    isSelected
+                                      ? "bg-blue-50 text-blue-600 font-semibold"
+                                      : "text-slate-700 hover:bg-slate-100"
+                                  }`}
                                   title={c.name}
                                 >
-                                  <input type="checkbox" checked={isSelected} readOnly className="mr-2 cursor-pointer shrink-0" />
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    readOnly
+                                    className="mr-2 cursor-pointer shrink-0"
+                                  />
                                   <span className="truncate">{c.name}</span>
                                 </div>
                               );
                             })
                           ) : (
-                            <div className="px-2 py-2 text-xs text-slate-400 text-center">No crews found</div>
+                            <div className="px-2 py-2 text-xs text-slate-400 text-center">
+                              No crews found
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2549,8 +3692,11 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
+                {/* Client Dropdown with Dedicated Search & Scrollbar */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Client</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Client
+                  </label>
                   <div className="relative">
                     <button
                       type="button"
@@ -2560,53 +3706,93 @@ export default function AdminDashboardPage() {
                       }}
                       className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <span className="truncate pr-2">{selectedClientLabel}</span>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isClientDropdownOpen ? "rotate-180" : ""}`} />
+                      <span className="truncate pr-2">
+                        {selectedClientLabel}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 transition-transform ${
+                          isClientDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
                     </button>
 
                     {isClientDropdownOpen && (
                       <div className="mt-1.5 p-2 bg-white border border-slate-200 rounded-lg shadow-lg">
+                        {/* Dedicated Client Search Field */}
                         <div className="relative mb-2">
                           <input
                             type="text"
                             value={clientSearchTerm}
-                            onChange={(e) => setClientSearchTerm(e.target.value)}
+                            onChange={(e) =>
+                              setClientSearchTerm(e.target.value)
+                            }
                             placeholder="Search client..."
                             className="w-full border border-slate-300 rounded-md pl-3 pr-8 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                         </div>
 
+                        {/* Scrollable Client Options with Checkboxes */}
                         <div className="max-h-40 overflow-y-auto feed-scrollbar space-y-0.5">
                           <div
-                            onClick={() => setDashboardFilters((f) => ({ ...f, clientIds: [] }))}
-                            className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${dashboardFilters.clientIds.length === 0 ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-700 hover:bg-slate-100"}`}
+                            onClick={() => {
+                              setDashboardFilters((f) => ({
+                                ...f,
+                                clientIds: [],
+                              }));
+                            }}
+                            className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${
+                              dashboardFilters.clientIds.length === 0
+                                ? "bg-blue-50 text-blue-600 font-semibold"
+                                : "text-slate-700 hover:bg-slate-100"
+                            }`}
                           >
-                            <input type="checkbox" checked={dashboardFilters.clientIds.length === 0} readOnly className="mr-2 cursor-pointer shrink-0" />
+                            <input
+                              type="checkbox"
+                              checked={dashboardFilters.clientIds.length === 0}
+                              readOnly
+                              className="mr-2 cursor-pointer shrink-0"
+                            />
                             <span className="truncate">All Clients</span>
                           </div>
                           {filteredClients.length > 0 ? (
                             filteredClients.map((cl) => {
-                              const isSelected = dashboardFilters.clientIds.includes(cl.id);
+                              const isSelected =
+                                dashboardFilters.clientIds.includes(cl.id);
                               return (
                                 <div
                                   key={cl.id}
                                   onClick={() => {
                                     setDashboardFilters((f) => {
-                                      const newIds = isSelected ? f.clientIds.filter((id) => id !== cl.id) : [...f.clientIds, cl.id];
+                                      const newIds = isSelected
+                                        ? f.clientIds.filter(
+                                            (id) => id !== cl.id,
+                                          )
+                                        : [...f.clientIds, cl.id];
                                       return { ...f, clientIds: newIds };
                                     });
                                   }}
-                                  className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${isSelected ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-700 hover:bg-slate-100"}`}
+                                  className={`px-2 py-1.5 rounded text-xs cursor-pointer flex items-center ${
+                                    isSelected
+                                      ? "bg-blue-50 text-blue-600 font-semibold"
+                                      : "text-slate-700 hover:bg-slate-100"
+                                  }`}
                                   title={cl.name}
                                 >
-                                  <input type="checkbox" checked={isSelected} readOnly className="mr-2 cursor-pointer shrink-0" />
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    readOnly
+                                    className="mr-2 cursor-pointer shrink-0"
+                                  />
                                   <span className="truncate">{cl.name}</span>
                                 </div>
                               );
                             })
                           ) : (
-                            <div className="px-2 py-2 text-xs text-slate-400 text-center">No clients found</div>
+                            <div className="px-2 py-2 text-xs text-slate-400 text-center">
+                              No clients found
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2704,7 +3890,7 @@ export default function AdminDashboardPage() {
         isOpen={isClientSearchModalOpen}
         onClose={() => setIsClientSearchModalOpen(false)}
         clients={clients}
-        onSelectClient={(clientID) => {
+        onSelectClient={(clientID: string) => {
           setSelectedClientForBooking(clientID);
           setIsClientSearchModalOpen(false);
           setIsBookingModalOpen(true);
