@@ -1,5 +1,7 @@
 "use client";
 
+// PDF_PAGE_FIX_V2: overview, forecast history, and accuracy history are captured separately.
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -355,7 +357,8 @@ export default function ForecastingPage() {
   const handlePdfExport = async () => {
     const report = document.getElementById("forecast-report-content");
     const historySection = document.getElementById("forecast-history-section");
-    if (!report || !historySection) return;
+    const accuracySection = document.getElementById("forecast-accuracy-section");
+    if (!report || !historySection || !accuracySection) return;
 
     setIsExporting(true);
 
@@ -377,11 +380,28 @@ export default function ForecastingPage() {
           const clonedHistory = clonedDocument.getElementById(
             "forecast-history-section",
           );
+          const clonedAccuracy = clonedDocument.getElementById(
+            "forecast-accuracy-section",
+          );
           if (clonedHistory) clonedHistory.style.display = "none";
+          if (clonedAccuracy) clonedAccuracy.style.display = "none";
         },
       });
 
       const historyCanvas = await html2canvas(historySection, {
+        ...sharedCaptureOptions,
+        onclone: (clonedDocument: Document) => {
+          clonedDocument.querySelectorAll<HTMLElement>(".pdf-expand").forEach(
+            (element) => {
+              element.style.maxHeight = "none";
+              element.style.height = "auto";
+              element.style.overflow = "visible";
+            },
+          );
+        },
+      });
+
+      const accuracyCanvas = await html2canvas(accuracySection, {
         ...sharedCaptureOptions,
         onclone: (clonedDocument: Document) => {
           clonedDocument.querySelectorAll<HTMLElement>(".pdf-expand").forEach(
@@ -438,6 +458,7 @@ export default function ForecastingPage() {
         overviewHeight,
       );
       addCanvasToPdf(historyCanvas, true);
+      addCanvasToPdf(accuracyCanvas, true);
 
       pdf.save(`forecast-report-${selectedYear}.pdf`);
       setIsExportModalOpen(false);
@@ -841,8 +862,12 @@ export default function ForecastingPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
 
-              <div className="border-t border-slate-200">
+            <div
+              id="forecast-accuracy-section"
+              className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden flex flex-col w-full"
+            >
                 <div className="p-4 sm:p-5 border-b border-slate-100">
                   <h2 className="text-sm font-semibold text-slate-900">
                     Forecast Accuracy History
@@ -934,7 +959,6 @@ export default function ForecastingPage() {
                   </table>
                 </div>
               </div>
-            </div>
           </div>
         </main>
       </div>
