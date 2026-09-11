@@ -72,6 +72,30 @@ interface ForecastResponse {
   remarksByYear: Record<string, string[]>;
 }
 
+interface ForecastSnapshot {
+  forecastSnapshotID: string;
+  snapshotMonth: string;
+  targetPeriod: string;
+  expectedVolume: number;
+  actualVolume: number | null;
+  variance: number | null;
+  variancePercentage: number | null;
+  absoluteError: number | null;
+  model: string;
+  evaluatedAt: string | null;
+}
+
+interface SnapshotResponse {
+  data: ForecastSnapshot[];
+  accuracy: {
+    evaluatedSnapshots: number;
+    mae: number | null;
+    rmse: number | null;
+    rSquared: number | null;
+  };
+  message?: string;
+}
+
 const TIMEFRAME_OPTIONS = [
   "2022",
   "2023",
@@ -100,6 +124,14 @@ function filterByTimeframe(
   timeframe: string,
 ) {
   return records.filter((record) => record.periodStart.startsWith(timeframe));
+}
+
+function formatMonth(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T00:00:00Z`));
 }
 
 function calculateMetrics(expected: number, actual: number | null) {
@@ -144,6 +176,7 @@ function calculateMetrics(expected: number, actual: number | null) {
 
 export default function ForecastingPage() {
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [snapshots, setSnapshots] = useState<ForecastSnapshot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -165,18 +198,29 @@ export default function ForecastingPage() {
         throw new Error("Authentication session was not found. Please log in again.");
       }
 
-      const response = await fetch("/api/forecasting/data", {
+      const requestOptions = {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
+        cache: "no-store" as const,
+      };
+      const [response, snapshotResponse] = await Promise.all([
+        fetch("/api/forecasting/data", requestOptions),
+        fetch("/api/forecasting/snapshots", requestOptions),
+      ]);
       const body = (await response.json()) as ForecastResponse & { message?: string };
+      const snapshotBody = (await snapshotResponse.json()) as SnapshotResponse;
 
       if (!response.ok) {
         throw new Error(body.message ?? "Failed to load forecasting data.");
       }
+      if (!snapshotResponse.ok) {
+        throw new Error(
+          snapshotBody.message ?? "Failed to load forecast accuracy history.",
+        );
+      }
 
       setForecast(body);
+      setSnapshots(snapshotBody.data ?? []);
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : "Failed to load forecasting data.",
@@ -197,6 +241,55 @@ export default function ForecastingPage() {
 
   const chartRecords = filteredRecords;
   const historyRecords = filteredRecords;
+  const evaluatedSnapshots = useMemo(
+    () =>
+      snapshots.filter(
+        (snapshot) =>
+          snapshot.targetPeriod.startsWith(selectedYear) &&
+          snapshot.evaluatedAt !== null &&
+          snapshot.actualVolume !== null,
+      ),
+    [snapshots, selectedYear],
+  );
+  const snapshotAccuracy = useMemo(() => {
+    if (evaluatedSnapshots.length === 0) {
+      return { mae: null, rmse: null, rSquared: null };
+    }
+
+    const errors = evaluatedSnapshots.map(
+      (snapshot) =>
+        Number(snapshot.actualVolume) - Number(snapshot.expectedVolume),
+    );
+    const actualValues = evaluatedSnapshots.map((snapshot) =>
+      Number(snapshot.actualVolume),
+    );
+    const mae =
+      errors.reduce((sum, error) => sum + Math.abs(error), 0) /
+      errors.length;
+    const rmse = Math.sqrt(
+      errors.reduce((sum, error) => sum + error ** 2, 0) / errors.length,
+    );
+    const actualMean =
+      actualValues.reduce((sum, value) => sum + value, 0) /
+      actualValues.length;
+    const residualSum = errors.reduce(
+      (sum, error) => sum + error ** 2,
+      0,
+    );
+    const totalSum = actualValues.reduce(
+      (sum, value) => sum + (value - actualMean) ** 2,
+      0,
+    );
+
+    return {
+      mae: Number(mae.toFixed(2)),
+      rmse: Number(rmse.toFixed(2)),
+      rSquared:
+        actualValues.length < 2 || totalSum === 0
+          ? null
+          : Number((1 - residualSum / totalSum).toFixed(4)),
+    };
+  }, [evaluatedSnapshots]);
   const completedRecords = filteredRecords.filter(
     (record) => record.actualVolume !== null,
   );
@@ -747,6 +840,99 @@ export default function ForecastingPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="border-t border-slate-200">
+                <div className="p-4 sm:p-5 border-b border-slate-100">
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Forecast Accuracy History
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Preserved MLR forecasts compared with actual completed
+                    delivery volumes
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        Evaluated Snapshots
+                      </p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">
+                        {evaluatedSnapshots.length}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        Snapshot MAE
+                      </p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">
+                        {snapshotAccuracy.mae ?? "N/A"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        Snapshot RMSE
+                      </p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">
+                        {snapshotAccuracy.rmse ?? "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pdf-expand w-full overflow-x-auto pb-2">
+                  <table className="w-full text-left border-collapse min-w-250">
+                    <thead>
+                      <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        <th className="py-3.5 px-4 sm:px-6">Snapshot</th>
+                        <th className="py-3.5 px-4 sm:px-6">Target Period</th>
+                        <th className="py-3.5 px-4 sm:px-6">Forecast</th>
+                        <th className="py-3.5 px-4 sm:px-6">Actual</th>
+                        <th className="py-3.5 px-4 sm:px-6">Absolute Error</th>
+                        <th className="py-3.5 px-4 sm:px-6">Percentage Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
+                      {evaluatedSnapshots.map((snapshot) => (
+                        <tr
+                          key={snapshot.forecastSnapshotID}
+                          className="hover:bg-slate-50/80 transition-colors"
+                        >
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-slate-600">
+                            {formatMonth(snapshot.snapshotMonth)}
+                          </td>
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-medium text-slate-900">
+                            {formatMonth(snapshot.targetPeriod)}
+                          </td>
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                            {Number(snapshot.expectedVolume).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                            {Number(snapshot.actualVolume).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-semibold text-slate-700">
+                            {Number(snapshot.absoluteError).toLocaleString()}
+                          </td>
+                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-semibold text-amber-600">
+                            {snapshot.variancePercentage === null
+                              ? "N/A"
+                              : `${Math.abs(Number(snapshot.variancePercentage)).toFixed(1)}%`}
+                          </td>
+                        </tr>
+                      ))}
+                      {evaluatedSnapshots.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="py-10 px-6 text-center text-sm text-slate-500"
+                          >
+                            No evaluated forecast snapshots are available for {selectedYear} yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
