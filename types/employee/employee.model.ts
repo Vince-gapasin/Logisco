@@ -1,4 +1,5 @@
 export interface Employee {
+  // EMPLOYEE_LOGIN_ACCESS_V1
   employeeID: string;
   employeeCode: string | null;
   employeeName: string;
@@ -9,6 +10,7 @@ export interface Employee {
   contact: string;
   auth_id: string | null;
   activation_sent_at: string | null;
+  activation_completed_at: string | null;
   isActive: boolean | null;
   birthdate: string | null;
   middleName: string | null;
@@ -31,4 +33,3 @@ export interface Employee {
   skills: string | null;
   remarks: string | null;
 }
-
