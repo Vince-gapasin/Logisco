@@ -218,6 +218,37 @@ const DUMMY_FOUL_BOOKINGS = [
 const ITEMS_PER_PAGE = 10;
 
 // ==========================================
+// DUMMY AVAILABILITY DATA
+// ==========================================
+const availableStaff = [
+  { id: "staff-001", name: "Juan Dela Cruz", role: "Driver", available: true },
+  { id: "staff-002", name: "Pedro Santos", role: "Driver", available: true },
+  { id: "staff-003", name: "Luis Manzano", role: "Driver", available: false },
+  { id: "staff-004", name: "Marco Reyes", role: "Driver", available: true },
+];
+
+const availableTrucks = [
+  { id: "truck-001", name: "TRK-105 (Isuzu Forward)", available: false },
+  { id: "truck-002", name: "TRK-108 (Fuso Canter)", available: true },
+  { id: "truck-003", name: "TRK-220 (Isuzu Elf)", available: true },
+  { id: "truck-004", name: "TRK-305 (Hino 300)", available: true },
+];
+
+const availableSubconTrucks = [
+  { id: "subcon-001", name: "SUBCON-001 – Isuzu Forward", available: true },
+  { id: "subcon-002", name: "SUBCON-002 – Mitsubishi Fuso", available: true },
+  { id: "subcon-003", name: "SUBCON-003 – Hino Dutro", available: false },
+  { id: "subcon-004", name: "SUBCON-004 – Isuzu Elf", available: true },
+];
+
+const mechanicStaff = [
+  { id: "mech-001", name: "Ramon Garcia", role: "Mechanic" },
+  { id: "mech-002", name: "Albert Cruz", role: "Mechanic" },
+  { id: "mech-003", name: "Mark Villanueva", role: "Mechanic" },
+  { id: "mech-004", name: "Roberto Santos", role: "Mechanic" },
+];
+
+// ==========================================
 // STATUS BADGE HELPERS
 // ==========================================
 const getStatusBadgeClass = (status: string) => {
@@ -270,7 +301,6 @@ const PROGRESS_STAGES = [
 ];
 
 function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
-  // For foul trips, it usually halted at "In Transit" before completing
   const currentIndex = PROGRESS_STAGES.indexOf("In Transit");
 
   return (
@@ -330,12 +360,14 @@ function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
 interface BookingDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onProceedSuccess: (message: string) => void;
   booking: any;
 }
 
 function BookingDetailsModal({
   isOpen,
   onClose,
+  onProceedSuccess,
   booking,
 }: BookingDetailsModalProps) {
   const currentDate = new Date().toISOString().split("T")[0];
@@ -348,10 +380,30 @@ function BookingDetailsModal({
     string | null
   >(null);
 
+  // Expanded Action States
+  const [newScheduleDate, setNewScheduleDate] = useState("");
+  const [newScheduleTime, setNewScheduleTime] = useState("");
+  const [rescheduleDriver, setRescheduleDriver] = useState("");
+  const [rescheduleHelper1, setRescheduleHelper1] = useState("");
+  const [rescheduleHelper2, setRescheduleHelper2] = useState("");
+  const [rescheduleTruck, setRescheduleTruck] = useState("");
+
+  const [selectedSubconTruck, setSelectedSubconTruck] = useState("");
+  const [selectedMechanic, setSelectedMechanic] = useState("");
+
   useEffect(() => {
     if (isOpen && booking) {
-      // Reset selected action on open
+      // Reset selected action & states on open
       setSelectedRecoveryAction(null);
+
+      setNewScheduleDate("");
+      setNewScheduleTime("");
+      setRescheduleDriver("");
+      setRescheduleHelper1("");
+      setRescheduleHelper2("");
+      setRescheduleTruck("");
+      setSelectedSubconTruck("");
+      setSelectedMechanic("");
 
       setFormData({
         clientName: booking.clientName || "",
@@ -386,6 +438,28 @@ function BookingDetailsModal({
       );
     }
   }, [isOpen, booking, currentDate]);
+
+  const handleProceedRecovery = () => {
+    let msg = "";
+    switch (selectedRecoveryAction) {
+      case "reschedule":
+        msg = "Reschedule delivery is successful.";
+        break;
+      case "reassign":
+        msg = "Re-assignment of staff and vehicle is successful.";
+        break;
+      case "subcon":
+        msg = "Sub-Con truck assignment is successful.";
+        break;
+      case "inspection":
+        msg = "Inspection request has been sent successfully.";
+        break;
+      default:
+        return;
+    }
+
+    onProceedSuccess(msg);
+  };
 
   if (!isOpen || !booking) return null;
 
@@ -539,6 +613,257 @@ function BookingDetailsModal({
                 );
               })}
             </div>
+
+            {/* EXPANDED ACTION CONTROLS */}
+            {selectedRecoveryAction && (
+              <div className="mt-5 pt-5 border-t border-slate-200 animate-fade-in">
+                
+                {selectedRecoveryAction === "reschedule" && (
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Schedule Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newScheduleDate}
+                        onChange={(e) => setNewScheduleDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Schedule Time
+                      </label>
+                      <input
+                        type="time"
+                        value={newScheduleTime}
+                        onChange={(e) => setNewScheduleTime(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Driver
+                      </label>
+                      <select
+                        value={rescheduleDriver}
+                        onChange={(e) => setRescheduleDriver(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Driver </option>
+                        <option value="Juan Dela Cruz">Juan Dela Cruz</option>
+                        <option value="Pedro Santos">Pedro Santos</option>
+                        <option value="Luis Manzano">Luis Manzano</option>
+                        <option value="Marco Reyes">Marco Reyes</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Helper 1
+                      </label>
+                      <select
+                        value={rescheduleHelper1}
+                        onChange={(e) => setRescheduleHelper1(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Helper 1</option>
+                        <option value="Jose Rizal">Jose Rizal</option>
+                        <option value="Carlo Mendoza">Carlo Mendoza</option>
+                        <option value="Miguel Santos">Miguel Santos</option>
+                        <option value="Daniel Cruz">Daniel Cruz</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Helper 2
+                      </label>
+                      <select
+                        value={rescheduleHelper2}
+                        onChange={(e) => setRescheduleHelper2(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Helper 2</option>
+                        <option value="Jose Rizal">Jose Rizal</option>
+                        <option value="Carlo Mendoza">Carlo Mendoza</option>
+                        <option value="Miguel Santos">Miguel Santos</option>
+                        <option value="Daniel Cruz">Daniel Cruz</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        New Truck
+                      </label>
+                      <select
+                        value={rescheduleTruck}
+                        onChange={(e) => setRescheduleTruck(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Truck </option>
+                        <option value="TRK-105 (Isuzu Forward)">TRK-105 (Isuzu Forward)</option>
+                        <option value="TRK-108 (Fuso Canter)">TRK-108 (Fuso Canter)</option>
+                        <option value="TRK-220 (Isuzu Elf)">TRK-220 (Isuzu Elf)</option>
+                        <option value="TRK-305 (Hino 300)">TRK-305 (Hino 300)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {selectedRecoveryAction === "reassign" && (
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    {(() => {
+                      const availableStaffList = availableStaff.filter(
+                        (staff) => staff.available
+                      );
+                      const autoAssignedDriver = availableStaffList[0];
+                      const autoAssignedHelper1 = availableStaffList[1];
+                      const autoAssignedHelper2 = availableStaffList[2];
+                      const autoAssignedTruck = availableTrucks.find(
+                        (truck) => truck.available
+                      );
+
+                      return (
+                        <>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Driver
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={autoAssignedDriver ? autoAssignedDriver.name : "None Available"}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Helper 1
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={autoAssignedHelper1 ? autoAssignedHelper1.name : "None Available"}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Helper 2
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={autoAssignedHelper2 ? autoAssignedHelper2.name : "None Available"}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                              Truck
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={autoAssignedTruck ? autoAssignedTruck.name : "None Available"}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {selectedRecoveryAction === "subcon" && (
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Available Sub-Con Truck
+                      </label>
+                      <select
+                        value={selectedSubconTruck}
+                        onChange={(e) => setSelectedSubconTruck(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Sub-Con Truck </option>
+                        {availableSubconTrucks
+                          .filter((subcon) => subcon.available)
+                          .map((subcon) => (
+                            <option key={subcon.id} value={subcon.id}>
+                              {subcon.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Driver
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value="Optional"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Helper 1
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value="Optional"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Helper 2
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value="Optional"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedRecoveryAction === "inspection" && (
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-blue-900">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <AlertTriangle className="w-4 h-4 text-blue-600" />
+                        <h4 className="font-bold text-sm">Inspection Reminder</h4>
+                      </div>
+                      <p className="text-xs leading-relaxed text-blue-800">
+                        The mechanic may proceed to the truck's current location for inspection if the location is within a reasonable distance from the warehouse. If the location is too far, coordinate with the operations team for further instructions.
+                      </p>
+                    </div>
+
+                    <div className="w-full sm:w-1/2">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        Assign Mechanic Staff
+                      </label>
+                      <select
+                        value={selectedMechanic}
+                        onChange={(e) => setSelectedMechanic(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="">Select Mechanic</option>
+                        {mechanicStaff.map((mech) => (
+                          <option key={mech.id} value={mech.id}>
+                            {mech.name} – {mech.role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ========================================== */}
@@ -1073,6 +1398,7 @@ function BookingDetailsModal({
             {selectedRecoveryAction && (
               <button
                 type="button"
+                onClick={handleProceedRecovery}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm"
               >
                 Proceed with Recovery
@@ -1101,6 +1427,10 @@ export default function FoulTripFeedPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Success Toast State for Recovery Actions
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   // ==========================================
   // FILTERING
@@ -1131,8 +1461,34 @@ export default function FoulTripFeedPage() {
     setIsModalOpen(true);
   };
 
+  const handleProceedSuccess = (message: string) => {
+    setIsModalOpen(false); // Close the Foul Trip Details Modal immediately
+    setToastMessage(message);
+    setShowSuccessToast(true);
+
+    // Auto dismiss after 3 seconds
+    setTimeout(() => {
+      setShowSuccessToast(false);
+    }, 3000);
+  };
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+      
+      {/* CENTERED SUCCESS NOTIFICATION TOAST */}
+      {showSuccessToast && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none animate-fade-in">
+          <div className="bg-white border border-slate-200 text-slate-900 px-10 py-8 rounded-2xl shadow-2xl flex flex-col items-center justify-center text-center gap-4 max-w-md w-full mx-auto animate-scale-up pointer-events-auto">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center shrink-0 shadow-sm">
+              <CheckCircle2 className="w-9 h-9 text-emerald-600 stroke-[2.5]" />
+            </div>
+            <span className="text-base sm:text-lg font-bold text-slate-900 leading-snug tracking-wide">
+              {toastMessage}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ========================================== */}
       {/* HEADER */}
       {/* ========================================== */}
@@ -1325,6 +1681,7 @@ export default function FoulTripFeedPage() {
       <BookingDetailsModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onProceedSuccess={handleProceedSuccess}
         booking={selectedBooking}
       />
     </div>
