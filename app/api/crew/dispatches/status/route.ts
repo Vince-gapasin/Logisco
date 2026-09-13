@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     const current_step = formData.get("current_step") as string;
     const remarks = formData.get("remarks") as string;
     const receiverName = formData.get("receiverName") as string;
+    const title = formData.get("title") as string; 
     const file = formData.get("podImage") as File | null;
 
     if (!dispatchID || !status) {
@@ -55,26 +56,38 @@ export async function POST(request: Request) {
 
       podUrl = publicUrl;
 
-      // 3. Insert directly into the POD Table
-      if (receiverName) {
+      // 3. Insert directly into the POD Table USING ORIGINAL DB SCHEMA
+      if (receiverName || podUrl) {
         const { error: podInsertError } = await adminClient
           .from("POD")
           .insert({
             proof: podUrl,
-            receiverName: receiverName,
-            remarks: remarks || "Uploaded via Crew App",
+            receiverName: receiverName || "N/A",
+            remarks: `[${title || 'Location Update'}] ${remarks || "Uploaded via Crew App"}`,
           });
 
         if (podInsertError) console.error("[Status API] POD Insert Error:", podInsertError);
       }
     }
 
-    // 4. Update the DispatchOrder Database
+    // 4. Safely Update DispatchOrder WITHOUT destroying history
+    const { data: currentDispatch } = await adminClient
+      .from("DispatchOrder")
+      .select("dispatchNote")
+      .eq("dispatchID", dispatchID)
+      .single();
+
+    // Append new crew remarks to existing notes so Admin sees everything
+    let updatedNotes = currentDispatch?.dispatchNote || "";
+    if (remarks || podUrl) {
+       updatedNotes += `\n[${title || 'Update'}] ${receiverName ? `Received by ${receiverName}. ` : ''}Crew: ${remarks || 'Arrived'}`;
+    }
+
     const updatePayload: any = { 
       status: status,
       current_step: parseInt(current_step) || 0 
     };
-    if (remarks) updatePayload.dispatchNote = remarks;
+    if (remarks || podUrl) updatePayload.dispatchNote = updatedNotes;
     if (podUrl) updatePayload.pod_url = podUrl; 
 
     const { error: updateErr } = await adminClient

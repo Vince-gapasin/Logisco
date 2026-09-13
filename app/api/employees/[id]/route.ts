@@ -138,12 +138,9 @@ export async function PATCH(
 
     // AUTHORIZATION
     const roleError = requireRole(
-      auth.employee.role,
-      [
-        "Admin",
-        "Coordinator",
-      ]
-    );
+  auth.employee.role,
+  ["Admin"]
+);
 
     if (roleError) {
       return NextResponse.json(

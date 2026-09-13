@@ -1,4 +1,5 @@
 "use client";
+// EMPLOYEE_LOGIN_ACCESS_V1
 
 import {
   useEffect,
@@ -119,7 +120,7 @@ export default function SetPasswordPage() {
         // ====================================
 
         if (
-          type === "invite" &&
+          (type === "invite" || type === "recovery") &&
           accessToken &&
           refreshToken
         ) {
@@ -306,11 +307,6 @@ const handleSubmit = async (
       },
     } =
       await supabaseBrowser.auth.getSession();
-
-    console.log(
-      "TEST ACCESS TOKEN:",
-        session?.access_token
-      );
 
     if (!session?.access_token) {
       setSubmitError(

@@ -1,8 +1,12 @@
-// File: app/admindashboard/layout.tsx
+// LOGISCO_PROTECTED_PORTAL_SECURITY_V1
+
 "use client";
+
 import React, { useState } from "react";
-import Sidebar from "@/components/Sidebaradmin";
+
+import ProtectedPortal from "@/components/ProtectedPortal";
 import SharedHeader from "@/components/SharedHeader";
+import Sidebar from "@/components/Sidebaradmin";
 
 export default function AdminLayout({
   children,
@@ -12,32 +16,34 @@ export default function AdminLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans relative">
-      {/* Global Admin Sidebar (Overlay Drawer) */}
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+    <ProtectedPortal>
+      <div className="relative flex h-screen w-full overflow-hidden bg-slate-50 font-sans">
+        <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      {/* Right Side Container (Header + Main Content Area) */}
-      <div className="flex flex-col flex-1 w-full overflow-hidden">
-        {/* Header */}
-        <SharedHeader 
-          isOpen={isSidebarOpen} 
-          setIsOpen={setIsSidebarOpen} 
-          basePath="/admindashboard" 
-        />
+        <div className="flex w-full flex-1 flex-col overflow-hidden">
+          <SharedHeader
+            isOpen={isSidebarOpen}
+            setIsOpen={setIsSidebarOpen}
+            basePath="/admindashboard"
+          />
 
-        {/* Dynamic Main Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          {React.Children.map(children, (child) => {
-            if (React.isValidElement(child)) {
-              return React.cloneElement(child as React.ReactElement<any>, {
-                isOpen: isSidebarOpen,
-                setIsOpen: setIsSidebarOpen,
-              });
-            }
-            return child;
-          })}
-        </main>
+          <main className="flex-1 overflow-y-auto">
+            {React.Children.map(children, (child) => {
+              if (React.isValidElement(child)) {
+                return React.cloneElement(
+                  child as React.ReactElement<Record<string, unknown>>,
+                  {
+                    isOpen: isSidebarOpen,
+                    setIsOpen: setIsSidebarOpen,
+                  },
+                );
+              }
+
+              return child;
+            })}
+          </main>
+        </div>
       </div>
-    </div>
+    </ProtectedPortal>
   );
 }

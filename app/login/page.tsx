@@ -1,6 +1,7 @@
 // ==========================================
 // LOGISCO - LOGIN PAGE
 // ==========================================
+// LOGISCO_SESSION_SECURITY_V2
 
 "use client";
 
@@ -17,20 +18,20 @@ import {
   EyeOff,
   CheckCircle2,
 } from "lucide-react";
-import { authenticateUser, validateToken } from "@/services/authService";
-
-// ==========================================
-// TYPES
-// ==========================================
-
-interface StoredUserSession {
-  email: string;
-  role: string;
-  token: string;
-  id: string;
-  employeeName: string;
-  route: string;
-}
+import { supabaseBrowser } from "@/app/lib/supabase-browser";
+import {
+  clearStoredSession,
+  createStoredSession,
+  isStoredSessionExpired,
+  readStoredSession,
+  saveStoredSession,
+  updateStoredSession,
+} from "@/app/lib/clientSession";
+import {
+  authenticateUser,
+  signOutBrowserSession,
+  validateSession,
+} from "@/services/authService";
 
 // ==========================================
 // LOGIN PAGE
@@ -55,35 +56,43 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const savedUser =
-        localStorage.getItem("logisco_user_session") ||
-        sessionStorage.getItem("logisco_user_session");
+      const savedUser = readStoredSession();
 
       if (!savedUser) {
+        clearStoredSession();
         setIsCheckingSession(false);
         return;
       }
 
       try {
-        const user: StoredUserSession = JSON.parse(savedUser);
-
-        if (user?.token && user?.route) {
-          // Verify the token with the backend before trusting it
-          const isValid = await validateToken(user.token);
-
-          if (isValid) {
-            router.replace(user.route);
-          } else {
-            // Token is dead - throw an error to trigger the catch block cleanup
-            throw new Error("Token expired");
-          }
-        } else {
-          setIsCheckingSession(false);
+        if (isStoredSessionExpired(savedUser)) {
+          throw new Error("Application session expired");
         }
+
+        // Supabase refreshes its short-lived access token when necessary.
+        const {
+          data: { session: browserSession },
+          error: browserSessionError,
+        } = await supabaseBrowser.auth.getSession();
+
+        if (browserSessionError || !browserSession) {
+          throw new Error("Supabase session expired");
+        }
+
+        const token = browserSession.access_token;
+        updateStoredSession({
+          token,
+          accessTokenExpiresAt: browserSession.expires_at ?? null,
+        });
+
+        // Always trust the role returned by the backend, not browser storage.
+        const verifiedSession = await validateSession(token);
+        if (!verifiedSession) throw new Error("Invalid session");
+
+        router.replace(verifiedSession.homeRoute);
       } catch {
-        // If parsing fails or the token is invalid, nuke the dead session
-        localStorage.removeItem("logisco_user_session");
-        sessionStorage.removeItem("logisco_user_session");
+        clearStoredSession();
+        await signOutBrowserSession();
         setIsCheckingSession(false);
       }
     };
@@ -131,70 +140,30 @@ export default function LoginPage() {
       }
 
       // ======================================
-      // DETERMINE ROUTE FROM ROLE
-      // ======================================
-
-      const role = user.role?.toLowerCase().trim() || "";
-      let targetRoute = "/";
-
-      switch (role) {
-        case "admin":
-          targetRoute = "/admindashboard/dashboard";
-          break;
-        case "coordinator":
-          targetRoute = "/coordinator";
-          break;
-        case "driver":
-          targetRoute = "/crew/dashboard";
-          break;
-        case "mechanic":
-          targetRoute = "/mechanic/fleet-status";
-          break;
-        case "helper":
-          targetRoute = "/crew/dashboard";
-          break;
-        case "client":
-          targetRoute = "/client"; 
-          break;
-        default:
-          targetRoute = "/dashboard";
-      }
-
-      // ======================================
       // BUILD SESSION
       // ======================================
 
-      const updatedUser: StoredUserSession = {
+      const updatedUser = createStoredSession({
         email: user.email,
         role: user.role,
         token: user.token,
         id: user.id,
         employeeName: user.employeeName,
-        route: targetRoute,
-      };
-
-      // ======================================
-      // CLEAR OLD SESSION FIRST
-      // ======================================
-
-      localStorage.removeItem("logisco_user_session");
-      sessionStorage.removeItem("logisco_user_session");
+        route: user.route,
+        accessTokenExpiresAt: user.accessTokenExpiresAt,
+      });
 
       // ======================================
       // SAVE SESSION
       // ======================================
 
-      if (rememberMe) {
-        localStorage.setItem("logisco_user_session", JSON.stringify(updatedUser));
-      } else {
-        sessionStorage.setItem("logisco_user_session", JSON.stringify(updatedUser));
-      }
+      saveStoredSession(updatedUser, rememberMe);
 
       // ======================================
       // REDIRECT
       // ======================================
 
-      router.push(targetRoute);
+      router.push(user.route);
 
     } catch (error) {
       console.error("Login error:", error);

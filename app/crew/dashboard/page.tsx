@@ -73,7 +73,7 @@ const generateDynamicStops = (delivery: DeliveryRecord) => {
       stops.push({ title: `Pickup: ${p.warehouse}`, type: "pickup", reqPod: true, data: p });
     });
   } else {
-    stops.push({ title: `Pickup: ${delivery.pickupAddress.split(',')[0] || 'Base'}`, type: "pickup", reqPod: true });
+    stops.push({ title: `Pickup: ${delivery.pickupAddress?.split(',')[0] || 'Base'}`, type: "pickup", reqPod: true });
   }
 
   if (delivery.multipleDeliveries && delivery.multipleDeliveries.length > 0) {
@@ -242,7 +242,7 @@ export default function CrewDashboardPage({
     if (isSuccessfulFinish(delivery.status)) return "Delivery Concluded";
     
     const currentStep = delivery.current_step || 0;
-    if (delivery.status.toLowerCase() === "accepted" && currentStep === 0) return "Accepted - Awaiting Start";
+    if (delivery.status?.toLowerCase() === "accepted" && currentStep === 0) return "Accepted - Awaiting Start";
     if (currentStep === 1) return "Heading to Warehouse"; 
     if (currentStep > 1) return "Products Loaded - Delivering"; 
     
@@ -282,6 +282,31 @@ export default function CrewDashboardPage({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentDeliveries = filteredDeliveries.slice(startIndex, endIndex);
+
+  // Helper arrays for normalizing stops
+  const getPickupsArray = (delivery: DeliveryRecord) => {
+    if (delivery.multiplePickups && delivery.multiplePickups.length > 0) return delivery.multiplePickups;
+    return [{
+      warehouse: delivery.pickupAddress?.split(",")[0] || "Base",
+      address: delivery.pickupAddress,
+      contactPerson: delivery.contactPerson,
+      contactNumber: delivery.contactNumber,
+      pickupTime: delivery.pickupTime,
+      quantity: delivery.quantity || "N/A"
+    }];
+  };
+
+  const getDeliveriesArray = (delivery: DeliveryRecord) => {
+    if (delivery.multipleDeliveries && delivery.multipleDeliveries.length > 0) return delivery.multipleDeliveries;
+    return [{
+      branch: delivery.clientName,
+      address: delivery.deliveryAddress,
+      contactPerson: delivery.contactPerson,
+      contactNumber: delivery.contactNumber,
+      deliveryTime: delivery.deliveryTime,
+      quantity: delivery.quantity || "N/A"
+    }];
+  };
 
   const handleRowClick = (delivery: DeliveryRecord) => {
     setSelectedDelivery(delivery);
@@ -327,7 +352,7 @@ export default function CrewDashboardPage({
       if (isLastStep) {
         macroStatus = "Completed";
       } else if (currentStepIndex > 0) {
-        macroStatus = "Ongoing Delivery";
+        macroStatus = "In Transit"; // ALIGNED ENUM: Changed from "Ongoing Delivery" to match database schema
       }
 
       const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
@@ -338,6 +363,10 @@ export default function CrewDashboardPage({
       formData.append("status", macroStatus);
       formData.append("current_step", String(nextStep));
       formData.append("remarks", remarks);
+      
+      // Explicitly pass the title so the backend doesn't crash trying to find an index that doesn't exist
+      const currentStopTitle = dynamicStops[currentStepIndex]?.title || "Location Update";
+      formData.append("title", currentStopTitle);
       
       if (receiverName) formData.append("receiverName", receiverName);
       if (selectedFile) formData.append("podImage", selectedFile);
@@ -361,7 +390,7 @@ export default function CrewDashboardPage({
       if (isLastStep) {
         setShowTripReportModal(true);
       } else {
-        alert(`Successfully arrived and updated: ${dynamicStops[currentStepIndex].title}`);
+        alert(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`);
         setViewMode("list");
         setSelectedDelivery(null);
         setSelectedImage(null);
@@ -518,6 +547,66 @@ export default function CrewDashboardPage({
     return "bg-amber-100 text-amber-800 border border-amber-300";
   };
 
+  const renderModalActions = () => {
+    if (!selectedDelivery) return null;
+
+    if (isCompleted(selectedDelivery.status)) {
+      return (
+        <button
+          onClick={() => setShowDetailsModal(false)}
+          className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        >
+          Close Details
+        </button>
+      );
+    }
+    
+    if (isUnconfirmed(selectedDelivery.status)) {
+      return (
+        <>
+          <button
+            onClick={() => setShowDeclineConfirmModal(true)}
+            className="w-full sm:w-40 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          >
+            Decline
+          </button>
+          <button
+            onClick={() => setShowAcceptConfirmModal(true)}
+            className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          >
+            Accept
+          </button>
+        </>
+      );
+    }
+    
+    if (selectedDelivery.status?.toLowerCase() === "accepted" && (selectedDelivery.current_step || 0) === 0) {
+      return (
+        <button
+          onClick={() => setShowStartConfirmModal(true)}
+          className="w-full sm:w-48 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        >
+          Start Delivery
+        </button>
+      );
+    }
+    
+    return (
+      <button
+        onClick={() => {
+          const calculatedStops = generateDynamicStops(selectedDelivery);
+          setDynamicStops(calculatedStops);
+          setCurrentStepIndex(selectedDelivery.current_step || 0);
+          setShowDetailsModal(false);
+          setViewMode("update-status");
+        }}
+        className="w-full sm:w-48 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+      >
+        Update Status
+      </button>
+    );
+  };
+
   return (
     <>
       {viewMode === "update-status" && selectedDelivery ? (
@@ -662,120 +751,65 @@ export default function CrewDashboardPage({
                   <span className="text-xs text-slate-500 font-normal">Sequential Pickup Workflow</span>
                 </div>
                 <div className="space-y-4">
-                  {selectedDelivery.multiplePickups && selectedDelivery.multiplePickups.length > 0 ? (
-                    selectedDelivery.multiplePickups.map((pickup, idx) => {
-                      const stopIndex = 1 + idx; 
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                  {getPickupsArray(selectedDelivery).map((pickup, idx) => {
+                    const stopIndex = 1 + idx; 
+                    const calculatedStep = selectedDelivery.current_step || 0;
+                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                    const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                    const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                    
+                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
-                      return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
-                          <span className="text-slate-700 truncate">{pickup.address}</span>
-                          <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                    return (
+                      <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const stopIndex = 1;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
-                      return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Base"}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.contactPerson} | ({selectedDelivery.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {selectedDelivery.pickupTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {selectedDelivery.quantity || "N/A"}</span>
-                        </div>
-                      );
-                    })()
-                  )}
+                        <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
+                        <span className="text-slate-700 truncate">{pickup.address}</span>
+                        <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
+                        <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
+                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
+                        <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* ORIGINAL DELIVERY ADDRESSES LIST */}
+              {/* DELIVERY ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   Delivery Addresses
                 </div>
                 <div className="space-y-4">
-                  {selectedDelivery.multipleDeliveries && selectedDelivery.multipleDeliveries.length > 0 ? (
-                    selectedDelivery.multipleDeliveries.map((deliv, idx) => {
-                      const pickupCount = selectedDelivery.multiplePickups?.length || 1;
-                      const stopIndex = 1 + pickupCount + idx;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                  {getDeliveriesArray(selectedDelivery).map((deliv, idx) => {
+                    const pickupCount = getPickupsArray(selectedDelivery).length;
+                    const stopIndex = 1 + pickupCount + idx;
+                    const calculatedStep = selectedDelivery.current_step || 0;
+                    
+                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                    const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                    const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                    
+                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
-                      return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
-                          <span className="text-slate-700 truncate">{deliv.address}</span>
-                          <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                    return (
+                      <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const pickupCount = selectedDelivery.multiplePickups?.length || 1;
-                      const stopIndex = 1 + pickupCount;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
-                      return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.clientName}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.deliveryAddress}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.contactPerson} | ({selectedDelivery.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {selectedDelivery.deliveryTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {selectedDelivery.quantity || "N/A"}</span>
-                        </div>
-                      );
-                    })()
-                  )}
+                        <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
+                        <span className="text-slate-700 truncate">{deliv.address}</span>
+                        <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
+                        <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
+                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
+                        <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -813,7 +847,7 @@ export default function CrewDashboardPage({
                   <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
-                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24" />
+                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24"></textarea>
                   </div>
                 </div>
               )}
@@ -829,7 +863,7 @@ export default function CrewDashboardPage({
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver's Name <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver&apos;s Name <span className="text-red-500">*</span></label>
                     <input 
                       type="text" 
                       value={receiverName} 
@@ -855,7 +889,8 @@ export default function CrewDashboardPage({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200">
+            {/* View Mode Actions */}
+            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
               {isCompleted(selectedDelivery.status) ? (
                 <button
                   onClick={() => setViewMode("list")}
@@ -1006,127 +1041,72 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              {/* ORIGINAL PICKUP ADDRESSES LIST */}
+              {/* PICKUP ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between">
                   <span>Pickup Addresses</span>
                   <span className="text-xs text-slate-500 font-normal">Sequential Pickup Workflow</span>
                 </div>
                 <div className="space-y-4">
-                  {selectedDelivery.multiplePickups && selectedDelivery.multiplePickups.length > 0 ? (
-                    selectedDelivery.multiplePickups.map((pickup, idx) => {
-                      const stopIndex = 1 + idx; 
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                  {getPickupsArray(selectedDelivery).map((pickup, idx) => {
+                    const stopIndex = 1 + idx; 
+                    const calculatedStep = selectedDelivery.current_step || 0;
+                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                    const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                    const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                    
+                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
-                      return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
-                          <span className="text-slate-700 truncate">{pickup.address}</span>
-                          <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                    return (
+                      <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const stopIndex = 1;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
-                      return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.pickupAddress.split(",")[0] || "Base"}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.pickupAddress}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.contactPerson} | ({selectedDelivery.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {selectedDelivery.pickupTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {selectedDelivery.quantity || "N/A"}</span>
-                        </div>
-                      );
-                    })()
-                  )}
+                        <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
+                        <span className="text-slate-700 truncate">{pickup.address}</span>
+                        <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
+                        <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
+                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
+                        <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* ORIGINAL DELIVERY ADDRESSES LIST (PREVIEW) */}
+              {/* DELIVERY ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">
                   Delivery Addresses
                 </div>
                 <div className="space-y-4">
-                  {selectedDelivery.multipleDeliveries && selectedDelivery.multipleDeliveries.length > 0 ? (
-                    selectedDelivery.multipleDeliveries.map((deliv, idx) => {
-                      const pickupCount = selectedDelivery.multiplePickups?.length || 1;
-                      const stopIndex = 1 + pickupCount + idx;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                  {getDeliveriesArray(selectedDelivery).map((deliv, idx) => {
+                    const pickupCount = getPickupsArray(selectedDelivery).length;
+                    const stopIndex = 1 + pickupCount + idx;
+                    const calculatedStep = selectedDelivery.current_step || 0;
+                    
+                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
+                    const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
+                    const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
+                    
+                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
-                      return (
-                        <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
-                          <span className="text-slate-700 truncate">{deliv.address}</span>
-                          <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                    return (
+                      <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const pickupCount = selectedDelivery.multiplePickups?.length || 1;
-                      const stopIndex = 1 + pickupCount;
-                      const calculatedStep = selectedDelivery.current_step || 0;
-                      
-                      const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || calculatedStep > stopIndex;
-                      const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
-                      const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
-                      
-                      let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
-                      return (
-                        <div className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #1</span>
-                            <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
-                          </div>
-                          <span className="text-base font-bold text-slate-900 truncate">{selectedDelivery.clientName}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.deliveryAddress}</span>
-                          <span className="text-slate-700 truncate">{selectedDelivery.contactPerson} | ({selectedDelivery.contactNumber})</span>
-                          <span className="text-slate-700 truncate">Delivery Time: {selectedDelivery.deliveryTime}</span>
-                          <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                          <span className="text-slate-700 truncate">Qty: {selectedDelivery.quantity || "N/A"}</span>
-                        </div>
-                      );
-                    })()
-                  )}
+                        <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
+                        <span className="text-slate-700 truncate">{deliv.address}</span>
+                        <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
+                        <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
+                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
+                        <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1164,7 +1144,7 @@ export default function CrewDashboardPage({
                   <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
-                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24" />
+                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24"></textarea>
                   </div>
                 </div>
               )}
@@ -1180,7 +1160,7 @@ export default function CrewDashboardPage({
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver's Name <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver&apos;s Name <span className="text-red-500">*</span></label>
                     <input 
                       type="text" 
                       value={receiverName} 
@@ -1206,22 +1186,9 @@ export default function CrewDashboardPage({
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200">
-              {isCompleted(selectedDelivery.status) ? (
-                <button
-                  onClick={() => setViewMode("list")}
-                  className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  Close Route
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowSubmitConfirmModal(true)}
-                  className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  {currentStepIndex === dynamicStops.length - 1 ? "Complete Trip" : "Confirm Location"}
-                </button>
-              )}
+            {/* Actions for Details Modal based on Status */}
+            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
+              {renderModalActions()}
             </div>
           </div>
         </div>
@@ -1234,7 +1201,7 @@ export default function CrewDashboardPage({
             <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Location Update</h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-6">
               Confirm arrival/completion for <strong className="text-blue-600">{dynamicStops[currentStepIndex]?.title}</strong>?
-              {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver's Name is required.</span>}
+              {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
             </p>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
@@ -1253,8 +1220,8 @@ export default function CrewDashboardPage({
             <h3 className="text-lg font-bold text-slate-900 mb-2">Trip Completed!</h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-4">Please submit any final remarks or log any vehicle issues observed during the trip.</p>
             <div className="space-y-4 mb-6">
-              <div><label className="block text-xs font-semibold text-slate-700 mb-1">Trip Remarks</label><textarea value={tripRemarks} onChange={(e) => setTripRemarks(e.target.value)} placeholder="How was the trip?" className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 min-h-20" /></div>
-              <div><label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Issues (If any)</label><textarea value={vehicleIssues} onChange={(e) => setVehicleIssues(e.target.value)} placeholder="Any unusual sounds, flat tires, etc." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-20" /></div>
+              <div><label className="block text-xs font-semibold text-slate-700 mb-1">Trip Remarks</label><textarea value={tripRemarks} onChange={(e) => setTripRemarks(e.target.value)} placeholder="How was the trip?" className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 min-h-20"></textarea></div>
+              <div><label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Issues (If any)</label><textarea value={vehicleIssues} onChange={(e) => setVehicleIssues(e.target.value)} placeholder="Any unusual sounds, flat tires, etc." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-20"></textarea></div>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={completeTripWorkflow} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
@@ -1305,7 +1272,7 @@ export default function CrewDashboardPage({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
-            <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required />
+            <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required></textarea>
             <div className="flex items-center gap-3">
               <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
               <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim()} className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
@@ -1337,7 +1304,7 @@ export default function CrewDashboardPage({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Details</label>
-                <textarea value={emergencyMessage} onChange={(e) => setEmergencyMessage(e.target.value)} placeholder="Describe the situation..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-20" />
+                <textarea value={emergencyMessage} onChange={(e) => setEmergencyMessage(e.target.value)} placeholder="Describe the situation..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-20"></textarea>
               </div>
             </div>
             <div className="flex items-center gap-3">

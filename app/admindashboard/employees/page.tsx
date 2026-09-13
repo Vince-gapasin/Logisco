@@ -1,4 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
+// EMPLOYEE_LOGIN_ACCESS_V1
+// EMPLOYEE_COORDINATOR_READ_ONLY_V1
 // ==========================================
 // LOGISCO - EMPLOYEE DIRECTORY
 // ==========================================
@@ -81,6 +83,7 @@ interface EmployeeRecord {
   isActive: boolean;
   authId: string | null;
   activation_sent_at?: string | null;
+  activation_completed_at?: string | null;
 }
 
 interface EmployeeFormState {
@@ -139,6 +142,7 @@ interface ApiEmployee {
   auth_id: string | null;
   isActive: boolean | null;
   activation_sent_at?: string | null;
+  activation_completed_at?: string | null;
 
   birthdate: string | null;
   middleName: string | null;
@@ -331,6 +335,7 @@ function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
     authId: employee.auth_id,
     isActive: employee.isActive === true,
     activation_sent_at: employee.activation_sent_at,
+    activation_completed_at: employee.activation_completed_at,
   };
 }
 
@@ -1181,15 +1186,15 @@ function EmployeeDetailView({
   const [isActivating, setIsActivating] = useState(false);
 
   const isAdmin = currentRole.toLowerCase() === "admin";
-  const canEdit = ["admin", "coordinator"].includes(currentRole.toLowerCase());
+  const canEdit = isAdmin;
 
-  const accountActivated = Boolean(employee.isActive);
+  const accountActivated = Boolean(employee.activation_completed_at);
   const activationCooldownMs = 15 * 60 * 1000;
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
-    if (!employee.activation_sent_at || employee.isActive) {
+    if (!employee.activation_sent_at || accountActivated) {
       return;
     }
 
@@ -1198,7 +1203,7 @@ function EmployeeDetailView({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [employee.activation_sent_at, employee.isActive]);
+  }, [employee.activation_sent_at, accountActivated]);
 
   const activationSentAt = employee.activation_sent_at
     ? new Date(employee.activation_sent_at).getTime()
@@ -1271,7 +1276,7 @@ function EmployeeDetailView({
                 className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Account Activated
+                Login Access
               </button>
             ) : activationCooldownActive ? (
               <button
@@ -1298,7 +1303,7 @@ function EmployeeDetailView({
                   ? "Sending Invite..."
                   : activationSentAt
                     ? "Resend Activation"
-                    : "Activate Account"}
+                    : "Allow Login"}
               </button>
             ))}
 
@@ -1359,9 +1364,7 @@ function EmployeeDetailView({
                       : "bg-amber-100 text-amber-700"
                   }`}
                 >
-                  {accountActivated
-                    ? "Login Account Activated"
-                    : "Login Account Not Activated"}
+                  {accountActivated ? "Login Access ✓" : "No Access"}
                 </span>
               </div>
             </div>
@@ -1543,6 +1546,7 @@ export default function EmployeesPage() {
   );
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState("All Roles");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1611,8 +1615,8 @@ export default function EmployeesPage() {
       params.set("sortBy", "employeeName");
       params.set("sortOrder", "asc");
 
-      if (searchTerm.trim()) {
-        params.set("search", searchTerm.trim());
+      if (debouncedSearchTerm) {
+        params.set("search", debouncedSearchTerm);
       }
       if (selectedRole !== "All Roles") {
         params.set("role", selectedRole);
@@ -1632,18 +1636,20 @@ export default function EmployeesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, searchTerm, selectedRole]);
+  }, [currentPage, debouncedSearchTerm, selectedRole]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      fetchEmployees();
-    }, 300);
-    return () => window.clearTimeout(timer);
+    void fetchEmployees();
   }, [fetchEmployees]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedRole]);
+    const timer = window.setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
   // ==========================================
   // GET ONE
@@ -1779,7 +1785,7 @@ export default function EmployeesPage() {
           address: formData.address,
           contact: formData.contactNumber,
           emailAddress: formData.emailAddress,
-          isActive: false,
+          isActive: true,
           gender: formData.gender || null,
           birthdate: formData.birthdate || null,
           bloodType: formData.bloodType || null,
@@ -1975,7 +1981,7 @@ export default function EmployeesPage() {
     totalEmployees === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1;
   const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalEmployees);
   const currentRole = currentSession?.role?.toLowerCase() || "";
-  const canCreate = ["admin", "coordinator"].includes(currentRole);
+  const canCreate = currentRole === "admin";
 
   // ==========================================
   // DIRECTORY
@@ -2062,6 +2068,7 @@ export default function EmployeesPage() {
                         type="button"
                         key={role}
                         onClick={() => {
+                          setCurrentPage(1);
                           setSelectedRole(role);
                           setIsDropdownOpen(false);
                         }}
@@ -2142,13 +2149,13 @@ export default function EmployeesPage() {
                       {employee.contactNumber || "N/A"}
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 truncate">
-                      {employee.isActive ? (
+                      {employee.activation_completed_at ? (
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 whitespace-nowrap">
-                          Activated
+                          Login Access ✓
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 whitespace-nowrap">
-                          Not Activated
+                          No Access
                         </span>
                       )}
                     </td>
