@@ -443,16 +443,16 @@ function BookingDetailsModal({
     let msg = "";
     switch (selectedRecoveryAction) {
       case "reschedule":
-        msg = "Reschedule delivery is successful.";
+        msg = "Delivery has been rescheduled successfully. Waiting for crew to accept the new schedule.";
         break;
       case "reassign":
-        msg = "Re-assignment of staff and vehicle is successful.";
+        msg = "New staff and vehicle have been assigned successfully. Waiting for crew to accept the assignment.";
         break;
       case "subcon":
-        msg = "Sub-Con truck assignment is successful.";
+        msg = "Sub-Con truck request has been sent successfully. Waiting for Sub-Con partner's confirmation.";
         break;
       case "inspection":
-        msg = "Inspection request has been sent successfully.";
+        msg = "Inspection request has been sent successfully. Waiting for the assigned mechanic to confirm the inspection.";
         break;
       default:
         return;
@@ -1478,11 +1478,11 @@ export default function FoulTripFeedPage() {
       {/* CENTERED SUCCESS NOTIFICATION TOAST */}
       {showSuccessToast && (
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none animate-fade-in">
-          <div className="bg-white border border-slate-200 text-slate-900 px-10 py-8 rounded-2xl shadow-2xl flex flex-col items-center justify-center text-center gap-4 max-w-md w-full mx-auto animate-scale-up pointer-events-auto">
+          <div className="bg-white border border-slate-200 text-slate-900 px-8 sm:px-12 py-10 rounded-2xl shadow-2xl flex flex-col items-center justify-center text-center gap-5 max-w-lg w-full mx-auto animate-scale-up pointer-events-auto">
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center shrink-0 shadow-sm">
               <CheckCircle2 className="w-9 h-9 text-emerald-600 stroke-[2.5]" />
             </div>
-            <span className="text-base sm:text-lg font-bold text-slate-900 leading-snug tracking-wide">
+            <span className="text-lg sm:text-[20px] font-bold text-slate-900 leading-relaxed tracking-wide">
               {toastMessage}
             </span>
           </div>
