@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
   isInTransit,
@@ -966,7 +967,9 @@ export default function InTransitFeedPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedBookings.length > 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={5} />
+              ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr
                     key={booking.id}
@@ -1029,7 +1032,7 @@ export default function InTransitFeedPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        {isLoading ? "Loading bookings..." : "No in-transit bookings found"}
+                        {"No in-transit bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no active deliveries on the road or

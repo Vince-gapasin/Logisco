@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
@@ -1468,7 +1469,9 @@ export default function UnassignedBookingsPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedBookings.length > 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={5} />
+              ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr
                     key={booking.id}
@@ -1512,7 +1515,7 @@ export default function UnassignedBookingsPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        {isLoading ? "Loading bookings..." : "No unassigned bookings found"}
+                        {"No unassigned bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         All current schedules have been assigned or no bookings

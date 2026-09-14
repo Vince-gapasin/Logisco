@@ -5,6 +5,7 @@
 
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
+import { fetchLogPhotos, mergeLogPhotos, needsPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -594,6 +595,28 @@ export default function MechanicHistoryLogsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [selectedLog, setSelectedLog] = useState<HistoryLogRecord | null>(null);
+
+  // Photos are excluded from the list payload; load them for the open log.
+  useEffect(() => {
+    if (!selectedLog || !needsPhotos(selectedLog)) return;
+
+    let active = true;
+    const logID = selectedLog.id;
+
+    fetchLogPhotos([logID])
+      .then((photos) => {
+        if (!active || Object.keys(photos).length === 0) return;
+        setLogsList((prev) => mergeLogPhotos(prev, photos));
+        setSelectedLog((prev) =>
+          prev && prev.id === logID ? mergeLogPhotos([prev], photos)[0] : prev,
+        );
+      })
+      .catch((error) => console.error("Failed to load photos:", error));
+
+    return () => {
+      active = false;
+    };
+  }, [selectedLog]);
   const [editingLog, setEditingLog] = useState<HistoryLogRecord | null>(null);
 
   const [logsList, setLogsList] = useState<HistoryLogRecord[]>([]);

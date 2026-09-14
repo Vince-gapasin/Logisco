@@ -5,6 +5,7 @@
 
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
+import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -1060,12 +1061,14 @@ function LogDetailView({
     clickedIdx !== -1 ? sorted.slice(startIdx, endIdx + 1) : [log];
 
   const preliminaryLogs = cycleLogs.filter(
-    (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl,
+    (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl || (l as any).hasPreliminaryPhoto,
   );
   const progressLogs = cycleLogs.filter(
-    (l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl,
+    (l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl || (l as any).hasProgressPhoto,
   );
-  const finalLogs = cycleLogs.filter((l) => l.issue || l.remarks || l.photoUrl);
+  const finalLogs = cycleLogs.filter(
+    (l) => l.issue || l.remarks || l.photoUrl || (l as any).hasFinalPhoto,
+  );
 
   const mechanicSourceLog =
     preliminaryLogs.length > 0 ? preliminaryLogs[0] : cycleLogs[0] || log;
@@ -2121,6 +2124,44 @@ export default function MechanicFleetStatusPage({
   const [maintenanceLogs, setMaintenanceLogs] = useState<HistoryLogRecord[]>(
     [],
   );
+
+  const requestedPhotoIDs = useRef<Set<string>>(new Set());
+
+  // Photos are excluded from the list payload; load them for the truck whose
+  // history is open, covering every log shown in its detail view.
+  useEffect(() => {
+    if (!selectedHistoryRecord) return;
+
+    const truckLogIDs = maintenanceLogs
+      .filter((log) => log && String(log.truckID) === String(selectedHistoryRecord.truckID))
+      .filter((log: any) =>
+        (log.hasPreliminaryPhoto && !log.preliminaryPhotoUrl) ||
+        (log.hasProgressPhoto && !log.progressPhotoUrl) ||
+        (log.hasFinalPhoto && !log.photoUrl),
+      )
+      .map((log) => log.id);
+
+    // Only request each log once: a log flagged as having a photo whose row
+    // turns out to be empty must not be retried on every render.
+    const pending = truckLogIDs.filter((id) => !requestedPhotoIDs.current.has(String(id)));
+    if (pending.length === 0) return;
+    pending.forEach((id) => requestedPhotoIDs.current.add(String(id)));
+
+    let active = true;
+    fetchLogPhotos(pending)
+      .then((photos) => {
+        if (!active || Object.keys(photos).length === 0) return;
+        setMaintenanceLogs((prev) => mergeLogPhotos(prev, photos));
+        setSelectedHistoryRecord((prev) =>
+          prev ? mergeLogPhotos([prev], photos)[0] : prev,
+        );
+      })
+      .catch((error) => console.error("Failed to load photos:", error));
+
+    return () => {
+      active = false;
+    };
+  }, [selectedHistoryRecord, maintenanceLogs]);
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>(
     [],
   );

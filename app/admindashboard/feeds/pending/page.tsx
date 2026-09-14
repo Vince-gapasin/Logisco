@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
   isAwaitingDeparture,
@@ -1648,7 +1649,9 @@ export default function PendingBookingPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedBookings.length > 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={5} />
+              ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr
                     key={booking.id}
@@ -1711,7 +1714,7 @@ export default function PendingBookingPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        {isLoading ? "Loading bookings..." : "No pending bookings found"}
+                        {"No pending bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no scheduled deliveries in pending

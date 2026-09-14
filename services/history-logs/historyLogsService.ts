@@ -51,7 +51,9 @@ export async function getHistoryLogs() {
   const { data: rawLogs, error } = await supabase
     .from("HistoryLogsM")
     .select(
-      "id,truckID,date,statusBefore,statusAfter,created_at,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase,photoUrl)",
+      // LogPhotos.photoUrl holds a base64 image: fetch only the phase here so
+      // the list stays small, and load images through getLogPhotos on demand.
+      "id,truckID,date,statusBefore,statusAfter,created_at,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase)",
     )
     .order("created_at", { ascending: false });
 
@@ -84,15 +86,46 @@ export async function getHistoryLogs() {
       additionalMechanic: addMech?.Employee?.employeeName || "",
       driversReport: prelimNote?.issue,
       preliminaryRemarks: prelimNote?.remarks,
-      preliminaryPhotoUrl: prelimPhoto?.photoUrl,
       additionalIssue: progNote?.issue,
       progressRemarks: progNote?.remarks,
-      progressPhotoUrl: progPhoto?.photoUrl,
       issue: finalNote?.issue,
       remarks: finalNote?.remarks,
-      photoUrl: finalPhoto?.photoUrl,
+
+      // Image data is not included in the list; these say whether one exists.
+      hasPreliminaryPhoto: Boolean(prelimPhoto),
+      hasProgressPhoto: Boolean(progPhoto),
+      hasFinalPhoto: Boolean(finalPhoto),
+      preliminaryPhotoUrl: null,
+      progressPhotoUrl: null,
+      photoUrl: null,
     };
   });
+}
+
+
+// Image data for specific logs, keyed by log id then phase. Used when a log
+// is opened for viewing or editing, so the list itself stays light.
+export async function getLogPhotos(
+  logIDs: string[],
+): Promise<Record<string, Record<string, string>>> {
+  const ids = [...new Set(logIDs.filter(Boolean))];
+  if (ids.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("LogPhotos")
+    .select("logID, phase, photoUrl")
+    .in("logID", ids);
+
+  if (error) throw new Error(`Failed to load photos: ${error.message}`);
+
+  const byLog: Record<string, Record<string, string>> = {};
+  for (const row of data ?? []) {
+    if (!row.photoUrl) continue;
+    byLog[row.logID] = byLog[row.logID] ?? {};
+    byLog[row.logID][row.phase] = row.photoUrl;
+  }
+
+  return byLog;
 }
 
 export async function createHistoryLog(body: LogBody) {

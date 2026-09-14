@@ -20,7 +20,34 @@ export function authFetch(url: string, options: RequestInit = {}): Promise<Respo
 
 // JSON helper: attaches the token, sets Content-Type for bodies, parses the
 // response and throws an Error carrying the server's message on failure.
-export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+// ==========================================
+// GET CACHE
+// ==========================================
+// Screens refetch on every mount, so navigating back to a page previously
+// started from blank. GET responses are reused for a short window and
+// concurrent requests for the same URL share one network call.
+//
+// Any write clears the cache, so a change is always reflected immediately.
+// Pass { cache: "no-store" } to bypass it (used by the polling screens).
+
+const GET_CACHE_TTL_MS = 60_000;
+
+const getCache = new Map<string, { data: unknown; storedAt: number }>();
+const inFlight = new Map<string, Promise<unknown>>();
+
+/** Drops cached GETs. With a prefix, only matching URLs are dropped. */
+export function invalidateApiCache(prefix?: string): void {
+  if (!prefix) {
+    getCache.clear();
+    return;
+  }
+
+  for (const key of getCache.keys()) {
+    if (key.startsWith(prefix)) getCache.delete(key);
+  }
+}
+
+async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
   if (!token) {
     throw new Error("Authentication session not found. Please log in again.");
@@ -51,4 +78,40 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
   }
 
   return result as T;
+}
+
+export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+
+  // Writes go straight through, and invalidate everything cached.
+  if (method !== "GET") {
+    const result = await requestJson<T>(url, options);
+    invalidateApiCache();
+    return result;
+  }
+
+  if (options.cache === "no-store") {
+    return requestJson<T>(url, options);
+  }
+
+  const cached = getCache.get(url);
+  if (cached && Date.now() - cached.storedAt < GET_CACHE_TTL_MS) {
+    return cached.data as T;
+  }
+
+  // Share one request between callers asking for the same URL at once.
+  const existing = inFlight.get(url);
+  if (existing) return existing as Promise<T>;
+
+  const request = requestJson<T>(url, options)
+    .then((data) => {
+      getCache.set(url, { data, storedAt: Date.now() });
+      return data;
+    })
+    .finally(() => {
+      inFlight.delete(url);
+    });
+
+  inFlight.set(url, request);
+  return request;
 }

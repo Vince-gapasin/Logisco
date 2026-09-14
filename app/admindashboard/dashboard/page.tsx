@@ -3114,7 +3114,30 @@ export default function AdminDashboardPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      // The dashboard only shows recent work per bucket, so fetch the stages
+      // it renders instead of every order ever created.
+      const DASHBOARD_STAGES = [
+        "unassigned",
+        "departing",
+        "in-transit",
+        "completed",
+        "foul-trip",
+      ];
+
+      const stageResults = await Promise.all(
+        DASHBOARD_STAGES.map((stage) =>
+          apiFetch<any[]>(`/api/bookings?stage=${stage}&limit=100`).catch(() => []),
+        ),
+      );
+
+      // An order can only be in one stage, but dedupe defensively.
+      const seenOrderIDs = new Set<string>();
+      const orders = stageResults.flat().filter((order: any) => {
+        const key = String(order?.orderID ?? order?.orderCode ?? "");
+        if (!key || seenOrderIDs.has(key)) return false;
+        seenOrderIDs.add(key);
+        return true;
+      });
       const categorized: { [key: string]: any[] } = {
         "Pending Bookings": [],
         "In-Transit": [],

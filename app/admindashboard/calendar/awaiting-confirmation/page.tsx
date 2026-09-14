@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
@@ -1535,7 +1536,9 @@ export default function AwaitingConfirmationPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedBookings.length > 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={5} columns={6} />
+              ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr
                     key={booking.id}
@@ -1609,7 +1612,7 @@ export default function AwaitingConfirmationPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        {isLoading ? "Loading bookings..." : "No pending confirmations found"}
+                        {"No pending confirmations found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         All crew members have confirmed their schedules or no

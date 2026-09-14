@@ -50,8 +50,10 @@ export function useNotifications() {
 
   const load = useCallback(async () => {
     try {
+      // Polled every 60s: always go to the network.
       const result = await apiFetch<{ data: Omit<AppNotification, "isRead" | "isDone">[] }>(
         "/api/notifications",
+        { cache: "no-store" },
       );
       const dismissed = readDismissedIds();
 

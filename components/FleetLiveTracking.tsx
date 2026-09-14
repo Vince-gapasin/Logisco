@@ -62,7 +62,10 @@ export default function FleetLiveTracking() {
 
   const loadFleet = useCallback(async () => {
     try {
-      const result = await apiFetch<{ data: LiveFleetRecord[] }>("/api/fleet-locations");
+      // Polled every 30s: always go to the network.
+      const result = await apiFetch<{ data: LiveFleetRecord[] }>("/api/fleet-locations", {
+        cache: "no-store",
+      });
       setTrackingList(result.data ?? []);
       setLoadedAt(Date.now());
       setLoadError("");
