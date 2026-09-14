@@ -86,19 +86,47 @@ CREATE UNIQUE INDEX IF NOT EXISTS dispatchhelper_unique_helper
 -- NOT VALID: enforced for new writes without scanning existing rows. Run
 -- `ALTER TABLE ... VALIDATE CONSTRAINT ...` later once old data is clean.
 
-ALTER TABLE "DispatchOrder"
-  ADD CONSTRAINT dispatchorder_current_step_nonnegative CHECK (current_step >= 0) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dispatchorder_current_step_nonnegative') THEN
+    ALTER TABLE "DispatchOrder" ADD CONSTRAINT dispatchorder_current_step_nonnegative CHECK (current_step >= 0) NOT VALID;
+  END IF;
+END $$;
 
-ALTER TABLE "Truck"
-  ADD CONSTRAINT truck_capacity_nonnegative CHECK (capacity >= 0) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'truck_capacity_nonnegative') THEN
+    ALTER TABLE "Truck" ADD CONSTRAINT truck_capacity_nonnegative CHECK (capacity >= 0) NOT VALID;
+  END IF;
+END $$;
 
-ALTER TABLE "OrderDetails"
-  ADD CONSTRAINT orderdetails_quantity_positive CHECK (quantity > 0) NOT VALID,
-  ADD CONSTRAINT orderdetails_weight_nonnegative CHECK ("weightPerItem" >= 0) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orderdetails_quantity_positive') THEN
+    ALTER TABLE "OrderDetails" ADD CONSTRAINT orderdetails_quantity_positive CHECK (quantity > 0) NOT VALID;
+  END IF;
+END $$;
 
-ALTER TABLE "FleetLocations"
-  ADD CONSTRAINT fleetlocations_lat_range CHECK (latitude BETWEEN -90 AND 90) NOT VALID,
-  ADD CONSTRAINT fleetlocations_long_range CHECK (longitude BETWEEN -180 AND 180) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orderdetails_weight_nonnegative') THEN
+    ALTER TABLE "OrderDetails" ADD CONSTRAINT orderdetails_weight_nonnegative CHECK ("weightPerItem" >= 0) NOT VALID;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fleetlocations_lat_range') THEN
+    ALTER TABLE "FleetLocations" ADD CONSTRAINT fleetlocations_lat_range CHECK (latitude BETWEEN -90 AND 90) NOT VALID;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fleetlocations_long_range') THEN
+    ALTER TABLE "FleetLocations" ADD CONSTRAINT fleetlocations_long_range CHECK (longitude BETWEEN -180 AND 180) NOT VALID;
+  END IF;
+END $$;
 
 
 -- ----------------------------------------------------------------------------
