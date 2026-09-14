@@ -1074,7 +1074,27 @@ export default function CrewDashboardPage({
 
             {/* View Mode Actions */}
             <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
-              {renderModalActions()}
+              {isCompleted(selectedDelivery.status) ? (
+                <button
+                  onClick={() => {
+                    setViewMode("list");
+                    setSelectedDelivery(null);
+                  }}
+                  className="w-full sm:w-48 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                >
+                  Back to Deliveries
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowSubmitConfirmModal(true)}
+                  disabled={isSubmittingResponse}
+                  className="w-full sm:w-64 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
+                >
+                  {currentStepIndex >= dynamicStops.length - 1
+                    ? "Complete Delivery"
+                    : `Confirm: ${dynamicStops[currentStepIndex]?.title ?? "Update"}`}
+                </button>
+              )}
             </div>
           </div>
         </div>
