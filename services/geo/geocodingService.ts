@@ -21,6 +21,27 @@ export interface Coordinates {
 const PROXIMITY_LONGITUDE = 121.05;
 const PROXIMITY_LATITUDE = 14.55;
 
+// Compares town names ignoring accents, punctuation and a trailing "City":
+// Mapbox returns "Las Piñas" where an address usually reads "Las Pinas",
+// and "Makati" where the address says "Makati City".
+function normalizePlace(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\bcity\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mentionsPlace(address: string, place: string): boolean {
+  const normalizedPlace = normalizePlace(place);
+  if (!normalizedPlace) return true;
+
+  return normalizePlace(address).includes(normalizedPlace);
+}
+
 export async function geocodeAddress(address: string): Promise<Coordinates | null> {
   const query = address?.trim();
   if (!query || !MAPBOX_TOKEN) return null;
@@ -52,7 +73,7 @@ export async function geocodeAddress(address: string): Promise<Coordinates | nul
     // Mapbox matched is not named in the address we asked for, the result is a
     // different place and is refused. A missing pin beats a pin 10 km away.
     const matchedPlace: string | undefined = feature?.properties?.context?.place?.name;
-    if (matchedPlace && !query.toLowerCase().includes(matchedPlace.toLowerCase())) {
+    if (matchedPlace && !mentionsPlace(query, matchedPlace)) {
       console.warn(
         `Geocoding rejected for "${query}": matched ${feature?.properties?.full_address ?? matchedPlace}`,
       );
