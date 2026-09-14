@@ -1485,7 +1485,7 @@ export default function PendingBookingPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=departing");
       setBookings(
         (orders ?? []).map(mapOrderToBookingView).filter(isAwaitingDeparture).map(toFeedBooking),
       );

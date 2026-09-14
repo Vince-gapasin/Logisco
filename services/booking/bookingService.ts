@@ -17,7 +17,108 @@ const generateOrderCode = (): string => {
 // BOOKINGS (ORDERS) SERVICE
 // ==========================================
 
-export async function getBookings(): Promise<Order[]> {
+// Only the columns the booking screens actually read. Selecting "*" across
+// four nested relations pulled every column of every related row - including
+// the customer tracking token - on every page load.
+const BOOKING_COLUMNS = `
+  orderID,
+  orderCode,
+  notes,
+  createdAt,
+  isActive,
+  clientID,
+  Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
+  OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
+  BranchStops ( branchID, branchName, contactPerson, contactNum, expectedTime, stopStatus, deliveryLat, deliverLong, dispatchID ),
+  DispatchOrder (
+    dispatchID,
+    dispatchCode,
+    status,
+    current_step,
+    completedAt,
+    dispatchNote,
+    rejectionreason,
+    truckID,
+    driverID,
+    Truck ( plateNumber, model ),
+    Driver:Employee!driverID ( employeeName ),
+    DispatchHelper ( helperID, status, declinereason, Helper:Employee!helperID ( employeeName ) )
+  )
+`;
+
+// Dispatch statuses behind each booking screen, so the database does the
+// filtering instead of every screen downloading every order.
+const STAGE_STATUSES: Record<string, string[]> = {
+  "awaiting-crew": ["Pending", "Assigned"],
+  departing: ["Pending", "Assigned", "Accepted"],
+  "in-transit": ["In Transit"],
+  completed: ["Completed"],
+  "foul-trip": ["Foul Trip"],
+};
+
+const DEFAULT_STAGE_LIMIT = 300;
+
+export interface BookingQuery {
+  /** A key of STAGE_STATUSES, "unassigned", or undefined for every order. */
+  stage?: string;
+  limit?: number;
+}
+
+// Orders with no dispatch yet, or whose only dispatches were rejected.
+// Resolved in two cheap steps: ids first, then the full rows for those ids.
+async function getUnassignedBookings(limit: number): Promise<Order[]> {
+  const { data: candidates, error } = await supabase
+    .from("Order")
+    .select("orderID, createdAt, DispatchOrder ( status )")
+    .eq("isActive", true)
+    .order("createdAt", { ascending: false });
+
+  if (error) throw error;
+
+  const orderIDs = (candidates ?? [])
+    .filter((order: any) => {
+      const dispatches: any[] = Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [];
+      return dispatches.every((dispatch) => dispatch?.status === "Rejected");
+    })
+    .slice(0, limit)
+    .map((order: any) => order.orderID);
+
+  if (orderIDs.length === 0) return [];
+
+  const { data, error: rowsError } = await supabase
+    .from("Order")
+    .select(BOOKING_COLUMNS)
+    .in("orderID", orderIDs)
+    .order("createdAt", { ascending: false });
+
+  if (rowsError) throw rowsError;
+  return (data ?? []) as unknown as Order[];
+}
+
+export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
+  const limit = query.limit && query.limit > 0 ? query.limit : DEFAULT_STAGE_LIMIT;
+
+  if (query.stage === "unassigned") {
+    return getUnassignedBookings(limit);
+  }
+
+  // A stage maps to dispatch statuses: an inner join keeps only matching orders.
+  const statuses = query.stage ? STAGE_STATUSES[query.stage] : undefined;
+  if (statuses) {
+    const { data, error } = await supabase
+      .from("Order")
+      .select(BOOKING_COLUMNS.replace("DispatchOrder (", "DispatchOrder!inner ("))
+      .eq("isActive", true)
+      .in("DispatchOrder.status", statuses)
+      .order("createdAt", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data ?? []) as unknown as Order[];
+  }
+
+  // No stage: every order, paged. Used by the dashboard and reports, which
+  // aggregate across all history.
   const batchSize = 1000;
   let start = 0;
   const allBookings: Order[] = [];
@@ -25,30 +126,7 @@ export async function getBookings(): Promise<Order[]> {
   while (true) {
     const { data, error } = await supabase
       .from("Order")
-      .select(`
-        *,
-        Client (*),
-        OrderDetails (*),
-        BranchStops (*),
-        DispatchOrder (
-          *,
-          Truck (
-            plateNumber,
-            model
-          ),
-          Driver:Employee!driverID (
-            employeeName
-          ),
-          DispatchHelper (
-            helperID,
-            status,
-            declinereason,
-            Helper:Employee!helperID (
-              employeeName
-            )
-          )
-        )
-      `)
+      .select(BOOKING_COLUMNS)
       .order("createdAt", { ascending: false })
       .range(start, start + batchSize - 1);
 
@@ -56,7 +134,7 @@ export async function getBookings(): Promise<Order[]> {
       throw error;
     }
 
-    const batch = (data ?? []) as Order[];
+    const batch = (data ?? []) as unknown as Order[];
     allBookings.push(...batch);
 
     if (batch.length < batchSize) {

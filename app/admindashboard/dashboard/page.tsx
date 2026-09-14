@@ -3242,10 +3242,16 @@ export default function AdminDashboardPage() {
     setIsLoading(true);
 
     try {
-      const clientRes = await apiFetch<{ data: any[] }>("/api/clients");
+      // Independent requests: run them together, not one after another.
+      const [clientRes, truckRes, empRes, subconRes] = await Promise.all([
+        apiFetch<{ data: any[] }>("/api/clients").catch(() => ({ data: [] })),
+        apiFetch<any>("/api/fleet-status").catch(() => ({ data: [] })),
+        apiFetch<any>("/api/employees").catch(() => ({ data: [] })),
+        apiFetch<{ data: any[] }>("/api/subcontractors").catch(() => ({ data: [] })),
+      ]);
+
       setClients(clientRes.data || []);
 
-      const truckRes = await apiFetch<any>("/api/fleet-status");
       const allTrucks = truckRes.data || truckRes || [];
       const mappedTrucks = allTrucks.map((t: any) => ({
         ...t,
@@ -3261,7 +3267,6 @@ export default function AdminDashboardPage() {
         ),
       );
 
-      const empRes = await apiFetch<any>("/api/employees");
       const allEmployees = empRes.data || empRes || [];
       const mappedEmployees = allEmployees.map((e: any) => ({
         ...e,
@@ -3286,15 +3291,12 @@ export default function AdminDashboardPage() {
         ),
       );
 
-      const subconRes = await apiFetch<{ data: any[] }>(
-        "/api/subcontractors",
-      ).catch(() => ({ data: [] }));
       setSubcontractors(subconRes.data || []);
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
     }
-    await fetchOrders();
 
+    await fetchOrders();
     setIsLoading(false);
   }, [fetchOrders]);
 

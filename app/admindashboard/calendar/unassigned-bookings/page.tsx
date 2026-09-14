@@ -1330,7 +1330,7 @@ export default function UnassignedBookingsPage() {
   // ==========================================
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=unassigned");
       const rows = (orders ?? []).map(mapOrderToBookingView).filter(isAwaitingAssignment);
       setBookings(rows);
       setLoadError("");

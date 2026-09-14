@@ -754,7 +754,7 @@ export default function CompletedFeedPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=completed");
       setBookings(
         (orders ?? []).map(mapOrderToBookingView).filter(isCompleted).map(toFeedBooking),
       );

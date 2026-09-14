@@ -20,6 +20,22 @@ import {
   validateSession,
 } from "@/services/authService";
 
+// The last server-verified session, kept per browser tab. Navigating between
+// pages reuses it instead of re-validating, so the portal does not blank out
+// on every route change. Expires quickly, and any token change re-verifies.
+const VERIFICATION_TTL_MS = 5 * 60 * 1000;
+
+let lastVerification: {
+  token: string;
+  verifiedAt: number;
+  role: string;
+  homeRoute: string;
+} | null = null;
+
+export function clearPortalVerification(): void {
+  lastVerification = null;
+}
+
 type ProtectedPortalProps = {
   children: ReactNode;
 };
@@ -36,6 +52,7 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const redirectToLogin = async () => {
+      lastVerification = null;
       clearStoredSession();
       await signOutBrowserSession();
       if (isActive) router.replace("/login");
@@ -65,6 +82,13 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
         route: verifiedSession.homeRoute,
       });
 
+      lastVerification = {
+        token,
+        verifiedAt: Date.now(),
+        role: verifiedSession.employee.role,
+        homeRoute: verifiedSession.homeRoute,
+      };
+
       if (!canAccessRoute(verifiedSession.employee.role, pathname)) {
         if (isActive) {
           setIsAuthorized(false);
@@ -91,14 +115,47 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     };
 
     const initializeGuard = async () => {
-      setIsAuthorized(false);
-      setIsAccessDenied(false);
-
       const storedSession = readStoredSession();
       if (!storedSession || isStoredSessionExpired(storedSession)) {
+        setIsAuthorized(false);
+        setIsAccessDenied(false);
         await redirectToLogin();
         return;
       }
+
+      // Recently verified on this tab: authorize from the cached role so
+      // navigation is instant. The route permission check still runs here.
+      if (
+        lastVerification &&
+        lastVerification.token === storedSession.token &&
+        Date.now() - lastVerification.verifiedAt < VERIFICATION_TTL_MS
+      ) {
+        if (canAccessRoute(lastVerification.role, pathname)) {
+          setIsAccessDenied(false);
+          setIsAuthorized(true);
+
+          if (expiryTimer) clearTimeout(expiryTimer);
+          expiryTimer = setTimeout(
+            () => void redirectToLogin(),
+            Math.max(0, storedSession.sessionExpiresAt - Date.now()),
+          );
+          return;
+        }
+
+        // Capture the route now: the cache can be cleared before this fires.
+        const homeRoute = lastVerification.homeRoute;
+
+        setIsAuthorized(false);
+        setIsAccessDenied(true);
+        if (redirectTimer) clearTimeout(redirectTimer);
+        redirectTimer = setTimeout(() => {
+          if (isActive) router.replace(homeRoute);
+        }, 2000);
+        return;
+      }
+
+      setIsAuthorized(false);
+      setIsAccessDenied(false);
 
       const {
         data: { session: browserSession },
@@ -122,6 +179,7 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
       data: { subscription },
     } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) {
+        lastVerification = null;
         clearStoredSession();
         if (isActive) router.replace("/login");
         return;

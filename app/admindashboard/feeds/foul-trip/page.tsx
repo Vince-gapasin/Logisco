@@ -1242,7 +1242,7 @@ export default function FoulTripFeedPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=foul-trip");
       setBookings(
         (orders ?? []).map(mapOrderToBookingView).filter(isFoulTrip).map(toFeedBooking),
       );

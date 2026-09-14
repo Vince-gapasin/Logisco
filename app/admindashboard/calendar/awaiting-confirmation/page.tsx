@@ -1389,7 +1389,7 @@ export default function AwaitingConfirmationPage() {
   // Assigned bookings where at least one crew member has not confirmed yet.
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=awaiting-crew");
       setBookings((orders ?? []).map(mapOrderToBookingView).filter(isAwaitingCrewConfirmation));
       setLoadError("");
     } catch (error) {

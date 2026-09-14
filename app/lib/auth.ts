@@ -21,6 +21,63 @@ export const CREW_ROLES: UserRole[] = ["Driver", "Helper"];
 // NORMAL AUTHENTICATION
 // ==========================================
 
+// ==========================================
+// VERIFIED SESSION CACHE
+// ==========================================
+// Verifying a bearer token costs two network calls: one to Supabase Auth and
+// one for the Employee row. Both are repeated on every request, including the
+// burst of calls a single page makes. Results are cached for a short window,
+// per server instance, keyed by the token itself.
+//
+// The window is deliberately small: deactivating an employee takes effect
+// within it, rather than immediately.
+
+const SESSION_CACHE_TTL_MS = 30_000;
+const SESSION_CACHE_MAX_ENTRIES = 500;
+
+type VerifiedSession = {
+  user: { id: string; email?: string };
+  employee: {
+    employeeID: string;
+    employeeName: string;
+    role: string;
+    isActive?: boolean;
+  };
+};
+
+const verifiedSessions = new Map<string, { session: VerifiedSession; expiresAt: number }>();
+
+function readCachedSession(token: string): VerifiedSession | null {
+  const entry = verifiedSessions.get(token);
+  if (!entry) return null;
+
+  if (entry.expiresAt <= Date.now()) {
+    verifiedSessions.delete(token);
+    return null;
+  }
+
+  return entry.session;
+}
+
+function cacheSession(token: string, session: VerifiedSession): void {
+  // Bound the map so a long-lived instance cannot grow without limit.
+  if (verifiedSessions.size >= SESSION_CACHE_MAX_ENTRIES) {
+    for (const [key, entry] of verifiedSessions) {
+      if (entry.expiresAt <= Date.now()) verifiedSessions.delete(key);
+    }
+    if (verifiedSessions.size >= SESSION_CACHE_MAX_ENTRIES) {
+      verifiedSessions.clear();
+    }
+  }
+
+  verifiedSessions.set(token, { session, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
+}
+
+// Drops a token's cached verification, so a credential change takes effect now.
+export function invalidateCachedSession(token: string): void {
+  verifiedSessions.delete(token);
+}
+
 export async function requireAuth(request: Request) {
   const authorization =
     request.headers.get("authorization");
@@ -36,6 +93,9 @@ export async function requireAuth(request: Request) {
   }
 
   const token = authorization.substring(7);
+
+  const cached = readCachedSession(token);
+  if (cached) return cached;
 
   const {
     data: { user },
@@ -79,10 +139,10 @@ export async function requireAuth(request: Request) {
     };
   }
 
-  return {
-    user,
-    employee,
-  };
+  const session = { user, employee } as VerifiedSession;
+  cacheSession(token, session);
+
+  return session;
 }
 
 // ==========================================

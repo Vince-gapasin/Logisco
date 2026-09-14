@@ -823,7 +823,7 @@ export default function InTransitFeedPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<any[]>("/api/bookings?stage=in-transit");
       setBookings(
         (orders ?? []).map(mapOrderToBookingView).filter(isInTransit).map(toFeedBooking),
       );

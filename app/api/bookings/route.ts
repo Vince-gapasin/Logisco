@@ -16,9 +16,16 @@ export async function GET(request: Request) {
     const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator", "Dispatcher"]);
     if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
-    // Optional: You could restrict visibility here based on role, 
-    // but typically Admins/Coordinators see all active bookings.
-    const bookings = await getBookings();
+    // A stage lets the database filter, instead of every screen downloading
+    // every order and filtering in the browser.
+    const { searchParams } = new URL(request.url);
+    const stage = searchParams.get("stage") ?? undefined;
+    const limitParam = Number(searchParams.get("limit"));
+
+    const bookings = await getBookings({
+      stage,
+      limit: Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined,
+    });
 
     // Returning the array directly, which matches your old Express layout 
     // where `res.data` in the frontend receives the array of orders.
