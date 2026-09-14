@@ -1,114 +1,116 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authorize, CREW_ROLES } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
+
+// Stops are read through the Order: older dispatches were created before
+// BranchStops.dispatchID was being set, so the order link is the reliable one.
+const DISPATCH_SELECT = `
+  dispatchID,
+  dispatchCode,
+  status,
+  current_step,
+  dispatchNote,
+  Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
+    BranchStops ( branchID, branchName, contactPerson, contactNum, notes, expectedTime, stopStatus, dispatchID ) ),
+  Truck ( plateNumber, model )
+`;
+
+// The booking form stores the schedule inside Order.notes as free text.
+function readScheduledDate(notes: string | null): string {
+  const match = /Delivery Schedule:\s*(.+)/i.exec(notes || "");
+  const value = match ? match[1].split("\n")[0].trim() : "";
+  return value && !Number.isNaN(Date.parse(value)) ? value : "";
+}
+
+// Earliest to latest stop time, e.g. "8:00 AM - 3:00 PM".
+function buildTimeWindow(stops: { expectedTime?: string | null }[]): string {
+  const times = stops
+    .map((stop) => stop.expectedTime)
+    .filter((time): time is string => Boolean(time))
+    .sort();
+
+  if (times.length === 0) return "";
+
+  const label = (time: string) => {
+    const [hourPart, minutePart] = time.split(":");
+    const hour = Number(hourPart);
+    if (Number.isNaN(hour)) return time;
+    const suffix = hour >= 12 ? "PM" : "AM";
+    return `${hour % 12 === 0 ? 12 : hour % 12}:${minutePart ?? "00"} ${suffix}`;
+  };
+
+  return times.length === 1
+    ? label(times[0])
+    : `${label(times[0])} - ${label(times[times.length - 1])}`;
+}
 
 export async function GET(request: Request) {
+  const { auth, response } = await authorize(request, CREW_ROLES);
+  if (response) return response;
+
+  const employee = auth.employee;
+
   try {
-    const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
-    const adminClient = createClient(supabaseUrl, supabaseSecretKey);
-
-    // 1. Identify User
-    const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
-    if (authErr || !user) return NextResponse.json({ message: "Invalid session" }, { status: 401 });
-
-    // 2. Find Employee ID
-    const { data: employee, error: empErr } = await adminClient
-      .from("Employee")
-      .select("employeeID, employeeName")
-      .eq("auth_id", user.id)
-      .single();
-
-    if (empErr || !employee) {
-      console.error("Employee Lookup Error:", empErr);
-      return NextResponse.json({ message: "Employee profile not found for this user." }, { status: 404 });
-    }
-
-    const empId = employee.employeeID;
-    console.log(`[Crew API] Fetching dispatches for Employee: ${employee.employeeName} (${empId})`);
-
-    // 3. Fetch Dispatches where the user is the DRIVER
-    const { data: driverDispatches, error: driverErr } = await adminClient
+    // 1. Dispatches where the user is the DRIVER
+    const { data: driverDispatches, error: driverErr } = await supabase
       .from("DispatchOrder")
-      .select(`
-        dispatchID,
-        dispatchCode,
-        status,
-        dispatchNote,
-        Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd) ),
-        Truck ( plateNumber, model ),
-        BranchStops ( branchName, contactPerson, contactNum, notes, expectedTime, stopStatus )
-      `)
-      .eq("driverID", empId)
+      .select(DISPATCH_SELECT)
+      .eq("driverID", employee.employeeID)
       .neq("status", "Rejected");
 
-    if (driverErr) {
-      console.error("[Crew API] Driver Fetch Error:", driverErr.message);
-      throw new Error(`Database relation error (Driver): ${driverErr.message}`);
-    }
+    if (driverErr) throw new Error(`Driver dispatch query failed: ${driverErr.message}`);
 
-    // 4. Fetch Dispatches where the user is a HELPER
-    const { data: helperAssignments, error: helperErr } = await adminClient
+    // 2. Dispatches where the user is a HELPER
+    const { data: helperAssignments, error: helperErr } = await supabase
       .from("DispatchHelper")
       .select("dispatchID, status")
-      .eq("helperID", empId)
+      .eq("helperID", employee.employeeID)
       .neq("status", "Declined");
 
-    if (helperErr) {
-      console.error("[Crew API] Helper Assignment Fetch Error:", helperErr.message);
-      throw new Error(`Database relation error (Helper): ${helperErr.message}`);
-    }
+    if (helperErr) throw new Error(`Helper assignment query failed: ${helperErr.message}`);
 
     let helperDispatches: any[] = [];
     if (helperAssignments && helperAssignments.length > 0) {
-      const dispatchIds = helperAssignments.map(h => h.dispatchID);
-      const { data: hData, error: hDataErr } = await adminClient
+      const { data: hData, error: hDataErr } = await supabase
         .from("DispatchOrder")
-        .select(`
-          dispatchID,
-          dispatchCode,
-          status,
-          dispatchNote,
-          Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd) ),
-          Truck ( plateNumber, model ),
-          BranchStops ( branchName, contactPerson, contactNum, notes, expectedTime, stopStatus )
-        `)
-        .in("dispatchID", dispatchIds)
+        .select(DISPATCH_SELECT)
+        .in("dispatchID", helperAssignments.map((h) => h.dispatchID))
         .neq("status", "Rejected");
-        
-      if (hDataErr) {
-        console.error("[Crew API] Helper Dispatches Fetch Error:", hDataErr.message);
-        throw new Error(`Database relation error (Helper Data): ${hDataErr.message}`);
-      }
 
-      helperDispatches = (hData || []).map(dispatch => {
-        const assignment = helperAssignments.find(h => h.dispatchID === dispatch.dispatchID);
-        return {
-          ...dispatch,
-          _helperStatus: assignment?.status 
-        };
-      });
+      if (hDataErr) throw new Error(`Helper dispatch query failed: ${hDataErr.message}`);
+
+      helperDispatches = (hData || []).map((dispatch) => ({
+        ...dispatch,
+        _helperStatus: helperAssignments.find((h) => h.dispatchID === dispatch.dispatchID)?.status,
+      }));
     }
 
-    // Combine both lists
-    const allRawDispatches = [...(driverDispatches || []), ...helperDispatches];
-    console.log(`[Crew API] Found ${allRawDispatches.length} active dispatches for user.`);
+    const allRawDispatches: any[] = [...(driverDispatches || []), ...helperDispatches];
 
-    // 5. Map Database Schema to Frontend "DeliveryRecord" Format
-    const formattedData = allRawDispatches.map(dispatch => {
-      // Use fallback empty objects/arrays so the map doesn't crash if a relation is missing
+    // 3. Map Database Schema to Frontend "DeliveryRecord" Format
+    const formattedData = allRawDispatches.map((dispatch) => {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
       const client = Array.isArray(order.Client) ? order.Client[0] : (order.Client || {});
       const truck = Array.isArray(dispatch.Truck) ? dispatch.Truck[0] : (dispatch.Truck || {});
-      const stops = Array.isArray(dispatch.BranchStops) ? dispatch.BranchStops : [];
-      
-      let displayStatus = "Awaiting Confirmation";
+      const orderStops: any[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
+
+      // Prefer stops explicitly linked to this dispatch (an order can be split
+      // across trucks); fall back to every stop on the order.
+      const linkedStops = orderStops.filter((stop) => stop.dispatchID === dispatch.dispatchID);
+      const stops = (linkedStops.length > 0 ? linkedStops : orderStops).sort(
+        (a, b) => a.branchID - b.branchID,
+      );
+
+      let displayStatus: string;
       if (dispatch._helperStatus) {
-         displayStatus = dispatch._helperStatus === "Accepted" ? "Accepted" : "Awaiting Confirmation";
+        // A helper who accepted follows the trip's progress; before that the
+        // trip is still awaiting their confirmation.
+        displayStatus =
+          dispatch._helperStatus === "Accepted"
+            ? (["Pending", "Assigned"].includes(dispatch.status) ? "Accepted" : dispatch.status)
+            : "Awaiting Confirmation";
       } else {
-         displayStatus = dispatch.status === "Pending" ? "Awaiting Confirmation" : dispatch.status;
+        displayStatus = dispatch.status === "Pending" ? "Awaiting Confirmation" : dispatch.status;
       }
 
       return {
@@ -117,9 +119,11 @@ export async function GET(request: Request) {
         clientName: client.company || "Unknown Client",
         clientEmail: client.emailAdd || "No email",
         address: client.businessAdd || "No Address Provided",
-        dateTime: "See Stops", 
+        dateTime: "See Stops",
         status: displayStatus,
-        scheduledDate: "TBD",
+        current_step: dispatch.current_step ?? 0,
+        scheduledDate: readScheduledDate(order.notes),
+        timeWindow: buildTimeWindow(stops),
         pickupTime: "TBD",
         deliveryTime: "TBD",
         pickupAddress: "Warehouse / Depot",
@@ -134,7 +138,8 @@ export async function GET(request: Request) {
         priorityLevel: "Standard",
         notes: dispatch.dispatchNote || order.notes || "No notes provided.",
         confirmBy: "End of Day",
-        multipleDeliveries: stops.map((stop: any) => ({
+        multipleDeliveries: stops.map((stop) => ({
+          branchID: stop.branchID,
           branch: stop.branchName,
           address: "Address on file",
           contactPerson: stop.contactPerson,
@@ -142,14 +147,13 @@ export async function GET(request: Request) {
           deliveryTime: stop.expectedTime,
           quantity: "TBD",
           status: stop.stopStatus,
-        }))
+        })),
       };
     });
 
     return NextResponse.json(formattedData);
-
-  } catch (error: any) {
-    console.error("[Crew API] CRITICAL ERROR:", error);
-    return NextResponse.json({ message: error.message || "Failed to fetch dispatches" }, { status: 500 });
+  } catch (error) {
+    console.error("[Crew API] Failed to fetch dispatches:", error);
+    return NextResponse.json({ message: "Failed to fetch dispatches" }, { status: 500 });
   }
 }

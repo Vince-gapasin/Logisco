@@ -1,8 +1,14 @@
 // File: app/admindashboard/calendar/unassigned-bookings/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isAwaitingAssignment,
+  mapOrderToBookingView,
+  type BookingView,
+} from "@/app/lib/bookingView";
 import {
   Search,
   FileText,
@@ -14,85 +20,6 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-
-// ==========================================
-// DUMMY DATA
-// ==========================================
-const DUMMY_BOOKINGS = [
-  {
-    id: "1",
-    orderId: "ORD-0001",
-    clientName: "Jollibee",
-    product: "Frozen Chicken Products",
-    scheduledDate: "2026-09-08",
-    displayDate: "September 8, 2026",
-    dateCreated: "September 6, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "High Priority",
-    status: "Created",
-    remarks: [
-      {
-        dateTime: "Sept 6, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-0002",
-    clientName: "McDonald's",
-    product: "Frozen Beef Patties",
-    scheduledDate: "2026-09-09",
-    displayDate: "September 9, 2026",
-    dateCreated: "September 7, 2026",
-    createdBy: "Logistics Coordinator",
-    priorityLevel: "Standard",
-    status: "Created",
-    remarks: [],
-  },
-  {
-    id: "3",
-    orderId: "ORD-0003",
-    clientName: "Chowking",
-    product: "Dry Food Supplies",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 7, 2026",
-    createdBy: "Admin User",
-    priorityLevel: "Standard",
-    status: "Created",
-    remarks: [],
-  },
-  {
-    id: "4",
-    orderId: "ORD-0004",
-    clientName: "Mang Inasal",
-    product: "Frozen Chicken Products",
-    scheduledDate: "2026-09-11",
-    displayDate: "September 11, 2026",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "Urgent",
-    status: "Created",
-    remarks: [],
-  },
-  {
-    id: "5",
-    orderId: "ORD-0005",
-    clientName: "Greenwich",
-    product: "Frozen Pizza Products",
-    scheduledDate: "2026-09-12",
-    displayDate: "September 12, 2026",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "Standard",
-    status: "Created",
-    remarks: [],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -267,6 +194,37 @@ function AssignBookingModal({
   ]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const [availableTrucks, setAvailableTrucks] = useState<any[]>([]);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
+  const [availableHelpers, setAvailableHelpers] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  // Trucks and crew that are free for the selected delivery date.
+  const scheduleDate = formData.deliverySchedule;
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+
+    const loadResources = async () => {
+      const date = scheduleDate || new Date().toISOString().split("T")[0];
+      try {
+        const result = await apiFetch<any>(`/api/dispatch/available-resources?date=${date}`);
+        if (!active) return;
+        setAvailableTrucks(result?.data?.trucks ?? []);
+        setAvailableDrivers(result?.data?.drivers ?? []);
+        setAvailableHelpers(result?.data?.helpers ?? []);
+      } catch (error) {
+        if (active) setSubmitError(error instanceof Error ? error.message : "Failed to load available crew.");
+      }
+    };
+
+    void loadResources();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, scheduleDate]);
+
   useEffect(() => {
     if (isOpen && booking) {
       setIsSubconMode(false);
@@ -301,18 +259,28 @@ function AssignBookingModal({
           quantity: "50",
         },
       ]);
-      setDeliveryList([
-        {
-          branchName: booking.clientName
-            ? `${booking.clientName} Branch`
-            : "Branch",
-          deliveryAddress: "Metro Manila",
-          contactPerson: "Branch Manager",
-          contactNumber: "09192223344",
-          deliveryTime: "12:00",
-          quantity: "50",
-        },
-      ]);
+      // Real stops recorded when the booking was created.
+      setDeliveryList(
+        booking.stops && booking.stops.length > 0
+          ? booking.stops.map((stop: any) => ({
+              branchName: stop.branchName,
+              deliveryAddress: booking.businessAddress || "",
+              contactPerson: stop.contactPerson,
+              contactNumber: stop.contactNum,
+              deliveryTime: (stop.expectedTime || "12:00").slice(0, 5),
+              quantity: "",
+            }))
+          : [
+              {
+                branchName: "",
+                deliveryAddress: booking.businessAddress || "",
+                contactPerson: booking.contactPerson || "",
+                contactNumber: booking.contactNumber || "",
+                deliveryTime: "12:00",
+                quantity: "",
+              },
+            ],
+      );
       setErrors({});
 
       // Automatically scroll down to section 5 when modal opens
@@ -399,8 +367,9 @@ function AssignBookingModal({
     setDeliveryToDelete(null);
   };
 
-  const validateAndSubmit = (e: React.FormEvent) => {
+  const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError("");
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.deliverySchedule)
@@ -417,8 +386,33 @@ function AssignBookingModal({
       return;
     }
 
-    onSubmitSuccess(booking.orderId);
-    onClose();
+    if (isSubconMode) {
+      setSubmitError(
+        "Subcontractor assignment is not supported yet. Assign an in-house truck and driver for now.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiFetch(`/api/dispatch/${booking.id}/assign`, {
+        method: "POST",
+        body: JSON.stringify({
+          truckID: formData.truckPlate,
+          driverID: formData.driver,
+          helper1ID: formData.helper1 || undefined,
+          helper2ID: formData.helper2 || undefined,
+          totalCargoWeight: 0,
+        }),
+      });
+
+      onSubmitSuccess(booking.orderId);
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Failed to assign this booking.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1081,10 +1075,15 @@ function AssignBookingModal({
                     onChange={handleChange}
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.truckPlate ? "border-red-500" : "border-slate-300"}`}
                   >
-                    <option value="">Select truck</option>
-                    <option value="TRK-101">TRK-101 (Isuzu Elf)</option>
-                    <option value="TRK-102">TRK-102 (Mitsubishi Fuso)</option>
-                    <option value="TRK-103">TRK-103 (Hino 300)</option>
+                    <option value="">
+                      {availableTrucks.length === 0 ? "No trucks available" : "Select truck"}
+                    </option>
+                    {availableTrucks.map((truck: any) => (
+                      <option key={truck.truckID} value={truck.truckID}>
+                        {truck.plateNumber}
+                        {truck.model ? ` (${truck.model})` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1097,10 +1096,14 @@ function AssignBookingModal({
                     onChange={handleChange}
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.driver ? "border-red-500" : "border-slate-300"}`}
                   >
-                    <option value="">Select driver</option>
-                    <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-                    <option value="Pedro Santos">Pedro Santos</option>
-                    <option value="Luis Manzano">Luis Manzano</option>
+                    <option value="">
+                      {availableDrivers.length === 0 ? "No drivers available" : "Select driver"}
+                    </option>
+                    {availableDrivers.map((driver: any) => (
+                      <option key={driver.employeeID} value={driver.employeeID}>
+                        {driver.employeeName}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1114,9 +1117,13 @@ function AssignBookingModal({
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                   >
                     <option value="">Select helper</option>
-                    <option value="Mark Reyes">Mark Reyes</option>
-                    <option value="John Doe">John Doe</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
+                    {availableHelpers
+                      .filter((helper: any) => helper.employeeID !== formData.helper2)
+                      .map((helper: any) => (
+                        <option key={helper.employeeID} value={helper.employeeID}>
+                          {helper.employeeName}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div>
@@ -1130,9 +1137,13 @@ function AssignBookingModal({
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                   >
                     <option value="">Select helper</option>
-                    <option value="Mark Reyes">Mark Reyes</option>
-                    <option value="John Doe">John Doe</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
+                    {availableHelpers
+                      .filter((helper: any) => helper.employeeID !== formData.helper1)
+                      .map((helper: any) => (
+                        <option key={helper.employeeID} value={helper.employeeID}>
+                          {helper.employeeName}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -1222,6 +1233,12 @@ function AssignBookingModal({
           </div>
         </form>
 
+        {submitError && (
+          <div className="shrink-0 mx-4 sm:mx-6 mb-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+            {submitError}
+          </div>
+        )}
+
         {/* FIXED FOOTER */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
           <button
@@ -1243,9 +1260,10 @@ function AssignBookingModal({
           <button
             type="submit"
             form="assign-booking-form"
-            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
           >
-            Assign Now
+            {isSubmitting ? "Assigning..." : "Assign Now"}
           </button>
         </div>
 
@@ -1275,7 +1293,7 @@ function AssignBookingModal({
                   type="button"
                   onClick={(e) => {
                     setShowCancelConfirm(false);
-                    onCancelBooking(e, booking.orderId);
+                    onCancelBooking(e, booking.id);
                   }}
                   className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
@@ -1303,10 +1321,34 @@ export default function UnassignedBookingsPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successOrderCode, setSuccessOrderCode] = useState("");
 
+  const [bookings, setBookings] = useState<BookingView[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  // ==========================================
+  // DATA
+  // ==========================================
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      const rows = (orders ?? []).map(mapOrderToBookingView).filter(isAwaitingAssignment);
+      setBookings(rows);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
   // ==========================================
   // FILTERING
   // ==========================================
-  const filteredBookings = DUMMY_BOOKINGS.filter(
+  const filteredBookings = bookings.filter(
     (booking) =>
       booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1332,14 +1374,27 @@ export default function UnassignedBookingsPage() {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmitSuccess = (orderId: string) => {
-    setSuccessOrderCode(orderId);
+  const handleModalSubmitSuccess = (orderCode: string) => {
+    setSuccessOrderCode(orderCode);
     setIsSuccessModalOpen(true);
+    setIsModalOpen(false);
+    void loadBookings();
   };
 
-  const handleCancelBooking = (e: React.MouseEvent, bookingId: string) => {
+  const handleCancelBooking = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation();
-    alert(`Cancel booking logic triggered for Order: ${bookingId}`);
+
+    try {
+      await apiFetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      setIsModalOpen(false);
+      setSelectedBooking(null);
+      await loadBookings();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+    }
   };
 
   return (
@@ -1367,6 +1422,12 @@ export default function UnassignedBookingsPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1451,7 +1512,7 @@ export default function UnassignedBookingsPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No unassigned bookings found
+                        {isLoading ? "Loading bookings..." : "No unassigned bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         All current schedules have been assigned or no bookings

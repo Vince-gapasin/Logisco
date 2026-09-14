@@ -21,6 +21,9 @@ export async function GET(request: Request) {
       );
     }
 
+    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator", "Mechanic"]);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
+
     const { searchParams } = new URL(request.url);
     const validation = employeeQuerySchema.safeParse(
       Object.fromEntries(searchParams.entries()),

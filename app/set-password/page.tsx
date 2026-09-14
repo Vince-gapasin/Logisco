@@ -11,6 +11,42 @@ import { useRouter } from "next/navigation";
 
 import { supabaseBrowser } from "@/app/lib/supabase-browser";
 
+// ==========================================
+// PASSWORD REQUIREMENT COMPONENT
+// ==========================================
+
+const Requirement = ({
+  valid,
+  children,
+}: {
+  valid: boolean;
+  children: React.ReactNode;
+}) => {
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <span
+        className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+          valid
+            ? "bg-green-100 text-green-600"
+            : "bg-slate-100 text-slate-400"
+        }`}
+      >
+        {valid ? "✓" : "•"}
+      </span>
+
+      <span
+        className={
+          valid
+            ? "text-green-600"
+            : "text-slate-500"
+        }
+      >
+        {children}
+      </span>
+    </li>
+  );
+};
+
 export default function SetPasswordPage() {
   const router = useRouter();
 
@@ -421,41 +457,6 @@ const handleSubmit = async (
   }
 };
 
-  // ==========================================
-  // PASSWORD REQUIREMENT COMPONENT
-  // ==========================================
-
-  const Requirement = ({
-    valid,
-    children,
-  }: {
-    valid: boolean;
-    children: React.ReactNode;
-  }) => {
-    return (
-      <li className="flex items-center gap-2 text-sm">
-        <span
-          className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
-            valid
-              ? "bg-green-100 text-green-600"
-              : "bg-slate-100 text-slate-400"
-          }`}
-        >
-          {valid ? "✓" : "•"}
-        </span>
-
-        <span
-          className={
-            valid
-              ? "text-green-600"
-              : "text-slate-500"
-          }
-        >
-          {children}
-        </span>
-      </li>
-    );
-  };
 
   // ==========================================
   // SESSION CHECKING SCREEN

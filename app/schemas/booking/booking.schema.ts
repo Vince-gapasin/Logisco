@@ -22,6 +22,9 @@ const branchStopSchema = z.object({
   contactPerson: z.string().min(1, "Contact person is required").trim(),
   contactNum: z.string().min(1, "Contact number is required").trim(),
   expectedTime: z.string().min(1, "Expected time is required").trim(),
+
+  // Optional: geocoded on the server so the stop can be shown on the map.
+  deliveryAddress: z.string().trim().optional(),
 });
 
 // ==========================================

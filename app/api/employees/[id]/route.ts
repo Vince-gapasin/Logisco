@@ -68,6 +68,13 @@ export async function GET(
       );
     }
 
+    // Full records include licence, medical and emergency-contact data:
+    // only managers, or the employee themselves, may read them.
+    const isSelf = idValidation.data === auth.employee.employeeID;
+    if (!isSelf && requireRole(auth.employee.role, ["Admin", "Coordinator"])) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const employee = await getEmployeeById(
       idValidation.data
     );

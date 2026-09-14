@@ -1,56 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import { useNotifications } from "@/app/lib/useNotifications";
 import {
   Bell,
   Package,
   MapPin,
   AlertTriangle,
-  CheckCircle2,
   Clock,
   Check,
   ClipboardList,
   Truck,
 } from "lucide-react";
 
-// Mock interface for Supabase integration
-interface Notification {
-  id: string | number;
-  title: string;
-  message: string;
-  time: string;
-  type: "assignment" | "status" | "warning" | "system" | "reminder";
-  isRead: boolean;
-}
-
 export default function CrewNotificationsPage() {
-  // Mock data tailored for the Crew/Driver role, keeping only the delivery assignment
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: "New Delivery Assignment",
-      message:
-        "New assignment for ORD-0001 (Client: Jollibee-Katipunan). Tap to view details prior to dispatch.",
-      time: "Just now",
-      type: "assignment",
-      isRead: false,
-    },
-  ]);
+  // Live notifications for this driver/helper, derived from their dispatches.
+  const { notifications, isLoading, error: notificationsError, markRead, markAllRead } =
+    useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleMarkAsRead = (id: string | number) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, isRead: true } : notif,
-      ),
-    );
+    markRead(id);
   };
 
   const handleMarkAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notif) => ({ ...notif, isRead: true })),
-    );
+    markAllRead();
   };
 
   // Render the correct icon based on notification type tailored for the crew
@@ -120,7 +95,18 @@ export default function CrewNotificationsPage() {
 
       {/* Notifications Content Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
-        {notifications.length === 0 ? (
+        {notificationsError && (
+          <div className="mx-4 sm:mx-5 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+            {notificationsError}
+          </div>
+        )}
+
+        {isLoading && notifications.length === 0 ? (
+          <div className="p-8 text-center flex flex-col items-center justify-center min-h-100 text-slate-600">
+            <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-3" />
+            <p className="text-sm font-medium">Loading notifications...</p>
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center min-h-75">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               <Bell className="w-8 h-8 text-slate-300" />

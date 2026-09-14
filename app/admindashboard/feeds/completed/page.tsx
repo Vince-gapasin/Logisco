@@ -1,7 +1,14 @@
 // File: app/admindashboard/feeds/completed/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isCompleted,
+  mapOrderToBookingView,
+  toFeedBooking,
+  type FeedBooking,
+} from "@/app/lib/bookingView";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,181 +23,6 @@ import {
 // ==========================================
 // DUMMY DATA (Realistic Completed records with full accumulated history)
 // ==========================================
-const DUMMY_COMPLETED_BOOKINGS = [
-  {
-    id: "1",
-    orderId: "ORD-1001",
-    clientName: "Burger King",
-    contactPerson: "John Doe",
-    contactNumber: "09123456789",
-    emailAddress: "johndoe@burgerking.com",
-    businessAddress: "Quezon City",
-    product: "Frozen Beef Patties & Buns",
-    quantity: "50",
-    scheduledDate: "2026-09-08",
-    displayDate: "September 8, 2026",
-    dateCreated: "September 6, 2026",
-    createdBy: "Admin Dispatcher",
-    status: "Complete",
-    confirmationStatus: "Delivered",
-    priorityLevel: "High Priority",
-    pickupList: [
-      {
-        warehouseName: "North Hub Storage",
-        warehouseAddress: "Valenzuela City",
-        contactPerson: "WH Admin",
-        contactNumber: "09991112222",
-        pickupTime: "08:00",
-        quantity: "50",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Burger King QC",
-        deliveryAddress: "Quezon City Branch",
-        contactPerson: "Branch Mgr",
-        contactNumber: "09887776655",
-        deliveryTime: "10:00",
-        quantity: "50",
-        stopStatus: "Completed",
-      },
-    ],
-    truckPlate: "TRK-103 (Hino 300)",
-    driver: "Juan Dela Cruz",
-    helper1: "Mark Santos",
-    helper2: "Carlo Reyes",
-    notes: "Requires strict temperature control. Keep reefer active.",
-    crews: [
-      { role: "Driver", name: "Juan Dela Cruz", status: "Accepted" },
-      { role: "Helper #1", name: "Mark Santos", status: "Accepted" },
-      { role: "Helper #2", name: "Carlo Reyes", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 6, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 7, 2026 09:30 AM",
-        details: "Fleet TRK-103 and crew assigned to the delivery schedule.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-      {
-        dateTime: "Sept 7, 2026 11:45 AM",
-        details: "All assigned crew members accepted the delivery.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 8, 2026 07:15 AM",
-        details:
-          "Vehicle departed from North Hub Storage. Status changed to In Transit.",
-        attachments: "Gate_Pass_1001.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-      {
-        dateTime: "Sept 8, 2026 10:45 AM",
-        details:
-          "Delivery successfully completed and verified by Branch Manager.",
-        attachments: "Signed_POD_1001.jpg",
-        staff: "Juan Dela Cruz",
-        role: "Driver",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-1002",
-    clientName: "Jollibee",
-    contactPerson: "Maria Clara",
-    contactNumber: "09198887777",
-    emailAddress: "maria@jollibee.com",
-    businessAddress: "Pasig City",
-    product: "Frozen Chicken Products",
-    quantity: "100",
-    scheduledDate: "2026-09-09",
-    displayDate: "September 9, 2026",
-    dateCreated: "September 7, 2026",
-    createdBy: "Admin User",
-    status: "Complete",
-    confirmationStatus: "Delivered",
-    priorityLevel: "Standard",
-    pickupList: [
-      {
-        warehouseName: "Main Warehouse",
-        warehouseAddress: "Pasig Logistics Hub",
-        contactPerson: "Head Guard",
-        contactNumber: "09176665544",
-        pickupTime: "07:00",
-        quantity: "100",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Jollibee Manila",
-        deliveryAddress: "Ermita, Manila",
-        contactPerson: "Store Manager",
-        contactNumber: "09172223333",
-        deliveryTime: "09:30",
-        quantity: "100",
-        stopStatus: "Completed",
-      },
-    ],
-    truckPlate: "TRK-101 (Isuzu Elf)",
-    driver: "Luis Manzano",
-    helper1: "Pedro Santos",
-    helper2: "",
-    notes: "Morning delivery preferred. Unload at back bay.",
-    crews: [
-      { role: "Driver", name: "Luis Manzano", status: "Accepted" },
-      { role: "Helper #1", name: "Pedro Santos", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 7, 2026 10:00 AM",
-        details: "Booking created and saved.",
-        attachments: "N/A",
-        staff: "Admin User",
-        role: "Administrator",
-      },
-      {
-        dateTime: "Sept 7, 2026 11:20 AM",
-        details: "Crew assigned and awaiting confirmations.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 8, 2026 08:00 AM",
-        details: "Crew confirmed assignment.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 9, 2026 06:45 AM",
-        details: "Fleet dispatched. Delivery is now en route.",
-        attachments: "Dispatch_Log.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-      {
-        dateTime: "Sept 9, 2026 10:10 AM",
-        details: "Goods unloaded and received by store personnel.",
-        attachments: "Delivery_Receipt_1002.png",
-        staff: "Luis Manzano",
-        role: "Driver",
-      },
-    ],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -916,6 +748,28 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function CompletedFeedPage() {
+  const [bookings, setBookings] = useState<FeedBooking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      setBookings(
+        (orders ?? []).map(mapOrderToBookingView).filter(isCompleted).map(toFeedBooking),
+      );
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -925,7 +779,7 @@ export default function CompletedFeedPage() {
   // ==========================================
   // FILTERING
   // ==========================================
-  const filteredBookings = DUMMY_COMPLETED_BOOKINGS.filter(
+  const filteredBookings = bookings.filter(
     (booking) =>
       booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -976,6 +830,12 @@ export default function CompletedFeedPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1086,7 +946,7 @@ export default function CompletedFeedPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No completed bookings found
+                        {isLoading ? "Loading bookings..." : "No completed bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no finished deliveries matching your

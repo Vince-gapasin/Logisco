@@ -1,130 +1,172 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authorize, CREW_ROLES } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
+import {
+  getCrewAssignment,
+  isUuid,
+  releaseDispatchResources,
+  TERMINAL_DISPATCH_STATUSES,
+} from "@/services/dispatch/dispatchService";
+
+// Statuses the crew app may set, and the statuses each may be reached from.
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  "In Transit": ["Assigned", "Accepted", "In Transit"],
+  Completed: ["In Transit"],
+};
+
+const MAX_POD_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY!;
-
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return NextResponse.json({ message: "Server Configuration Error" }, { status: 500 });
-  }
+  const { auth, response } = await authorize(request, CREW_ROLES);
+  if (response) return response;
 
   try {
-    const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
-    if (authErr || !user) return NextResponse.json({ message: "Invalid session" }, { status: 401 });
-
     // 1. Parse FormData
     const formData = await request.formData();
-    const dispatchID = formData.get("dispatchID") as string;
-    const status = formData.get("status") as string;
-    const current_step = formData.get("current_step") as string;
-    const remarks = formData.get("remarks") as string;
-    const receiverName = formData.get("receiverName") as string;
-    const title = formData.get("title") as string; 
+    const dispatchID = formData.get("dispatchID") as string | null;
+    const status = formData.get("status") as string | null;
+    const stepValue = formData.get("current_step") as string | null;
+    const remarks = (formData.get("remarks") as string | null) || "";
+    const receiverName = (formData.get("receiverName") as string | null) || "";
+    const title = (formData.get("title") as string | null) || "";
+    const branchIDValue = formData.get("branchID") as string | null;
     const file = formData.get("podImage") as File | null;
 
-    if (!dispatchID || !status) {
-      return NextResponse.json({ message: "Missing dispatchID or status" }, { status: 400 });
+    if (!isUuid(dispatchID) || !status) {
+      return NextResponse.json({ message: "Missing or invalid dispatchID or status" }, { status: 400 });
     }
 
-    let podUrl = null;
+    if (!ALLOWED_TRANSITIONS[status]) {
+      return NextResponse.json({ message: `Status "${status}" cannot be set from the crew app` }, { status: 400 });
+    }
 
-    // 2. Upload file if it exists
-    if (file) {
-      const fileBuffer = await file.arrayBuffer();
-      const fileName = `pod-${dispatchID}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+    // 2. Only the assigned driver or an accepted helper may update the trip.
+    const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
+    if (!assignment || (!assignment.isDriver && assignment.helper?.status !== "Accepted")) {
+      return NextResponse.json({ message: "You are not assigned to this dispatch." }, { status: 403 });
+    }
 
-      const { error: uploadErr } = await adminClient.storage
+    const current = assignment.dispatch;
+    const currentStep = current.current_step ?? 0;
+    const parsedStep = stepValue !== null && stepValue !== "" ? parseInt(stepValue, 10) : NaN;
+    const nextStep = Number.isNaN(parsedStep) ? currentStep : parsedStep;
+
+    // A retried request (flaky mobile network) must not apply twice.
+    if (current.status === status && nextStep <= currentStep) {
+      return NextResponse.json({ message: "Status already up to date", status, podUrl: null });
+    }
+
+    if (TERMINAL_DISPATCH_STATUSES.includes(current.status)) {
+      return NextResponse.json({ message: `Dispatch is already ${current.status}.` }, { status: 409 });
+    }
+
+    if (!ALLOWED_TRANSITIONS[status].includes(current.status)) {
+      return NextResponse.json(
+        { message: `Cannot change a dispatch from "${current.status}" to "${status}".` },
+        { status: 409 },
+      );
+    }
+
+    if (nextStep < currentStep) {
+      return NextResponse.json(
+        { message: "This trip has already progressed past that step. Please refresh.", current_step: currentStep },
+        { status: 409 },
+      );
+    }
+
+    // The stop being completed must belong to this dispatch's order.
+    let branchID: number | null = null;
+    if (branchIDValue) {
+      const parsedBranch = parseInt(branchIDValue, 10);
+      if (!Number.isNaN(parsedBranch)) {
+        const { data: stop } = await supabase
+          .from("BranchStops")
+          .select("branchID")
+          .eq("branchID", parsedBranch)
+          .eq("orderID", current.orderID)
+          .maybeSingle();
+        branchID = stop?.branchID ?? null;
+      }
+    }
+
+    let podUrl: string | null = null;
+
+    // 3. Upload the proof-of-delivery photo, if any
+    if (file && file.size > 0) {
+      if (!file.type.startsWith("image/")) {
+        return NextResponse.json({ message: "Proof of delivery must be an image" }, { status: 400 });
+      }
+      if (file.size > MAX_POD_BYTES) {
+        return NextResponse.json({ message: "Proof of delivery image must be 10 MB or smaller" }, { status: 400 });
+      }
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "");
+      const fileName = `pod-${dispatchID}-${Date.now()}-${safeName}`;
+
+      const { error: uploadErr } = await supabase.storage
         .from("delivery_proofs")
-        .upload(fileName, fileBuffer, {
-          contentType: file.type,
-        });
+        .upload(fileName, await file.arrayBuffer(), { contentType: file.type });
 
       if (uploadErr) {
         console.error("[Status API] Image Upload Error:", uploadErr);
-        throw new Error("Failed to upload Proof of Delivery image");
+        return NextResponse.json({ message: "Failed to upload Proof of Delivery image" }, { status: 502 });
       }
 
-      const { data: { publicUrl } } = adminClient.storage
-        .from("delivery_proofs")
-        .getPublicUrl(fileName);
+      podUrl = supabase.storage.from("delivery_proofs").getPublicUrl(fileName).data.publicUrl;
 
-      podUrl = publicUrl;
+      const { error: podInsertError } = await supabase.from("POD").insert({
+        branchID,
+        proof: podUrl,
+        receiverName: receiverName || "N/A",
+        remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
+      });
 
-      // 3. Insert directly into the POD Table USING ORIGINAL DB SCHEMA
-      if (receiverName || podUrl) {
-        const { error: podInsertError } = await adminClient
-          .from("POD")
-          .insert({
-            proof: podUrl,
-            receiverName: receiverName || "N/A",
-            remarks: `[${title || 'Location Update'}] ${remarks || "Uploaded via Crew App"}`,
-          });
-
-        if (podInsertError) console.error("[Status API] POD Insert Error:", podInsertError);
-      }
+      if (podInsertError) console.error("[Status API] POD Insert Error:", podInsertError);
     }
 
-    // 4. Safely Update DispatchOrder WITHOUT destroying history
-    const { data: currentDispatch } = await adminClient
-      .from("DispatchOrder")
-      .select("dispatchNote")
-      .eq("dispatchID", dispatchID)
-      .single();
+    // 4. Update DispatchOrder, appending crew remarks to the existing notes
+    const updatePayload: Record<string, unknown> = { status, current_step: nextStep };
 
-    // Append new crew remarks to existing notes so Admin sees everything
-    let updatedNotes = currentDispatch?.dispatchNote || "";
     if (remarks || podUrl) {
-       updatedNotes += `\n[${title || 'Update'}] ${receiverName ? `Received by ${receiverName}. ` : ''}Crew: ${remarks || 'Arrived'}`;
+      const received = receiverName ? `Received by ${receiverName}. ` : "";
+      updatePayload.dispatchNote =
+        `${current.dispatchNote || ""}\n[${title || "Update"}] ${received}Crew: ${remarks || "Arrived"}`;
     }
+    if (podUrl) updatePayload.pod_url = podUrl;
+    if (status === "Completed") updatePayload.completedAt = new Date().toISOString();
 
-    const updatePayload: any = { 
-      status: status,
-      current_step: parseInt(current_step) || 0 
-    };
-    if (remarks || podUrl) updatePayload.dispatchNote = updatedNotes;
-    if (podUrl) updatePayload.pod_url = podUrl; 
-
-    const { error: updateErr } = await adminClient
+    // Conditional on the status we read, so two crew members submitting at
+    // once cannot both apply their change.
+    const { data: updated, error: updateErr } = await supabase
       .from("DispatchOrder")
       .update(updatePayload)
-      .eq("dispatchID", dispatchID);
+      .eq("dispatchID", dispatchID)
+      .eq("status", current.status)
+      .select("dispatchID")
+      .maybeSingle();
 
     if (updateErr) throw new Error(`Database error: ${updateErr.message}`);
+    if (!updated) {
+      return NextResponse.json({ message: "This trip was updated by someone else. Please refresh." }, { status: 409 });
+    }
 
-    // 5. FREE UP RESOURCES IF TRIP IS COMPLETED
-    if (status.toLowerCase() === "completed") {
-      const { data: dispatchRecord } = await adminClient
-        .from("DispatchOrder")
-        .select(`truckID, driverID, DispatchHelper(helperID)`)
-        .eq("dispatchID", dispatchID)
-        .single();
+    // Mark the delivered stop so the admin dashboards see the progress.
+    if (branchID !== null && podUrl) {
+      const { error: stopErr } = await supabase
+        .from("BranchStops")
+        .update({ stopStatus: "Completed" })
+        .eq("branchID", branchID);
+      if (stopErr) console.error("[Status API] Stop status update failed:", stopErr.message);
+    }
 
-      if (dispatchRecord) {
-        if (dispatchRecord.truckID) {
-          await adminClient.from("Truck").update({ truckStatus: "Available" }).eq("truckID", dispatchRecord.truckID);
-        }
-        if (dispatchRecord.driverID) {
-          await adminClient.from("Employee").update({ availability: "Available" }).eq("employeeID", dispatchRecord.driverID);
-        }
-        if (dispatchRecord.DispatchHelper) {
-          for (const helper of dispatchRecord.DispatchHelper) {
-            if (helper.helperID) {
-              await adminClient.from("Employee").update({ availability: "Available" }).eq("employeeID", helper.helperID);
-            }
-          }
-        }
-      }
+    // 5. Free the truck and crew once the trip is completed
+    if (status === "Completed") {
+      await releaseDispatchResources(dispatchID);
     }
 
     return NextResponse.json({ message: "Status updated successfully", status, podUrl });
-  } catch (error: any) {
+  } catch (error) {
     console.error("[Status API] CRITICAL ERROR:", error);
-    return NextResponse.json({ message: error.message || "Failed to update status" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to update status" }, { status: 500 });
   }
 }

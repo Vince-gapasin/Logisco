@@ -1,7 +1,14 @@
 // File: app/admindashboard/feeds/fouls/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isFoulTrip,
+  mapOrderToBookingView,
+  toFeedBooking,
+  type FeedBooking,
+} from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -21,199 +28,6 @@ import {
 // ==========================================
 // DUMMY DATA (Realistic Foul Trip records with Full Pending History)
 // ==========================================
-const DUMMY_FOUL_BOOKINGS = [
-  {
-    id: "1",
-    orderId: "ORD-1004",
-    clientName: "KFC Philippines",
-    contactPerson: "Col. Sanders",
-    contactNumber: "09171234567",
-    emailAddress: "logistics@kfc.ph",
-    businessAddress: "Quezon City",
-    product: "Frozen Chicken Parts",
-    quantity: "150",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    status: "Foul Trip",
-    confirmationStatus: "Vehicle Breakdown",
-    priorityLevel: "Urgent",
-    foulDetails: {
-      reason: "Vehicle Breakdown",
-      reportedAt: "Sept 10, 2026 08:30 AM",
-      reportedBy: "Driver - Antonio Luna",
-      description:
-        "Engine overheated while traversing the Skyway. The vehicle lost power and requires immediate towing. Goods are still sealed but temperature control might be compromised if not transferred within 2 hours.",
-      attachment: "Engine_Photo_Skyway.jpg",
-    },
-    pickupList: [
-      {
-        warehouseName: "Cold Storage Hub South",
-        warehouseAddress: "Taguig City",
-        contactPerson: "WH Admin",
-        contactNumber: "09991112222",
-        pickupTime: "06:00",
-        quantity: "150",
-        stopStatus: "Completed",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "KFC Commonwealth",
-        deliveryAddress: "Commonwealth Ave, QC",
-        contactPerson: "Branch Mgr",
-        contactNumber: "09887776655",
-        deliveryTime: "09:00",
-        quantity: "150",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "TRK-105 (Isuzu Forward)",
-    driver: "Antonio Luna",
-    helper1: "Jose Rizal",
-    helper2: "",
-    notes: "Requires strict temperature control below -18C.",
-    crews: [
-      { role: "Driver", name: "Antonio Luna", status: "Accepted" },
-      { role: "Helper #1", name: "Jose Rizal", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 8, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 9, 2026 09:30 AM",
-        details: "Fleet TRK-105 and crew assigned to the delivery schedule.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-      {
-        dateTime: "Sept 9, 2026 11:45 AM",
-        details: "All assigned crew members accepted the delivery.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 10, 2026 06:15 AM",
-        details:
-          "Vehicle departed from Cold Storage Hub South. Status changed to In Transit.",
-        attachments: "Gate_Pass_1004.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-      {
-        dateTime: "Sept 10, 2026 08:30 AM",
-        details:
-          "REPORTED INCIDENT: Engine overheated on Skyway. Status changed to Foul Trip.",
-        attachments: "Engine_Photo_Skyway.jpg",
-        staff: "Antonio Luna",
-        role: "Driver",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-1005",
-    clientName: "Puregold",
-    contactPerson: "Aling Puring",
-    contactNumber: "09198887777",
-    emailAddress: "logistics@puregold.com",
-    businessAddress: "Manila City",
-    product: "Assorted Canned Goods",
-    quantity: "300",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 9, 2026",
-    createdBy: "Logistics Coordinator",
-    status: "Foul Trip",
-    confirmationStatus: "Client Rejection",
-    priorityLevel: "Standard",
-    foulDetails: {
-      reason: "Client Rejection - Wrong Specs",
-      reportedAt: "Sept 10, 2026 10:45 AM",
-      reportedBy: "Helper - Pedro Santos",
-      description:
-        "Store manager refused to accept the delivery. Claimed the canned goods delivered were 150g instead of the requested 250g specification in their PO.",
-      attachment: "Rejection_Slip_Signed.pdf",
-    },
-    pickupList: [
-      {
-        warehouseName: "Main Distribution Center",
-        warehouseAddress: "Bulacan Logistics Hub",
-        contactPerson: "Head Guard",
-        contactNumber: "09176665544",
-        pickupTime: "07:00",
-        quantity: "300",
-        stopStatus: "Completed",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Puregold Tondo",
-        deliveryAddress: "Tondo, Manila",
-        contactPerson: "Store Manager",
-        contactNumber: "09172223333",
-        deliveryTime: "10:30",
-        quantity: "300",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "TRK-108 (Fuso Canter)",
-    driver: "Luis Manzano",
-    helper1: "Pedro Santos",
-    helper2: "",
-    notes: "Unload at the secondary loading bay.",
-    crews: [
-      { role: "Driver", name: "Luis Manzano", status: "Accepted" },
-      { role: "Helper #1", name: "Pedro Santos", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 9, 2026 10:00 AM",
-        details: "Booking created and saved.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-      {
-        dateTime: "Sept 9, 2026 11:20 AM",
-        details: "Crew assigned and awaiting confirmations.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 9, 2026 01:15 PM",
-        details: "Crew confirmed assignment.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 10, 2026 07:15 AM",
-        details: "Fleet dispatched. Delivery is now en route.",
-        attachments: "Dispatch_Log.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-      {
-        dateTime: "Sept 10, 2026 10:45 AM",
-        details:
-          "INCIDENT: Client rejected goods upon inspection at the dock. Refusal form signed.",
-        attachments: "Rejection_Slip_Signed.pdf",
-        staff: "Pedro Santos",
-        role: "Helper",
-      },
-    ],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -1096,6 +910,28 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function FoulTripFeedPage() {
+  const [bookings, setBookings] = useState<FeedBooking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      setBookings(
+        (orders ?? []).map(mapOrderToBookingView).filter(isFoulTrip).map(toFeedBooking),
+      );
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -1105,7 +941,7 @@ export default function FoulTripFeedPage() {
   // ==========================================
   // FILTERING
   // ==========================================
-  const filteredBookings = DUMMY_FOUL_BOOKINGS.filter(
+  const filteredBookings = bookings.filter(
     (booking) =>
       booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1156,6 +992,12 @@ export default function FoulTripFeedPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1268,7 +1110,7 @@ export default function FoulTripFeedPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No foul trip bookings found
+                        {isLoading ? "Loading bookings..." : "No foul trip bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no active trip exceptions matching

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/app/lib/auth";
+import { requireAuth, requireRole } from "@/app/lib/auth";
 import { getAvailableResources } from "@/services/dispatch/dispatchService";
 
 export async function GET(request: Request) {
@@ -8,6 +8,9 @@ export async function GET(request: Request) {
     if ("error" in auth) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
+
+    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     // Extract the target date from the URL query parameters
     const { searchParams } = new URL(request.url);

@@ -1,60 +1,51 @@
 import { NextResponse } from "next/server";
+import { authorize, FLEET_ROLES } from "@/app/lib/auth";
+import {
+  createFleetTruck,
+  getFleet,
+  toTruckPayload,
+  validateTruckPayload,
+} from "@/services/truck/truckService";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
-
-const headers = {
-  apikey: SUPABASE_KEY || "",
-  Authorization: `Bearer ${SUPABASE_KEY || ""}`,
-  "Content-Type": "application/json",
-};
-
-export async function GET() {
-  if (!SUPABASE_URL) {
-    return NextResponse.json({ message: "Server Configuration Error: Missing SUPABASE_URL" }, { status: 500 });
-  }
+export async function GET(request: Request) {
+  const { response } = await authorize(request, FLEET_ROLES);
+  if (response) return response;
 
   try {
-    // Auth entirely bypassed for testing
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck?select=*&order=lastChecked.desc`, { headers });
-    const data = await res.json();
+    const data = await getFleet();
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("GET trucks error:", error);
+    console.error("GET fleet error:", error);
     return NextResponse.json({ message: "Failed to fetch trucks" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  if (!SUPABASE_URL) {
-    return NextResponse.json({ message: "Server Configuration Error: Missing SUPABASE_URL" }, { status: 500 });
+  const { response } = await authorize(request, FLEET_ROLES);
+  if (response) return response;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const payload = toTruckPayload(body);
+  const validationError = validateTruckPayload(payload, true);
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
   try {
-    // Auth entirely bypassed for testing
-    const body = await request.json();
-    
-    const dbPayload = {
-      truckCode: body.truckCode,
-      plateNumber: body.plateNumber,
-      truckType: body.truckType,
-      model: body.truckModel, 
-      capacity: parseFloat(body.capacity),
-      lastChecked: body.lastChecked,
-      truckStatus: body.status || 'Available',
-      isActive: true
-    };
-
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck`, {
-      method: "POST",
-      headers: { ...headers, Prefer: "return=representation" },
-      body: JSON.stringify(dbPayload),
-    });
-    
-    const data = await res.json();
-    return NextResponse.json(data[0], { status: 201 });
+    const truck = await createFleetTruck(payload);
+    return NextResponse.json(truck, { status: 201 });
   } catch (error) {
     console.error("POST truck error:", error);
-    return NextResponse.json({ message: "Failed to create truck" }, { status: 500 });
+    const isDuplicate = (error as { code?: string })?.code === "23505";
+    return NextResponse.json(
+      { message: isDuplicate ? "A truck with this plate number or code already exists" : "Failed to create truck" },
+      { status: isDuplicate ? 409 : 500 },
+    );
   }
 }

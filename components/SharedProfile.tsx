@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Mail, Lock, X, AlertCircle, User, Shield, Building } from "lucide-react";
+import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 
 // ==========================================
 // SESSION & API FETCH
@@ -58,6 +59,7 @@ export default function SharedProfile() {
   const [currentEmail, setCurrentEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [confirmEmail, setConfirmEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
 
@@ -94,8 +96,13 @@ export default function SharedProfile() {
     e.preventDefault();
     setEmailError("");
 
-    if (!currentEmail || !newEmail || !confirmEmail) {
+    if (!currentEmail || !newEmail || !confirmEmail || !emailPassword) {
       setEmailError("All fields are required.");
+      return;
+    }
+
+    if (currentEmail.trim().toLowerCase() !== userInfo.email.trim().toLowerCase()) {
+      setEmailError("Current email does not match your account.");
       return;
     }
 
@@ -114,10 +121,7 @@ export default function SharedProfile() {
     try {
       const response = await apiFetch<{ message: string }>("/api/auth/update-email", {
         method: "POST",
-        body: JSON.stringify({ 
-          newEmail, 
-          userRole: userInfo.role // Pass role to API to route to the correct DB table
-        }),
+        body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
       });
 
       alert(response.message);
@@ -142,6 +146,7 @@ export default function SharedProfile() {
       setCurrentEmail("");
       setNewEmail("");
       setConfirmEmail("");
+      setEmailPassword("");
     } catch (err: any) {
       setEmailError(err.message);
     } finally {
@@ -164,8 +169,9 @@ export default function SharedProfile() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError("New password must be at least 6 characters long.");
+    const policyError = getPasswordPolicyError(newPassword);
+    if (policyError) {
+      setPasswordError(policyError);
       return;
     }
 
@@ -173,7 +179,7 @@ export default function SharedProfile() {
     try {
       const response = await apiFetch<{ message: string }>("/api/auth/update-password", {
         method: "POST",
-        body: JSON.stringify({ newPassword }), // Password only updates Auth, so role is not needed
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
 
       alert(response.message);
@@ -353,6 +359,20 @@ export default function SharedProfile() {
                   className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />
               </div>
+              <div>
+                <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={emailPassword}
+                  onChange={(e) => setEmailPassword(e.target.value)}
+                  placeholder="Enter your password to confirm"
+                  autoComplete="current-password"
+                  disabled={isSubmittingEmail}
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                />
+              </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
@@ -419,7 +439,7 @@ export default function SharedProfile() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min. 6 characters)"
+                  placeholder="8+ chars with upper, lower, number & symbol"
                   disabled={isSubmittingPassword}
                   className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
                 />

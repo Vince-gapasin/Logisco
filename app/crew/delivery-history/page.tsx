@@ -3,7 +3,8 @@
 // ==========================================
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle, Camera } from "lucide-react";
 
 export interface PickupRecord {
@@ -68,286 +69,50 @@ export default function DeliveryHistoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // 8 Hardcoded Completed Deliveries with lbs quantities and single pickup support
-  const [deliveryList] = useState<DeliveryHistoryRecord[]>([
-    {
-      id: 1,
-      clientName: "Jollibee SM Fairview & Commonwealth",
-      clientEmail: "admin.smfairview@jollibee.com",
-      bookingId: "ORD-1211",
-      address: "SM Fairview, Quirino Hwy, Quezon City",
-      dateTime: "May 30, 2026 • 10:30 AM",
-      status: "Completed",
-      scheduledDate: "May 30, 2026",
-      pickupTime: "8:00 AM",
-      deliveryTime: "10:30 AM",
-      pickupAddress: "Jollibee Commissary, Pasig City",
-      deliveryAddress: "SM Fairview, Quirino Hwy, Quezon City",
-      contactPerson: "Maria Santos",
-      contactNumber: "0917-111-2222",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      helper2: "Carlo Mendoza",
-      assignedVehicle: "NDR - 4821",
-      product: "Frozen Patties & Buns",
-      quantity: "3,500 lbs",
-      priorityLevel: "High",
-      notes: "Handle frozen items with care. Unload at the back entrance.",
-      multiplePickups: [
-        {
-          warehouse: "Jollibee Commissary",
-          address: "Pasig City",
-          contactPerson: "Juan Dela Cruz",
-          contactNumber: "0917-123-4567",
-          pickupTime: "06:00 AM",
-          quantity: "3,500 lbs",
-        },
-      ],
-      multipleDeliveries: [
-        {
-          branch: "Jollibee - SM Fairview",
-          address: "Quirino Hwy, Quezon City",
-          contactPerson: "Maria Santos",
-          contactNumber: "0919-345-6789",
-          deliveryTime: "10:30 AM",
-          quantity: "2,000 lbs",
-        },
-        {
-          branch: "Jollibee - Commonwealth",
-          address: "Commonwealth Ave, Quezon City",
-          contactPerson: "Carlo Cruz",
-          contactNumber: "0917-555-1234",
-          deliveryTime: "11:30 AM",
-          quantity: "1,500 lbs",
-        },
-      ],
-    },
-    {
-      id: 2,
-      clientName: "Bonchon Katipunan",
-      clientEmail: "ops.katipunan@bonchon.com",
-      bookingId: "ORD-1212",
-      address: "Katipunan Ave, Quezon City",
-      dateTime: "May 29, 2026 • 2:00 PM",
-      status: "Completed",
-      scheduledDate: "May 29, 2026",
-      pickupTime: "12:30 PM",
-      deliveryTime: "2:00 PM",
-      pickupAddress: "Bonchon Warehouse, Marikina",
-      deliveryAddress: "Katipunan Ave, Quezon City",
-      contactPerson: "Carlo Dimaculangan",
-      contactNumber: "0918-222-3333",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Poultry & Glaze Sauces",
-      quantity: "2,000 lbs",
-      priorityLevel: "Standard",
-      notes: "Ensure sauces are secured properly to avoid spills.",
-      multiplePickups: [
-        {
-          warehouse: "Bonchon Warehouse",
-          address: "Marikina City",
-          contactPerson: "Carlo Dimaculangan",
-          contactNumber: "0918-222-3333",
-          pickupTime: "12:30 PM",
-          quantity: "2,000 lbs",
-        },
-      ],
-    },
-    {
-      id: 3,
-      clientName: "Chowking Quezon Avenue",
-      bookingId: "ORD-1213",
-      address: "Quezon Avenue, Quezon City",
-      dateTime: "May 28, 2026 • 1:15 PM",
-      status: "Completed",
-      scheduledDate: "May 28, 2026",
-      pickupTime: "11:00 AM",
-      deliveryTime: "1:15 PM",
-      pickupAddress: "Novaliches Depot",
-      deliveryAddress: "Quezon Avenue, Quezon City",
-      contactPerson: "Lea Gomez",
-      contactNumber: "0922-333-4444",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Noodles & Dimsum",
-      quantity: "1,500 lbs",
-      priorityLevel: "Standard",
-      notes: "Standard delivery. Receiver needs to sign 3 copies of the invoice.",
-      multiplePickups: [
-        {
-          warehouse: "Novaliches Depot",
-          address: "Quezon City",
-          contactPerson: "Lea Gomez",
-          contactNumber: "0922-333-4444",
-          pickupTime: "11:00 AM",
-          quantity: "1,500 lbs",
-        },
-      ],
-    },
-    {
-      id: 4,
-      clientName: "KFC Cubao",
-      bookingId: "ORD-1214",
-      address: "Aurora Boulevard, Cubao, Quezon City",
-      dateTime: "May 27, 2026 • 9:30 AM",
-      status: "Completed",
-      scheduledDate: "May 27, 2026",
-      pickupTime: "7:00 AM",
-      deliveryTime: "9:30 AM",
-      pickupAddress: "Quezon City Hub",
-      deliveryAddress: "Aurora Boulevard, Cubao, Quezon City",
-      contactPerson: "Ana Rivera",
-      contactNumber: "0917-444-5555",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Poultry Supplies & Packaging",
-      quantity: "5,000 lbs",
-      priorityLevel: "High",
-      notes: "Morning delivery protocol. Do not block the main customer entrance.",
-      multiplePickups: [
-        {
-          warehouse: "Quezon City Hub",
-          address: "Quezon City",
-          contactPerson: "Ana Rivera",
-          contactNumber: "0917-444-5555",
-          pickupTime: "7:00 AM",
-          quantity: "5,000 lbs",
-        },
-      ],
-    },
-    {
-      id: 5,
-      clientName: "McDonald's Ortigas",
-      bookingId: "ORD-1215",
-      address: "Emerald Avenue, Ortigas Center, Pasig City",
-      dateTime: "May 26, 2026 • 4:00 PM",
-      status: "Completed",
-      scheduledDate: "May 26, 2026",
-      pickupTime: "1:00 PM",
-      deliveryTime: "4:00 PM",
-      pickupAddress: "Marikina Depot",
-      deliveryAddress: "Emerald Avenue, Ortigas Center, Pasig City",
-      contactPerson: "Juan Dela Cruz",
-      contactNumber: "0920-555-6666",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Beverage Syrups & Fries",
-      quantity: "2,500 lbs",
-      priorityLevel: "Low",
-      notes: "Heavy items. Request unloading assistance from store staff if needed.",
-      multiplePickups: [
-        {
-          warehouse: "Marikina Depot",
-          address: "Marikina City",
-          contactPerson: "Juan Dela Cruz",
-          contactNumber: "0920-555-6666",
-          pickupTime: "1:00 PM",
-          quantity: "2,500 lbs",
-        },
-      ],
-    },
-    {
-      id: 6,
-      clientName: "Greenwich",
-      bookingId: "ORD-1216",
-      address: "Trinoma Mall, Quezon City",
-      dateTime: "May 25, 2026 • 11:45 AM",
-      status: "Completed",
-      scheduledDate: "May 25, 2026",
-      pickupTime: "9:30 AM",
-      deliveryTime: "11:45 AM",
-      pickupAddress: "Pasig Warehouse",
-      deliveryAddress: "Trinoma Mall, North Ave, Quezon City",
-      contactPerson: "Sarah Valdez",
-      contactNumber: "0919-666-7777",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Pizza Crusts & Cheese",
-      quantity: "2,000 lbs",
-      priorityLevel: "Standard",
-      notes: "Mall delivery. Park at the designated basement loading bay.",
-      multiplePickups: [
-        {
-          warehouse: "Pasig Warehouse",
-          address: "Pasig City",
-          contactPerson: "Sarah Valdez",
-          contactNumber: "0919-666-7777",
-          pickupTime: "9:30 AM",
-          quantity: "2,000 lbs",
-        },
-      ],
-    },
-    {
-      id: 7,
-      clientName: "Goldilocks",
-      bookingId: "ORD-1217",
-      address: "Shaw Boulevard, Mandaluyong City",
-      dateTime: "May 24, 2026 • 3:30 PM",
-      status: "Completed",
-      scheduledDate: "May 24, 2026",
-      pickupTime: "1:00 PM",
-      deliveryTime: "3:30 PM",
-      pickupAddress: "Mandaluyong Commissary",
-      deliveryAddress: "Shaw Boulevard, Mandaluyong City",
-      contactPerson: "Miguel Torres",
-      contactNumber: "0917-777-8888",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Cakes & Pastries",
-      quantity: "1,500 lbs",
-      priorityLevel: "High",
-      notes: "Fragile items. Drive smoothly to prevent cake damage.",
-      multiplePickups: [
-        {
-          warehouse: "Mandaluyong Commissary",
-          address: "Mandaluyong City",
-          contactPerson: "Miguel Torres",
-          contactNumber: "0917-777-8888",
-          pickupTime: "1:00 PM",
-          quantity: "1,500 lbs",
-        },
-      ],
-    },
-    {
-      id: 8,
-      clientName: "7-Eleven",
-      bookingId: "ORD-1218",
-      address: "BGC, Taguig City",
-      dateTime: "May 23, 2026 • 8:00 AM",
-      status: "Completed",
-      scheduledDate: "May 23, 2026",
-      pickupTime: "5:30 AM",
-      deliveryTime: "8:00 AM",
-      pickupAddress: "Taguig Logistics Center",
-      deliveryAddress: "32nd Street, BGC, Taguig City",
-      contactPerson: "Ramon Bautista",
-      contactNumber: "0918-888-9999",
-      driver: "Mark Joseph Reyes",
-      helper: "Dennis Torres",
-      assignedVehicle: "NDR - 4821",
-      product: "Assorted Convenience Goods",
-      quantity: "7,000 lbs",
-      priorityLevel: "Standard",
-      notes: "Early morning drop-off. Keep engine noise low in the residential zone.",
-      multiplePickups: [
-        {
-          warehouse: "Taguig Logistics Center",
-          address: "Taguig City",
-          contactPerson: "Ramon Bautista",
-          contactNumber: "0918-888-9999",
-          pickupTime: "5:30 AM",
-          quantity: "7,000 lbs",
-        },
-      ],
-    },
-  ]);
+  // Completed trips for the signed-in crew member.
+  const [deliveryList, setDeliveryList] = useState<DeliveryHistoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const records = await apiFetch<any[]>("/api/crew/dispatches");
+      const completed = (records ?? [])
+        .filter((record) => String(record.status ?? "").toLowerCase() === "completed")
+        .map((record) => ({
+          ...record,
+          status: "Completed" as const,
+          dateTime: record.scheduledDate
+            ? `${new Date(record.scheduledDate).toLocaleDateString("en-PH", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}${record.timeWindow ? ` • ${record.timeWindow}` : ""}`
+            : "Date not recorded",
+          scheduledDate: record.scheduledDate || "Not scheduled",
+          multipleDeliveries: (record.multipleDeliveries ?? []).map((stop: any) => ({
+            branch: stop.branch,
+            address: stop.address,
+            contactPerson: stop.contactPerson,
+            contactNumber: stop.contactNumber,
+            deliveryTime: stop.deliveryTime ? String(stop.deliveryTime).slice(0, 5) : "",
+            quantity: stop.quantity ?? "",
+          })),
+        })) as DeliveryHistoryRecord[];
+
+      setDeliveryList(completed);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load delivery history.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
 
   // Pagination Math
   const totalPages = Math.ceil(deliveryList.length / itemsPerPage);
@@ -368,15 +133,33 @@ export default function DeliveryHistoryPage() {
     }
   };
 
-  const handleSendReport = () => {
-    setReportSubmitted(true);
-    setTimeout(() => {
-      setReportSubmitted(false);
-      setShowReportModal(false);
-      setReportDetails("");
-      setOtherReason("");
-      setReportImage(null);
-    }, 2000);
+  const handleSendReport = async () => {
+    if (!selectedDelivery) return;
+
+    const category = reportCategory === "Other" && otherReason ? otherReason : reportCategory;
+    const isVehicleIssue = /vehicle|truck|breakdown/i.test(category);
+
+    try {
+      await apiFetch("/api/crew/dispatches/report", {
+        method: "POST",
+        body: JSON.stringify({
+          dispatchID: selectedDelivery.id,
+          tripRemarks: `[${category}] ${reportDetails}`.trim(),
+          vehicleIssues: isVehicleIssue ? reportDetails : "",
+        }),
+      });
+
+      setReportSubmitted(true);
+      setTimeout(() => {
+        setReportSubmitted(false);
+        setShowReportModal(false);
+        setReportDetails("");
+        setOtherReason("");
+        setReportImage(null);
+      }, 2000);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to send report.");
+    }
   };
 
   // ==========================================
@@ -741,8 +524,11 @@ export default function DeliveryHistoryPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No history found
+                        {isLoading ? "Loading delivery history..." : "No history found"}
                       </p>
+                      {loadError && (
+                        <p className="text-red-600 text-xs mt-2">{loadError}</p>
+                      )}
                     </div>
                   </td>
                 </tr>

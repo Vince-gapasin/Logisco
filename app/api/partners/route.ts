@@ -14,6 +14,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
 
+    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
+
     const partners = await getPartners();
 
     const response: PartnersResponse = {

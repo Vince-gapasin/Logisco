@@ -1,12 +1,21 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/app/lib/supabase";
 import { supabaseAuth } from "@/app/lib/supabaseAuth";
 
 export type UserRole =
   | "Admin"
   | "Coordinator"
+  | "Dispatcher"
   | "Driver"
   | "Mechanic"
   | "Helper";
+
+// Roles allowed to view and manage the truck fleet and maintenance logs.
+export const FLEET_ROLES: UserRole[] = ["Admin", "Coordinator", "Mechanic"];
+
+// Roles that work assigned deliveries from the crew app.
+export const CREW_ROLES: UserRole[] = ["Driver", "Helper"];
 
 // ==========================================
 // NORMAL AUTHENTICATION
@@ -172,9 +181,12 @@ export function requireRole(
   role: string,
   allowedRoles: UserRole[]
 ) {
+  // Role values in the DB are not consistently cased/trimmed.
+  const normalized = (role ?? "").trim().toLowerCase();
+
   if (
-    !allowedRoles.includes(
-      role as UserRole
+    !allowedRoles.some(
+      (allowed) => allowed.toLowerCase() === normalized
     )
   ) {
     return {
@@ -184,4 +196,63 @@ export function requireRole(
   }
 
   return null;
+}
+
+// ==========================================
+// PASSWORD RE-VERIFICATION
+// ==========================================
+// Confirms the caller knows the account password before sensitive changes.
+// A throwaway client is used so no user session is held in server memory.
+
+export async function verifyCurrentPassword(
+  email: string | undefined,
+  password: string
+): Promise<boolean> {
+  if (!email || !password) return false;
+
+  const verifier = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "",
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+
+  const { error } = await verifier.auth.signInWithPassword({ email, password });
+  return !error;
+}
+
+// ==========================================
+// ROUTE GUARD
+// ==========================================
+// Authenticates the caller and optionally checks
+// their role. Returns either the auth context or a
+// ready-to-return error response.
+
+export async function authorize(
+  request: Request,
+  allowedRoles?: UserRole[]
+) {
+  const auth = await requireAuth(request);
+
+  if ("error" in auth) {
+    return {
+      response: NextResponse.json(
+        { message: auth.error },
+        { status: auth.status }
+      ),
+    };
+  }
+
+  if (allowedRoles) {
+    const roleError = requireRole(auth.employee.role, allowedRoles);
+    if (roleError) {
+      return {
+        response: NextResponse.json(
+          { message: roleError.error },
+          { status: roleError.status }
+        ),
+      };
+    }
+  }
+
+  return { auth };
 }

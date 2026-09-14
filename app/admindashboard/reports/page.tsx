@@ -99,42 +99,8 @@ const STATUS_OPTIONS = [
   "In-Transit",
 ];
 
-const DUMMY_CLIENTS = [
-  "Jollibee – Katipunan",
-  "Popeyes – Sta. Mesa",
-  "KFC – Cubao",
-  "McDonald’s – Ortigas",
-  "Chowking – Quezon Avenue",
-  "Mang Inasal - Diliman",
-  "Burger King - Timog",
-  "Greenwich - Trinoma",
-  "Pizza Hut - SM North",
-  "Shakey's - Tomas Morato",
-];
 
-const DUMMY_DRIVERS = [
-  "Juan Dela Cruz",
-  "Luis Manzano",
-  "Pedro Penduko",
-  "Cardo Dalisay",
-  "Coco Martin",
-  "Vic Sotto",
-  "Joey de Leon",
-  "Daniel Padilla",
-  "Dingdong Dantes",
-];
 
-const DUMMY_HELPERS = [
-  "Mark Reyes",
-  "John Doe",
-  "Andres Bonifacio",
-  "Apolinario Mabini",
-  "Emilio Aguinaldo",
-  "Jose Rizal",
-  "Antonio Luna",
-  "Marcelo Del Pilar",
-  "Lapu-Lapu",
-];
 
 export interface ReportRecord {
   id: string;
@@ -796,9 +762,9 @@ export default function ReportsForecastingPage() {
 
   // Data States
   const [records, setRecords] = useState<ReportRecord[]>([]);
-  const [clientOptions, setClientOptions] = useState<string[]>(DUMMY_CLIENTS);
-  const [driverOptions, setDriverOptions] = useState<string[]>(DUMMY_DRIVERS);
-  const [helperOptions, setHelperOptions] = useState<string[]>(DUMMY_HELPERS);
+  const [clientOptions, setClientOptions] = useState<string[]>([]);
+  const [driverOptions, setDriverOptions] = useState<string[]>([]);
+  const [helperOptions, setHelperOptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State for Booking details view
@@ -913,19 +879,13 @@ export default function ReportsForecastingPage() {
 
         // Populate options arrays
         setClientOptions(
-          Array.from(
-            new Set([...DUMMY_CLIENTS, ...Array.from(uniqueClients)]),
-          ).sort(),
+          Array.from(uniqueClients).sort(),
         );
         setDriverOptions(
-          Array.from(
-            new Set([...DUMMY_DRIVERS, ...Array.from(uniqueDrivers)]),
-          ).sort(),
+          Array.from(uniqueDrivers).sort(),
         );
         setHelperOptions(
-          Array.from(
-            new Set([...DUMMY_HELPERS, ...Array.from(uniqueHelpers)]),
-          ).sort(),
+          Array.from(uniqueHelpers).sort(),
         );
       } catch (error) {
         console.error("Failed to fetch reports:", error);

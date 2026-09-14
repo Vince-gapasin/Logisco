@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAuth } from "@/app/lib/auth";
+import { requireAuth, requireRole, FLEET_ROLES } from "@/app/lib/auth";
 import {
   updateHistoryLog,
   deleteHistoryLog,
@@ -23,6 +23,9 @@ export async function PUT(
         { status: auth.status },
       );
     }
+
+    const roleError = requireRole(auth.employee.role, FLEET_ROLES);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     const { id } = await params;
     const body = await request.json();
@@ -53,6 +56,9 @@ export async function DELETE(
         { status: auth.status },
       );
     }
+
+    const roleError = requireRole(auth.employee.role, FLEET_ROLES);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     const { id } = await params;
 

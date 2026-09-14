@@ -1,41 +1,27 @@
 import { NextResponse } from "next/server";
-
-// Safely grab the URL whether running on the server or edge
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
-
-const headers = {
-  apikey: SUPABASE_KEY!,
-  Authorization: `Bearer ${SUPABASE_KEY}`,
-  "Content-Type": "application/json",
-};
+import { authorize, FLEET_ROLES } from "@/app/lib/auth";
+import {
+  deleteTruck,
+  getTruckById,
+  toTruckPayload,
+  updateTruck,
+  validateTruckPayload,
+} from "@/services/truck/truckService";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, { params }: RouteContext) {
+  const { response } = await authorize(request, FLEET_ROLES);
+  if (response) return response;
+
   try {
     const { id } = await params;
-    
-    if (!SUPABASE_URL) {
-      return NextResponse.json({ message: "Server Configuration Error" }, { status: 500 });
-    }
+    const truck = await getTruckById(id);
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck?truckID=eq.${id}&select=*`, {
-      method: "GET",
-      headers,
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      return NextResponse.json(data, { status: res.status });
-    }
-
-    if (Array.isArray(data) && data.length > 0) {
-      return NextResponse.json(data[0], { status: 200 });
-    } else {
+    if (!truck) {
       return NextResponse.json({ message: "Truck not found" }, { status: 404 });
     }
+    return NextResponse.json(truck);
   } catch (error) {
     console.error("GET truck error:", error);
     return NextResponse.json({ message: "Failed to fetch truck details" }, { status: 500 });
@@ -43,58 +29,53 @@ export async function GET(request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
+  const { response } = await authorize(request, FLEET_ROLES);
+  if (response) return response;
+
+  let body: Record<string, unknown>;
   try {
-    // Auth entirely bypassed for testing
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const payload = toTruckPayload(body);
+  const validationError = validateTruckPayload(payload, false);
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
+  }
+
+  try {
     const { id } = await params;
-    const body = await request.json();
-    
-    const dbPayload = {
-      truckCode: body.truckCode,
-      plateNumber: body.plateNumber,
-      truckType: body.truckType,
-      model: body.truckModel,
-      capacity: parseFloat(body.capacity),
-      lastChecked: body.lastChecked, 
-      truckStatus: body.status,
-    };
+    const truck = await updateTruck(id, payload);
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/Truck?truckID=eq.${id}`, {
-      method: "PATCH",
-      headers: { ...headers, Prefer: "return=representation" },
-      body: JSON.stringify(dbPayload),
-    });
-    
-    const data = await res.json();
-      
-      // 1. Check if the database returned an error object instead of an array
-      if (!Array.isArray(data)) {
-        return NextResponse.json(data, { status: res.ok ? 200 : 400 });
-      }
-      
-      // 2. Prevent undefined crashes if the array is unexpectedly empty
-      if (data.length === 0) {
-        return NextResponse.json({ message: "Update executed, but no record returned." });
-      }
-
-      // 3. Normal successful array response
-      return NextResponse.json(data[0]);
-
+    if (!truck) {
+      return NextResponse.json({ message: "Truck not found" }, { status: 404 });
+    }
+    return NextResponse.json(truck);
   } catch (error) {
     console.error("PUT truck error:", error);
-    return NextResponse.json({ message: "Failed to update truck" }, { status: 500 });
+    const isDuplicate = (error as { code?: string })?.code === "23505";
+    return NextResponse.json(
+      { message: isDuplicate ? "A truck with this plate number or code already exists" : "Failed to update truck" },
+      { status: isDuplicate ? 409 : 500 },
+    );
   }
 }
 
+// Soft delete: trucks are referenced by dispatches and maintenance logs,
+// so the row is deactivated rather than removed.
 export async function DELETE(request: Request, { params }: RouteContext) {
+  const { response } = await authorize(request, FLEET_ROLES);
+  if (response) return response;
+
   try {
-    // Auth entirely bypassed for testing
     const { id } = await params;
-    
-    await fetch(`${SUPABASE_URL}/rest/v1/Truck?truckID=eq.${id}`, {
-      method: "DELETE",
-      headers,
-    });
-    
+    const truck = await deleteTruck(id);
+
+    if (!truck) {
+      return NextResponse.json({ message: "Truck not found" }, { status: 404 });
+    }
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("DELETE truck error:", error);

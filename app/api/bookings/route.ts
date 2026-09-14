@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth, requireRole } from "@/app/lib/auth";
+import { requireAuth, requireRole, UserRole } from "@/app/lib/auth";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 
@@ -12,6 +12,9 @@ export async function GET(request: Request) {
     if ("error" in auth) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
+
+    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator", "Dispatcher"]);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     // Optional: You could restrict visibility here based on role, 
     // but typically Admins/Coordinators see all active bookings.
@@ -39,7 +42,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
 
-    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator"]);
+    const userRole = auth.employee.role.trim() as UserRole;
+    const roleError = requireRole(userRole, ["Admin", "Coordinator", "Dispatcher"]);
     if (roleError) {
       return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     }

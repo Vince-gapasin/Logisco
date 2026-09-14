@@ -1,80 +1,107 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { authorize, CREW_ROLES } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
+import {
+  getCrewAssignment,
+  isUuid,
+  releaseDispatchResources,
+} from "@/services/dispatch/dispatchService";
+
+// Statuses in which the driver can still accept or decline a dispatch.
+const RESPONDABLE_STATUSES = ["Pending", "Assigned"];
 
 export async function POST(request: Request) {
+  const { auth, response } = await authorize(request, CREW_ROLES);
+  if (response) return response;
+
+  let body: { dispatchID?: unknown; action?: unknown; reason?: unknown };
   try {
-    const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
+  }
 
-    const { dispatchID, action, reason } = await request.json(); // action = "accept" | "decline"
+  const { dispatchID, action } = body;
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
 
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
-    const adminClient = createClient(supabaseUrl, supabaseSecretKey);
+  if (!isUuid(dispatchID)) {
+    return NextResponse.json({ message: "Missing or invalid dispatchID" }, { status: 400 });
+  }
+  if (action !== "accept" && action !== "decline") {
+    return NextResponse.json({ message: 'action must be "accept" or "decline"' }, { status: 400 });
+  }
+  if (action === "decline" && !reason) {
+    return NextResponse.json({ message: "A reason is required to decline" }, { status: 400 });
+  }
 
-    // 1. Identify User
-    const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
-    if (authErr || !user) return NextResponse.json({ message: "Invalid session" }, { status: 401 });
+  try {
+    const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
+    if (!assignment) {
+      return NextResponse.json({ message: "You are not assigned to this dispatch." }, { status: 403 });
+    }
 
-    // 2. Find Employee ID
-    const { data: employee } = await adminClient
-      .from("Employee")
-      .select("employeeID")
-      .eq("auth_id", user.id)
-      .single();
+    if (assignment.isDriver) {
+      // USER IS THE DRIVER: accept or reject the whole dispatch
+      if (!RESPONDABLE_STATUSES.includes(assignment.dispatch.status)) {
+        return NextResponse.json(
+          { message: `This dispatch is already ${assignment.dispatch.status}.` },
+          { status: 409 },
+        );
+      }
 
-    if (!employee) return NextResponse.json({ message: "Employee not found" }, { status: 404 });
+      // Column is lowercase in the database: rejectionreason.
+      const updateData =
+        action === "accept"
+          ? { status: "Accepted" }
+          : { status: "Rejected", rejectionreason: reason };
 
-    // 3. Check if they are the Driver
-    const { data: dispatchAsDriver } = await adminClient
-      .from("DispatchOrder")
-      .select("dispatchID")
-      .eq("dispatchID", dispatchID)
-      .eq("driverID", employee.employeeID)
-      .single();
-
-    if (dispatchAsDriver) {
-      // USER IS THE DRIVER: Update the whole Dispatch Order
-      const updateData = action === "accept" 
-        ? { status: "Accepted" } 
-        : { status: "Rejected", rejectionReason: reason };
-
-      const { error: updateErr } = await adminClient
+      const { error: updateErr } = await supabase
         .from("DispatchOrder")
         .update(updateData)
-        .eq("dispatchID", dispatchID);
+        .eq("dispatchID", dispatchID)
+        .in("status", RESPONDABLE_STATUSES);
 
       if (updateErr) throw updateErr;
+
+      // A rejected dispatch no longer holds its truck and crew.
+      if (action === "decline") {
+        await releaseDispatchResources(dispatchID);
+      }
+
       return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
     }
 
-    // 4. Check if they are a Helper
-    const { data: helperAssignment } = await adminClient
-      .from("DispatchHelper")
-      .select("dhID")
-      .eq("dispatchID", dispatchID)
-      .eq("helperID", employee.employeeID)
-      .single();
-
-    if (helperAssignment) {
-      // USER IS A HELPER: Update only their specific Helper assignment
-      const updateData = action === "accept" 
-        ? { status: "Accepted" } 
-        : { status: "Declined", declineReason: reason };
-
-      const { error: updateErr } = await adminClient
-        .from("DispatchHelper")
-        .update(updateData)
-        .eq("dhID", helperAssignment.dhID);
-
-      if (updateErr) throw updateErr;
-      return NextResponse.json({ message: `Assignment ${action}ed successfully.` });
+    // USER IS A HELPER: update only their own assignment
+    const helper = assignment.helper!;
+    if (helper.status && helper.status !== "Pending") {
+      return NextResponse.json({ message: `You have already ${helper.status.toLowerCase()} this assignment.` }, { status: 409 });
     }
 
-    return NextResponse.json({ message: "You are not assigned to this dispatch." }, { status: 403 });
+    // Column is lowercase in the database: declinereason.
+    const updateData =
+      action === "accept"
+        ? { status: "Accepted" }
+        : { status: "Declined", declinereason: reason };
 
-  } catch (error: any) {
+    const { error: updateErr } = await supabase
+      .from("DispatchHelper")
+      .update(updateData)
+      .eq("dhID", helper.dhID);
+
+    if (updateErr) throw updateErr;
+
+    // A helper who declines is free for other dispatches.
+    if (action === "decline") {
+      const { error: availabilityErr } = await supabase
+        .from("Employee")
+        .update({ availability: "Available" })
+        .eq("employeeID", auth.employee.employeeID);
+      if (availabilityErr) console.error("Helper availability reset failed:", availabilityErr.message);
+    }
+
+    return NextResponse.json({ message: `Assignment ${action}ed successfully.` });
+  } catch (error) {
     console.error("Dispatch response error:", error);
-    return NextResponse.json({ message: error.message || "Failed to process response" }, { status: 500 });
+    return NextResponse.json({ message: "Failed to process response" }, { status: 500 });
   }
 }

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/app/lib/auth";
+import { requireAuth, requireRole, FLEET_ROLES } from "@/app/lib/auth";
 import { createMaintenanceRecord, getAllActiveMaintenance } from "@/services/maintenance/maintenanceService";
 
 export async function GET(request: Request) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return NextResponse.json({ message: auth.error }, { status: auth.status });
+
+    const roleError = requireRole(auth.employee.role, FLEET_ROLES);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     const records = await getAllActiveMaintenance();
     return NextResponse.json({ data: records }, { status: 200 });
   } catch (error: any) {
@@ -17,6 +20,9 @@ export async function POST(request: Request) {
   try {
     const auth = await requireAuth(request);
     if ("error" in auth) return NextResponse.json({ message: auth.error }, { status: auth.status });
+
+    const roleError = requireRole(auth.employee.role, FLEET_ROLES);
+    if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     const body = await request.json();
     const newRecord = await createMaintenanceRecord(body);
     return NextResponse.json(newRecord, { status: 201 });

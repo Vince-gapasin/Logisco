@@ -1,7 +1,14 @@
 // File: app/admindashboard/calendar/in-transit/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isInTransit,
+  mapOrderToBookingView,
+  toFeedBooking,
+  type FeedBooking,
+} from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -18,241 +25,6 @@ import {
 // ==========================================
 // DUMMY DATA (Realistic In-Transit records with accumulated history)
 // ==========================================
-const DUMMY_IN_TRANSIT_BOOKINGS = [
-  {
-    id: "1",
-    orderId: "ORD-1001",
-    clientName: "Burger King",
-    contactPerson: "John Doe",
-    contactNumber: "09123456789",
-    emailAddress: "johndoe@burgerking.com",
-    businessAddress: "Quezon City",
-    product: "Frozen Beef Patties & Buns",
-    quantity: "50",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    status: "In Transit",
-    confirmationStatus: "On Route",
-    priorityLevel: "High Priority",
-    pickupList: [
-      {
-        warehouseName: "North Hub Storage",
-        warehouseAddress: "Valenzuela City",
-        contactPerson: "WH Admin",
-        contactNumber: "09991112222",
-        pickupTime: "08:00",
-        quantity: "50",
-        stopStatus: "Completed",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Burger King QC",
-        deliveryAddress: "Quezon City Branch",
-        contactPerson: "Branch Mgr",
-        contactNumber: "09887776655",
-        deliveryTime: "10:00",
-        quantity: "50",
-        stopStatus: "In Progress",
-      },
-    ],
-    truckPlate: "TRK-103 (Hino 300)",
-    driver: "Juan Dela Cruz",
-    helper1: "Mark Santos",
-    helper2: "Carlo Reyes",
-    notes: "Requires strict temperature control. Keep reefer active.",
-    crews: [
-      { role: "Driver", name: "Juan Dela Cruz", status: "Accepted" },
-      { role: "Helper #1", name: "Mark Santos", status: "Accepted" },
-      { role: "Helper #2", name: "Carlo Reyes", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 8, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 9, 2026 09:30 AM",
-        details: "Fleet TRK-103 and crew assigned to the delivery schedule.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-      {
-        dateTime: "Sept 9, 2026 11:45 AM",
-        details: "All assigned crew members accepted the delivery.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 10, 2026 07:15 AM",
-        details:
-          "Vehicle departed from North Hub Storage. Status changed to In Transit.",
-        attachments: "Gate_Pass_1001.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-1002",
-    clientName: "Jollibee",
-    contactPerson: "Maria Clara",
-    contactNumber: "09198887777",
-    emailAddress: "maria@jollibee.com",
-    businessAddress: "Pasig City",
-    product: "Frozen Chicken Products",
-    quantity: "100",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin User",
-    status: "In Transit",
-    confirmationStatus: "On Route",
-    priorityLevel: "Standard",
-    pickupList: [
-      {
-        warehouseName: "Main Warehouse",
-        warehouseAddress: "Pasig Logistics Hub",
-        contactPerson: "Head Guard",
-        contactNumber: "09176665544",
-        pickupTime: "07:00",
-        quantity: "100",
-        stopStatus: "Completed",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Jollibee Manila",
-        deliveryAddress: "Ermita, Manila",
-        contactPerson: "Store Manager",
-        contactNumber: "09172223333",
-        deliveryTime: "09:30",
-        quantity: "100",
-        stopStatus: "Pending", // Set as pending to demonstrate the "No" icon variant
-      },
-    ],
-    truckPlate: "TRK-101 (Isuzu Elf)",
-    driver: "Luis Manzano",
-    helper1: "Pedro Santos",
-    helper2: "",
-    notes: "Morning delivery preferred. Unload at back bay.",
-    crews: [
-      { role: "Driver", name: "Luis Manzano", status: "Accepted" },
-      { role: "Helper #1", name: "Pedro Santos", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 8, 2026 10:00 AM",
-        details: "Booking created and saved.",
-        attachments: "N/A",
-        staff: "Admin User",
-        role: "Administrator",
-      },
-      {
-        dateTime: "Sept 8, 2026 11:20 AM",
-        details: "Crew assigned and awaiting confirmations.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 9, 2026 08:00 AM",
-        details: "Crew confirmed assignment.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-      {
-        dateTime: "Sept 10, 2026 06:45 AM",
-        details: "Fleet dispatched. Delivery is now en route.",
-        attachments: "Dispatch_Log.pdf",
-        staff: "Security Gate",
-        role: "Guard",
-      },
-    ],
-  },
-  {
-    id: "3",
-    orderId: "ORD-1003",
-    clientName: "McDonald's",
-    contactPerson: "Ronald Smith",
-    contactNumber: "09223334444",
-    emailAddress: "ronald@mcdonalds.com",
-    businessAddress: "Makati City",
-    product: "Fries & Condiments",
-    quantity: "200",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    dateCreated: "September 9, 2026",
-    createdBy: "Logistics Coordinator",
-    status: "In Transit",
-    confirmationStatus: "On Route",
-    priorityLevel: "Urgent",
-    pickupList: [
-      {
-        warehouseName: "South Distribution Center",
-        warehouseAddress: "Muntinlupa",
-        contactPerson: "Dock Manager",
-        contactNumber: "09181234567",
-        pickupTime: "06:00",
-        quantity: "200",
-        stopStatus: "Completed",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "McDonald's Makati",
-        deliveryAddress: "Ayala Ave, Makati",
-        contactPerson: "Shift Sup",
-        contactNumber: "09179998888",
-        deliveryTime: "08:00",
-        quantity: "200",
-        stopStatus: "In Progress",
-      },
-    ],
-    truckPlate: "TRK-102 (Mitsubishi Fuso)",
-    driver: "Antonio Luna",
-    helper1: "Jose Rizal",
-    helper2: "Andres Bonifacio",
-    notes: "Rush delivery. Proceed directly to Makati via Skyway.",
-    crews: [
-      { role: "Driver", name: "Antonio Luna", status: "Accepted" },
-      { role: "Helper #1", name: "Jose Rizal", status: "Accepted" },
-      { role: "Helper #2", name: "Andres Bonifacio", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 9, 2026 03:45 PM",
-        details: "Initial urgent booking created.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-      {
-        dateTime: "Sept 9, 2026 04:00 PM",
-        details: "Directly assigned to available standby crew.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 10, 2026 05:30 AM",
-        details: "Truck loaded and dispatched from South DC.",
-        attachments: "Waybill_1003.jpg",
-        staff: "Dock Manager",
-        role: "Warehouse",
-      },
-    ],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -1026,7 +798,7 @@ function BookingDetailsModal({
                   type="button"
                   onClick={(e) => {
                     setShowCancelConfirm(false);
-                    onCancelBooking(e, booking.orderId);
+                    onCancelBooking(e, booking.id);
                   }}
                   className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
@@ -1045,6 +817,28 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function InTransitFeedPage() {
+  const [bookings, setBookings] = useState<FeedBooking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      setBookings(
+        (orders ?? []).map(mapOrderToBookingView).filter(isInTransit).map(toFeedBooking),
+      );
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -1054,7 +848,7 @@ export default function InTransitFeedPage() {
   // ==========================================
   // FILTERING
   // ==========================================
-  const filteredBookings = DUMMY_IN_TRANSIT_BOOKINGS.filter(
+  const filteredBookings = bookings.filter(
     (booking) =>
       booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1080,9 +874,18 @@ export default function InTransitFeedPage() {
     setIsModalOpen(true);
   };
 
-  const handleCancelBooking = (e: React.MouseEvent, bookingId: string) => {
+  const handleCancelBooking = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation();
-    alert(`Cancel booking logic triggered for Order: ${bookingId}`);
+
+    try {
+      await apiFetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      await loadBookings();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+    }
   };
 
   return (
@@ -1110,6 +913,12 @@ export default function InTransitFeedPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1220,7 +1029,7 @@ export default function InTransitFeedPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No in-transit bookings found
+                        {isLoading ? "Loading bookings..." : "No in-transit bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no active deliveries on the road or

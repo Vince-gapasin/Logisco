@@ -1,8 +1,14 @@
 // File: app/admindashboard/calendar/awaiting-confirmation/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isAwaitingCrewConfirmation,
+  mapOrderToBookingView,
+  type BookingView,
+} from "@/app/lib/bookingView";
 import {
   Search,
   FileText,
@@ -13,121 +19,6 @@ import {
   Trash2,
   CheckCircle2,
 } from "lucide-react";
-
-// ==========================================
-// DUMMY DATA (Filtered to only show pending crews)
-// ==========================================
-const INITIAL_DUMMY_CONFIRMATIONS = [
-  {
-    id: "1",
-    orderId: "ORD-0001",
-    clientName: "Jollibee",
-    scheduledDate: "2026-09-08",
-    displayDate: "September 8, 2026",
-    product: "Frozen Chicken Products",
-    dateCreated: "September 6, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "High Priority",
-    status: "Assigned",
-    crews: [
-      { role: "Driver", name: "Juan Dela Cruz", status: "Accepted" },
-      { role: "Helper #1", name: "Mark Santos", status: "Pending" },
-      { role: "Helper #2", name: "Carlo Reyes", status: "Pending" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 6, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-0002",
-    clientName: "McDonald's",
-    scheduledDate: "2026-09-09",
-    displayDate: "September 9, 2026",
-    product: "Frozen Beef Patties",
-    dateCreated: "September 7, 2026",
-    createdBy: "Logistics Coordinator",
-    priorityLevel: "Standard",
-    status: "Assigned",
-    crews: [
-      { role: "Driver", name: "Luis Manzano", status: "Pending" },
-      { role: "Helper #1", name: "Pedro Santos", status: "Pending" },
-    ],
-    remarks: [],
-  },
-  {
-    id: "3",
-    orderId: "ORD-0003",
-    clientName: "Chowking",
-    scheduledDate: "2026-09-10",
-    displayDate: "September 10, 2026",
-    product: "Dry Food Supplies",
-    dateCreated: "September 7, 2026",
-    createdBy: "Admin User",
-    priorityLevel: "Standard",
-    status: "Assigned",
-    crews: [
-      { role: "Driver", name: "Antonio Luna", status: "Accepted" },
-      { role: "Helper #1", name: "Jose Rizal", status: "Accepted" },
-    ],
-    remarks: [],
-  },
-  {
-    id: "4",
-    orderId: "ORD-0004",
-    clientName: "Mang Inasal",
-    scheduledDate: "2026-09-11",
-    displayDate: "September 11, 2026",
-    product: "Frozen Chicken Products",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "Urgent",
-    status: "Assigned",
-    crews: [
-      { role: "Driver", name: "Andres Bonifacio", status: "Pending" },
-      { role: "Helper #1", name: "Emilio Aguinaldo", status: "Pending" },
-      { role: "Helper #2", name: "Apolinario Mabini", status: "Accepted" },
-    ],
-    remarks: [],
-  },
-  {
-    id: "5",
-    orderId: "ORD-0005",
-    clientName: "Greenwich",
-    scheduledDate: "2026-09-12",
-    displayDate: "September 12, 2026",
-    product: "Frozen Pizza Products",
-    dateCreated: "September 8, 2026",
-    createdBy: "Admin Dispatcher",
-    priorityLevel: "Standard",
-    status: "Assigned",
-    crews: [
-      { role: "Driver", name: "Diego Silang", status: "Accepted" },
-      { role: "Helper #1", name: "Gabriela Silang", status: "Pending" },
-    ],
-    remarks: [],
-  },
-  {
-    id: "6",
-    orderId: "ORD-0006",
-    clientName: "Red Ribbon",
-    scheduledDate: "2026-09-13",
-    displayDate: "September 13, 2026",
-    product: "Assorted Cakes & Pastries",
-    dateCreated: "September 9, 2026",
-    createdBy: "System User",
-    priorityLevel: "Standard",
-    status: "Assigned",
-    crews: [{ role: "Driver", name: "Arturo Dimayuga", status: "Pending" }],
-    remarks: [],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -313,6 +204,68 @@ function ReassignBookingModal({
   ]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const [availableTrucks, setAvailableTrucks] = useState<any[]>([]);
+  const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
+  const [availableHelpers, setAvailableHelpers] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  // Free trucks and crew for the delivery date, plus whoever is already on
+  // this dispatch (they are "busy" precisely because of this booking).
+  const scheduleDate = formData.deliverySchedule;
+  useEffect(() => {
+    if (!isOpen || !booking) return;
+    let active = true;
+
+    const mergeCurrent = (list: any[], current: any) =>
+      current && !list.some((item) => item[current.key] === current.id)
+        ? [...list, current.record]
+        : list;
+
+    const loadResources = async () => {
+      const date = scheduleDate || new Date().toISOString().split("T")[0];
+      try {
+        const result = await apiFetch<any>(`/api/dispatch/available-resources?date=${date}`);
+        if (!active) return;
+
+        const driverCrew = booking.crews?.find((c: any) => c.role === "Driver");
+        const helperCrews = (booking.crews ?? []).filter((c: any) => c.role.startsWith("Helper"));
+
+        setAvailableTrucks(
+          mergeCurrent(result?.data?.trucks ?? [], booking.truckID && {
+            key: "truckID",
+            id: booking.truckID,
+            record: { truckID: booking.truckID, plateNumber: booking.truckPlate, model: booking.truckModel },
+          }),
+        );
+        setAvailableDrivers(
+          mergeCurrent(result?.data?.drivers ?? [], driverCrew?.employeeID && {
+            key: "employeeID",
+            id: driverCrew.employeeID,
+            record: { employeeID: driverCrew.employeeID, employeeName: driverCrew.name },
+          }),
+        );
+
+        let helpers = result?.data?.helpers ?? [];
+        for (const crew of helperCrews) {
+          helpers = mergeCurrent(helpers, crew.employeeID && {
+            key: "employeeID",
+            id: crew.employeeID,
+            record: { employeeID: crew.employeeID, employeeName: crew.name },
+          });
+        }
+        setAvailableHelpers(helpers);
+      } catch (error) {
+        if (active) setSubmitError(error instanceof Error ? error.message : "Failed to load available crew.");
+      }
+    };
+
+    void loadResources();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, booking, scheduleDate]);
+
   useEffect(() => {
     if (isOpen && booking) {
       setIsSubconMode(false);
@@ -327,19 +280,19 @@ function ReassignBookingModal({
 
       setFormData({
         clientName: booking.clientName || "",
-        contactPerson: "Juan Dela Cruz",
-        contactNumber: "09123456789",
-        emailAddress: "N/A",
-        businessAddress: "N/A",
+        contactPerson: booking.contactPerson || "",
+        contactNumber: booking.contactNumber || "",
+        emailAddress: booking.emailAddress || "",
+        businessAddress: booking.businessAddress || "",
         requestDate: new Date().toISOString().split("T")[0],
         deliverySchedule: booking.scheduledDate || currentDate,
         product: booking.product || "",
         priorityLevel: booking.priorityLevel || "Standard",
         subconPartner: "",
-        truckPlate: "TRK-101",
-        driver: driverObj ? driverObj.name : "",
-        helper1: h1Obj ? h1Obj.name : "",
-        helper2: h2Obj ? h2Obj.name : "",
+        truckPlate: booking.truckID || "",
+        driver: driverObj?.employeeID || "",
+        helper1: h1Obj?.employeeID || "",
+        helper2: h2Obj?.employeeID || "",
         notes: "",
       });
       setPickupList([
@@ -352,18 +305,27 @@ function ReassignBookingModal({
           quantity: "50",
         },
       ]);
-      setDeliveryList([
-        {
-          branchName: booking.clientName
-            ? `${booking.clientName} Branch`
-            : "Branch",
-          deliveryAddress: "Metro Manila",
-          contactPerson: "Branch Manager",
-          contactNumber: "09192223344",
-          deliveryTime: "12:00",
-          quantity: "50",
-        },
-      ]);
+      setDeliveryList(
+        booking.stops && booking.stops.length > 0
+          ? booking.stops.map((stop: any) => ({
+              branchName: stop.branchName,
+              deliveryAddress: booking.businessAddress || "",
+              contactPerson: stop.contactPerson,
+              contactNumber: stop.contactNum,
+              deliveryTime: (stop.expectedTime || "12:00").slice(0, 5),
+              quantity: "",
+            }))
+          : [
+              {
+                branchName: "",
+                deliveryAddress: booking.businessAddress || "",
+                contactPerson: booking.contactPerson || "",
+                contactNumber: booking.contactNumber || "",
+                deliveryTime: "12:00",
+                quantity: "",
+              },
+            ],
+      );
       setErrors({});
 
       setTimeout(() => {
@@ -449,8 +411,9 @@ function ReassignBookingModal({
     setDeliveryToDelete(null);
   };
 
-  const validateAndSubmit = (e: React.FormEvent) => {
+  const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError("");
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.deliverySchedule)
@@ -467,8 +430,33 @@ function ReassignBookingModal({
       return;
     }
 
-    onSubmitSuccess(booking.orderId);
-    onClose();
+    if (isSubconMode) {
+      setSubmitError(
+        "Subcontractor assignment is not supported yet. Assign an in-house truck and driver for now.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          truckID: formData.truckPlate,
+          driverID: formData.driver,
+          helper1ID: formData.helper1 || undefined,
+          helper2ID: formData.helper2 || undefined,
+          totalCargoWeight: 0,
+        }),
+      });
+
+      onSubmitSuccess(booking.orderId);
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Failed to update this assignment.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1149,10 +1137,15 @@ function ReassignBookingModal({
                     onChange={handleChange}
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.truckPlate ? "border-red-500" : "border-slate-300"}`}
                   >
-                    <option value="">Select truck</option>
-                    <option value="TRK-101">TRK-101 (Isuzu Elf)</option>
-                    <option value="TRK-102">TRK-102 (Mitsubishi Fuso)</option>
-                    <option value="TRK-103">TRK-103 (Hino 300)</option>
+                    <option value="">
+                      {availableTrucks.length === 0 ? "No trucks available" : "Select truck"}
+                    </option>
+                    {availableTrucks.map((truck: any) => (
+                      <option key={truck.truckID} value={truck.truckID}>
+                        {truck.plateNumber}
+                        {truck.model ? ` (${truck.model})` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1165,15 +1158,14 @@ function ReassignBookingModal({
                     onChange={handleChange}
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.driver ? "border-red-500" : "border-slate-300"}`}
                   >
-                    <option value="">Select driver</option>
-                    <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-                    <option value="Pedro Santos">Pedro Santos</option>
-                    <option value="Luis Manzano">Luis Manzano</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
-                    <option value="Antonio Luna">Antonio Luna</option>
-                    <option value="Andres Bonifacio">Andres Bonifacio</option>
-                    <option value="Diego Silang">Diego Silang</option>
-                    <option value="Arturo Dimayuga">Arturo Dimayuga</option>
+                    <option value="">
+                      {availableDrivers.length === 0 ? "No drivers available" : "Select driver"}
+                    </option>
+                    {availableDrivers.map((driver: any) => (
+                      <option key={driver.employeeID} value={driver.employeeID}>
+                        {driver.employeeName}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1187,11 +1179,13 @@ function ReassignBookingModal({
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                   >
                     <option value="">Select helper</option>
-                    <option value="Mark Santos">Mark Santos</option>
-                    <option value="James Garcia">James Garcia</option>
-                    <option value="Daniel Cruz">Daniel Cruz</option>
-                    <option value="Paolo Reyes">Paolo Reyes</option>
-                    <option value="Gabriela Silang">Gabriela Silang</option>
+                    {availableHelpers
+                      .filter((helper: any) => helper.employeeID !== formData.helper2)
+                      .map((helper: any) => (
+                        <option key={helper.employeeID} value={helper.employeeID}>
+                          {helper.employeeName}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div>
@@ -1205,10 +1199,13 @@ function ReassignBookingModal({
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                   >
                     <option value="">Select helper</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
-                    <option value="Ryan Mendoza">Ryan Mendoza</option>
-                    <option value="Nico Santos">Nico Santos</option>
-                    <option value="Apolinario Mabini">Apolinario Mabini</option>
+                    {availableHelpers
+                      .filter((helper: any) => helper.employeeID !== formData.helper1)
+                      .map((helper: any) => (
+                        <option key={helper.employeeID} value={helper.employeeID}>
+                          {helper.employeeName}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -1298,6 +1295,12 @@ function ReassignBookingModal({
           </div>
         </form>
 
+        {submitError && (
+          <div className="shrink-0 mx-4 sm:mx-6 mb-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+            {submitError}
+          </div>
+        )}
+
         {/* FIXED FOOTER */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
           <button
@@ -1319,9 +1322,10 @@ function ReassignBookingModal({
           <button
             type="submit"
             form="reassign-booking-form"
-            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
           >
-            Re-assign Booking
+            {isSubmitting ? "Saving..." : "Re-assign Booking"}
           </button>
         </div>
 
@@ -1351,7 +1355,7 @@ function ReassignBookingModal({
                   type="button"
                   onClick={(e) => {
                     setShowCancelConfirm(false);
-                    onCancelBooking(e, booking.orderId);
+                    onCancelBooking(e, booking.id);
                   }}
                   className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
@@ -1378,13 +1382,28 @@ export default function AwaitingConfirmationPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successOrderCode, setSuccessOrderCode] = useState("");
 
-  // Logic to hide records where all crew members have already accepted/confirmed
-  const pendingConfirmations = INITIAL_DUMMY_CONFIRMATIONS.filter((booking) => {
-    const hasUnconfirmedCrew = booking.crews.some(
-      (crew) => crew.status === "Pending",
-    );
-    return hasUnconfirmedCrew;
-  });
+  const [bookings, setBookings] = useState<BookingView[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  // Assigned bookings where at least one crew member has not confirmed yet.
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      setBookings((orders ?? []).map(mapOrderToBookingView).filter(isAwaitingCrewConfirmation));
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
+  const pendingConfirmations = bookings;
 
   // ==========================================
   // FILTERING
@@ -1418,11 +1437,24 @@ export default function AwaitingConfirmationPage() {
   const handleModalSubmitSuccess = (orderId: string) => {
     setSuccessOrderCode(orderId);
     setIsSuccessModalOpen(true);
+    setIsModalOpen(false);
+    void loadBookings();
   };
 
-  const handleCancelBooking = (e: React.MouseEvent, bookingId: string) => {
+  const handleCancelBooking = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation();
-    alert(`Cancel booking logic triggered for Order: ${bookingId}`);
+
+    try {
+      await apiFetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      setIsModalOpen(false);
+      setSelectedBooking(null);
+      await loadBookings();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+    }
   };
 
   return (
@@ -1450,6 +1482,12 @@ export default function AwaitingConfirmationPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1571,7 +1609,7 @@ export default function AwaitingConfirmationPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No pending confirmations found
+                        {isLoading ? "Loading bookings..." : "No pending confirmations found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         All crew members have confirmed their schedules or no

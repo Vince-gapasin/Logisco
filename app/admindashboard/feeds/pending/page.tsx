@@ -1,7 +1,14 @@
 // File: app/admindashboard/calendar/pending-bookings/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
+import {
+  isAwaitingDeparture,
+  mapOrderToBookingView,
+  toFeedBooking,
+  type FeedBooking,
+} from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -18,250 +25,6 @@ import {
 // ==========================================
 // DUMMY DATA (Enriched to match the detailed form fields)
 // ==========================================
-const DUMMY_PENDING_BOOKINGS = [
-  {
-    id: "1",
-    orderId: "ORD-1001",
-    clientName: "Burger King",
-    contactPerson: "John Doe",
-    contactNumber: "09123456789",
-    emailAddress: "johndoe@burgerking.com",
-    businessAddress: "Quezon City",
-    product: "Frozen Beef Patties & Buns",
-    quantity: "50",
-    scheduledDate: "2026-09-14",
-    displayDate: "September 14, 2026",
-    dateCreated: "September 10, 2026",
-    createdBy: "Admin Dispatcher",
-    status: "Created",
-    confirmationStatus: "Pending Crew",
-    priorityLevel: "High Priority",
-    pickupList: [
-      {
-        warehouseName: "North Hub Storage",
-        warehouseAddress: "Valenzuela City",
-        contactPerson: "WH Admin",
-        contactNumber: "09991112222",
-        pickupTime: "08:00",
-        quantity: "50",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Burger King QC",
-        deliveryAddress: "Quezon City Branch",
-        contactPerson: "Branch Mgr",
-        contactNumber: "09887776655",
-        deliveryTime: "10:00",
-        quantity: "50",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "TRK-103 (Hino 300)",
-    driver: "Juan Dela Cruz",
-    helper1: "Mark Santos",
-    helper2: "Carlo Reyes",
-    notes: "Requires strict temperature control.",
-    crews: [
-      { role: "Driver", name: "Juan Dela Cruz", status: "Accepted" },
-      { role: "Helper #1", name: "Mark Santos", status: "Pending" },
-      { role: "Helper #2", name: "Carlo Reyes", status: "Pending" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 10, 2026 08:15 AM",
-        details: "Booking successfully created and logged into the system.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-      {
-        dateTime: "Sept 11, 2026 09:30 AM",
-        details: "Client followed up to confirm priority level.",
-        attachments: "N/A",
-        staff: "Support Rep",
-        role: "Customer Support",
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "ORD-1002",
-    clientName: "Jollibee",
-    contactPerson: "Maria Clara",
-    contactNumber: "09198887777",
-    emailAddress: "maria@jollibee.com",
-    businessAddress: "Pasig City",
-    product: "Frozen Chicken Products",
-    quantity: "100",
-    scheduledDate: "2026-09-14",
-    displayDate: "September 14, 2026",
-    dateCreated: "September 11, 2026",
-    createdBy: "Admin User",
-    status: "Assigned",
-    confirmationStatus: "Crew to Start Delivery",
-    priorityLevel: "Standard",
-    pickupList: [
-      {
-        warehouseName: "Main Warehouse",
-        warehouseAddress: "Pasig Logistics Hub",
-        contactPerson: "Head Guard",
-        contactNumber: "09176665544",
-        pickupTime: "07:00",
-        quantity: "100",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Jollibee Manila",
-        deliveryAddress: "Ermita, Manila",
-        contactPerson: "Store Manager",
-        contactNumber: "09172223333",
-        deliveryTime: "09:30",
-        quantity: "100",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "TRK-101 (Isuzu Elf)",
-    driver: "Juan Dela Cruz",
-    helper1: "Mark Santos",
-    helper2: "",
-    notes: "Morning delivery preferred.",
-    crews: [
-      { role: "Driver", name: "Juan Dela Cruz", status: "Accepted" },
-      { role: "Helper #1", name: "Mark Santos", status: "Accepted" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 11, 2026 10:00 AM",
-        details: "Booking created and resources allocated.",
-        attachments: "N/A",
-        staff: "Admin User",
-        role: "Administrator",
-      },
-      {
-        dateTime: "Sept 12, 2026 01:20 PM",
-        details: "All crew members have confirmed their assignment.",
-        attachments: "N/A",
-        staff: "System",
-        role: "Automated",
-      },
-    ],
-  },
-  {
-    id: "3",
-    orderId: "ORD-1003",
-    clientName: "McDonald's",
-    contactPerson: "Ronald Smith",
-    contactNumber: "09223334444",
-    emailAddress: "ronald@mcdonalds.com",
-    businessAddress: "Makati City",
-    product: "Fries & Condiments",
-    quantity: "200",
-    scheduledDate: "2026-09-15",
-    displayDate: "September 15, 2026",
-    dateCreated: "September 11, 2026",
-    createdBy: "Logistics Coordinator",
-    status: "Assigned",
-    confirmationStatus: "Pending Crew",
-    priorityLevel: "Standard",
-    pickupList: [
-      {
-        warehouseName: "South Distribution Center",
-        warehouseAddress: "Muntinlupa",
-        contactPerson: "Dock Manager",
-        contactNumber: "09181234567",
-        pickupTime: "06:00",
-        quantity: "200",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "McDonald's Makati",
-        deliveryAddress: "Ayala Ave, Makati",
-        contactPerson: "Shift Sup",
-        contactNumber: "09179998888",
-        deliveryTime: "08:00",
-        quantity: "200",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "TRK-102 (Mitsubishi Fuso)",
-    driver: "Luis Manzano",
-    helper1: "Pedro Santos",
-    helper2: "Carlo Reyes",
-    notes: "N/A",
-    crews: [
-      { role: "Driver", name: "Luis Manzano", status: "Pending" },
-      { role: "Helper #1", name: "Pedro Santos", status: "Pending" },
-      { role: "Helper #2", name: "Carlo Reyes", status: "Pending" },
-    ],
-    remarks: [
-      {
-        dateTime: "Sept 11, 2026 03:45 PM",
-        details: "Initial booking created.",
-        attachments: "N/A",
-        staff: "Logistics Coordinator",
-        role: "Coordinator",
-      },
-    ],
-  },
-  {
-    id: "4",
-    orderId: "ORD-1004",
-    clientName: "Mang Inasal",
-    contactPerson: "Mark Bautista",
-    contactNumber: "09170001122",
-    emailAddress: "mark@manginasal.com",
-    businessAddress: "Pasay City",
-    product: "Frozen Chicken & Marinades",
-    quantity: "150",
-    scheduledDate: "2026-09-16",
-    displayDate: "September 16, 2026",
-    dateCreated: "September 12, 2026",
-    createdBy: "Admin Dispatcher",
-    status: "Created",
-    confirmationStatus: "Assign Crew",
-    priorityLevel: "Standard",
-    pickupList: [
-      {
-        warehouseName: "Main Warehouse",
-        warehouseAddress: "Pasig Logistics Hub",
-        contactPerson: "Head Guard",
-        contactNumber: "09176665544",
-        pickupTime: "09:00",
-        quantity: "150",
-      },
-    ],
-    deliveryList: [
-      {
-        branchName: "Mang Inasal Pasay",
-        deliveryAddress: "Roxas Blvd, Pasay",
-        contactPerson: "Store Manager",
-        contactNumber: "09173335566",
-        deliveryTime: "11:30",
-        quantity: "150",
-        stopStatus: "Pending",
-      },
-    ],
-    truckPlate: "",
-    driver: "",
-    helper1: "",
-    helper2: "",
-    notes: "Awaiting dispatcher to assign resources.",
-    crews: [],
-    remarks: [
-      {
-        dateTime: "Sept 12, 2026 10:15 AM",
-        details:
-          "Booking successfully saved. Pending assignment of fleet and crew.",
-        attachments: "N/A",
-        staff: "Admin Dispatcher",
-        role: "Dispatcher",
-      },
-    ],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -1697,7 +1460,7 @@ function BookingDetailsModal({
                   type="button"
                   onClick={(e) => {
                     setShowCancelConfirm(false);
-                    onCancelBooking(e, booking.orderId);
+                    onCancelBooking(e, booking.id);
                   }}
                   className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
@@ -1716,6 +1479,28 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function PendingBookingPage() {
+  const [bookings, setBookings] = useState<FeedBooking[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadBookings = useCallback(async () => {
+    try {
+      const orders = await apiFetch<any[]>("/api/bookings");
+      setBookings(
+        (orders ?? []).map(mapOrderToBookingView).filter(isAwaitingDeparture).map(toFeedBooking),
+      );
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
+
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -1729,7 +1514,7 @@ export default function PendingBookingPage() {
   // ==========================================
   // FILTERING
   // ==========================================
-  const filteredBookings = DUMMY_PENDING_BOOKINGS.filter(
+  const filteredBookings = bookings.filter(
     (booking) =>
       booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1771,9 +1556,18 @@ export default function PendingBookingPage() {
     setIsSuccessModalOpen(true);
   };
 
-  const handleCancelBooking = (e: React.MouseEvent, bookingId: string) => {
+  const handleCancelBooking = async (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation();
-    alert(`Cancel booking logic triggered for Order: ${bookingId}`);
+
+    try {
+      await apiFetch(`/api/bookings/${bookingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      await loadBookings();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+    }
   };
 
   return (
@@ -1801,6 +1595,12 @@ export default function PendingBookingPage() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* ========================================== */}
@@ -1911,7 +1711,7 @@ export default function PendingBookingPage() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        No pending bookings found
+                        {isLoading ? "Loading bookings..." : "No pending bookings found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
                         There are currently no scheduled deliveries in pending

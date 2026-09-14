@@ -192,8 +192,13 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // TODO: Connect Supabase password reset here later.
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // The emailed link opens /set-password, which handles "recovery" links.
+      const { error: resetError } = await supabaseBrowser.auth.resetPasswordForEmail(
+        email.trim(),
+        { redirectTo: `${window.location.origin}/set-password` },
+      );
+
+      if (resetError) throw resetError;
       setResetSuccess(true);
     } catch (error) {
       console.error("Password reset error:", error);

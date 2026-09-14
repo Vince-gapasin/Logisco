@@ -1,73 +1,107 @@
-// File: app/crewdashboard/calendar/page.tsx
+// File: app/crew/calendar/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
-  Inbox,
-  Clock,
   Calendar as CalendarIcon,
-  Filter,
   Menu,
   X,
 } from "lucide-react";
+import { apiFetch } from "@/app/lib/apiClient";
 
 // ==========================================
-// DUMMY DATA STRUCTURE
+// DATA
 // ==========================================
 export interface DeliveryEvent {
   id: string;
-  date: string; // YYYY-MM-DD format
+  date: string; // YYYY-MM-DD
   clientName: string;
+  bookingId: string;
   timeWindow: string;
   status: "Completed" | "Pending";
+  startTime: string;
 }
 
-const DUMMY_DELIVERIES: DeliveryEvent[] = [
-  {
-    id: "DEL-001",
-    date: "2026-05-01",
-    clientName: "Jollibee",
-    timeWindow: "10:30 AM - 3:00 PM",
-    status: "Completed",
-  },
-  {
-    id: "DEL-002",
-    date: "2026-05-01",
-    clientName: "Bonchon",
-    timeWindow: "5:00 PM - 9:00 PM",
-    status: "Completed",
-  },
-  {
-    id: "DEL-003",
-    date: "2026-05-02",
-    clientName: "Flash",
-    timeWindow: "5:00 AM - 9:00 AM",
-    status: "Pending",
-  },
-  {
-    id: "DEL-004",
-    date: "2026-05-02",
-    clientName: "KFC",
-    timeWindow: "2:00 PM - 6:00 PM",
-    status: "Pending",
-  },
-];
+// One hour row is h-16 (64px); events are positioned against that.
+const HOUR_HEIGHT_PX = 64;
+const DEFAULT_EVENT_TIME = "08:00";
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function CrewCalendarPage() {
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(4); // 4 = May
-  const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0); // For mobile single-day view
+function toIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
-  const SIMULATED_TODAY = new Date(2026, 4, 1);
+// Monday of the week containing the given date.
+function startOfWeek(date: Date): Date {
+  const start = new Date(date);
+  const weekday = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - weekday);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+// The crew API returns each dispatch with its schedule and stop times.
+function toDeliveryEvent(record: any): DeliveryEvent | null {
+  if (!record?.scheduledDate) return null;
+
+  const parsed = new Date(record.scheduledDate);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const firstStopTime: string | undefined = record.multipleDeliveries?.[0]?.deliveryTime;
+  const status = String(record.status ?? "").toLowerCase();
+
+  return {
+    id: String(record.id),
+    date: toIsoDate(parsed),
+    clientName: record.clientName || "Unknown Client",
+    bookingId: record.bookingId || "",
+    timeWindow: record.timeWindow || "Time to be confirmed",
+    status: status === "completed" ? "Completed" : "Pending",
+    startTime: firstStopTime ? String(firstStopTime).slice(0, 5) : DEFAULT_EVENT_TIME,
+  };
+}
+
+export default function CrewCalendarPage() {
+  const router = useRouter();
+  const today = useMemo(() => new Date(), []);
+
+  const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
+  const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
+
+  const [deliveries, setDeliveries] = useState<DeliveryEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const loadDeliveries = useCallback(async () => {
+    try {
+      const records = await apiFetch<any[]>("/api/crew/dispatches");
+      setDeliveries((records ?? []).map(toDeliveryEvent).filter(Boolean) as DeliveryEvent[]);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load your schedule.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDeliveries();
+  }, [loadDeliveries]);
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -93,36 +127,73 @@ export default function CrewCalendarPage() {
   // CALENDAR GENERATION LOGIC
   // ==========================================
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); 
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
   const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
 
-  const calendarCells = [];
+  const calendarCells: { day: number; isCurrentMonth: boolean }[] = [];
 
-  // Previous Month Disabled Dates
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
     calendarCells.push({ day: daysInPrevMonth - i, isCurrentMonth: false });
   }
-
-  // Current Month Active Dates
   for (let i = 1; i <= daysInMonth; i++) {
     calendarCells.push({ day: i, isCurrentMonth: true });
   }
-
-  // Next Month Disabled Dates
   const remainingCells = 42 - calendarCells.length;
   for (let i = 1; i <= remainingCells; i++) {
     calendarCells.push({ day: i, isCurrentMonth: false });
   }
 
-  const weeklyColumns = [
-    { name: "Mon", date: 27 },
-    { name: "Tue", date: 28 },
-    { name: "Wed", date: 29 },
-    { name: "Thu", date: 30 },
-    { name: "Fri", date: 1 },
-    { name: "Sat", date: 2 },
-    { name: "Sun", date: 3 },
-  ];
+  // Deliveries grouped by day, so the calendar can mark days that have work.
+  const deliveriesByDate = useMemo(() => {
+    const grouped = new Map<string, DeliveryEvent[]>();
+    for (const delivery of deliveries) {
+      const list = grouped.get(delivery.date) ?? [];
+      list.push(delivery);
+      grouped.set(delivery.date, list);
+    }
+    for (const list of grouped.values()) list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return grouped;
+  }, [deliveries]);
+
+  const selectedDateObj = new Date(currentYear, currentMonth, selectedDay);
+  const selectedDateString = toIsoDate(selectedDateObj);
+  const todayIso = toIsoDate(today);
+
+  const dailyDeliveries = deliveriesByDate.get(selectedDateString) ?? [];
+  const totalDeliveries = dailyDeliveries.length;
+  const completedDeliveries = dailyDeliveries.filter((d) => d.status === "Completed").length;
+
+  // The week containing the selected day. Keyed on the date string because a
+  // Date object is a new value on every render.
+  const weeklyColumns = useMemo(() => {
+    const weekStart = startOfWeek(new Date(currentYear, currentMonth, selectedDay));
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = addDays(weekStart, index);
+      return {
+        name: day.toLocaleDateString("en-PH", { weekday: "short" }),
+        date: day.getDate(),
+        iso: toIsoDate(day),
+        full: day,
+      };
+    });
+  }, [currentYear, currentMonth, selectedDay]);
+
+  const selectedDayIndex = Math.max(
+    0,
+    weeklyColumns.findIndex((column) => column.iso === selectedDateString),
+  );
+
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const formattedDate = `${dayNames[selectedDateObj.getDay()]}, ${monthNames[currentMonth]} ${selectedDay}`;
+
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diffDays = Math.round(
+    (selectedDateObj.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  let relativeLabel = "";
+  if (diffDays === 0) relativeLabel = ", Today";
+  else if (diffDays === 1) relativeLabel = ", Tomorrow";
+  else if (diffDays === -1) relativeLabel = ", Yesterday";
 
   const hours = Array.from({ length: 24 }, (_, i) => {
     const ampm = i >= 12 ? "PM" : "AM";
@@ -130,37 +201,40 @@ export default function CrewCalendarPage() {
     return `${displayHour} ${ampm}`;
   });
 
-  const handlePrevDay = () => {
-    setSelectedDayIndex((prev) => (prev > 0 ? prev - 1 : 6));
+  const selectDate = (date: Date) => {
+    setCurrentYear(date.getFullYear());
+    setCurrentMonth(date.getMonth());
+    setSelectedDay(date.getDate());
   };
 
-  const handleNextDay = () => {
-    setSelectedDayIndex((prev) => (prev < 6 ? prev + 1 : 0));
-  };
+  const handlePrevDay = () => selectDate(addDays(selectedDateObj, -1));
+  const handleNextDay = () => selectDate(addDays(selectedDateObj, 1));
 
-  // ==========================================
-  // DATE FORMATTING & FILTERING 
-  // ==========================================
-  const selectedDateObj = new Date(currentYear, currentMonth, selectedDay);
-  const formattedMonthStr = String(currentMonth + 1).padStart(2, "0");
-  const formattedDayStr = String(selectedDay).padStart(2, "0");
-  const selectedDateString = `${currentYear}-${formattedMonthStr}-${formattedDayStr}`;
-  
-  const dailyDeliveries = DUMMY_DELIVERIES.filter((d) => d.date === selectedDateString);
-  const totalDeliveries = dailyDeliveries.length;
-  const completedDeliveries = dailyDeliveries.filter((d) => d.status === "Completed").length;
-  
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const formattedDate = `${dayNames[selectedDateObj.getDay()]}, ${monthNames[currentMonth]} ${selectedDay}`;
-  
-  const diffTime = selectedDateObj.getTime() - SIMULATED_TODAY.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-  let relativeLabel = "";
-  if (diffDays === 0) relativeLabel = ", Today";
-  else if (diffDays === 1) relativeLabel = ", Tomorrow";
+  // Deliveries are acted on from the crew dashboard.
+  const handleDeliveryClick = () => router.push("/crew/dashboard");
 
-  const handleDeliveryClick = (delivery: DeliveryEvent) => {
-    console.log("Navigating to delivery details for:", delivery.clientName);
+  const renderEvent = (delivery: DeliveryEvent) => {
+    const [hoursPart, minutesPart] = delivery.startTime.split(":").map(Number);
+    const top = ((hoursPart || 0) + (minutesPart || 0) / 60) * HOUR_HEIGHT_PX;
+
+    return (
+      <button
+        key={delivery.id}
+        type="button"
+        onClick={handleDeliveryClick}
+        style={{ top: `${top}px` }}
+        title={`${delivery.bookingId} - ${delivery.clientName}`}
+        className={`absolute left-1 right-1 z-10 rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
+          delivery.status === "Completed"
+            ? "bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200"
+            : "bg-orange-100 border-orange-300 text-orange-900 hover:bg-orange-200"
+        }`}
+      >
+        <span className="block text-[11px] font-semibold truncate">
+          {delivery.startTime} {delivery.clientName}
+        </span>
+      </button>
+    );
   };
 
   return (
@@ -230,22 +304,28 @@ export default function CrewCalendarPage() {
           <div className="grid grid-cols-7 gap-1 text-center text-xs">
             {calendarCells.map((cell, idx) => {
               const isSelected = cell.isCurrentMonth && cell.day === selectedDay;
+              const cellIso = cell.isCurrentMonth
+                ? toIsoDate(new Date(currentYear, currentMonth, cell.day))
+                : "";
+              const hasDeliveries = cellIso ? deliveriesByDate.has(cellIso) : false;
+
               return (
                 <div key={idx} className="flex justify-center items-center h-8">
                   <button
                     onClick={() => cell.isCurrentMonth && setSelectedDay(cell.day)}
                     disabled={!cell.isCurrentMonth}
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all font-semibold ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all font-semibold relative ${
                       !cell.isCurrentMonth
                         ? "text-slate-300 cursor-not-allowed"
                         : "text-slate-700 hover:bg-slate-100 cursor-pointer"
-                    } ${
-                      isSelected
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : ""
+                    } ${isSelected ? "bg-blue-600 text-white shadow-sm" : ""} ${
+                      !isSelected && cellIso === todayIso ? "ring-1 ring-blue-400" : ""
                     }`}
                   >
                     {cell.day}
+                    {hasDeliveries && !isSelected && (
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-orange-500" />
+                    )}
                   </button>
                 </div>
               );
@@ -264,10 +344,21 @@ export default function CrewCalendarPage() {
           <p className="text-xs text-slate-500 font-medium">{formattedDate}{relativeLabel}</p>
         </div>
 
-        {/* Action Dispatch Buttons */}
+        {/* Scheduled Deliveries */}
         <div className="flex flex-col gap-3">
           <div className="px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Scheduled Deliveries</div>
-          {dailyDeliveries.length === 0 ? (
+
+          {loadError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-[11px]">
+              {loadError}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="text-center py-6 text-slate-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-white">
+              Loading your schedule...
+            </div>
+          ) : dailyDeliveries.length === 0 ? (
             <div className="text-center py-6 text-slate-400 text-xs font-medium border border-dashed border-gray-200 rounded-xl bg-white">
               No deliveries scheduled.
             </div>
@@ -275,7 +366,7 @@ export default function CrewCalendarPage() {
             dailyDeliveries.map((delivery) => (
               <div
                 key={delivery.id}
-                onClick={() => handleDeliveryClick(delivery)}
+                onClick={handleDeliveryClick}
                 className="flex items-start gap-3 p-3.5 bg-[#1e1b4b] rounded-xl text-white cursor-pointer hover:bg-opacity-95 transition-all shadow-sm group"
               >
                 <div className="pt-1">
@@ -313,18 +404,11 @@ export default function CrewCalendarPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button 
-              onClick={() => {
-                setCurrentMonth(4);
-                setCurrentYear(2026);
-                setSelectedDay(1);
-              }}
+            <button
+              onClick={() => selectDate(new Date())}
               className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
             >
               Today
-            </button>
-            <button className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer">
-              <Filter size={14} className="text-slate-500 shrink-0" /> Filter
             </button>
           </div>
         </div>
@@ -372,9 +456,11 @@ export default function CrewCalendarPage() {
               {hours.map((_, rowIdx) => (
                 <div
                   key={rowIdx}
-                  className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/25 transition-colors cursor-pointer relative"
+                  className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/25 transition-colors relative"
                 />
               ))}
+
+              {(deliveriesByDate.get(selectedDateString) ?? []).map(renderEvent)}
             </div>
           </div>
         </div>
@@ -385,22 +471,24 @@ export default function CrewCalendarPage() {
             <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20">
               <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50"></div>
               <div className="flex-1 grid grid-cols-7">
-                {weeklyColumns.map((col, idx) => (
+                {weeklyColumns.map((col) => (
                   <div
-                    key={idx}
+                    key={col.iso}
                     className={`flex flex-col items-center justify-center py-3 border-r border-gray-100 last:border-r-0 ${
-                      col.date === selectedDay ? "bg-blue-50/40" : ""
+                      col.iso === selectedDateString ? "bg-blue-50/40" : ""
                     }`}
                   >
                     <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                       {col.name}
                     </span>
                     <span
-                      onClick={() => setSelectedDay(col.date)}
+                      onClick={() => selectDate(col.full)}
                       className={`text-xl font-medium w-9 h-9 flex items-center justify-center rounded-full cursor-pointer transition-all ${
-                        col.date === selectedDay
+                        col.iso === selectedDateString
                           ? "bg-blue-600 text-white shadow-sm"
-                          : "text-slate-900 hover:bg-gray-100"
+                          : col.iso === todayIso
+                            ? "text-blue-700 ring-1 ring-blue-300"
+                            : "text-slate-900 hover:bg-gray-100"
                       }`}
                     >
                       {col.date}
@@ -425,17 +513,19 @@ export default function CrewCalendarPage() {
               </div>
 
               <div className="flex-1 grid grid-cols-7 relative">
-                {weeklyColumns.map((_, colIdx) => (
+                {weeklyColumns.map((col) => (
                   <div
-                    key={colIdx}
+                    key={col.iso}
                     className="relative border-r border-gray-100 last:border-r-0 flex flex-col"
                   >
                     {hours.map((_, rowIdx) => (
                       <div
                         key={rowIdx}
-                        className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/20 transition-colors cursor-pointer"
+                        className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/20 transition-colors"
                       />
                     ))}
+
+                    {(deliveriesByDate.get(col.iso) ?? []).map(renderEvent)}
                   </div>
                 ))}
               </div>

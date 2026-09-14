@@ -56,6 +56,7 @@ export interface CreateBranchStopDto {
   contactPerson: string;
   contactNum: string;
   expectedTime: string;
+  deliveryAddress?: string;
 }
 
 export interface CreateOrderDto {

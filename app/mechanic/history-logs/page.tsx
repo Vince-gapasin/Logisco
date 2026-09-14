@@ -3,6 +3,8 @@
 // ==========================================
 "use client";
 
+import { authFetch } from "@/app/lib/apiClient";
+import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -152,11 +154,10 @@ function LogMaintenanceModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, [fieldName]: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      // Stored as a data URL in LogPhotos, so keep it small.
+      compressImageToDataUrl(file)
+        .then((dataUrl) => setFormData((prev) => ({ ...prev, [fieldName]: dataUrl })))
+        .catch(() => alert("Could not read that image. Please choose a different photo."));
     }
   };
 
@@ -620,7 +621,7 @@ export default function MechanicHistoryLogsPage() {
   const fetchLogs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/historyLogsM`); 
+      const response = await authFetch(`/api/historyLogsM`); 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
       
@@ -642,7 +643,7 @@ export default function MechanicHistoryLogsPage() {
   const fetchDropdownOptions = async () => {
     try {
       // 1. Fetch Trucks safely
-      const truckRes = await fetch(`/api/trucks`);
+      const truckRes = await authFetch(`/api/trucks`);
       if (truckRes.ok) {
         const truckData = await truckRes.json();
         const trucks = Array.isArray(truckData) ? truckData : Array.isArray(truckData?.data) ? truckData.data : [];
@@ -659,7 +660,7 @@ export default function MechanicHistoryLogsPage() {
       }
 
       // 2. Fetch Mechanics safely
-      const empRes = await fetch(`/api/employees?role=Mechanic`);
+      const empRes = await authFetch(`/api/employees?role=Mechanic`);
       if (empRes.ok) {
         const empData = await empRes.json();
         // Safely extract the array to prevent .filter() crashes
@@ -691,7 +692,7 @@ export default function MechanicHistoryLogsPage() {
       };
 
       if (editingLog) {
-        const response = await fetch(`/api/historyLogsM/${editingLog.id}`, {
+        const response = await authFetch(`/api/historyLogsM/${editingLog.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(finalPayload),
@@ -703,7 +704,7 @@ export default function MechanicHistoryLogsPage() {
           setToastMessage("Changes saved successfully.");
         }
       } else {
-        const response = await fetch(`/api/historyLogsM`, { 
+        const response = await authFetch(`/api/historyLogsM`, { 
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(finalPayload),
@@ -723,7 +724,7 @@ export default function MechanicHistoryLogsPage() {
 
   const handleDeleteLog = async (id: string | number) => {
     try {
-      const response = await fetch(`/api/historyLogsM/${id}`, { 
+      const response = await authFetch(`/api/historyLogsM/${id}`, { 
         method: "DELETE",
       });
       if (response.ok) {

@@ -17,6 +17,7 @@ import {
   Trash2,
   Filter,
   ChevronDown,
+  Copy,
 } from "lucide-react";
 
 // ==========================================
@@ -147,10 +148,29 @@ interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
   orderCode: string;
+  trackingToken?: string;
 }
 
-function SuccessModal({ isOpen, onClose, orderCode }: SuccessModalProps) {
+function SuccessModal({ isOpen, onClose, orderCode, trackingToken }: SuccessModalProps) {
+  const [copied, setCopied] = useState(false);
+
   if (!isOpen) return null;
+
+  // Customer-facing tracking link for this order.
+  const trackingLink =
+    trackingToken && typeof window !== "undefined"
+      ? `${window.location.origin}/client-view?token=${trackingToken}`
+      : "";
+
+  const copyTrackingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(trackingLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt("Copy this tracking link:", trackingLink);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
@@ -164,9 +184,37 @@ function SuccessModal({ isOpen, onClose, orderCode }: SuccessModalProps) {
         <p className="text-sm font-semibold text-blue-600 mb-3">
           Order ID: {orderCode}
         </p>
-        <p className="text-xs text-slate-600 mb-6">
+        <p className="text-xs text-slate-600 mb-4">
           Your booking has been generated successfully.
         </p>
+
+        {trackingLink && (
+          <div className="mb-6 text-left">
+            <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1">
+              Customer tracking link
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={trackingLink}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <button
+                type="button"
+                onClick={copyTrackingLink}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1.5">
+              Share this with the client to let them follow the delivery.
+            </p>
+          </div>
+        )}
+
         <button
           onClick={onClose}
           className="w-full py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors shadow-md"
@@ -3049,6 +3097,7 @@ export default function AdminDashboardPage() {
   const [selectedOrderForView, setSelectedOrderForView] = useState<any>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [generatedOrderCode, setGeneratedOrderCode] = useState("");
+  const [generatedTrackingToken, setGeneratedTrackingToken] = useState("");
 
   const [clients, setClients] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
@@ -3295,6 +3344,8 @@ export default function AdminDashboardPage() {
               contactPerson: d.contactPerson || data.contactPerson,
               contactNum: d.contactNumber || data.contactNumber,
               expectedTime: d.deliveryTime || "12:00:00",
+              // Geocoded server-side so the stop shows on the tracking map.
+              deliveryAddress: d.deliveryAddress || undefined,
             }))
           : [
               {
@@ -3302,6 +3353,7 @@ export default function AdminDashboardPage() {
                 contactPerson: data.contactPerson,
                 contactNum: data.contactNumber,
                 expectedTime: "12:00:00",
+                deliveryAddress: data.deliveryAddress || undefined,
               },
             ];
 
@@ -3348,6 +3400,7 @@ export default function AdminDashboardPage() {
       }
 
       setGeneratedOrderCode(res.orderCode);
+      setGeneratedTrackingToken(res.trackingToken || "");
       setIsSuccessModalOpen(true);
       await fetchOrders();
     } catch (err: any) {
@@ -3904,6 +3957,7 @@ export default function AdminDashboardPage() {
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         orderCode={generatedOrderCode}
+        trackingToken={generatedTrackingToken}
       />
     </div>
   );

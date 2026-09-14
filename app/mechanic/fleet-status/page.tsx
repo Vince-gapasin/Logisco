@@ -3,6 +3,8 @@
 // ==========================================
 "use client";
 
+import { authFetch } from "@/app/lib/apiClient";
+import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
@@ -693,13 +695,15 @@ function LogMaintenanceModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () =>
-        setFormData((prev) => ({
-          ...prev,
-          [activeFields.photo]: reader.result as string,
-        }));
-      reader.readAsDataURL(file);
+      // Stored as a data URL in LogPhotos, so keep it small.
+      compressImageToDataUrl(file)
+        .then((dataUrl) =>
+          setFormData((prev) => ({
+            ...prev,
+            [activeFields.photo]: dataUrl,
+          })),
+        )
+        .catch(() => alert("Could not read that image. Please choose a different photo."));
     }
   };
 
@@ -2174,7 +2178,7 @@ export default function MechanicFleetStatusPage({
   const fetchTrucks = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/fleet-status`);
+      const response = await authFetch(`/api/fleet-status`);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
@@ -2209,7 +2213,7 @@ export default function MechanicFleetStatusPage({
 
   const fetchLogs = async () => {
     try {
-      const response = await fetch(`/api/historyLogsM?t=${Date.now()}`);
+      const response = await authFetch(`/api/historyLogsM?t=${Date.now()}`);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
@@ -2307,7 +2311,7 @@ export default function MechanicFleetStatusPage({
 
   const fetchMechanics = async () => {
     try {
-      const response = await fetch(`/api/employees?page=1&limit=100`, {
+      const response = await authFetch(`/api/employees?page=1&limit=100`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -2360,7 +2364,7 @@ export default function MechanicFleetStatusPage({
     };
 
     try {
-      const response = await fetch(`/api/fleet-status/${truckRecord.id}`, {
+      const response = await authFetch(`/api/fleet-status/${truckRecord.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fullPayload),
@@ -2459,7 +2463,7 @@ export default function MechanicFleetStatusPage({
         : `/api/fleet-status`;
       const method = editingTruck ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(record),
@@ -2498,7 +2502,7 @@ export default function MechanicFleetStatusPage({
 
   const handleDeleteTruck = async (id: string | number) => {
     try {
-      const response = await fetch(`/api/fleet-status/${id}`, {
+      const response = await authFetch(`/api/fleet-status/${id}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -2538,7 +2542,7 @@ export default function MechanicFleetStatusPage({
         : `/api/historyLogsM`;
       const method = editingHistoryRecord ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(finalPayload),
@@ -2572,7 +2576,7 @@ export default function MechanicFleetStatusPage({
 
   const handleDeleteHistoryLog = async (id: string | number) => {
     try {
-      await fetch(`/api/historyLogsM/${id}`, { method: "DELETE" });
+      await authFetch(`/api/historyLogsM/${id}`, { method: "DELETE" });
       setMaintenanceLogs((prev) =>
         prev.filter((log) => String(log.id) !== String(id)),
       );

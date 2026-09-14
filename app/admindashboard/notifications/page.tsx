@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import { useNotifications } from "@/app/lib/useNotifications";
 import {
   Bell,
   FileText,
@@ -11,98 +12,19 @@ import {
   ClipboardList,
 } from "lucide-react";
 
-// Mock interface for Supabase integration
-interface Notification {
-  id: string | number;
-  title: string;
-  message: string;
-  time: string;
-  type: "approval" | "warning" | "success" | "system" | "reminder";
-  isRead: boolean;
-}
-
 export default function AdminNotificationsPage() {
-  // Mock data tailored for the Admin role
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: "Forecast Alert Below Normal",
-      message:
-        "Your MLR forecast for August 2026 shows a -12.5% variance. Review the latest forecast insights and take action to mitigate potential shortfall.",
-      time: "2 mins ago",
-      type: "warning",
-      isRead: false,
-    },
-    {
-      id: 2,
-      title: "Emergency: Fleet Breakdown",
-      message:
-        "Truck XYZ-9876 reported transmission failure on NLEX. Coordinator has been notified for recovery protocols.",
-      time: "30 mins ago",
-      type: "warning",
-      isRead: false,
-    },
-    {
-      id: 3,
-      title: "Crew Assignment Declined",
-      message:
-        "Booking Shakey's Tarlac: Not all assigned crew members confirmed the assignment. Please assign replacements.",
-      time: "1 hour ago",
-      type: "warning",
-      isRead: false,
-    },
-    {
-      id: 4,
-      title: "Backload Delivery",
-      message:
-        "A backload delivery report has been submitted. View details to confirm report.",
-      time: "1.5 hours ago",
-      type: "approval",
-      isRead: false,
-    },
-    {
-      id: 5,
-      title: "Delivery Completed",
-      message:
-        "Trip #1024 has been successfully delivered and marked complete by Driver Juan Dela Cruz.",
-      time: "2 hours ago",
-      type: "success",
-      isRead: false,
-    },
-    {
-      id: 6,
-      title: "ASSIGN CREW NOW",
-      message:
-        "Order ID 0912 is approaching its scheduled date. Assign a crew to proceed.",
-      time: "3 hours ago",
-      type: "reminder",
-      isRead: false,
-    },
-    {
-      id: 7,
-      title: "System Update",
-      message:
-        "The LOGISCO admin database will undergo a scheduled backup tomorrow at 2:00 AM. Expect minor delays.",
-      time: "1 day ago",
-      type: "system",
-      isRead: true,
-    },
-  ]);
+  // Live notifications derived from bookings, dispatches and fleet status.
+  const { notifications, isLoading, error: notificationsError, markRead, markAllRead } =
+    useNotifications();
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleMarkAsRead = (id: string | number) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, isRead: true } : notif,
-      ),
-    );
+    markRead(id);
   };
 
   const handleMarkAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notif) => ({ ...notif, isRead: true })),
-    );
+    markAllRead();
   };
 
   // Helper function to render the correct icon and color based on notification type
@@ -168,7 +90,18 @@ export default function AdminNotificationsPage() {
 
       {/* Notifications Content Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
-        {notifications.length === 0 ? (
+        {notificationsError && (
+          <div className="mx-4 sm:mx-5 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+            {notificationsError}
+          </div>
+        )}
+
+        {isLoading && notifications.length === 0 ? (
+          <div className="p-8 text-center flex flex-col items-center justify-center min-h-100 text-slate-600">
+            <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-3" />
+            <p className="text-sm font-medium">Loading notifications...</p>
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center min-h-100">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               <Bell className="w-8 h-8 text-slate-300" />

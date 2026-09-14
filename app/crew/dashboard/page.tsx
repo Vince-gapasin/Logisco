@@ -5,6 +5,112 @@
 
 import React, { useState, useEffect } from "react";
 import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, MapPin, Search, Archive } from "lucide-react";
+import { registerPlugin, Capacitor } from '@capacitor/core';
+import { getAccessToken } from "@/app/lib/apiClient";
+import { compressImage } from "@/app/lib/imageCompression";
+
+// Background Geolocation Setup
+const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
+let activeTrackingId: string | null = null;
+
+// Browser geolocation can fire several times a second; one fix every 10s is
+// plenty for the fleet map and keeps mobile data use low.
+const WEB_PING_INTERVAL_MS = 10_000;
+let lastWebPingAt = 0;
+
+// Sends one GPS fix. The token is read per ping so tracking survives token
+// refreshes. Returns false once the server reports the trip is closed.
+async function postLocation(
+  dispatchId: string | number,
+  fix: { latitude: number; longitude: number; speed?: number | null; heading?: number | null },
+): Promise<boolean> {
+  const token = getAccessToken();
+  if (!token) return true;
+
+  try {
+    const response = await fetch("/api/crew/dispatches/location", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ dispatch_id: dispatchId, ...fix }),
+    });
+    return response.status !== 409;
+  } catch {
+    // Offline: drop this fix, the next one will update the pin.
+    return true;
+  }
+}
+
+async function stopLiveTracking() {
+  if (activeTrackingId) {
+    if (Capacitor.getPlatform() === 'web') {
+      navigator.geolocation.clearWatch(parseInt(activeTrackingId));
+    } else {
+      await BackgroundGeolocation.removeWatcher({ id: activeTrackingId });
+    }
+    activeTrackingId = null;
+    console.log("Live tracking stopped.");
+  }
+}
+
+const startLiveTracking = async (dispatchId: string | number) => {
+  try {
+    // Never run two watchers at once.
+    await stopLiveTracking();
+
+    // === WEB BROWSER FALLBACK FOR TESTING ===
+    if (Capacitor.getPlatform() === 'web') {
+      console.log("Web platform detected. Using browser HTML5 GPS for testing.");
+
+      const watchId = navigator.geolocation.watchPosition(
+        async (position) => {
+          const now = Date.now();
+          if (now - lastWebPingAt < WEB_PING_INTERVAL_MS) return;
+          lastWebPingAt = now;
+
+          const stillOpen = await postLocation(dispatchId, {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            speed: position.coords.speed || 0,
+            heading: position.coords.heading || 0,
+          });
+          if (!stillOpen) void stopLiveTracking();
+        },
+        (err) => console.warn("Web GPS Error:", err),
+        { enableHighAccuracy: true }
+      );
+
+      activeTrackingId = watchId.toString();
+      return;
+    }
+
+    // === NATIVE MOBILE TRACKING (ANDROID/IOS) ===
+    activeTrackingId = await BackgroundGeolocation.addWatcher(
+      {
+        backgroundMessage: "Tracking active delivery route.",
+        backgroundTitle: "Logisco Live GPS",
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 15, // Pings every 15 meters of movement
+      },
+      async (location: any, error: any) => {
+        if (error || !location) return;
+
+        const stillOpen = await postLocation(dispatchId, {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          speed: location.speed,
+          heading: location.bearing,
+        });
+        if (!stillOpen) void stopLiveTracking();
+      }
+    );
+  } catch (err) {
+    console.warn("Tracking initialization failed:", err);
+  }
+};
 
 export interface PickupRecord {
   warehouse: string;
@@ -16,6 +122,7 @@ export interface PickupRecord {
 }
 
 export interface DeliveryDestinationRecord {
+  branchID?: number;
   branch: string;
   address: string;
   contactPerson: string;
@@ -321,7 +428,10 @@ export default function CrewDashboardPage({
     const file = e.target.files?.[0];
     if (file) {
       setSelectedImage(URL.createObjectURL(file));
-      setSelectedFile(file);
+      // Shrink camera photos so uploads fit the server's request size limit.
+      compressImage(file)
+        .then(setSelectedFile)
+        .catch(() => setSelectedFile(file));
     }
   };
 
@@ -352,7 +462,7 @@ export default function CrewDashboardPage({
       if (isLastStep) {
         macroStatus = "Completed";
       } else if (currentStepIndex > 0) {
-        macroStatus = "In Transit"; // ALIGNED ENUM: Changed from "Ongoing Delivery" to match database schema
+        macroStatus = "In Transit";
       }
 
       const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
@@ -364,9 +474,12 @@ export default function CrewDashboardPage({
       formData.append("current_step", String(nextStep));
       formData.append("remarks", remarks);
       
-      // Explicitly pass the title so the backend doesn't crash trying to find an index that doesn't exist
       const currentStopTitle = dynamicStops[currentStepIndex]?.title || "Location Update";
       formData.append("title", currentStopTitle);
+
+      // Links the proof of delivery to the branch stop being completed.
+      const currentStopBranchID = dynamicStops[currentStepIndex]?.data?.branchID;
+      if (currentStopBranchID) formData.append("branchID", String(currentStopBranchID));
       
       if (receiverName) formData.append("receiverName", receiverName);
       if (selectedFile) formData.append("podImage", selectedFile);
@@ -388,6 +501,7 @@ export default function CrewDashboardPage({
       setSelectedDelivery({ ...selectedDelivery, status: macroStatus, current_step: nextStep, localUpdatedAt: Date.now() });
 
       if (isLastStep) {
+        void stopLiveTracking();
         setShowTripReportModal(true);
       } else {
         alert(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`);
@@ -400,6 +514,54 @@ export default function CrewDashboardPage({
       }
     } catch (error: any) {
       alert(`Status update failed: ${error.message}`);
+    } finally {
+      setIsSubmittingResponse(false);
+    }
+  };
+
+  const handleStartDelivery = async () => {
+    if (!selectedDelivery) return;
+    setIsSubmittingResponse(true);
+
+    try {
+      const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+      const token = sessionStr ? JSON.parse(sessionStr).token : "";
+
+      // 1. Immediately push the database to Step 1 (In Transit to Pickup)
+      const formData = new FormData();
+      formData.append("dispatchID", String(selectedDelivery.id));
+      formData.append("status", "In Transit");
+      formData.append("current_step", "1");
+      formData.append("title", "Departed Base");
+
+      const response = await fetch("/api/crew/dispatches/status", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Failed to update server");
+
+      // 2. Start GPS Tracking
+      void startLiveTracking(selectedDelivery.id);
+
+      // 3. Update Local State to reflect "In Transit"
+      const updatedDelivery = { ...selectedDelivery, status: "In Transit", current_step: 1, localUpdatedAt: Date.now() };
+      
+      setDeliveryList((prev) => prev.map((d) => d.id === selectedDelivery.id ? updatedDelivery : d));
+      setSelectedDelivery(updatedDelivery);
+
+      // 4. Switch the View directly to the Map
+      setShowStartConfirmModal(false);
+      setShowDetailsModal(false);
+      
+      const calculatedStops = generateDynamicStops(updatedDelivery);
+      setDynamicStops(calculatedStops);
+      setCurrentStepIndex(1); // Set directly to 1 (Heading to Pickup)
+      setViewMode("update-status");
+
+    } catch (error: any) {
+      alert(`Failed to start route: ${error.message}`);
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -430,6 +592,7 @@ export default function CrewDashboardPage({
       if (!response.ok) throw new Error("Failed to send emergency alert");
 
       setEmergencySubmitted(true);
+      void stopLiveTracking();
       
       setDeliveryList((prev) =>
         prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: "Foul Trip", localUpdatedAt: Date.now() } : d)
@@ -547,6 +710,7 @@ export default function CrewDashboardPage({
     return "bg-amber-100 text-amber-800 border border-amber-300";
   };
 
+
   const renderModalActions = () => {
     if (!selectedDelivery) return null;
 
@@ -597,6 +761,10 @@ export default function CrewDashboardPage({
           const calculatedStops = generateDynamicStops(selectedDelivery);
           setDynamicStops(calculatedStops);
           setCurrentStepIndex(selectedDelivery.current_step || 0);
+          // Resume GPS after an app restart or reload mid-trip.
+          if (!activeTrackingId && selectedDelivery.status?.toLowerCase() === "in transit") {
+            void startLiveTracking(selectedDelivery.id);
+          }
           setShowDetailsModal(false);
           setViewMode("update-status");
         }}
@@ -744,7 +912,7 @@ export default function CrewDashboardPage({
                 )}
               </div>
 
-              {/* ORIGINAL PICKUP ADDRESSES LIST */}
+              {/* PICKUP ADDRESSES LIST */}
               <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                 <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between">
                   <span>Pickup Addresses</span>
@@ -758,7 +926,7 @@ export default function CrewDashboardPage({
                     const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                     const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                     
-                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                    const status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                     return (
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -793,7 +961,7 @@ export default function CrewDashboardPage({
                     const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                     const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                     
-                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                    const status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                     return (
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -891,21 +1059,7 @@ export default function CrewDashboardPage({
 
             {/* View Mode Actions */}
             <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
-              {isCompleted(selectedDelivery.status) ? (
-                <button
-                  onClick={() => setViewMode("list")}
-                  className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  Close Route
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowSubmitConfirmModal(true)}
-                  className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-                >
-                  {currentStepIndex === dynamicStops.length - 1 ? "Complete Trip" : "Confirm Location"}
-                </button>
-              )}
+              {renderModalActions()}
             </div>
           </div>
         </div>
@@ -1055,7 +1209,7 @@ export default function CrewDashboardPage({
                     const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                     const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                     
-                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                    const status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                     return (
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -1090,7 +1244,7 @@ export default function CrewDashboardPage({
                     const isNodeAborted = isAbortedTrip(selectedDelivery.status) && calculatedStep === stopIndex;
                     const isNodeOngoing = !isCompleted(selectedDelivery.status) && calculatedStep === stopIndex;
                     
-                    let status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
+                    const status = isNodeCompleted ? "Completed" : isNodeAborted ? "Aborted" : isNodeOngoing ? "Ongoing Delivery" : "Pending";
 
                     return (
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -1247,19 +1401,13 @@ export default function CrewDashboardPage({
               <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
               <button onClick={() => {
                   if (showStartConfirmModal) {
-                    setShowStartConfirmModal(false);
-                    setShowDetailsModal(false);
-                    
-                    const calculatedStops = generateDynamicStops(selectedDelivery);
-                    setDynamicStops(calculatedStops);
-                    setCurrentStepIndex(selectedDelivery.current_step || 0);
-                    setViewMode("update-status");
+                    handleStartDelivery();
                   } else {
                     handleDispatchResponse("accept");
                   }
-                }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50"
+                }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
               >
-                {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : "Yes"}
+                {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : isSubmittingResponse && showStartConfirmModal ? "Starting..." : "Yes"}
               </button>
             </div>
           </div>

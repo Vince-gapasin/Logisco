@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useNotifications } from "@/app/lib/useNotifications";
 import {
   Bell,
   Wrench,
@@ -10,16 +11,15 @@ import {
   ClipboardList,
   X,
   MapPin,
-  AlertCircle,
 } from "lucide-react";
 
-// Mock interface for Supabase integration
 interface Notification {
   id: string | number;
   title: string;
   message: string;
   time: string;
-  type: "assignment" | "warning" | "success" | "system" | "reminder";
+  // Widened: notification types come from the server.
+  type: string;
   isDone: boolean;
   truckPlate?: string;
   vehicleType?: string;
@@ -37,45 +37,9 @@ interface Notification {
 }
 
 export default function MechanicNotificationsPage() {
-  // Mock data tailored for the Mechanic role
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 2,
-      title: "New Repair Assignment",
-      message:
-        "You have been assigned to diagnose issues observed on Truck ABC-1234 (Wing Van).",
-      time: "10 mins ago",
-      type: "assignment",
-      isDone: false,
-      truckPlate: "Truck ABC-1234",
-      vehicleType: "Wing Van",
-      issue: "Engine starting issues and unusual noise",
-      notes:
-        "Driver heard clicking noises when turning the key before dispatch.",
-      crewName: "Rodel Cruz",
-    },
-    {
-      id: 3,
-      title: "Emergency: Breakdown Reported",
-      message:
-        "Truck XYZ-9876 reported transmission failure on NLEX. Stand by for recovery protocols.",
-      time: "2 hours ago",
-      type: "warning",
-      isDone: false,
-      truckPlate: "Truck XYZ-9876",
-      vehicleType: "Dump Truck",
-      location: "NLEX Southbound, Km 45",
-      locationLink: "https://maps.google.com/?q=NLEX",
-      reason: "Transmission failure",
-      crewMessage:
-        "Unable to shift past 2nd gear, fluid leaking visible under the chassis. Driver attempted to restart the engine but the issue persists. Vehicle is currently pulled over on the shoulder lane. Please prioritize this recovery as it is obstructing partial traffic flow.",
-      crewName: "Michael Santos",
-      driverName: "Michael Santos",
-      driverContact: "0912 345 6789",
-      helperName: "Juan Dela Cruz",
-      helperContact: "0998 765 4321",
-    },
-  ]);
+  // Live notifications derived from truck status and maintenance checks.
+  const { notifications, isLoading, error: notificationsError, markRead } =
+    useNotifications();
 
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
@@ -86,11 +50,7 @@ export default function MechanicNotificationsPage() {
   const pendingCount = notifications.filter((n) => !n.isDone).length;
 
   const handleMarkAsDone = (id: string | number) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, isDone: true } : notif,
-      ),
-    );
+    markRead(id);
     // Reset confirmation and close the main modal
     setIsConfirmingDone(false);
     setSelectedNotification(null);
@@ -176,7 +136,18 @@ export default function MechanicNotificationsPage() {
 
       {/* Notifications Content Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
-        {notifications.length === 0 ? (
+        {notificationsError && (
+          <div className="mx-4 sm:mx-5 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
+            {notificationsError}
+          </div>
+        )}
+
+        {isLoading && notifications.length === 0 ? (
+          <div className="p-8 text-center flex flex-col items-center justify-center min-h-100 text-slate-600">
+            <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-3" />
+            <p className="text-sm font-medium">Loading notifications...</p>
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center min-h-[400px]">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               <Bell className="w-8 h-8 text-slate-300" />
