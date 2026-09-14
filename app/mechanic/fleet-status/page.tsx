@@ -160,7 +160,7 @@ const formatDisplayDate = (dateString: string) => {
   }
 };
 
-// --- NEW: Helper to format dates correctly for <input type="date"> in local time ---
+//  To format dates correctly for <input type="date"> in local time
 const formatInputDate = (dateString: string) => {
   if (!dateString) return "";
   try {
@@ -178,11 +178,9 @@ const formatInputDate = (dateString: string) => {
 function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
   if (!src) return null;
   return (
-    <div
-      className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      {/* Top Right Controls (Download + Close) */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      
+      {/* Top Right Controls*/}
       <div className="absolute top-6 right-6 flex items-center gap-3">
         <a
           href={src}
@@ -223,15 +221,10 @@ interface TruckModalProps {
   onSubmitSuccess: (record: TruckRecord) => void;
   editData?: TruckRecord | null;
   existingFleet: TruckRecord[];
+  isSaving?: boolean;
 }
 
-function TruckModal({
-  isOpen,
-  onClose,
-  onSubmitSuccess,
-  editData,
-  existingFleet,
-}: TruckModalProps) {
+function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet, isSaving }: TruckModalProps) {
   const initialTruckState = {
     truckCode: "",
     plateNumber: "",
@@ -528,20 +521,9 @@ function TruckModal({
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={handleCloseModal}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
-            >
-              {editData ? "Save Changes" : "Add Truck"}
+            <button type="button" onClick={handleCloseModal} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">Cancel</button>
+            <button type="submit" disabled={isSaving} style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className={`w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center cursor-pointer ${isSaving ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"}`}>
+              {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : editData ? "Save Changes" : "Add Truck"}
             </button>
           </div>
         </form>
@@ -563,21 +545,11 @@ interface LogMaintenanceModalProps {
   preselectedTruckId?: string | number | null;
   formType?: "inspection" | "update" | "log";
   loggedInMechanic: { employeeID: string | number; employeeName: string };
-  inheritedAdditionalMechanicID?: string;
+  inheritedAdditionalMechanicID?: string; 
+  isSaving?: boolean;
 }
 
-function LogMaintenanceModal({
-  isOpen,
-  onClose,
-  onSubmitSuccess,
-  editData,
-  trucksOptions,
-  mechanicsOptions,
-  preselectedTruckId,
-  formType = "log",
-  loggedInMechanic,
-  inheritedAdditionalMechanicID,
-}: LogMaintenanceModalProps) {
+function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID, isSaving }: LogMaintenanceModalProps) {
   const initialFormState = {
     date: "",
     truckID: "",
@@ -1024,20 +996,9 @@ function LogMaintenanceModal({
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={handleCloseModal}
-              style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer"
-            >
-              {editData ? "Save Changes" : "Save Log"}
+            <button type="button" onClick={handleCloseModal} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">Cancel</button>
+            <button type="submit" disabled={isSaving} style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className={`w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center cursor-pointer ${isSaving ? "opacity-70 cursor-not-allowed" : "hover:opacity-95"}`}>
+              {isSaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : editData ? "Save Changes" : "Save Log"}
             </button>
           </div>
         </form>
@@ -2106,15 +2067,11 @@ export default function MechanicFleetStatusPage({
   }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<
-    | "All"
-    | "On Maintenance"
-    | "Available"
-    | "Already Booked"
-    | "On Delivery"
-    | "Out of Service"
-  >("All");
-  const [showArchived, setShowArchived] = useState(false); // <-- NEW STATE
+  const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "Already Booked" | "On Delivery" | "Out of Service">("All");
+  const [showArchived, setShowArchived] = useState(false);
+
+  const [isSavingTruck, setIsSavingTruck] = useState(false);
+  const [isSavingLog, setIsSavingLog] = useState(false);
 
   const [truckToDelete, setTruckToDelete] = useState<string | number | null>(
     null,
@@ -2453,6 +2410,9 @@ export default function MechanicFleetStatusPage({
   };
 
   const handleModalSubmit = async (record: TruckRecord) => {
+    if (isSavingTruck) return; 
+    setIsSavingTruck(true);
+    
     try {
       const url = editingTruck
         ? `/api/fleet-status/${record.id}`
@@ -2488,12 +2448,14 @@ export default function MechanicFleetStatusPage({
       } else {
         alert("Failed to save truck. Check your server connection.");
       }
-    } catch (error) {
-      console.error("Error saving truck:", error);
-      alert("Error saving truck details.");
+    } catch (error) { 
+      console.error("Error saving truck:", error); 
+      alert("Error saving truck details."); 
+    } finally {
+      setIsSavingTruck(false);
+      setEditingTruck(null); 
+      setIsModalOpen(false);
     }
-    setEditingTruck(null);
-    setIsModalOpen(false);
   };
 
   const handleDeleteTruck = async (id: string | number) => {
@@ -2513,6 +2475,8 @@ export default function MechanicFleetStatusPage({
   };
 
   const handleMaintenanceLogSubmit = async (formData: any) => {
+    if (isSavingLog) return; // Prevent double submission
+    setIsSavingLog(true);
     try {
       const finalPayload = {
         ...formData,
@@ -2559,12 +2523,12 @@ export default function MechanicFleetStatusPage({
       } else {
         alert("Failed to save maintenance log.");
       }
-    } catch (error) {
-      console.error("Error saving maintenance log:", error);
-    } finally {
-      // Cleanup all states when the modal closes
-      setEditingHistoryRecord(null);
-      setShowLogMaintenanceModal(false);
+    } catch (error) { 
+      console.error("Error saving maintenance log:", error); 
+    } finally { 
+      setIsSavingLog(false); // Reset saving state
+      setEditingHistoryRecord(null); 
+      setShowLogMaintenanceModal(false); 
       setStatusConfirmTruck(null);
       setPendingStatusTarget("");
     }
@@ -3026,15 +2990,13 @@ export default function MechanicFleetStatusPage({
         </div>
       )}
 
-      <TruckModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingTruck(null);
-        }}
-        onSubmitSuccess={handleModalSubmit}
-        editData={editingTruck}
-        existingFleet={fleetList}
+      <TruckModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setEditingTruck(null); }} 
+        onSubmitSuccess={handleModalSubmit} 
+        editData={editingTruck} 
+        existingFleet={fleetList} 
+        isSaving={isSavingTruck}
       />
 
       <LogMaintenanceModal
@@ -3053,6 +3015,7 @@ export default function MechanicFleetStatusPage({
         formType={maintenanceFormType}
         loggedInMechanic={currentUser}
         inheritedAdditionalMechanicID={inheritedAdditionalMechanicID}
+        isSaving={isSavingLog}
       />
 
       {truckToDelete && (
