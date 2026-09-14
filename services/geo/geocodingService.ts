@@ -12,7 +12,14 @@ const REQUEST_TIMEOUT_MS = 5000;
 export interface Coordinates {
   latitude: number;
   longitude: number;
+  /** What Mapbox believed the address to be; useful for spotting bad matches. */
+  matchedAddress?: string;
 }
+
+// Results are biased towards Metro Manila. Without it, Mapbox resolved
+// "Bonifacio Global City, Taguig City" to a point in Aurora province.
+const PROXIMITY_LONGITUDE = 121.05;
+const PROXIMITY_LATITUDE = 14.55;
 
 export async function geocodeAddress(address: string): Promise<Coordinates | null> {
   const query = address?.trim();
@@ -20,7 +27,9 @@ export async function geocodeAddress(address: string): Promise<Coordinates | nul
 
   const url =
     `${GEOCODE_URL}?q=${encodeURIComponent(query)}` +
-    `&country=ph&limit=1&access_token=${MAPBOX_TOKEN}`;
+    `&country=ph&limit=1` +
+    `&proximity=${PROXIMITY_LONGITUDE},${PROXIMITY_LATITUDE}` +
+    `&access_token=${MAPBOX_TOKEN}`;
 
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
@@ -30,14 +39,31 @@ export async function geocodeAddress(address: string): Promise<Coordinates | nul
     }
 
     const result = await response.json();
-    const coordinates = result?.features?.[0]?.geometry?.coordinates;
+    const feature = result?.features?.[0];
+    const coordinates = feature?.geometry?.coordinates;
 
     if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
 
     const [longitude, latitude] = coordinates;
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
-    return { latitude, longitude };
+    // Vague addresses match confidently but wrongly: "Bonifacio Global City,
+    // Taguig City" resolves to a street called Bonifacio in Manila. If the town
+    // Mapbox matched is not named in the address we asked for, the result is a
+    // different place and is refused. A missing pin beats a pin 10 km away.
+    const matchedPlace: string | undefined = feature?.properties?.context?.place?.name;
+    if (matchedPlace && !query.toLowerCase().includes(matchedPlace.toLowerCase())) {
+      console.warn(
+        `Geocoding rejected for "${query}": matched ${feature?.properties?.full_address ?? matchedPlace}`,
+      );
+      return null;
+    }
+
+    return {
+      latitude,
+      longitude,
+      matchedAddress: feature?.properties?.full_address ?? feature?.properties?.name,
+    };
   } catch (error) {
     console.error(`Geocoding error for "${query}":`, error);
     return null;
