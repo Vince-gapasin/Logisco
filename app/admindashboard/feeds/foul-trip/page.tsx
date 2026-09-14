@@ -87,7 +87,7 @@ const renderStopStatus = (status?: string) => {
         <Clock className="w-3 h-3" /> {currentStatus}
       </span>
     );
-  } else if (s === "completed" || s === "complete") {
+  } else if (s.includes("deliver") || s === "completed" || s === "complete") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
         <CheckCircle2 className="w-3 h-3" /> {currentStatus}

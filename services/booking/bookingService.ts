@@ -1,5 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses } from "@/services/geo/geocodingService";
+import { STOP_STATUS } from "@/app/lib/stopStatus";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 
@@ -297,7 +298,7 @@ export async function createBooking(dto: CreateOrderDto) {
         deliveryLat: coordinates?.latitude ?? 0,
         deliverLong: coordinates?.longitude ?? 0,
         expectedTime: stop.expectedTime || "12:00:00",
-        stopStatus: "Pending",
+        stopStatus: STOP_STATUS.pending,
       };
     });
 

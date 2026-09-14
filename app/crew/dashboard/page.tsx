@@ -328,7 +328,9 @@ export default function CrewDashboardPage({
 
   // Status Checkers
   const activeStatuses = ["start delivery", "in warehouse", "in transit", "arrived", "ongoing delivery", "accepted"];
-  const completedStatuses = ["completed", "delivered", "returned", "foul trip", "declined"];
+  // Cancelled and rejected are finished too: without them a cancelled trip
+  // counted as unconfirmed and offered the driver accept/decline buttons.
+  const completedStatuses = ["completed", "delivered", "returned", "foul trip", "declined", "cancelled", "rejected"];
 
   const isActive = (status?: string) => status ? activeStatuses.includes(status.toLowerCase()) : false;
   const isCompleted = (status?: string) => status ? completedStatuses.includes(status.toLowerCase()) : false;

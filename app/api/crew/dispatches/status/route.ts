@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { STOP_STATUS } from "@/app/lib/stopStatus";
 import {
   getCrewAssignment,
   isUuid,
@@ -15,6 +16,14 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 };
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
+
+async function releaseResources(dispatchID: string): Promise<void> {
+  try {
+    await releaseDispatchResources(dispatchID);
+  } catch (error) {
+    console.error("[Status API] Failed to release truck and crew:", error);
+  }
+}
 
 export async function POST(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
@@ -53,6 +62,10 @@ export async function POST(request: Request) {
 
     // A retried request (flaky mobile network) must not apply twice.
     if (current.status === status && nextStep <= currentStep) {
+      // If releasing the truck and crew failed the first time, the retry is
+      // the chance to finish the job; setting them free twice is harmless.
+      if (status === "Completed") await releaseResources(dispatchID);
+
       return NextResponse.json({ message: "Status already up to date", status, podUrl: null });
     }
 
@@ -154,14 +167,16 @@ export async function POST(request: Request) {
     if (branchID !== null && podUrl) {
       const { error: stopErr } = await supabase
         .from("BranchStops")
-        .update({ stopStatus: "Completed" })
+        .update({ stopStatus: STOP_STATUS.delivered })
         .eq("branchID", branchID);
       if (stopErr) console.error("[Status API] Stop status update failed:", stopErr.message);
     }
 
-    // 5. Free the truck and crew once the trip is completed
+    // 5. Free the truck and crew once the trip is completed. The status is
+    // already saved, so a failure here must not fail the request: it is
+    // logged and retried if the crew app submits again.
     if (status === "Completed") {
-      await releaseDispatchResources(dispatchID);
+      await releaseResources(dispatchID);
     }
 
     return NextResponse.json({ message: "Status updated successfully", status, podUrl });
