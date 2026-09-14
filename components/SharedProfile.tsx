@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
 import { Mail, Lock, X, AlertCircle, User, Shield, Building } from "lucide-react";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 
@@ -9,35 +10,7 @@ import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 // ==========================================
 const SESSION_KEY = "logisco_user_session";
 
-function getAuthSession() {
-  const savedSession = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-  if (!savedSession) throw new Error("Authentication session not found. Please log in again.");
-  return JSON.parse(savedSession);
-}
 
-async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const session = getAuthSession();
-  const headers = new Headers(options.headers);
-
-  headers.set("Authorization", `Bearer ${session.token}`);
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const response = await fetch(url, { ...options, headers });
-  const result = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message = result?.message || `Request failed with status ${response.status}`;
-    if (response.status === 401) {
-      localStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
-    }
-    throw new Error(message);
-  }
-
-  return result as T;
-}
 
 // ==========================================
 // MAIN COMPONENT

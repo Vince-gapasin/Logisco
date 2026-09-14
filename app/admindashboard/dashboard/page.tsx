@@ -4,6 +4,7 @@
 // ==========================================
 "use client";
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { apiFetch } from "@/app/lib/apiClient";
 import Link from "next/link";
 import {
   Clock,
@@ -23,60 +24,6 @@ import {
 // ==========================================
 // SESSION & API FETCH
 // ==========================================
-
-const SESSION_KEY = "logisco_user_session";
-
-interface UserSession {
-  email: string;
-  role: string;
-  token: string;
-  id: string;
-  employeeName: string;
-}
-
-function getAuthSession(): UserSession {
-  const savedSession =
-    localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-
-  if (!savedSession) {
-    throw new Error("Authentication session not found. Please log in again.");
-  }
-  return JSON.parse(savedSession) as UserSession;
-}
-
-async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const session = getAuthSession();
-  const headers = new Headers(options.headers);
-
-  headers.set("Authorization", `Bearer ${session.token}`);
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const response = await fetch(url, { ...options, headers });
-
-  let result: unknown = null;
-  const contentType = response.headers.get("content-type");
-  if (contentType?.includes("application/json")) {
-    result = await response.json();
-  }
-
-  if (!response.ok) {
-    const message =
-      typeof result === "object" && result !== null && "message" in result
-        ? String((result as any).message)
-        : `Request failed with status ${response.status}`;
-
-    if (response.status === 401) {
-      localStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
-    }
-    throw new Error(message);
-  }
-
-  return result as T;
-}
 
 // ==========================================
 // CONSTANTS & DATA

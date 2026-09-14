@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Truck, User, MapPin, Clock, Package } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
+import { usePolling } from "@/app/lib/usePolling";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
@@ -112,12 +113,12 @@ function ClientTrackerView() {
     void loadTracking();
   }, [loadTracking]);
 
-  // Keep polling while the delivery is still running.
-  useEffect(() => {
-    if (state !== "ready" || data?.isCompleted) return;
-    const interval = setInterval(loadTracking, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [state, data?.isCompleted, loadTracking]);
+  // Keep polling while the delivery is still running, and only while the
+  // customer actually has the page open.
+  usePolling(loadTracking, REFRESH_INTERVAL_MS, {
+    enabled: state === "ready" && !data?.isCompleted,
+    immediate: false,
+  });
 
   // No token in the URL at all: nothing to look up.
   if (!token) {

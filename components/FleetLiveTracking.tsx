@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Search, FileText, Radio, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { usePolling } from "@/app/lib/usePolling";
 import type { MapPoint } from "@/components/LiveRouteMap";
 
 // Mapbox is heavy and browser-only: keep it out of every other page's bundle.
@@ -76,14 +77,8 @@ export default function FleetLiveTracking() {
     }
   }, []);
 
-  useEffect(() => {
-    const initialLoad = setTimeout(loadFleet, 0);
-    const interval = setInterval(loadFleet, REFRESH_INTERVAL_MS);
-    return () => {
-      clearTimeout(initialLoad);
-      clearInterval(interval);
-    };
-  }, [loadFleet]);
+  // Polls only while the tab is visible.
+  usePolling(loadFleet, REFRESH_INTERVAL_MS);
 
   const term = searchTerm.toLowerCase();
   const filteredList = trackingList.filter(

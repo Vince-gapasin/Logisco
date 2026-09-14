@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { usePolling } from "@/app/lib/usePolling";
 
 // Notifications are derived server-side from live data, so there is nowhere to
 // record "read" yet. Until a Notification table exists, the dismissed ids are
@@ -72,11 +73,8 @@ export function useNotifications() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-    const interval = setInterval(load, REFRESH_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [load]);
+  // Polls only while the tab is visible.
+  usePolling(load, REFRESH_INTERVAL_MS);
 
   const markRead = useCallback((id: string | number) => {
     const key = String(id);
