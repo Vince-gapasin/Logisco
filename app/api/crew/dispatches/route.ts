@@ -11,7 +11,7 @@ const DISPATCH_SELECT = `
   current_step,
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
-    BranchStops ( branchID, branchName, contactPerson, contactNum, notes, expectedTime, stopStatus, dispatchID ) ),
+    BranchStops ( branchID, branchName, contactPerson, contactNum, notes, expectedTime, stopStatus, dispatchID, deliveryLat, deliverLong ) ),
   Truck ( plateNumber, model )
 `;
 
@@ -147,6 +147,9 @@ export async function GET(request: Request) {
           deliveryTime: stop.expectedTime,
           quantity: "TBD",
           status: stop.stopStatus,
+          // 0/0 is the placeholder for a stop that was never geocoded.
+          latitude: Number(stop.deliveryLat) || null,
+          longitude: Number(stop.deliverLong) || null,
         })),
       };
     });

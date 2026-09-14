@@ -4,14 +4,26 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, MapPin, Search, Archive } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
+import dynamic from "next/dynamic";
 import { getAccessToken } from "@/app/lib/apiClient";
+import type { MapPoint } from "@/components/LiveRouteMap";
+
+const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
+  ssr: false,
+  loading: () => <div className="h-80 sm:h-100 md:h-120 w-full animate-pulse bg-slate-100" />,
+});
 import { compressImage } from "@/app/lib/imageCompression";
 
 // Background Geolocation Setup
 const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
 let activeTrackingId: string | null = null;
+
+// The tracking watchers live outside React; this lets the open screen show the
+// driver's own position without waiting for a round trip through the server.
+type PositionFix = { latitude: number; longitude: number };
+let onPositionUpdate: ((fix: PositionFix) => void) | null = null;
 
 // Browser geolocation can fire several times a second; one fix every 10s is
 // plenty for the fleet map and keeps mobile data use low.
@@ -70,6 +82,11 @@ const startLiveTracking = async (dispatchId: string | number) => {
           if (now - lastWebPingAt < WEB_PING_INTERVAL_MS) return;
           lastWebPingAt = now;
 
+          onPositionUpdate?.({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+
           const stillOpen = await postLocation(dispatchId, {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -97,6 +114,11 @@ const startLiveTracking = async (dispatchId: string | number) => {
       },
       async (location: any, error: any) => {
         if (error || !location) return;
+
+        onPositionUpdate?.({
+          latitude: location.latitude,
+          longitude: location.longitude,
+        });
 
         const stillOpen = await postLocation(dispatchId, {
           latitude: location.latitude,
@@ -280,6 +302,7 @@ export default function CrewDashboardPage({
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [dynamicStops, setDynamicStops] = useState<any[]>([]);
+  const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -417,6 +440,31 @@ export default function CrewDashboardPage({
     }];
   };
 
+  // Show the driver's position on the map as tracking reports it.
+  useEffect(() => {
+    onPositionUpdate = (fix) => setDriverPosition(fix);
+    return () => {
+      onPositionUpdate = null;
+    };
+  }, []);
+
+  // One reading when the map opens, so the driver appears immediately rather
+  // than after the first tracking ping.
+  useEffect(() => {
+    if (viewMode !== "update-status") return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        setDriverPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      (error) => console.warn("Could not read current position:", error.message),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }, [viewMode]);
+
   const handleRowClick = (delivery: DeliveryRecord) => {
     setSelectedDelivery(delivery);
     setShowDetailsModal(true);
@@ -436,6 +484,36 @@ export default function CrewDashboardPage({
         .catch(() => setSelectedFile(file));
     }
   };
+
+  // The driver plus any stop with real coordinates. Stops booked before
+  // addresses were geocoded have none, and are simply not plotted.
+  const crewMapPoints: MapPoint[] = [
+    ...(driverPosition
+      ? [
+          {
+            id: "me",
+            label: "Your location",
+            detail: selectedDelivery?.assignedVehicle
+              ? `Truck ${selectedDelivery.assignedVehicle}`
+              : "Current position",
+            latitude: driverPosition.latitude,
+            longitude: driverPosition.longitude,
+            kind: "truck" as const,
+          },
+        ]
+      : []),
+    ...(selectedDelivery?.multipleDeliveries ?? [])
+      .filter((stop: any) => stop.latitude != null && stop.longitude != null)
+      .map((stop: any, index: number) => ({
+        id: `stop-${stop.branchID ?? index}`,
+        label: stop.branch || "Delivery stop",
+        detail: stop.deliveryTime ? `Expected ${String(stop.deliveryTime).slice(0, 5)}` : undefined,
+        latitude: stop.latitude as number,
+        longitude: stop.longitude as number,
+        kind: "stop" as const,
+        done: /deliver|complete/i.test(stop.status ?? ""),
+      })),
+  ];
 
   const handleUpdateStatusSubmit = async () => {
     const isPodRequiredForStop = dynamicStops[currentStepIndex]?.reqPod;
@@ -811,77 +889,12 @@ export default function CrewDashboardPage({
                 </div>
               </div>
 
-              <div className="relative w-full h-80 sm:h-100 md:h-120 bg-[#e0f2fe] overflow-hidden flex items-center justify-center font-sans">
-                <div className="absolute inset-0 pointer-events-none opacity-60">
-                  <svg className="w-full h-full" preserveAspectRatio="none">
-                    <path d="M-10,15 L 30,25 L 40,-10 M 30,25 L 50,80 L 110,60 M 50,80 L 30,110 M 80,-10 L 70,40 L 110,30" stroke="#ffffff" strokeWidth="12" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M-10,60 L 20,50 L 30,80 M 70,40 L 90,80 L 110,90" stroke="#ffffff" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-
-                {dynamicStops.map((stop, index) => {
-                  const total = Math.max(1, dynamicStops.length - 1);
-                  const progress = index / total;
-                  const x = 15 + (progress * 70);
-                  const y = 50 + Math.sin(progress * Math.PI) * 30; 
-
-                  const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || index < currentStepIndex;
-                  const isCurrent = index === currentStepIndex;
-
-                  return (
-                    <div key={index} className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center transition-all duration-700" style={{ left: `${x}%`, top: `${y}%` }}>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-slate-200 text-center whitespace-nowrap pointer-events-none">
-                        <div className="text-xs font-bold text-slate-800">{stop.title}</div>
-                        {isNodeCompleted && <div className="text-[9px] text-emerald-600 font-bold uppercase mt-0.5">Completed</div>}
-                        {isCurrent && <div className="text-[9px] text-blue-600 font-bold uppercase mt-0.5 animate-pulse">Ongoing</div>}
-                      </div>
-                      
-                      {stop.type === 'pickup' ? (
-                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-lg border-[3px] transition-colors ${isNodeCompleted ? 'bg-emerald-500 border-emerald-200' : isCurrent ? 'bg-blue-500 border-blue-200' : 'bg-slate-300 border-slate-100'}`}>
-                          <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-current" />
-                        </div>
-                      ) : stop.type === 'delivery' ? (
-                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-lg border transition-colors ${isNodeCompleted ? 'bg-emerald-50 border-emerald-500' : isCurrent ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-300'}`}>
-                          <svg className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isNodeCompleted ? 'text-emerald-500' : isCurrent ? 'text-blue-500' : 'text-slate-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                        </div>
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${isNodeCompleted ? 'bg-emerald-500 border-emerald-200' : isCurrent ? 'bg-blue-500 border-blue-200' : 'bg-slate-800 border-slate-600'}`}>
-                           <div className="w-2 h-2 bg-white rounded-full"></div>
-                        </div>
-                      )}
-
-                      {isCurrent && (
-                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-700 ease-in-out">
-                          <div className="bg-[#2563eb] w-8 h-8 sm:w-9 sm:h-9 rounded-full border-[2.5px] border-white flex items-center justify-center shadow-xl">
-                            <Truck className="w-4 h-4 text-white fill-current" strokeWidth={1} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Dynamic Bottom Progress Bar */}
-              <div className="bg-white px-2 sm:px-6 pt-12 pb-6 border-t border-slate-200 z-10 relative overflow-x-auto hide-scrollbar">
-                <div className="relative flex justify-between items-center w-full min-w-[600px] max-w-4xl mx-auto px-4 sm:px-8">
-                  <div className="absolute left-8 right-8 top-1/2 -translate-y-1/2 h-1 bg-slate-200 z-0"></div>
-                  <div className="absolute left-8 top-1/2 -translate-y-1/2 h-1 bg-blue-600 z-0 transition-all duration-500" style={{ width: `calc(${ (currentStepIndex / (Math.max(1, dynamicStops.length - 1))) * 100 }% - 64px)` }}></div>
-
-                  {dynamicStops.map((stop, index) => {
-                    const isNodeCompleted = isSuccessfulFinish(selectedDelivery.status) || index < currentStepIndex;
-                    const isCurrent = index === currentStepIndex;
-                    
-                    return (
-                      <div key={index} className="relative z-10 flex flex-col items-center group px-0.5 w-16">
-                        <span className={`text-[9px] sm:text-xs font-bold absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 text-center w-max whitespace-nowrap leading-tight transition-colors duration-300 ${isNodeCompleted ? 'text-emerald-600' : isCurrent ? 'text-blue-600 font-extrabold' : 'text-slate-400'}`}>
-                          {stop.title.replace(/(Pickup: |Dropoff: )/, '')}
-                        </span>
-                        <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-300 flex items-center justify-center ${isNodeCompleted ? 'bg-emerald-500 ring-2 ring-emerald-100' : isCurrent ? 'bg-blue-600 ring-4 ring-blue-100 scale-125' : 'bg-slate-300'}`} />
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="relative w-full h-80 sm:h-100 md:h-120">
+                <LiveRouteMap
+                  points={crewMapPoints}
+                  heightClass="h-80 sm:h-100 md:h-120"
+                  emptyMessage="Waiting for a GPS signal. Start the delivery to begin tracking."
+                />
               </div>
             </div>
 
