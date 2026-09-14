@@ -52,8 +52,9 @@ const STAGE_STATUSES: Record<string, string[]> = {
   "awaiting-crew": ["Pending", "Assigned"],
   departing: ["Pending", "Assigned", "Accepted"],
   "in-transit": ["In Transit"],
-  completed: ["Completed"],
+  completed: ["Completed", "Delivered", "Returned"],
   "foul-trip": ["Foul Trip"],
+  cancelled: ["Cancelled"],
 };
 
 const DEFAULT_STAGE_LIMIT = 300;

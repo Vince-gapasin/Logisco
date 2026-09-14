@@ -5,7 +5,14 @@ import type { AssignDispatchDto } from "@/types/dispatch";
 export const ACTIVE_DISPATCH_STATUSES = ["Pending", "Assigned", "Accepted", "In Transit"];
 
 // Statuses after which a dispatch can no longer be changed by the crew.
-export const TERMINAL_DISPATCH_STATUSES = ["Completed", "Foul Trip", "Rejected"];
+export const TERMINAL_DISPATCH_STATUSES = [
+  "Completed",
+  "Delivered",
+  "Returned",
+  "Cancelled",
+  "Foul Trip",
+  "Rejected",
+];
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -100,7 +100,11 @@ export function toProgressStage(dispatchStatus: string | null): string {
     case "In Transit":
       return "In Transit";
     case "Completed":
+    case "Delivered":
       return "Complete";
+    // The truck is back at base: the last stage of the tracker.
+    case "Returned":
+    case "Cancelled":
     case "Foul Trip":
     case "Rejected":
       return "Returned";
@@ -279,7 +283,11 @@ export function isInTransit(booking: BookingView): boolean {
 }
 
 export function isCompleted(booking: BookingView): boolean {
-  return booking.dispatchStatus === "Completed";
+  return ["Completed", "Delivered", "Returned"].includes(booking.dispatchStatus ?? "");
+}
+
+export function isCancelled(booking: BookingView): boolean {
+  return booking.dispatchStatus === "Cancelled";
 }
 
 // Cancelled bookings are deactivated, so they stay out of this feed.
@@ -354,7 +362,12 @@ function confirmationLabel(booking: BookingView): string {
     case "In Transit":
       return "On Route";
     case "Completed":
+    case "Delivered":
       return "Delivered";
+    case "Returned":
+      return "Returned to base";
+    case "Cancelled":
+      return "Cancelled";
     case "Foul Trip":
       return "Foul Trip";
     case "Rejected":

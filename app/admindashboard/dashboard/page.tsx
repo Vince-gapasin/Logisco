@@ -3164,6 +3164,8 @@ export default function AdminDashboardPage() {
             category = "Foul Trip";
           } else if (
             dispatchStatus === "Completed" ||
+            dispatchStatus === "Delivered" ||
+            dispatchStatus === "Returned" ||
             stopStatus.includes("complete") ||
             stopStatus.includes("delivered")
           ) {

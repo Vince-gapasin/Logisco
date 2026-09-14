@@ -42,6 +42,7 @@ const STATUS_OPTIONS = [
   "Final Status",
   "Delivered",
   "Foul Trip",
+  "Cancelled",
   "Pending",
   "In-Transit",
 ];
@@ -777,12 +778,25 @@ export default function ReportsForecastingPage() {
 
             const stopsArr =
               o.BranchStops || o.branchstops || o.branch_stops || [];
+            // The dispatch status is what actually advances; stopStatus is
+            // only written when a proof of delivery is uploaded, so relying on
+            // it reported finished trips as "Pending".
+            const dispatchStatusValue = dispatchRecord?.status ?? "";
             const rawStatus = (
               stopsArr[0]?.stopStatus || "Pending"
             ).toLowerCase();
+
             let category = "Pending";
 
-            if (
+            if (["Completed", "Delivered", "Returned"].includes(dispatchStatusValue)) {
+              category = "Delivered";
+            } else if (dispatchStatusValue === "Cancelled") {
+              category = "Cancelled";
+            } else if (["Foul Trip", "Rejected"].includes(dispatchStatusValue)) {
+              category = "Foul Trip";
+            } else if (dispatchStatusValue === "In Transit") {
+              category = "In-Transit";
+            } else if (
               rawStatus.includes("transit") ||
               rawStatus.includes("progress")
             ) {
