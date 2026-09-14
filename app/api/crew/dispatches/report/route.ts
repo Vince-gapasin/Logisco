@@ -25,7 +25,10 @@ export async function POST(request: Request) {
   try {
     const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
     if (!assignment) {
-      return NextResponse.json({ message: "You are not assigned to this dispatch." }, { status: 403 });
+      return NextResponse.json(
+        { message: "Only the assigned driver or helper can file a report for this delivery." },
+        { status: 403 },
+      );
     }
 
     // Combine remarks and issues into finalRemarks for the Reports table

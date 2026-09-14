@@ -51,8 +51,23 @@ export async function POST(request: Request) {
 
     // 2. Only the assigned driver or an accepted helper may update the trip.
     const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
-    if (!assignment || (!assignment.isDriver && assignment.helper?.status !== "Accepted")) {
-      return NextResponse.json({ message: "You are not assigned to this dispatch." }, { status: 403 });
+    if (!assignment) {
+      return NextResponse.json(
+        { message: "Only the assigned driver or helper can update this delivery." },
+        { status: 403 },
+      );
+    }
+
+    // A helper who has not accepted yet cannot act on the trip.
+    if (!assignment.isDriver && assignment.helper?.status !== "Accepted") {
+      return NextResponse.json(
+        {
+          message:
+            "Accept this assignment first: your helper assignment is " +
+            `"${assignment.helper?.status ?? "Pending"}".`,
+        },
+        { status: 403 },
+      );
     }
 
     const current = assignment.dispatch;

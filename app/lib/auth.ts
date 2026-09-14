@@ -250,7 +250,9 @@ export function requireRole(
     )
   ) {
     return {
-      error: "Forbidden",
+      error:
+        `This action needs one of these roles: ${allowedRoles.join(", ")}. ` +
+        `Your account's role is "${role ?? "none"}".`,
       status: 403,
     };
   }
