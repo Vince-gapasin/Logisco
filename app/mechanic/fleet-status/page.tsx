@@ -2264,40 +2264,51 @@ export default function MechanicFleetStatusPage({
 
   const fetchMechanics = async () => {
     try {
+      // 1. Grab the token from your stored session
+      const storedUser = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+      let token = "";
+      
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          // Look for access_token or token depending on your auth payload
+          token = parsedUser.access_token || parsedUser.token || ""; 
+        } catch (e) {
+          console.error("Failed to parse session token");
+        }
+      }
+
+      // 2. Attach the token to the Headers
       const response = await fetch(`/api/employees?page=1&limit=100`, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: { 
+          "Content-Type": "application/json",
+          // Add the Authorization header if a token exists
+          ...(token ? { Authorization: `Bearer ${token}` } : {}) 
+        },
+        credentials: "include", 
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
-
+      
       const result = await response.json();
-
-      // Your backend explicitly wraps the array in a "data" property
       const employees = result.data || [];
-
+      
       const mappedMechanics: EmployeeOption[] = employees
-        .filter(
-          (emp: any) => emp.role && emp.role.toLowerCase().includes("mechanic"),
-        )
+        .filter((emp: any) => emp.role && emp.role.toLowerCase().includes("mechanic"))
         .map((emp: any) => ({
-          employeeID: emp.id || emp.employeeID || emp.employeeid,
-          employeeName:
-            emp.employeeName ||
-            emp.name ||
-            `${emp.firstName || ""} ${emp.lastName || ""}`.trim(),
-          role: emp.role,
+          employeeID: emp.id || emp.employeeID || emp.employeeid, 
+          employeeName: emp.employeeName || emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          role: emp.role
         }));
 
       setMechanicsOptions(mappedMechanics);
     } catch (error) {
       console.error("CRITICAL ERROR FETCHING MECHANICS:", error);
-      // Leave dropdown empty instead of showing fake data
-      setMechanicsOptions([]);
+      setMechanicsOptions([]); 
     }
   };
 
