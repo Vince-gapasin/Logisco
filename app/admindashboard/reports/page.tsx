@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   TrendingUp,
@@ -1109,13 +1111,13 @@ export default function ReportsForecastingPage() {
 
           {/* Action Button: */}
           <div className="w-full sm:w-auto">
-            <a
-              href="/admindashboard/forecasting"
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
-            >
-              <TrendingUp className="w-4 h-4 shrink-0" />
-              <span>Forecasting</span>
-            </a>
+            <Link
+  href="/admindashboard/forecasting"
+  className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
+>
+  <TrendingUp className="w-4 h-4 shrink-0" />
+  <span>Forecasting</span>
+</Link>
           </div>
         </div>
       </div>
