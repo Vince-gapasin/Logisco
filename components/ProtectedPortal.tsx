@@ -1,5 +1,5 @@
-// LOGISCO_PROTECTED_PORTAL_SECURITY_V2
-// Shows an access-denied notice before redirecting unauthorized roles.
+// LOGISCO_PROTECTED_PORTAL_SECURITY_V4
+// Validates once per portal mount and checks later route changes synchronously.
 
 "use client";
 
@@ -14,27 +14,15 @@ import {
   readStoredSession,
   updateStoredSession,
 } from "@/app/lib/clientSession";
-import { canAccessRoute } from "@/app/lib/routeAccess";
+import {
+  canAccessRoute,
+  normalizeRole,
+  type AppRole,
+} from "@/app/lib/routeAccess";
 import {
   signOutBrowserSession,
   validateSession,
 } from "@/services/authService";
-
-// The last server-verified session, kept per browser tab. Navigating between
-// pages reuses it instead of re-validating, so the portal does not blank out
-// on every route change. Expires quickly, and any token change re-verifies.
-const VERIFICATION_TTL_MS = 5 * 60 * 1000;
-
-let lastVerification: {
-  token: string;
-  verifiedAt: number;
-  role: string;
-  homeRoute: string;
-} | null = null;
-
-export function clearPortalVerification(): void {
-  lastVerification = null;
-}
 
 type ProtectedPortalProps = {
   children: ReactNode;
@@ -43,22 +31,28 @@ type ProtectedPortalProps = {
 export default function ProtectedPortal({ children }: ProtectedPortalProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isAccessDenied, setIsAccessDenied] = useState(false);
+  const [verifiedRole, setVerifiedRole] = useState<AppRole | null>(null);
+  const [homeRoute, setHomeRoute] = useState("/");
 
   useEffect(() => {
     let isActive = true;
     let expiryTimer: ReturnType<typeof setTimeout> | null = null;
-    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const redirectToLogin = async () => {
-      lastVerification = null;
       clearStoredSession();
       await signOutBrowserSession();
       if (isActive) router.replace("/login");
     };
 
-    const verifyAndAuthorize = async (accessToken?: string) => {
+    const scheduleSessionExpiry = (sessionExpiresAt: number) => {
+      if (expiryTimer) clearTimeout(expiryTimer);
+
+      expiryTimer = setTimeout(() => {
+        void redirectToLogin();
+      }, Math.max(0, sessionExpiresAt - Date.now()));
+    };
+
+    const verifySession = async (accessToken?: string) => {
       const storedSession = readStoredSession();
 
       if (!storedSession || isStoredSessionExpired(storedSession)) {
@@ -74,88 +68,34 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
         return;
       }
 
+      const role = normalizeRole(verifiedSession.employee.role);
+      if (!role) {
+        await redirectToLogin();
+        return;
+      }
+
       updateStoredSession({
         token,
-        role: verifiedSession.employee.role,
+        role,
         id: verifiedSession.employee.employeeID,
         employeeName: verifiedSession.employee.employeeName,
         route: verifiedSession.homeRoute,
       });
 
-      lastVerification = {
-        token,
-        verifiedAt: Date.now(),
-        role: verifiedSession.employee.role,
-        homeRoute: verifiedSession.homeRoute,
-      };
-
-      if (!canAccessRoute(verifiedSession.employee.role, pathname)) {
-        if (isActive) {
-          setIsAuthorized(false);
-          setIsAccessDenied(true);
-
-          if (redirectTimer) clearTimeout(redirectTimer);
-          redirectTimer = setTimeout(() => {
-            if (isActive) router.replace(verifiedSession.homeRoute);
-          }, 2000);
-        }
-        return;
-      }
-
       if (isActive) {
-        setIsAccessDenied(false);
-        setIsAuthorized(true);
+        setVerifiedRole(role);
+        setHomeRoute(verifiedSession.homeRoute);
+        scheduleSessionExpiry(storedSession.sessionExpiresAt);
       }
-
-      if (expiryTimer) clearTimeout(expiryTimer);
-      const remainingTime = storedSession.sessionExpiresAt - Date.now();
-      expiryTimer = setTimeout(() => {
-        void redirectToLogin();
-      }, Math.max(0, remainingTime));
     };
 
     const initializeGuard = async () => {
       const storedSession = readStoredSession();
+
       if (!storedSession || isStoredSessionExpired(storedSession)) {
-        setIsAuthorized(false);
-        setIsAccessDenied(false);
         await redirectToLogin();
         return;
       }
-
-      // Recently verified on this tab: authorize from the cached role so
-      // navigation is instant. The route permission check still runs here.
-      if (
-        lastVerification &&
-        lastVerification.token === storedSession.token &&
-        Date.now() - lastVerification.verifiedAt < VERIFICATION_TTL_MS
-      ) {
-        if (canAccessRoute(lastVerification.role, pathname)) {
-          setIsAccessDenied(false);
-          setIsAuthorized(true);
-
-          if (expiryTimer) clearTimeout(expiryTimer);
-          expiryTimer = setTimeout(
-            () => void redirectToLogin(),
-            Math.max(0, storedSession.sessionExpiresAt - Date.now()),
-          );
-          return;
-        }
-
-        // Capture the route now: the cache can be cleared before this fires.
-        const homeRoute = lastVerification.homeRoute;
-
-        setIsAuthorized(false);
-        setIsAccessDenied(true);
-        if (redirectTimer) clearTimeout(redirectTimer);
-        redirectTimer = setTimeout(() => {
-          if (isActive) router.replace(homeRoute);
-        }, 2000);
-        return;
-      }
-
-      setIsAuthorized(false);
-      setIsAccessDenied(false);
 
       const {
         data: { session: browserSession },
@@ -172,16 +112,18 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
         accessTokenExpiresAt: browserSession.expires_at ?? null,
       });
 
-      await verifyAndAuthorize(browserSession.access_token);
+      await verifySession(browserSession.access_token);
     };
 
     const {
       data: { subscription },
     } = supabaseBrowser.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) {
-        lastVerification = null;
         clearStoredSession();
-        if (isActive) router.replace("/login");
+        if (isActive) {
+          setVerifiedRole(null);
+          router.replace("/login");
+        }
         return;
       }
 
@@ -190,8 +132,10 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
         accessTokenExpiresAt: session.expires_at ?? null,
       });
 
+      // Revalidate only when the authenticated identity or token changes.
+      // Normal page navigation does not enter this branch.
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-        void verifyAndAuthorize(session.access_token);
+        void verifySession(session.access_token);
       }
     });
 
@@ -201,11 +145,23 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
       isActive = false;
       subscription.unsubscribe();
       if (expiryTimer) clearTimeout(expiryTimer);
-      if (redirectTimer) clearTimeout(redirectTimer);
     };
-  }, [pathname, router]);
+  }, [router]);
 
-  if (isAccessDenied) {
+  const isRouteDenied =
+    verifiedRole !== null && !canAccessRoute(verifiedRole, pathname);
+
+  useEffect(() => {
+    if (!isRouteDenied) return;
+
+    const redirectTimer = setTimeout(() => {
+      router.replace(homeRoute);
+    }, 2000);
+
+    return () => clearTimeout(redirectTimer);
+  }, [homeRoute, isRouteDenied, router]);
+
+  if (isRouteDenied) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <div
@@ -225,15 +181,10 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     );
   }
 
-  if (!isAuthorized) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3 text-slate-600">
-          <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="text-sm font-medium">Verifying access...</p>
-        </div>
-      </div>
-    );
+  // This silent wait occurs only when the portal first mounts or after a hard
+  // browser refresh. Internal navigation keeps the verified role in memory.
+  if (!verifiedRole) {
+    return null;
   }
 
   return <>{children}</>;

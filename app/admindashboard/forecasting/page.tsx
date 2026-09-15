@@ -1,6 +1,6 @@
 "use client";
 
-// FORECAST_ASYNC_V3: main forecast renders without waiting for snapshot history.
+// FORECAST_CACHE_V4: reuse verified forecast data and deduplicate in-flight loads.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -98,6 +98,32 @@ interface SnapshotResponse {
   message?: string;
 }
 
+type StoredAuth = {
+  token: string;
+  ownerId: string;
+};
+
+type ForecastCacheEntry = {
+  ownerId: string;
+  data: ForecastResponse;
+};
+
+type SnapshotCacheEntry = {
+  ownerId: string;
+  data: ForecastSnapshot[];
+};
+
+let forecastCache: ForecastCacheEntry | null = null;
+let snapshotCache: SnapshotCacheEntry | null = null;
+let forecastRequest: {
+  ownerId: string;
+  promise: Promise<ForecastResponse>;
+} | null = null;
+let snapshotRequest: {
+  ownerId: string;
+  promise: Promise<ForecastSnapshot[]>;
+} | null = null;
+
 const TIMEFRAME_OPTIONS = [
   "2022",
   "2023",
@@ -106,7 +132,9 @@ const TIMEFRAME_OPTIONS = [
   "2026",
 ];
 
-function getStoredToken(): string | null {
+function getStoredAuth(): StoredAuth | null {
+  if (typeof window === "undefined") return null;
+
   const storedSession =
     sessionStorage.getItem("logisco_user_session") ??
     localStorage.getItem("logisco_user_session");
@@ -114,10 +142,96 @@ function getStoredToken(): string | null {
   if (!storedSession) return null;
 
   try {
-    const parsedSession = JSON.parse(storedSession) as { token?: string };
-    return parsedSession.token ?? null;
+    const parsedSession = JSON.parse(storedSession) as {
+      token?: string;
+      id?: string;
+    };
+
+    if (!parsedSession.token || !parsedSession.id) return null;
+
+    return {
+      token: parsedSession.token,
+      ownerId: parsedSession.id,
+    };
   } catch {
     return null;
+  }
+}
+
+function getCachedForecast(): ForecastResponse | null {
+  const auth = getStoredAuth();
+  if (!auth || forecastCache?.ownerId !== auth.ownerId) return null;
+  return forecastCache.data;
+}
+
+function getCachedSnapshots(): ForecastSnapshot[] | null {
+  const auth = getStoredAuth();
+  if (!auth || snapshotCache?.ownerId !== auth.ownerId) return null;
+  return snapshotCache.data;
+}
+
+async function requestForecast(auth: StoredAuth): Promise<ForecastResponse> {
+  if (forecastRequest?.ownerId === auth.ownerId) {
+    return forecastRequest.promise;
+  }
+
+  const promise = (async () => {
+    const response = await fetch("/api/forecasting/data", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${auth.token}` },
+      cache: "no-store",
+    });
+    const body = (await response.json()) as ForecastResponse & {
+      message?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(body.message ?? "Failed to load forecasting data.");
+    }
+
+    forecastCache = { ownerId: auth.ownerId, data: body };
+    return body;
+  })();
+
+  forecastRequest = { ownerId: auth.ownerId, promise };
+
+  try {
+    return await promise;
+  } finally {
+    if (forecastRequest?.promise === promise) forecastRequest = null;
+  }
+}
+
+async function requestSnapshots(auth: StoredAuth): Promise<ForecastSnapshot[]> {
+  if (snapshotRequest?.ownerId === auth.ownerId) {
+    return snapshotRequest.promise;
+  }
+
+  const promise = (async () => {
+    const response = await fetch("/api/forecasting/snapshots", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${auth.token}` },
+      cache: "no-store",
+    });
+    const body = (await response.json()) as SnapshotResponse;
+
+    if (!response.ok) {
+      throw new Error(
+        body.message ?? "Failed to load forecast accuracy history.",
+      );
+    }
+
+    const data = body.data ?? [];
+    snapshotCache = { ownerId: auth.ownerId, data };
+    return data;
+  })();
+
+  snapshotRequest = { ownerId: auth.ownerId, promise };
+
+  try {
+    return await promise;
+  } finally {
+    if (snapshotRequest?.promise === promise) snapshotRequest = null;
   }
 }
 
@@ -177,11 +291,17 @@ function calculateMetrics(expected: number, actual: number | null) {
 }
 
 export default function ForecastingPage() {
-  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
-  const [snapshots, setSnapshots] = useState<ForecastSnapshot[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [forecast, setForecast] = useState<ForecastResponse | null>(() =>
+    getCachedForecast(),
+  );
+  const [snapshots, setSnapshots] = useState<ForecastSnapshot[]>(() =>
+    getCachedSnapshots() ?? [],
+  );
+  const [isLoading, setIsLoading] = useState(() => !getCachedForecast());
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isSnapshotLoading, setIsSnapshotLoading] = useState(true);
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(
+    () => !getCachedSnapshots(),
+  );
   const [snapshotLoadError, setSnapshotLoadError] = useState<string | null>(null);
 
   const [selectedYear, setSelectedYear] = useState(
@@ -193,64 +313,56 @@ export default function ForecastingPage() {
   const [isExporting, setIsExporting] = useState(false);
 
   const loadForecast = useCallback(async () => {
-    setIsLoading(true);
+    const cachedForecast = getCachedForecast();
+    if (cachedForecast) {
+      setForecast(cachedForecast);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     setLoadError(null);
 
     try {
-      const token = getStoredToken();
-      if (!token) {
+      const auth = getStoredAuth();
+      if (!auth) {
         throw new Error("Authentication session was not found. Please log in again.");
       }
 
-      const response = await fetch("/api/forecasting/data", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const body = (await response.json()) as ForecastResponse & { message?: string };
-
-      if (!response.ok) {
-        throw new Error(body.message ?? "Failed to load forecasting data.");
-      }
-
-      setForecast(body);
+      setForecast(await requestForecast(auth));
     } catch (error) {
-      setLoadError(
-        error instanceof Error ? error.message : "Failed to load forecasting data.",
-      );
+      if (!cachedForecast) {
+        setLoadError(
+          error instanceof Error ? error.message : "Failed to load forecasting data.",
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const loadSnapshots = useCallback(async () => {
-    setIsSnapshotLoading(true);
+    const cachedSnapshots = getCachedSnapshots();
+    if (cachedSnapshots) {
+      setSnapshots(cachedSnapshots);
+      setIsSnapshotLoading(false);
+    } else {
+      setIsSnapshotLoading(true);
+    }
     setSnapshotLoadError(null);
 
     try {
-      const token = getStoredToken();
-      if (!token) return;
+      const auth = getStoredAuth();
+      if (!auth) return;
 
-      const response = await fetch("/api/forecasting/snapshots", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const body = (await response.json()) as SnapshotResponse;
-
-      if (!response.ok) {
-        throw new Error(
-          body.message ?? "Failed to load forecast accuracy history.",
+      setSnapshots(await requestSnapshots(auth));
+    } catch (error) {
+      if (!cachedSnapshots) {
+        setSnapshotLoadError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load forecast accuracy history.",
         );
       }
-
-      setSnapshots(body.data ?? []);
-    } catch (error) {
-      setSnapshotLoadError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load forecast accuracy history.",
-      );
     } finally {
       setIsSnapshotLoading(false);
     }
