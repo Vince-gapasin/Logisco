@@ -2,6 +2,7 @@ import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses } from "@/services/geo/geocodingService";
 import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, STOP_STATUS } from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
+import { signPodUrls } from "@/services/storage/podService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 
 // ==========================================
@@ -48,6 +49,7 @@ const BOOKING_COLUMNS = `
     current_step,
     completedAt,
     pickupCompletedAt,
+    pod_url,
     dispatchNote,
     rejectionreason,
     truckID,
@@ -80,6 +82,26 @@ export interface BookingQuery {
   /** A key of STAGE_STATUSES, "unassigned", or undefined for every order. */
   stage?: string;
   limit?: number;
+}
+
+// DispatchOrder.pod_url holds the storage path of the delivery receipt.
+// Screens get a signed URL that expires; the path itself never reaches the
+// browser. Signed in one call for the whole response rather than per row.
+async function withSignedProofs(orders: Order[]): Promise<Order[]> {
+  const dispatches = orders.flatMap((order) => {
+    const value = (order as any).DispatchOrder;
+    return (Array.isArray(value) ? value : [value]).filter(Boolean);
+  });
+
+  const withProof = dispatches.filter((dispatch: any) => dispatch.pod_url);
+  if (withProof.length === 0) return orders;
+
+  const signed = await signPodUrls(withProof.map((dispatch: any) => dispatch.pod_url));
+  for (const dispatch of withProof) {
+    dispatch.pod_url = signed.get(dispatch.pod_url) ?? null;
+  }
+
+  return orders;
 }
 
 // Orders with no dispatch yet, or whose only dispatches were rejected.
@@ -132,7 +154,7 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
       .limit(limit);
 
     if (error) throw error;
-    return (data ?? []) as unknown as Order[];
+    return withSignedProofs((data ?? []) as unknown as Order[]);
   }
 
   // No stage: every order, paged. Used by the dashboard and reports, which
@@ -162,7 +184,7 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
     start += batchSize;
   }
 
-  return allBookings;
+  return withSignedProofs(allBookings);
 }
 
 // supabase-js has no transactions: if a later insert fails, remove what was
@@ -191,7 +213,10 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return (data as Order) ?? null;
+  if (!data) return null;
+
+  const [signed] = await withSignedProofs([data as unknown as Order]);
+  return signed ?? null;
 }
 
 // ==========================================

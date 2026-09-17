@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
+import { signPodUrls } from "@/services/storage/podService";
 
 // Stops are read through the Order: older dispatches were created before
 // BranchStops.dispatchID was being set, so the order link is the reliable one.
@@ -11,6 +12,7 @@ const DISPATCH_SELECT = `
   status,
   current_step,
   pickupCompletedAt,
+  pod_url,
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
     BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
@@ -90,6 +92,13 @@ export async function GET(request: Request) {
 
     const allRawDispatches: any[] = [...(driverDispatches || []), ...helperDispatches];
 
+    // The crew screens render the proof of delivery but the column was never
+    // selected, so the photo was always blank. It is a storage path now, and
+    // the crew is handed a signed URL that expires.
+    const signedProofs = await signPodUrls(
+      allRawDispatches.map((dispatch) => dispatch.pod_url),
+    );
+
     // 3. Map Database Schema to Frontend "DeliveryRecord" Format
     const formattedData = allRawDispatches.map((dispatch) => {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
@@ -154,6 +163,8 @@ export async function GET(request: Request) {
         quantity: "See Manifest",
         priorityLevel: "Standard",
         notes: dispatch.dispatchNote || order.notes || "No notes provided.",
+        dispatchNote: dispatch.dispatchNote || "",
+        pod_url: dispatch.pod_url ? (signedProofs.get(dispatch.pod_url) ?? null) : null,
         confirmBy: "End of Day",
         pickupCompletedAt: dispatch.pickupCompletedAt ?? null,
         multiplePickups: pickups.map((pickup) => ({

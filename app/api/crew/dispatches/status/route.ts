@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { POD_BUCKET, signPodUrl } from "@/services/storage/podService";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
     }
 
     let podUrl: string | null = null;
+    let podPath: string | null = null;
 
     // 3. Upload the proof-of-delivery photo, if any
     if (file && file.size > 0) {
@@ -152,7 +154,7 @@ export async function POST(request: Request) {
       const fileName = `pod-${dispatchID}-${Date.now()}-${safeName}`;
 
       const { error: uploadErr } = await supabase.storage
-        .from("delivery_proofs")
+        .from(POD_BUCKET)
         .upload(fileName, await file.arrayBuffer(), { contentType: file.type });
 
       if (uploadErr) {
@@ -160,11 +162,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Failed to upload Proof of Delivery image" }, { status: 502 });
       }
 
-      podUrl = supabase.storage.from("delivery_proofs").getPublicUrl(fileName).data.publicUrl;
+      // The object path, not a public URL: the photo is a delivery receipt
+      // with a customer name on it, and getPublicUrl hands out a permanent
+      // unauthenticated link to it. Screens are given a signed URL instead.
+      podPath = fileName;
+      podUrl = await signPodUrl(fileName);
 
       const { error: podInsertError } = await supabase.from("POD").insert({
         branchID,
-        proof: podUrl,
+        proof: podPath,
         receiverName: receiverName || "N/A",
         remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
       });
@@ -175,12 +181,12 @@ export async function POST(request: Request) {
     // 4. Update DispatchOrder, appending crew remarks to the existing notes
     const updatePayload: Record<string, unknown> = { status, current_step: nextStep };
 
-    if (remarks || podUrl) {
+    if (remarks || podPath) {
       const received = receiverName ? `Received by ${receiverName}. ` : "";
       updatePayload.dispatchNote =
         `${current.dispatchNote || ""}\n[${title || "Update"}] ${received}Crew: ${remarks || "Arrived"}`;
     }
-    if (podUrl) updatePayload.pod_url = podUrl;
+    if (podPath) updatePayload.pod_url = podPath;
     if (status === DELIVERY_STATUS.completed) updatePayload.completedAt = new Date().toISOString();
 
     // The pickup leg used to be recorded only as current_step = 1, which is
