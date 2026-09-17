@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Logisco</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      main {
+        max-width: 28rem;
+        text-align: center;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.75rem;
+      }
+      p {
+        margin: 0 0 0.75rem;
+        line-height: 1.6;
+        color: #475569;
+        font-size: 0.9375rem;
+      }
+      code {
+        background: #e2e8f0;
+        border-radius: 4px;
+        padding: 0.1em 0.35em;
+        font-size: 0.875em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Logisco is not pointed at a server yet</h1>
+      <p>
+        This shell loads the deployed Logisco site. It has no copy of the app
+        bundled inside it, because the app renders on the server.
+      </p>
+      <p>
+        Set <code>CAPACITOR_SERVER_URL</code> to the deployed address and run
+        <code>npx cap sync</code>, then rebuild.
+      </p>
+    </main>
+  </body>
+</html>
