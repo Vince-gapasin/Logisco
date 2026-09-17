@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 import {
   requireAuth,
@@ -243,6 +244,14 @@ export async function PATCH(
       );
     }
 
+    await recordAudit({
+      table: "Employee",
+      recordID: idValidation.data,
+      action: "UPDATE",
+      actor: auditActor(auth),
+      after: validation.data,
+    });
+
     const response: EmployeeResponse = {
       message:
         "Employee updated successfully",
@@ -346,6 +355,14 @@ export async function DELETE(
         }
       );
     }
+
+    await recordAudit({
+      table: "Employee",
+      recordID: idValidation.data,
+      action: "DELETE",
+      actor: auditActor(auth),
+      before: { employeeName: employee?.employeeName ?? null, role: employee?.role ?? null },
+    });
 
     return NextResponse.json(
       {

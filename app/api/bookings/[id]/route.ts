@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { cancelBooking, getBookingById } from "@/services/booking/bookingService";
 import { isUuid } from "@/services/dispatch/dispatchService";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -54,6 +55,15 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
   try {
     const result = await cancelBooking(id, reason);
+
+    await recordAudit({
+      table: "Order",
+      recordID: id,
+      action: "CANCEL",
+      actor: auditActor(auth),
+      after: { reason, cancelledDispatches: result.cancelledDispatches },
+    });
+
     return NextResponse.json({ message: "Booking cancelled successfully.", data: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to cancel booking";

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { POD_BUCKET, signPodUrl } from "@/services/storage/podService";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
@@ -240,6 +241,20 @@ export async function POST(request: Request) {
         .eq("pickupID", pickupID);
       if (pickupErr) console.error("[Status API] Pickup status update failed:", pickupErr.message);
     }
+
+    await recordAudit({
+      table: "DispatchOrder",
+      recordID: dispatchID,
+      action: status === DELIVERY_STATUS.completed ? "TRIP_COMPLETE" : "TRIP_PROGRESS",
+      actor: auditActor(auth),
+      before: { status: current.status, current_step: currentStep },
+      after: {
+        status,
+        current_step: nextStep,
+        stop: pickupID !== null ? { pickupID } : branchID !== null ? { branchID } : null,
+        proof: Boolean(podPath),
+      },
+    });
 
     // 5. Free the truck and crew once the trip is completed. The status is
     // already saved, so a failure here must not fail the request: it is

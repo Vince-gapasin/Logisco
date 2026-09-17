@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, TRUCK_STATUS } from "@/app/lib/enums";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import {
   getCrewAssignment,
   isUuid,
@@ -65,6 +66,15 @@ export async function POST(request: Request) {
       ? TRUCK_STATUS.onMaintenance
       : TRUCK_STATUS.available;
     await releaseDispatchResources(dispatchID, truckStatus);
+
+    await recordAudit({
+      table: "DispatchOrder",
+      recordID: dispatchID,
+      action: "EMERGENCY",
+      actor: auditActor(auth),
+      before: { status: assignment.dispatch.status },
+      after: { status: DELIVERY_STATUS.foulTrip, issueType, details: details || null, truckStatus },
+    });
 
     return NextResponse.json({ message: "Emergency alert broadcasted successfully" }, { status: 200 });
   } catch (error) {

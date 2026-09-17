@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth, requireRole } from "@/app/lib/auth";
 import { assignDispatch, reassignDispatch } from "@/services/dispatch/dispatchService";
 import { assignDispatchSchema } from "@/app/schemas/dispatch/dispatch.schema";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
 
     const dispatch = await assignDispatch(id, validation.data);
+
+    await recordAudit({
+      table: "DispatchOrder",
+      recordID: dispatch?.dispatchID,
+      action: "ASSIGN",
+      actor: auditActor(auth),
+      after: { orderID: id, ...validation.data },
+    });
 
     return NextResponse.json({ message: "Crew and Truck successfully assigned.", data: dispatch }, { status: 200 });
   } catch (error: any) {
@@ -48,6 +57,14 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     }
 
     const dispatch = await reassignDispatch(id, validation.data);
+
+    await recordAudit({
+      table: "DispatchOrder",
+      recordID: id,
+      action: "REASSIGN",
+      actor: auditActor(auth),
+      after: validation.data,
+    });
 
     return NextResponse.json({ message: "Crew and truck updated. Confirmation has been reset.", data: dispatch }, { status: 200 });
   } catch (error: any) {

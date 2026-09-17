@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import {
   deleteTruck,
@@ -29,7 +30,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -47,11 +48,24 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    const before = await getTruckById(id);
     const truck = await updateTruck(id, payload);
 
     if (!truck) {
       return NextResponse.json({ message: "Truck not found" }, { status: 404 });
     }
+
+    await recordAudit({
+      table: "Truck",
+      recordID: id,
+      action: "UPDATE",
+      actor: auditActor(auth),
+      before: before
+        ? { truckStatus: before.truckStatus, plateNumber: before.plateNumber }
+        : null,
+      after: payload,
+    });
+
     return NextResponse.json(truck);
   } catch (error) {
     console.error("PUT truck error:", error);
@@ -66,7 +80,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 // Soft delete: trucks are referenced by dispatches and maintenance logs,
 // so the row is deactivated rather than removed.
 export async function DELETE(request: Request, { params }: RouteContext) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   try {
@@ -76,6 +90,15 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     if (!truck) {
       return NextResponse.json({ message: "Truck not found" }, { status: 404 });
     }
+
+    await recordAudit({
+      table: "Truck",
+      recordID: id,
+      action: "RETIRE",
+      actor: auditActor(auth),
+      after: { isActive: false },
+    });
+
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("DELETE truck error:", error);

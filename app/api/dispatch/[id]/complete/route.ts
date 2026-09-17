@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireRole } from "@/app/lib/auth";
 import { completeDispatch } from "@/services/dispatch/dispatchService";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,6 +15,14 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     const { id } = await params;
     const result = await completeDispatch(id);
+
+    await recordAudit({
+      table: "DispatchOrder",
+      recordID: id,
+      action: "COMPLETE",
+      actor: auditActor(auth),
+      after: { completedFrom: "office" },
+    });
 
     return NextResponse.json(result, { status: 200 });
   } catch (error: any) {

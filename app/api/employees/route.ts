@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 // EMPLOYEE_LOGIN_ACCESS_V1
 
 import { requireAuth, requireRole } from "@/app/lib/auth";
@@ -106,6 +107,19 @@ export async function POST(request: Request) {
     }
 
     const employee = await createEmployee(validation.data);
+
+    await recordAudit({
+      table: "Employee",
+      recordID: employee?.employeeID,
+      action: "CREATE",
+      actor: auditActor(auth),
+      after: {
+        employeeName: validation.data.employeeName,
+        role: validation.data.role,
+        email: validation.data.emailAddress,
+      },
+    });
+
     return NextResponse.json(
       { message: "Employee created successfully", data: employee },
       { status: 201 },

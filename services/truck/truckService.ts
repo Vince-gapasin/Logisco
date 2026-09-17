@@ -119,7 +119,7 @@ export async function deleteTruck(id: string): Promise<Truck | null> {
 // older callers send DB column names { model, truckStatus }. Accept both
 // and only pass known columns through (no mass-assignment).
 
-const TRUCK_STATUSES = ["Available", "On Maintenance", "On Delivery", "Out of Service"] as const;
+const TRUCK_STATUSES = Object.values(TRUCK_STATUS);
 
 export function toTruckPayload(body: Record<string, unknown>): UpdateTruckDto & { truckCode?: string } {
   const payload: UpdateTruckDto & { truckCode?: string } = {};

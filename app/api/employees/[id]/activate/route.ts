@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 // EMPLOYEE_LOGIN_ACCESS_V1
 
 import { requireAuth, requireRole } from "@/app/lib/auth";
@@ -36,6 +37,14 @@ export async function POST(request: Request, { params }: RouteContext) {
     }
 
     const employee = await activateEmployeeAccount(id);
+
+    await recordAudit({
+      table: "Employee",
+      recordID: id,
+      action: "ACTIVATE",
+      actor: auditActor(auth),
+      after: { activationEmailSentTo: employee?.emailAddress ?? null },
+    });
 
     return NextResponse.json(
       {

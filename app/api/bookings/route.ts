@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { OFFICE_ROLES, requireAuth, requireRole, UserRole } from "@/app/lib/auth";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 
@@ -74,6 +75,20 @@ export async function POST(request: Request) {
     }
 
     const newBookingResponse = await createBooking(validation.data);
+
+    await recordAudit({
+      table: "Order",
+      recordID: newBookingResponse.orderID,
+      action: "CREATE",
+      actor: auditActor(auth),
+      after: {
+        orderCode: newBookingResponse.orderCode,
+        clientID: validation.data.clientID ?? null,
+        stops: validation.data.stops.length,
+        pickups: validation.data.pickups?.length ?? 0,
+        items: validation.data.items.length,
+      },
+    });
 
     return NextResponse.json(newBookingResponse, { status: 201 });
   } catch (error: unknown) {

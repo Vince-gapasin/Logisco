@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import {
   createFleetTruck,
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -39,6 +40,15 @@ export async function POST(request: Request) {
 
   try {
     const truck = await createFleetTruck(payload);
+
+    await recordAudit({
+      table: "Truck",
+      recordID: (truck as { truckID?: string } | null)?.truckID,
+      action: "CREATE",
+      actor: auditActor(auth),
+      after: payload,
+    });
+
     return NextResponse.json(truck, { status: 201 });
   } catch (error) {
     console.error("POST truck error:", error);

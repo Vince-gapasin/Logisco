@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
+import { auditActor, recordAudit } from "@/services/audit/auditService";
 import {
   getCrewAssignment,
   isUuid,
@@ -69,6 +70,15 @@ export async function POST(request: Request) {
         await releaseDispatchResources(dispatchID);
       }
 
+      await recordAudit({
+        table: "DispatchOrder",
+        recordID: dispatchID,
+        action: action === "accept" ? "CREW_ACCEPT" : "CREW_DECLINE",
+        actor: auditActor(auth),
+        before: { status: assignment.dispatch.status },
+        after: { ...updateData, as: "driver" },
+      });
+
       return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
     }
 
@@ -99,6 +109,15 @@ export async function POST(request: Request) {
         .eq("employeeID", auth.employee.employeeID);
       if (availabilityErr) console.error("Helper availability reset failed:", availabilityErr.message);
     }
+
+    await recordAudit({
+      table: "DispatchHelper",
+      recordID: helper.dhID,
+      action: action === "accept" ? "CREW_ACCEPT" : "CREW_DECLINE",
+      actor: auditActor(auth),
+      before: { status: helper.status },
+      after: { ...updateData, dispatchID, as: "helper" },
+    });
 
     return NextResponse.json({ message: `Assignment ${action}ed successfully.` });
   } catch (error) {
