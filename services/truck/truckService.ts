@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { TRUCK_STATUS } from "@/app/lib/enums";
 import type { Truck, CreateTruckDto, UpdateTruckDto } from "@/types/truck";
 
 const TABLE = "Truck";
@@ -99,7 +100,7 @@ export async function deleteTruck(id: string): Promise<Truck | null> {
     .from(TABLE)
     .update({
       isActive: false,
-      truckStatus: "Out of Service",
+      truckStatus: TRUCK_STATUS.outOfService,
     })
     .eq("truckID", id)
     .select()
@@ -173,7 +174,7 @@ export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: s
     .insert({
       ...payload,
       truckCode: payload.truckCode || generateTruckCode(payload.plateNumber ?? ""),
-      truckStatus: payload.truckStatus ?? "Available",
+      truckStatus: payload.truckStatus ?? TRUCK_STATUS.available,
       isActive: true,
     })
     .select()

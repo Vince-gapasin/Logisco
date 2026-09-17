@@ -1,4 +1,10 @@
 import { supabase } from "@/app/lib/supabase";
+import {
+  ACTIVE_DELIVERY_STATUSES,
+  DELIVERY_STATUS,
+  HELPER_STATUS,
+  TRUCK_STATUS,
+} from "@/app/lib/enums";
 
 // Notifications are derived from current operational data rather than stored:
 // there is no Notification table yet, and every item below is something the
@@ -55,7 +61,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
     .from("DispatchOrder")
     .select("dispatchID, status, Order ( orderCode, Client ( company ) ), Truck ( plateNumber )")
     .eq("driverID", employeeID)
-    .in("status", ["Pending", "Assigned", "Accepted", "In Transit"]);
+    .in("status", ACTIVE_DELIVERY_STATUSES);
 
   if (driverError) throw new Error(driverError.message);
 
@@ -65,7 +71,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
     const truck = firstRelated<any>(dispatch.Truck);
     const label = order?.orderCode ?? dispatch.dispatchID;
 
-    if (["Pending", "Assigned"].includes(dispatch.status)) {
+    if ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(dispatch.status)) {
       notifications.push({
         id: `crew-assign-${dispatch.dispatchID}`,
         title: "New Delivery Assignment",
@@ -74,7 +80,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         type: "assignment",
         truckPlate: truck?.plateNumber,
       });
-    } else if (dispatch.status === "In Transit") {
+    } else if (dispatch.status === DELIVERY_STATUS.inTransit) {
       notifications.push({
         id: `crew-transit-${dispatch.dispatchID}`,
         title: "Trip in progress",
@@ -91,13 +97,20 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
     .from("DispatchHelper")
     .select("dhID, status, DispatchOrder ( dispatchID, status, Order ( orderCode, Client ( company ) ) )")
     .eq("helperID", employeeID)
-    .eq("status", "Pending");
+    .eq("status", HELPER_STATUS.pending);
 
   if (helperError) throw new Error(helperError.message);
 
   for (const row of helperRows ?? []) {
     const dispatch = firstRelated<any>(row.DispatchOrder);
-    if (!dispatch || ["Rejected", "Foul Trip", "Completed"].includes(dispatch.status)) continue;
+    if (!dispatch) continue;
+    if (
+      [DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip, DELIVERY_STATUS.completed].includes(
+        dispatch.status,
+      )
+    ) {
+      continue;
+    }
 
     const order = firstRelated<any>(dispatch.Order);
     const client = firstRelated<any>(order?.Client);
@@ -131,11 +144,14 @@ async function adminNotifications(): Promise<AppNotification[]> {
 
   for (const order of orders ?? []) {
     const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
-    const live = dispatches.find((d) => !["Rejected", "Foul Trip"].includes(d.status)) ?? dispatches[dispatches.length - 1];
+    const live =
+      dispatches.find(
+        (d) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(d.status),
+      ) ?? dispatches[dispatches.length - 1];
     const client = firstRelated<any>(order.Client);
     const company = client?.company ? ` (${client.company})` : "";
 
-    if (!live || live.status === "Rejected") {
+    if (!live || live.status === DELIVERY_STATUS.rejected) {
       notifications.push({
         id: `admin-unassigned-${order.orderID}`,
         title: live ? "Dispatch declined - needs re-assignment" : "Booking awaiting assignment",
@@ -143,7 +159,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         time: relativeTime(order.createdAt),
         type: "approval",
       });
-    } else if (["Pending", "Assigned"].includes(live.status)) {
+    } else if ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(live.status)) {
       notifications.push({
         id: `admin-confirm-${live.dispatchID}`,
         title: "Waiting for crew confirmation",
@@ -151,7 +167,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         time: relativeTime(order.createdAt),
         type: "reminder",
       });
-    } else if (live.status === "Foul Trip") {
+    } else if (live.status === DELIVERY_STATUS.foulTrip) {
       notifications.push({
         id: `admin-foul-${live.dispatchID}`,
         title: "Foul trip reported",
@@ -167,7 +183,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
     .from("Truck")
     .select("truckID, plateNumber, truckStatus")
     .eq("isActive", true)
-    .in("truckStatus", ["On Maintenance", "Out of Service"]);
+    .in("truckStatus", [TRUCK_STATUS.onMaintenance, TRUCK_STATUS.outOfService]);
 
   if (truckError) throw new Error(truckError.message);
 
@@ -201,7 +217,10 @@ async function mechanicNotifications(): Promise<AppNotification[]> {
   const staleBefore = Date.now() - MAINTENANCE_CHECK_DAYS * 24 * 60 * 60 * 1000;
 
   for (const truck of trucks ?? []) {
-    if (truck.truckStatus === "On Maintenance" || truck.truckStatus === "Out of Service") {
+    if (
+      truck.truckStatus === TRUCK_STATUS.onMaintenance ||
+      truck.truckStatus === TRUCK_STATUS.outOfService
+    ) {
       notifications.push({
         id: `mech-repair-${truck.truckID}`,
         title: "Repair Assignment",

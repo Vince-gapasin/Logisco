@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { DELIVERY_STATUS, TRUCK_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
   isUuid,
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 
     const { error: updateErr } = await supabase
       .from("DispatchOrder")
-      .update({ status: "Foul Trip", dispatchNote })
+      .update({ status: DELIVERY_STATUS.foulTrip, dispatchNote })
       .eq("dispatchID", dispatchID);
 
     if (updateErr) throw new Error(`Failed to mark foul trip: ${updateErr.message}`);
@@ -53,14 +54,16 @@ export async function POST(request: Request) {
     // 2. Log into Reports
     const { error: reportErr } = await supabase.from("Reports").insert({
       dispatchID,
-      status: "Foul Trip",
+      status: DELIVERY_STATUS.foulTrip,
       finalRemarks: `EMERGENCY ALERT\nType: ${issueType}\nReported by: ${auth.employee.employeeName}\nDetails: ${details || "None provided"}`,
     });
 
     if (reportErr) console.error("[Emergency API] Report insert failed:", reportErr.message);
 
     // 3. Free the crew; send a damaged truck to maintenance.
-    const truckStatus = TRUCK_DAMAGE_ISSUES.includes(issueType) ? "On Maintenance" : "Available";
+    const truckStatus = TRUCK_DAMAGE_ISSUES.includes(issueType)
+      ? TRUCK_STATUS.onMaintenance
+      : TRUCK_STATUS.available;
     await releaseDispatchResources(dispatchID, truckStatus);
 
     return NextResponse.json({ message: "Emergency alert broadcasted successfully" }, { status: 200 });

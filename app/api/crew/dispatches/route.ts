@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 
 // Stops are read through the Order: older dispatches were created before
 // BranchStops.dispatchID was being set, so the order link is the reliable one.
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       .from("DispatchOrder")
       .select(DISPATCH_SELECT)
       .eq("driverID", employee.employeeID)
-      .neq("status", "Rejected");
+      .neq("status", DELIVERY_STATUS.rejected);
 
     if (driverErr) throw new Error(`Driver dispatch query failed: ${driverErr.message}`);
 
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
       .from("DispatchHelper")
       .select("dispatchID, status")
       .eq("helperID", employee.employeeID)
-      .neq("status", "Declined");
+      .neq("status", HELPER_STATUS.declined);
 
     if (helperErr) throw new Error(`Helper assignment query failed: ${helperErr.message}`);
 
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
         .from("DispatchOrder")
         .select(DISPATCH_SELECT)
         .in("dispatchID", helperAssignments.map((h) => h.dispatchID))
-        .neq("status", "Rejected");
+        .neq("status", DELIVERY_STATUS.rejected);
 
       if (hDataErr) throw new Error(`Helper dispatch query failed: ${hDataErr.message}`);
 
@@ -106,11 +107,16 @@ export async function GET(request: Request) {
         // A helper who accepted follows the trip's progress; before that the
         // trip is still awaiting their confirmation.
         displayStatus =
-          dispatch._helperStatus === "Accepted"
-            ? (["Pending", "Assigned"].includes(dispatch.status) ? "Accepted" : dispatch.status)
+          dispatch._helperStatus === HELPER_STATUS.accepted
+            ? ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(dispatch.status)
+                ? DELIVERY_STATUS.accepted
+                : dispatch.status)
             : "Awaiting Confirmation";
       } else {
-        displayStatus = dispatch.status === "Pending" ? "Awaiting Confirmation" : dispatch.status;
+        displayStatus =
+          dispatch.status === DELIVERY_STATUS.pending
+            ? "Awaiting Confirmation"
+            : dispatch.status;
       }
 
       return {

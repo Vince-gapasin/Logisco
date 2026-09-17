@@ -1,6 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses } from "@/services/geo/geocodingService";
-import { STOP_STATUS } from "@/app/lib/stopStatus";
+import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 
@@ -80,7 +80,7 @@ async function getUnassignedBookings(limit: number): Promise<Order[]> {
   const orderIDs = (candidates ?? [])
     .filter((order: any) => {
       const dispatches: any[] = Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [];
-      return dispatches.every((dispatch) => dispatch?.status === "Rejected");
+      return dispatches.every((dispatch) => dispatch?.status === DELIVERY_STATUS.rejected);
     })
     .slice(0, limit)
     .map((order: any) => order.orderID);
@@ -194,22 +194,22 @@ export async function cancelBooking(orderID: string, reason: string) {
   if (!order) throw new Error("Booking not found");
 
   const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
-  const running = dispatches.find((d) => ["In Transit", "Completed"].includes(d.status));
+  const running = dispatches.find((d) => [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.completed].includes(d.status));
 
   if (running) {
     throw new Error(
-      running.status === "Completed"
+      running.status === DELIVERY_STATUS.completed
         ? "This booking is already completed and cannot be cancelled."
         : "This delivery is already on the road. Use the foul trip flow instead.",
     );
   }
 
   for (const dispatch of dispatches) {
-    if (["Rejected", "Foul Trip"].includes(dispatch.status)) continue;
+    if ([DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(dispatch.status)) continue;
 
     const { error: dispatchError } = await supabase
       .from("DispatchOrder")
-      .update({ status: "Rejected", rejectionreason: reason })
+      .update({ status: DELIVERY_STATUS.rejected, rejectionreason: reason })
       .eq("dispatchID", dispatch.dispatchID);
 
     if (dispatchError) throw new Error(`Failed to cancel dispatch: ${dispatchError.message}`);

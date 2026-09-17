@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { DELIVERY_STATUS } from "@/app/lib/enums";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
 
 // Location pings are only accepted while the trip is on the road; this also
 // stops a watcher that outlives its trip from recreating the map pin.
-const TRACKABLE_STATUSES = ["Accepted", "In Transit"];
+const TRACKABLE_STATUSES: string[] = [
+  DELIVERY_STATUS.accepted,
+  DELIVERY_STATUS.startDelivery,
+  DELIVERY_STATUS.inWarehouse,
+  DELIVERY_STATUS.inTransit,
+  DELIVERY_STATUS.arrived,
+];
 
 // FleetLocationHistory is optional: until its migration is applied the trail
 // is skipped rather than failing the ping. Missing table is detected once.

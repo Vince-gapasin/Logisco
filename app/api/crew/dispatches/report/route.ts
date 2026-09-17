@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { DELIVERY_STATUS } from "@/app/lib/enums";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
 
 export async function POST(request: Request) {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
     const { error: reportError } = await supabase.from("Reports").insert({
       dispatchID,
-      status: "Completed",
+      status: DELIVERY_STATUS.completed,
       finalRemarks: combinedRemarks,
     });
 

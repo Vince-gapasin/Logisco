@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
-import { STOP_STATUS } from "@/app/lib/stopStatus";
+import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
   isUuid,
@@ -11,8 +11,12 @@ import {
 
 // Statuses the crew app may set, and the statuses each may be reached from.
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  "In Transit": ["Assigned", "Accepted", "In Transit"],
-  Completed: ["In Transit"],
+  [DELIVERY_STATUS.inTransit]: [
+    DELIVERY_STATUS.assigned,
+    DELIVERY_STATUS.accepted,
+    DELIVERY_STATUS.inTransit,
+  ],
+  [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit],
 };
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     // A helper who has not accepted yet cannot act on the trip.
-    if (!assignment.isDriver && assignment.helper?.status !== "Accepted") {
+    if (!assignment.isDriver && assignment.helper?.status !== HELPER_STATUS.accepted) {
       return NextResponse.json(
         {
           message:
@@ -79,7 +83,7 @@ export async function POST(request: Request) {
     if (current.status === status && nextStep <= currentStep) {
       // If releasing the truck and crew failed the first time, the retry is
       // the chance to finish the job; setting them free twice is harmless.
-      if (status === "Completed") await releaseResources(dispatchID);
+      if (status === DELIVERY_STATUS.completed) await releaseResources(dispatchID);
 
       return NextResponse.json({ message: "Status already up to date", status, podUrl: null });
     }
@@ -161,7 +165,7 @@ export async function POST(request: Request) {
         `${current.dispatchNote || ""}\n[${title || "Update"}] ${received}Crew: ${remarks || "Arrived"}`;
     }
     if (podUrl) updatePayload.pod_url = podUrl;
-    if (status === "Completed") updatePayload.completedAt = new Date().toISOString();
+    if (status === DELIVERY_STATUS.completed) updatePayload.completedAt = new Date().toISOString();
 
     // Conditional on the status we read, so two crew members submitting at
     // once cannot both apply their change.
@@ -190,7 +194,7 @@ export async function POST(request: Request) {
     // 5. Free the truck and crew once the trip is completed. The status is
     // already saved, so a failure here must not fail the request: it is
     // logged and retried if the crew app submits again.
-    if (status === "Completed") {
+    if (status === DELIVERY_STATUS.completed) {
       await releaseResources(dispatchID);
     }
 

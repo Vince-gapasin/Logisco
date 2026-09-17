@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
 import { getTravelEstimate, toArrivalLabel } from "@/services/geo/routingService";
 
@@ -171,7 +172,7 @@ export async function getTrackingByToken(
   ) as any[];
   const dispatch = dispatches[dispatches.length - 1] ?? null;
 
-  const isCompleted = dispatch?.status === "Completed";
+  const isCompleted = dispatch?.status === DELIVERY_STATUS.completed;
   const completedAt = dispatch?.completedAt ? new Date(dispatch.completedAt).getTime() : null;
   const expiredByAge = completedAt !== null && Date.now() - completedAt > LINK_LIFETIME_AFTER_COMPLETION_MS;
 
@@ -184,7 +185,7 @@ export async function getTrackingByToken(
       branchID: stop.branchID,
       branchName: stop.branchName,
       expectedTime: stop.expectedTime ?? null,
-      status: stop.stopStatus ?? "Pending",
+      status: stop.stopStatus ?? STOP_STATUS.pending,
       // 0/0 is the placeholder written when a stop has no geocoded position.
       latitude: Number(stop.deliveryLat) || null,
       longitude: Number(stop.deliverLong) || null,
@@ -222,7 +223,7 @@ export async function getTrackingByToken(
   // a live position and a geocoded stop, so it is skipped when either is absent.
   let liveEta: TrackingPayload["liveEta"] = null;
   if (
-    dispatch?.status === "In Transit" &&
+    dispatch?.status === DELIVERY_STATUS.inTransit &&
     currentLocation &&
     nextStop?.latitude != null &&
     nextStop?.longitude != null
@@ -238,10 +239,10 @@ export async function getTrackingByToken(
   }
 
   let deliveryStatus = "Awaiting dispatch";
-  if (dispatch?.status === "Foul Trip") deliveryStatus = "Trip interrupted";
+  if (dispatch?.status === DELIVERY_STATUS.foulTrip) deliveryStatus = "Trip interrupted";
   else if (isCompleted) deliveryStatus = "Delivery completed";
-  else if (dispatch?.status === "In Transit") deliveryStatus = "In transit";
-  else if (dispatch?.status === "Accepted") deliveryStatus = "Driver confirmed";
+  else if (dispatch?.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit";
+  else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";
   else if (dispatch?.status) deliveryStatus = "Crew assigned";
 
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));

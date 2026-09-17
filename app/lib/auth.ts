@@ -2,20 +2,25 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/app/lib/supabase";
 import { supabaseAuth } from "@/app/lib/supabaseAuth";
+import { EMPLOYEE_ROLE, type EmployeeRole } from "@/app/lib/enums";
 
-export type UserRole =
-  | "Admin"
-  | "Coordinator"
-  | "Dispatcher"
-  | "Driver"
-  | "Mechanic"
-  | "Helper";
+// The role column is the Postgres enum, so the union comes from there.
+// It used to also list "Dispatcher", which the enum has never contained:
+// every route that allowed it was allowing a role nobody could hold.
+export type UserRole = EmployeeRole;
 
 // Roles allowed to view and manage the truck fleet and maintenance logs.
-export const FLEET_ROLES: UserRole[] = ["Admin", "Coordinator", "Mechanic"];
+export const FLEET_ROLES: UserRole[] = [
+  EMPLOYEE_ROLE.admin,
+  EMPLOYEE_ROLE.coordinator,
+  EMPLOYEE_ROLE.mechanic,
+];
 
 // Roles that work assigned deliveries from the crew app.
-export const CREW_ROLES: UserRole[] = ["Driver", "Helper"];
+export const CREW_ROLES: UserRole[] = [EMPLOYEE_ROLE.driver, EMPLOYEE_ROLE.helper];
+
+// Roles that create and manage bookings from the office.
+export const OFFICE_ROLES: UserRole[] = [EMPLOYEE_ROLE.admin, EMPLOYEE_ROLE.coordinator];
 
 // ==========================================
 // NORMAL AUTHENTICATION

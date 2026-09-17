@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth, requireRole, UserRole } from "@/app/lib/auth";
+import { OFFICE_ROLES, requireAuth, requireRole, UserRole } from "@/app/lib/auth";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: auth.error }, { status: auth.status });
     }
 
-    const roleError = requireRole(auth.employee.role, ["Admin", "Coordinator", "Dispatcher"]);
+    const roleError = requireRole(auth.employee.role, OFFICE_ROLES);
     if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     // A stage lets the database filter, instead of every screen downloading
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const userRole = auth.employee.role.trim() as UserRole;
-    const roleError = requireRole(userRole, ["Admin", "Coordinator", "Dispatcher"]);
+    const roleError = requireRole(userRole, OFFICE_ROLES);
     if (roleError) {
       return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     }

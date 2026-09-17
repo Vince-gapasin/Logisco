@@ -1,18 +1,19 @@
 import { supabase } from "@/app/lib/supabase";
+import {
+  ACTIVE_DELIVERY_STATUSES,
+  AVAILABILITY,
+  DELIVERY_STATUS,
+  EMPLOYEE_ROLE,
+  TERMINAL_DELIVERY_STATUSES,
+  TRUCK_STATUS,
+} from "@/app/lib/enums";
 import type { AssignDispatchDto } from "@/types/dispatch";
 
-// Dispatch statuses that hold a truck and crew until the trip ends.
-export const ACTIVE_DISPATCH_STATUSES = ["Pending", "Assigned", "Accepted", "In Transit"];
-
-// Statuses after which a dispatch can no longer be changed by the crew.
-export const TERMINAL_DISPATCH_STATUSES = [
-  "Completed",
-  "Delivered",
-  "Returned",
-  "Cancelled",
-  "Foul Trip",
-  "Rejected",
-];
+// Re-exported under the existing names; defined once in app/lib/enums.ts.
+// The active list now also covers Start Delivery, In Warehouse and Arrived,
+// which previously left a truck free to be double-booked mid-trip.
+export const ACTIVE_DISPATCH_STATUSES: string[] = ACTIVE_DELIVERY_STATUSES;
+export const TERMINAL_DISPATCH_STATUSES: string[] = TERMINAL_DELIVERY_STATUSES;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -82,7 +83,10 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
     throw new Error("Selected truck is inactive or retired.");
   }
 
-  if (truck.truckStatus === "On Maintenance" || truck.truckStatus === "Out of Service") {
+  if (
+    truck.truckStatus === TRUCK_STATUS.onMaintenance ||
+    truck.truckStatus === TRUCK_STATUS.outOfService
+  ) {
     throw new Error("Selected truck is under maintenance or out of service and cannot be dispatched.");
   }
 
@@ -100,7 +104,7 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
   if (driverErr) throw new Error(`Supabase Driver Error: ${driverErr.message}`);
   if (!driver) throw new Error(`Driver not found for ID: ${dto.driverID}`);
 
-  if (driver.isActive === false || driver.role?.trim() !== "Driver") {
+  if (driver.isActive === false || driver.role?.trim() !== EMPLOYEE_ROLE.driver) {
     throw new Error("Selected employee is not an active driver.");
   }
 
@@ -117,7 +121,7 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
       orderID: orderID,
       truckID: dto.truckID,
       driverID: dto.driverID,
-      status: "Assigned",
+      status: DELIVERY_STATUS.assigned,
     })
     .select()
     .single();
@@ -156,8 +160,8 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
   }
 
   // 4. Lock Resources ("On Delivery")
-  await setTruckStatus(dto.truckID, "On Delivery");
-  await setAvailability([dto.driverID, ...helperIDs], "On Delivery");
+  await setTruckStatus(dto.truckID, TRUCK_STATUS.onDelivery);
+  await setAvailability([dto.driverID, ...helperIDs], AVAILABILITY.onDelivery);
 
   return dispatch;
 }
@@ -181,7 +185,12 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
   if (dispatchErr) throw new Error(`Supabase Dispatch Error: ${dispatchErr.message}`);
   if (!dispatch) throw new Error("Dispatch not found.");
 
-  if (!["Pending", "Assigned", "Accepted"].includes(dispatch.status)) {
+  const REASSIGNABLE = [
+    DELIVERY_STATUS.pending,
+    DELIVERY_STATUS.assigned,
+    DELIVERY_STATUS.accepted,
+  ] as string[];
+  if (!REASSIGNABLE.includes(dispatch.status)) {
     throw new Error(`A dispatch that is ${dispatch.status} can no longer be re-assigned.`);
   }
 
@@ -195,7 +204,10 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
   if (truckErr) throw new Error(`Supabase Truck Error: ${truckErr.message}`);
   if (!truck) throw new Error("Truck not found.");
   if (truck.isActive === false) throw new Error("Selected truck is inactive or retired.");
-  if (truck.truckStatus === "On Maintenance" || truck.truckStatus === "Out of Service") {
+  if (
+    truck.truckStatus === TRUCK_STATUS.onMaintenance ||
+    truck.truckStatus === TRUCK_STATUS.outOfService
+  ) {
     throw new Error("Selected truck is under maintenance or out of service and cannot be dispatched.");
   }
   if (await findActiveDispatchFor("truckID", dto.truckID, dispatchID)) {
@@ -210,7 +222,7 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 
   if (driverErr) throw new Error(`Supabase Driver Error: ${driverErr.message}`);
   if (!driver) throw new Error("Driver not found.");
-  if (driver.isActive === false || driver.role?.trim() !== "Driver") {
+  if (driver.isActive === false || driver.role?.trim() !== EMPLOYEE_ROLE.driver) {
     throw new Error("Selected employee is not an active driver.");
   }
   if (await findActiveDispatchFor("driverID", dto.driverID, dispatchID)) {
@@ -228,7 +240,7 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
     .update({
       truckID: dto.truckID,
       driverID: dto.driverID,
-      status: "Assigned",
+      status: DELIVERY_STATUS.assigned,
       rejectionreason: null,
     })
     .eq("dispatchID", dispatchID);
@@ -252,15 +264,15 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 
   // 3. Free whoever was dropped, lock whoever was added
   if (dispatch.truckID && dispatch.truckID !== dto.truckID) {
-    await setTruckStatus(dispatch.truckID, "Available");
+    await setTruckStatus(dispatch.truckID, TRUCK_STATUS.available);
   }
-  await setTruckStatus(dto.truckID, "On Delivery");
+  await setTruckStatus(dto.truckID, TRUCK_STATUS.onDelivery);
 
   const released = [dispatch.driverID, ...oldHelperIDs].filter(
     (id): id is string => Boolean(id) && id !== dto.driverID && !newHelperIDs.includes(id),
   );
-  await setAvailability(released, "Available");
-  await setAvailability([dto.driverID, ...newHelperIDs], "On Delivery");
+  await setAvailability(released, AVAILABILITY.available);
+  await setAvailability([dto.driverID, ...newHelperIDs], AVAILABILITY.onDelivery);
 
   return { dispatchID };
 }
@@ -270,7 +282,7 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 // ==========================================
 // Returns the truck and crew of a finished dispatch to the pool.
 // Used by completion, emergencies (foul trips) and driver rejection.
-export async function releaseDispatchResources(dispatchID: string, truckStatus = "Available") {
+export async function releaseDispatchResources(dispatchID: string, truckStatus: string = TRUCK_STATUS.available) {
   const { data: dispatchRecord, error } = await supabase
     .from("DispatchOrder")
     .select("truckID, driverID, DispatchHelper(helperID)")
@@ -289,7 +301,7 @@ export async function releaseDispatchResources(dispatchID: string, truckStatus =
     ...(dispatchRecord.DispatchHelper ?? []).map((helper: { helperID: string | null }) => helper.helperID),
   ].filter((id): id is string => Boolean(id));
 
-  await setAvailability(crewIDs, "Available");
+  await setAvailability(crewIDs, AVAILABILITY.available);
 
   // Remove the live map pin for this trip.
   await supabase.from("FleetLocations").delete().eq("dispatch_id", dispatchID);
@@ -327,7 +339,7 @@ export async function completeDispatch(dispatchID: string) {
   const { data: updated, error: dispatchError } = await supabase
     .from("DispatchOrder")
     .update({
-      status: "Completed",
+      status: DELIVERY_STATUS.completed,
       completedAt: new Date().toISOString(),
     })
     .eq("dispatchID", dispatchID)
@@ -403,7 +415,7 @@ export async function getAvailableResources(targetDate: string) {
     .from("Employee")
     .select(EMPLOYEE_PUBLIC_COLUMNS)
     .eq("isActive", true)
-    .in("role", ["Driver", "Helper"]);
+    .in("role", [EMPLOYEE_ROLE.driver, EMPLOYEE_ROLE.helper]);
 
   if (employeesError) {
     throw new Error(`Supabase Employee Error: ${employeesError.message}`);
@@ -419,11 +431,11 @@ export async function getAvailableResources(targetDate: string) {
     !busyEmployees.has(employee.employeeID);
 
   const availableDrivers = (allEmployees || []).filter(
-    (employee: any) => employee.role === "Driver" && isFree(employee),
+    (employee: any) => employee.role === EMPLOYEE_ROLE.driver && isFree(employee),
   );
 
   const availableHelpers = (allEmployees || []).filter(
-    (employee: any) => employee.role === "Helper" && isFree(employee),
+    (employee: any) => employee.role === EMPLOYEE_ROLE.helper && isFree(employee),
   );
 
   return {

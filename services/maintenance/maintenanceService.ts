@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { TRUCK_STATUS } from "@/app/lib/enums";
 
 // --- ACTIVE MAINTENANCE ---
 // Maintenance columns: truckID, mechID, remark, maintenanceDate.
@@ -23,7 +24,7 @@ export async function createMaintenanceRecord(payload: any) {
   // 2. Lock the Truck (Remove from Dispatch availability)
   const { error: truckError } = await supabase
     .from("Truck")
-    .update({ truckStatus: "On Maintenance" })
+    .update({ truckStatus: TRUCK_STATUS.onMaintenance })
     .eq("truckID", truckID);
 
   if (truckError) throw new Error(truckError.message);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
+import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
   isUuid,
@@ -8,7 +9,7 @@ import {
 } from "@/services/dispatch/dispatchService";
 
 // Statuses in which the driver can still accept or decline a dispatch.
-const RESPONDABLE_STATUSES = ["Pending", "Assigned"];
+const RESPONDABLE_STATUSES: string[] = [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned];
 
 export async function POST(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
@@ -52,8 +53,8 @@ export async function POST(request: Request) {
       // Column is lowercase in the database: rejectionreason.
       const updateData =
         action === "accept"
-          ? { status: "Accepted" }
-          : { status: "Rejected", rejectionreason: reason };
+          ? { status: DELIVERY_STATUS.accepted }
+          : { status: DELIVERY_STATUS.rejected, rejectionreason: reason };
 
       const { error: updateErr } = await supabase
         .from("DispatchOrder")
@@ -73,15 +74,15 @@ export async function POST(request: Request) {
 
     // USER IS A HELPER: update only their own assignment
     const helper = assignment.helper!;
-    if (helper.status && helper.status !== "Pending") {
+    if (helper.status && helper.status !== HELPER_STATUS.pending) {
       return NextResponse.json({ message: `You have already ${helper.status.toLowerCase()} this assignment.` }, { status: 409 });
     }
 
     // Column is lowercase in the database: declinereason.
     const updateData =
       action === "accept"
-        ? { status: "Accepted" }
-        : { status: "Declined", declinereason: reason };
+        ? { status: HELPER_STATUS.accepted }
+        : { status: HELPER_STATUS.declined, declinereason: reason };
 
     const { error: updateErr } = await supabase
       .from("DispatchHelper")
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     if (action === "decline") {
       const { error: availabilityErr } = await supabase
         .from("Employee")
-        .update({ availability: "Available" })
+        .update({ availability: AVAILABILITY.available })
         .eq("employeeID", auth.employee.employeeID);
       if (availabilityErr) console.error("Helper availability reset failed:", availabilityErr.message);
     }

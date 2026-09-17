@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { authorize } from "@/app/lib/auth";
+import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { cancelBooking, getBookingById } from "@/services/booking/bookingService";
 import { isUuid } from "@/services/dispatch/dispatchService";
-
-const BOOKING_ROLES = ["Admin", "Coordinator", "Dispatcher"] as const;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, { params }: RouteContext) {
-  const { response } = await authorize(request, [...BOOKING_ROLES]);
+  const { response } = await authorize(request, [...OFFICE_ROLES]);
   if (response) return response;
 
   const { id } = await params;
@@ -30,7 +28,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
 // Cancel a booking: PATCH { action: "cancel", reason? }
 export async function PATCH(request: Request, { params }: RouteContext) {
-  const { auth, response } = await authorize(request, [...BOOKING_ROLES]);
+  const { auth, response } = await authorize(request, [...OFFICE_ROLES]);
   if (response) return response;
 
   const { id } = await params;
