@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Logisco</string>
+    <string name="title_activity_main">Logisco</string>
+    <string name="package_name">com.logisco.app</string>
+    <string name="custom_url_scheme">com.logisco.app</string>
+</resources>
