@@ -77,72 +77,18 @@ ALTER TABLE "BranchStops"
 UPDATE "BranchStops" b
 SET "sequence" = ranked.position
 FROM (
-  SELECT "branchID",
-         ROW_NUMBER() OVER (PARTITION BY "orderID" ORDER BY "branchID") AS position
-  FROM "BranchStops"
-) AS ranked
-WHERE b."branchID" = ranked."branchID"
-  AND b."sequence" IS NULL;
-
--- Stops already marked delivered get a completion time, so the history
--- screens have something to show rather than a blank column.
-UPDATE "BranchStops" b
-SET "completedAt" = d."completedAt"
-FROM "DispatchOrder" d
-WHERE d."orderID" = b."orderID"
-  AND b."completedAt" IS NULL
-  AND d."completedAt" IS NOT NULL
-  AND b."stopStatus" = 'Successfully Delivered';
-
-CREATE INDEX IF NOT EXISTS branchstops_order_sequence_idx
-  ON "BranchStops" ("orderID", "sequence");
-
--- ----------------------------------------------------------------------------
--- 3. THE PICKUP LEG OF A DISPATCH
--- ----------------------------------------------------------------------------
--- Set when the crew reports the cargo loaded. Until now this was
--- current_step = 1 and nothing else.
-
-ALTER TABLE "DispatchOrder"
-  ADD COLUMN IF NOT EXISTS "pickupCompletedAt" timestamptz;
-
-UPDATE "DispatchOrder"
-SET "pickupCompletedAt" = COALESCE("completedAt", now())
-WHERE "pickupCompletedAt" IS NULL
-  AND current_step >= 1;
-
--- ----------------------------------------------------------------------------
--- 4. BACKFILL THE PICKUPS OUT OF Order.notes
--- ----------------------------------------------------------------------------
--- The note line is "Pickup: <warehouse or address> @ <time>". The part
--- before the "@" is matched against the client's own warehouses by name and
--- then by address; whatever fails to match is still kept as free text, so
--- no order loses its pickup.
-
-INSERT INTO "PickupStops" (
-  "orderID", "warehouseID", "warehouseName", "pickupAddress",
-  "contactPerson", "contactNum", "expectedTime", "sequence"
-)
-SELECT
-  parsed."orderID",
-  w."warehouseID",
-  COALESCE(w."whName", parsed.place),
-  COALESCE(w."warehouseLoc", parsed.place),
-  w."contactPerson",
-  w."contactNum",
-  CASE
-    WHEN parsed.at_time ~ '^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$' THEN parsed.at_time::time
-    ELSE NULL
-  END,
-  1
-FROM (
   SELECT
     o."orderID",
     o."clientID",
-    btrim(split_part(substring(o.notes FROM 'Pickup:\s*(.*)'), '@', 1)) AS place,
-    btrim(split_part(substring(o.notes FROM 'Pickup:\s*(.*)'), '@', 2)) AS at_time
+    -- [^\n]* and not (.*): in Postgres "." matches a newline, so (.*)
+    -- here swallowed the whole rest of the note - the delivery branch, the
+    -- reference, the crew - into the warehouse name.
+    btrim(split_part(substring(o.notes FROM 'Pickup:[ \t]*([^\n]*)'), '@', 1)) AS place,
+    btrim(split_part(substring(o.notes FROM 'Pickup:[ \t]*([^\n]*)'), '@', 2)) AS at_time,
+    -- Most notes carry the address on its own line below the name.
+    btrim(coalesce(substring(o.notes FROM 'Pickup Address:[ \t]*([^\n]*)'), '')) AS addr
   FROM "Order" o
-  WHERE o.notes ~ 'Pickup:\s*\S'
+  WHERE o.notes ~ 'Pickup:[ \t]*\S'
 ) AS parsed
 LEFT JOIN "Warehouse" w
   ON w."clientID" = parsed."clientID"

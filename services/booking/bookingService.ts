@@ -231,7 +231,11 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
   const { data, error } = await supabase
     .from("Order")
     .select(
-      `*, Client (*), OrderDetails (*), BranchStops (*),
+      // Named rather than "*": Order holds orderLinkToken, the capability
+      // URL a customer tracks their delivery with, and it has no business
+      // being sent to a screen that never shows it.
+      `orderID, orderCode, notes, createdAt, isActive, clientID,
+        Client (*), OrderDetails (*), BranchStops (*), PickupStops (*),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
           DispatchHelper ( helperID, status, Helper:Employee!helperID ( employeeName ) ) )`,
