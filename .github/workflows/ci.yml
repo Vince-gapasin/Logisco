@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, monorepo-copy]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    env:
+      # The build imports the server Supabase client, which refuses to load
+      # without these. Nothing connects during a build, so placeholders are
+      # enough; set repository secrets to build against a real project.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || 'placeholder-secret-key' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN || '' }}
+      MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN || '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Next 16 needs Node 20.9 or newer.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Reported, not enforced: the existing code has a backlog of `any` and
+      # react-hooks findings, and failing every build on them would mean
+      # nothing else in this workflow ever runs.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
