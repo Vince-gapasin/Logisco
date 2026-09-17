@@ -22,9 +22,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const stage = searchParams.get("stage") ?? undefined;
     const limitParam = Number(searchParams.get("limit"));
+    // ?view=summary drops the nested stops, pickups, items and truck detail
+    // that a list of bookings does not render.
+    const view = searchParams.get("view") === "summary" ? "summary" : undefined;
 
     const bookings = await getBookings({
       stage,
+      view,
       limit: Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined,
     });
 

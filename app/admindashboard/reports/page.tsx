@@ -738,7 +738,9 @@ export default function ReportsForecastingPage() {
     const fetchReports = async () => {
       setIsLoading(true);
       try {
-        const orders = await apiFetch<any[]>("/api/bookings");
+        // Summary rows only: the table shows a line per booking, and the
+        // full booking is fetched when one is opened.
+        const orders = await apiFetch<any[]>("/api/bookings?view=summary");
 
         const uniqueClients = new Set<string>();
         const uniqueDrivers = new Set<string>();
@@ -1017,9 +1019,28 @@ export default function ReportsForecastingPage() {
     }
   };
 
-  const handleRowClick = (record: ReportRecord) => {
+  const handleRowClick = async (record: ReportRecord) => {
     setSelectedOrderForView(record);
     setIsViewOrderModalOpen(true);
+
+    // The list row carries only summary columns. Fetch the stops, pickups,
+    // items and proof of delivery the modal renders.
+    const orderID = record.rawOrder?.orderID;
+    if (!orderID || record.rawOrder?.BranchStops) return;
+
+    try {
+      const full = await apiFetch<{ data: any }>(`/api/bookings/${orderID}`);
+      if (!full?.data) return;
+
+      setRecords((prev) =>
+        prev.map((row) => (row.id === record.id ? { ...row, rawOrder: full.data } : row)),
+      );
+      setSelectedOrderForView((current: ReportRecord | null) =>
+        current && current.id === record.id ? { ...current, rawOrder: full.data } : current,
+      );
+    } catch (error) {
+      console.error("Failed to load booking detail:", error);
+    }
   };
 
   return (

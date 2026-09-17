@@ -76,12 +76,38 @@ const STAGE_STATUSES: Record<string, string[]> = {
   cancelled: [DELIVERY_STATUS.cancelled],
 };
 
+// What a list of bookings needs: enough to categorise, filter and label a
+// row. The reports screen used to pull BOOKING_COLUMNS for every order ever
+// created - every stop, pickup, item and crew member - to render a ten-row
+// table, then fetch nothing more when a row was opened.
+const SUMMARY_COLUMNS = `
+  orderID,
+  orderCode,
+  notes,
+  createdAt,
+  isActive,
+  clientID,
+  Client ( company ),
+  DispatchOrder (
+    dispatchID,
+    status,
+    completedAt,
+    Driver:Employee!driverID ( employeeName ),
+    DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) )
+  )
+`;
+
 const DEFAULT_STAGE_LIMIT = 300;
 
 export interface BookingQuery {
   /** A key of STAGE_STATUSES, "unassigned", or undefined for every order. */
   stage?: string;
   limit?: number;
+  /**
+   * "summary" returns only the columns a list of bookings renders. Screens
+   * that show one booking in detail fetch it by id instead.
+   */
+  view?: "summary" | "full";
 }
 
 // DispatchOrder.pod_url holds the storage path of the delivery receipt.
@@ -137,6 +163,7 @@ async function getUnassignedBookings(limit: number): Promise<Order[]> {
 
 export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
   const limit = query.limit && query.limit > 0 ? query.limit : DEFAULT_STAGE_LIMIT;
+  const columns = query.view === "summary" ? SUMMARY_COLUMNS : BOOKING_COLUMNS;
 
   if (query.stage === "unassigned") {
     return getUnassignedBookings(limit);
@@ -147,7 +174,7 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
   if (statuses) {
     const { data, error } = await supabase
       .from("Order")
-      .select(BOOKING_COLUMNS.replace("DispatchOrder (", "DispatchOrder!inner ("))
+      .select(columns.replace("DispatchOrder (", "DispatchOrder!inner ("))
       .eq("isActive", true)
       .in("DispatchOrder.status", statuses)
       .order("createdAt", { ascending: false })
@@ -166,7 +193,7 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
   while (true) {
     const { data, error } = await supabase
       .from("Order")
-      .select(BOOKING_COLUMNS)
+      .select(columns)
       .order("createdAt", { ascending: false })
       .range(start, start + batchSize - 1);
 
