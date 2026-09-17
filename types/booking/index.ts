@@ -13,15 +13,42 @@ export interface OrderItem {
 
 export interface BranchStop {
   stopID?: string;
+  branchID?: number;
   orderID?: string;
+  dispatchID?: string | null;
   branchName: string;
+  deliveryAddress?: string | null;
   contactPerson: string;
   contactNum: string;
   notes?: string;
   deliveryLat?: number;
   deliverLong?: number;
   expectedTime: string;
+  sequence?: number | null;
   stopStatus?: string;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+}
+
+// The collection half of the itinerary. Until the PickupStops table existed
+// this was a line of prose inside Order.notes and everything after the first
+// pickup was thrown away on save.
+export interface PickupStop {
+  pickupID?: number;
+  orderID?: string;
+  dispatchID?: string | null;
+  warehouseID?: string | null;
+  warehouseName: string;
+  pickupAddress?: string | null;
+  contactPerson?: string | null;
+  contactNum?: string | null;
+  expectedTime?: string | null;
+  pickupLat?: number | null;
+  pickupLong?: number | null;
+  sequence?: number | null;
+  stopStatus?: string;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
 }
 
 export interface Order {
@@ -38,6 +65,7 @@ export interface Order {
   Client?: { company: string };
   OrderDetails?: OrderItem[];
   BranchStops?: BranchStop[];
+  PickupStops?: PickupStop[];
 }
 
 // ==========================================
@@ -59,11 +87,21 @@ export interface CreateBranchStopDto {
   deliveryAddress?: string;
 }
 
+export interface CreatePickupStopDto {
+  warehouseID?: string | null;
+  warehouseName: string;
+  pickupAddress?: string;
+  contactPerson?: string;
+  contactNum?: string;
+  expectedTime?: string;
+}
+
 export interface CreateOrderDto {
   clientID?: string | null;
   notes?: string;
   items: CreateOrderItemDto[];
   stops: CreateBranchStopDto[];
+  pickups?: CreatePickupStopDto[];
 }
 
 // ==========================================

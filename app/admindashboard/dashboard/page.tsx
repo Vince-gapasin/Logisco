@@ -224,10 +224,36 @@ function ViewOrderModal({
     new Date(raw.createdAt).toLocaleDateString();
   const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "N/A";
 
+  // Pickups are rows now. Bookings made before the PickupStops table still
+  // carry theirs as a "Pickup: <place> @ <time>" line inside the notes.
   const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
   const pickupParts = pickupLine.split(" @ ");
   const pickupAddr = pickupParts[0]?.trim() || "N/A";
   const pickupTime = pickupParts[1]?.trim() || "N/A";
+
+  const pickupRows: any[] = raw.PickupStops || raw.pickupstops || [];
+  const pickups =
+    pickupRows.length > 0
+      ? [...pickupRows]
+          .sort((a, b) => (a.sequence ?? a.pickupID ?? 0) - (b.sequence ?? b.pickupID ?? 0))
+          .map((p) => ({
+            warehouseName: p.warehouseName || "Origin Location",
+            address: p.pickupAddress || p.warehouseName || "N/A",
+            contactPerson: p.contactPerson || cPerson,
+            contactNum: p.contactNum || cNum,
+            expectedTime: p.expectedTime ? String(p.expectedTime).slice(0, 5) : "N/A",
+            collected: /deliver|complete/i.test(p.stopStatus ?? ""),
+          }))
+      : [
+          {
+            warehouseName: "Origin Location",
+            address: pickupAddr,
+            contactPerson: cPerson,
+            contactNum: cNum,
+            expectedTime: pickupTime,
+            collected: false,
+          },
+        ];
 
   const dispatchRecord = Array.isArray(raw.DispatchOrder)
     ? raw.DispatchOrder[0]
@@ -270,6 +296,7 @@ function ViewOrderModal({
           {
             branchName: "N/A",
             deliveryAddress: "N/A",
+            sequence: 1,
             contactPerson: cPerson,
             contactNum: cNum,
             expectedTime: "N/A",
@@ -436,43 +463,58 @@ function ViewOrderModal({
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b border-slate-200 font-medium text-slate-700">
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        Origin Location
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {pickupAddr}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {cPerson}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {cNum}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {pickupTime}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
-                        {quantity}
-                      </td>
-                      <td className="p-2 text-center bg-slate-50">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            category === "Completed" || currentStep > 1
-                              ? "bg-green-100 text-green-700 border border-green-200"
-                              : currentStep === 1
-                                ? "bg-amber-100 text-amber-800 border border-amber-200 animate-pulse"
-                                : "bg-slate-100 text-slate-500 border border-slate-200"
-                          }`}
+                    {pickups.map((p: any, idx: number) => {
+                      // The stop row is what says whether the cargo was
+                      // collected. currentStep is still consulted so that
+                      // trips finished before pickups were rows still read
+                      // as picked up rather than pending forever.
+                      const collected =
+                        p.collected || category === "Completed" || currentStep > 1;
+                      const enRoute = !collected && currentStep === 1;
+
+                      return (
+                        <tr
+                          key={idx}
+                          className="border-b border-slate-200 font-medium text-slate-700"
                         >
-                          {category === "Completed" || currentStep > 1
-                            ? "Picked Up"
-                            : currentStep === 1
-                              ? "En Route to Pickup"
-                              : "Awaiting Pickup"}
-                        </span>
-                      </td>
-                    </tr>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {p.warehouseName}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {p.address}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {p.contactPerson}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {p.contactNum}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                            {p.expectedTime}
+                          </td>
+                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                            {quantity}
+                          </td>
+                          <td className="p-2 text-center bg-slate-50">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                collected
+                                  ? "bg-green-100 text-green-700 border border-green-200"
+                                  : enRoute
+                                    ? "bg-amber-100 text-amber-800 border border-amber-200 animate-pulse"
+                                    : "bg-slate-100 text-slate-500 border border-slate-200"
+                              }`}
+                            >
+                              {collected
+                                ? "Picked Up"
+                                : enRoute
+                                  ? "En Route to Pickup"
+                                  : "Awaiting Pickup"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -510,9 +552,20 @@ function ViewOrderModal({
                   </thead>
                   <tbody>
                     {deliveries.map((d: any, idx: number) => {
-                      const stopStepIndex = 2 + idx; 
-                      const isStopDelivered = category === "Completed" || currentStep > stopStepIndex;
-                      const isStopOngoing = category === "In-Transit" && currentStep === stopStepIndex;
+                      // The stop carries its own status. The step index is
+                      // only a fallback for trips that finished before the
+                      // crew app started recording stop completions, and it
+                      // assumes exactly one pickup, which is not true of
+                      // every booking.
+                      const stopStepIndex = pickups.length + 1 + idx;
+                      const isStopDelivered =
+                        /deliver|complete/i.test(d.stopStatus ?? "") ||
+                        category === "Completed" ||
+                        currentStep > stopStepIndex;
+                      const isStopOngoing =
+                        !isStopDelivered &&
+                        category === "In-Transit" &&
+                        currentStep === stopStepIndex;
                       
                       let stopLabel = isStopDelivered
                         ? "Delivered"
@@ -1068,6 +1121,7 @@ function BookingModal({
     const updated = [...pickupList];
     updated[index] = {
       ...updated[index],
+      warehouseID: matchedWarehouse?.warehouseID ?? null,
       warehouseName: selectedName,
       warehouseAddress: matchedWarehouse
         ? matchedWarehouse.warehouseLoc || matchedWarehouse.warehouseAddress || ""
@@ -3345,6 +3399,19 @@ export default function AdminDashboardPage() {
           },
         ],
         stops: stops,
+        // Every pickup, not just the first. They used to be flattened into
+        // the "Pickup:" line of the notes above, which kept one and lost the
+        // rest; that line is still written so older screens keep rendering.
+        pickups: (data.pickupList ?? [])
+          .filter((p: any) => p.warehouseName?.trim())
+          .map((p: any) => ({
+            warehouseID: p.warehouseID || null,
+            warehouseName: p.warehouseName.trim(),
+            pickupAddress: p.warehouseAddress?.trim() || undefined,
+            contactPerson: p.contactPerson?.trim() || undefined,
+            contactNum: p.contactNumber?.trim() || undefined,
+            expectedTime: p.pickupTime || undefined,
+          })),
       };
 
       const res = await apiFetch<any>("/api/bookings", {

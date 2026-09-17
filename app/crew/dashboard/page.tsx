@@ -135,12 +135,19 @@ const startLiveTracking = async (dispatchId: string | number) => {
 };
 
 export interface PickupRecord {
+  // Present for pickups that came from the PickupStops table. Bookings made
+  // before that table existed have no id, and the crew app falls back to the
+  // single pickup line the booking notes carry.
+  pickupID?: number;
   warehouse: string;
   address: string;
   contactPerson: string;
   contactNumber: string;
   pickupTime: string;
   quantity: string;
+  status?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface DeliveryDestinationRecord {
@@ -151,6 +158,9 @@ export interface DeliveryDestinationRecord {
   contactNumber: string;
   deliveryTime: string;
   quantity: string;
+  status?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface DeliveryRecord {
@@ -162,6 +172,7 @@ export interface DeliveryRecord {
   dateTime: string;
   status: string; 
   current_step?: number; 
+  pickupCompletedAt?: string | null;
   scheduledDate: string;
   pickupTime: string;
   deliveryTime: string;
@@ -202,7 +213,7 @@ const generateDynamicStops = (delivery: DeliveryRecord) => {
       stops.push({ title: `Pickup: ${p.warehouse}`, type: "pickup", reqPod: true, data: p });
     });
   } else {
-    stops.push({ title: `Pickup: ${delivery.pickupAddress?.split(',')[0] || 'Base'}`, type: "pickup", reqPod: true });
+    stops.push({ title: `Pickup: ${delivery.pickupAddress?.split(',')[0] || 'Pickup point'}`, type: "pickup", reqPod: true });
   }
 
   if (delivery.multipleDeliveries && delivery.multipleDeliveries.length > 0) {
@@ -419,7 +430,7 @@ export default function CrewDashboardPage({
   const getPickupsArray = (delivery: DeliveryRecord) => {
     if (delivery.multiplePickups && delivery.multiplePickups.length > 0) return delivery.multiplePickups;
     return [{
-      warehouse: delivery.pickupAddress?.split(",")[0] || "Base",
+      warehouse: delivery.pickupAddress?.split(",")[0] || "Pickup point",
       address: delivery.pickupAddress,
       contactPerson: delivery.contactPerson,
       contactNumber: delivery.contactNumber,
@@ -502,6 +513,17 @@ export default function CrewDashboardPage({
           },
         ]
       : []),
+    ...(selectedDelivery?.multiplePickups ?? [])
+      .filter((pickup: any) => pickup.latitude != null && pickup.longitude != null)
+      .map((pickup: any, index: number) => ({
+        id: `pickup-${pickup.pickupID ?? index}`,
+        label: pickup.warehouse || "Pickup point",
+        detail: pickup.pickupTime ? `Collect ${String(pickup.pickupTime).slice(0, 5)}` : undefined,
+        latitude: pickup.latitude as number,
+        longitude: pickup.longitude as number,
+        kind: "stop" as const,
+        done: /deliver|complete/i.test(pickup.status ?? ""),
+      })),
     ...(selectedDelivery?.multipleDeliveries ?? [])
       .filter((stop: any) => stop.latitude != null && stop.longitude != null)
       .map((stop: any, index: number) => ({
@@ -557,9 +579,16 @@ export default function CrewDashboardPage({
       const currentStopTitle = dynamicStops[currentStepIndex]?.title || "Location Update";
       formData.append("title", currentStopTitle);
 
-      // Links the proof of delivery to the branch stop being completed.
-      const currentStopBranchID = dynamicStops[currentStepIndex]?.data?.branchID;
-      if (currentStopBranchID) formData.append("branchID", String(currentStopBranchID));
+      // Identifies the stop row being completed, so the server records the
+      // progress against the itinerary instead of trusting this index.
+      const currentStop = dynamicStops[currentStepIndex];
+      const currentStopBranchID = (currentStop?.data as any)?.branchID;
+      const currentStopPickupID = (currentStop?.data as any)?.pickupID;
+      if (currentStop?.type === "pickup") {
+        if (currentStopPickupID) formData.append("pickupID", String(currentStopPickupID));
+      } else if (currentStopBranchID) {
+        formData.append("branchID", String(currentStopBranchID));
+      }
       
       if (receiverName) formData.append("receiverName", receiverName);
       if (selectedFile) formData.append("podImage", selectedFile);

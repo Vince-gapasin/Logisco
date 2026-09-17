@@ -10,9 +10,11 @@ const DISPATCH_SELECT = `
   dispatchCode,
   status,
   current_step,
+  pickupCompletedAt,
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
-    BranchStops ( branchID, branchName, contactPerson, contactNum, notes, expectedTime, stopStatus, dispatchID, deliveryLat, deliverLong ) ),
+    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
+    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
   Truck ( plateNumber, model )
 `;
 
@@ -99,7 +101,13 @@ export async function GET(request: Request) {
       // across trucks); fall back to every stop on the order.
       const linkedStops = orderStops.filter((stop) => stop.dispatchID === dispatch.dispatchID);
       const stops = (linkedStops.length > 0 ? linkedStops : orderStops).sort(
-        (a, b) => a.branchID - b.branchID,
+        (a, b) => (a.sequence ?? a.branchID) - (b.sequence ?? b.branchID),
+      );
+
+      const orderPickups: any[] = Array.isArray(order.PickupStops) ? order.PickupStops : [];
+      const linkedPickups = orderPickups.filter((p) => p.dispatchID === dispatch.dispatchID);
+      const pickups = (linkedPickups.length > 0 ? linkedPickups : orderPickups).sort(
+        (a, b) => (a.sequence ?? a.pickupID) - (b.sequence ?? b.pickupID),
       );
 
       let displayStatus: string;
@@ -130,9 +138,12 @@ export async function GET(request: Request) {
         current_step: dispatch.current_step ?? 0,
         scheduledDate: readScheduledDate(order.notes),
         timeWindow: buildTimeWindow(stops),
-        pickupTime: "TBD",
+        pickupTime: pickups[0]?.expectedTime ? String(pickups[0].expectedTime).slice(0, 5) : "TBD",
         deliveryTime: "TBD",
-        pickupAddress: "Warehouse / Depot",
+        // Was the literal string "Warehouse / Depot" until pickups became
+        // rows: the driver was told to collect the cargo from nowhere.
+        pickupAddress:
+          pickups[0]?.pickupAddress || pickups[0]?.warehouseName || "No pickup point on file",
         deliveryAddress: client.businessAdd || "Various Locations",
         contactPerson: client.contactName || "N/A",
         contactNumber: client.contact || "N/A",
@@ -144,10 +155,24 @@ export async function GET(request: Request) {
         priorityLevel: "Standard",
         notes: dispatch.dispatchNote || order.notes || "No notes provided.",
         confirmBy: "End of Day",
+        pickupCompletedAt: dispatch.pickupCompletedAt ?? null,
+        multiplePickups: pickups.map((pickup) => ({
+          pickupID: pickup.pickupID,
+          warehouse: pickup.warehouseName,
+          address: pickup.pickupAddress || pickup.warehouseName || "No address on file",
+          contactPerson: pickup.contactPerson || "N/A",
+          contactNumber: pickup.contactNum || "N/A",
+          pickupTime: pickup.expectedTime ? String(pickup.expectedTime).slice(0, 5) : "",
+          quantity: "See Manifest",
+          status: pickup.stopStatus,
+          latitude: Number(pickup.pickupLat) || null,
+          longitude: Number(pickup.pickupLong) || null,
+        })),
         multipleDeliveries: stops.map((stop) => ({
           branchID: stop.branchID,
           branch: stop.branchName,
-          address: "Address on file",
+          // "Address on file" was shown to the driver in place of the address.
+          address: stop.deliveryAddress || stop.branchName || "No address on file",
           contactPerson: stop.contactPerson,
           contactNumber: stop.contactNum,
           deliveryTime: stop.expectedTime,

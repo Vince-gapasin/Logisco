@@ -27,6 +27,18 @@ const branchStopSchema = z.object({
   deliveryAddress: z.string().trim().optional(),
 });
 
+// A pickup the crew must collect from before delivering. The booking form
+// has always collected a list of these; they used to be flattened into one
+// line of Order.notes, so everything past the first was lost.
+const pickupStopSchema = z.object({
+  warehouseID: z.string().uuid().nullable().optional(),
+  warehouseName: z.string().min(1, "Warehouse name is required").trim(),
+  pickupAddress: z.string().trim().optional(),
+  contactPerson: z.string().trim().optional(),
+  contactNum: z.string().trim().optional(),
+  expectedTime: z.string().trim().optional(),
+});
+
 // ==========================================
 // MAIN ORDER SCHEMA
 // ==========================================
@@ -36,4 +48,7 @@ export const createOrderSchema = z.object({
   notes: z.string().optional().default(""),
   items: z.array(orderItemSchema).min(1, "At least one item is required"),
   stops: z.array(branchStopSchema).min(1, "At least one stop is required"),
+
+  // Optional so older clients that still only send the notes line keep working.
+  pickups: z.array(pickupStopSchema).optional().default([]),
 });

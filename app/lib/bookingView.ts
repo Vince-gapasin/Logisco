@@ -2,14 +2,56 @@
 // render. Scheduling and priority are still stored inside Order.notes as
 // free text by the booking form, so they are parsed back out here in one
 // place rather than repeating the regexes on every screen.
+//
+// Pickups used to be parsed out of the notes the same way. They are real
+// rows now (PickupStops), and the note is read only for orders created
+// before that table existed.
+
+import {
+  DELIVERY_STATUS,
+  HELPER_STATUS,
+  isStopDelivered,
+  STOP_STATUS,
+} from "@/app/lib/enums";
+
+// The crew has confirmed the trip once the dispatch reaches any of these.
+const ACCEPTED_ONWARDS: string[] = [
+  DELIVERY_STATUS.accepted,
+  DELIVERY_STATUS.startDelivery,
+  DELIVERY_STATUS.inWarehouse,
+  DELIVERY_STATUS.inTransit,
+  DELIVERY_STATUS.arrived,
+  DELIVERY_STATUS.delivered,
+  DELIVERY_STATUS.completed,
+  DELIVERY_STATUS.returned,
+];
 
 export interface BookingStopView {
   branchID: number | null;
   branchName: string;
+  deliveryAddress: string;
   contactPerson: string;
   contactNum: string;
   expectedTime: string | null;
+  sequence: number;
   status: string;
+  arrivedAt: string | null;
+  completedAt: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface BookingPickupView {
+  pickupID: number | null;
+  warehouseName: string;
+  pickupAddress: string;
+  contactPerson: string;
+  contactNum: string;
+  expectedTime: string | null;
+  sequence: number;
+  status: string;
+  arrivedAt: string | null;
+  completedAt: string | null;
   latitude: number | null;
   longitude: number | null;
 }
@@ -48,6 +90,7 @@ export interface BookingView {
   status: string;
   notes: string;
   stops: BookingStopView[];
+  pickups: BookingPickupView[];
   remarks: BookingRemarkView[];
   dispatchStatus: string | null;
   hasDispatch: boolean;
@@ -61,6 +104,7 @@ export interface BookingView {
   crews: BookingCrewView[];
   currentStep: number;
   completedAt: string | null;
+  pickupCompletedAt: string | null;
   rejectionReason: string;
   dispatchNote: string;
   totalQuantity: string;
@@ -117,6 +161,7 @@ export function mapOrderToBookingView(order: any): BookingView {
   const client = firstRelated<any>(order.Client);
   const items: any[] = Array.isArray(order.OrderDetails) ? order.OrderDetails : [];
   const stops: any[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
+  const pickupRows: any[] = Array.isArray(order.PickupStops) ? order.PickupStops : [];
 
   const dispatches: any[] = (Array.isArray(order.DispatchOrder)
     ? order.DispatchOrder
@@ -125,7 +170,9 @@ export function mapOrderToBookingView(order: any): BookingView {
 
   // The latest dispatch is the live one; earlier ones were rejected.
   const liveDispatch =
-    dispatches.find((d) => !["Rejected", "Foul Trip"].includes(d.status)) ??
+    dispatches.find(
+      (d) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(d.status),
+    ) ??
     dispatches[dispatches.length - 1] ??
     null;
 
@@ -135,10 +182,14 @@ export function mapOrderToBookingView(order: any): BookingView {
   const truck = firstRelated<any>(liveDispatch?.Truck);
 
   const driverStatus = (() => {
-    if (!liveDispatch) return "Pending";
-    if (["Accepted", "In Transit", "Completed"].includes(liveDispatch.status)) return "Accepted";
-    if (liveDispatch.status === "Rejected") return "Declined";
-    return "Pending";
+    if (!liveDispatch) return HELPER_STATUS.pending;
+    // Anything from the crew accepting onwards means they accepted.
+    if (!ACCEPTED_ONWARDS.includes(liveDispatch.status)) {
+      return liveDispatch.status === DELIVERY_STATUS.rejected
+        ? HELPER_STATUS.declined
+        : HELPER_STATUS.pending;
+    }
+    return HELPER_STATUS.accepted;
   })();
 
   const crews: BookingCrewView[] = [];
@@ -214,17 +265,39 @@ export function mapOrderToBookingView(order: any): BookingView {
     status: toProgressStage(liveDispatch?.status ?? null),
     notes,
     stops: stops
-      .map((stop) => ({
+      .map((stop, index) => ({
         branchID: stop.branchID ?? null,
         branchName: stop.branchName || "Stop",
+        deliveryAddress: stop.deliveryAddress || "",
         contactPerson: stop.contactPerson || "",
         contactNum: stop.contactNum || "",
         expectedTime: stop.expectedTime ?? null,
-        status: stop.stopStatus || "Pending",
+        // Older stops predate the sequence column; their insert order is
+        // still reflected by the identity branchID.
+        sequence: Number(stop.sequence) || index + 1,
+        status: stop.stopStatus || STOP_STATUS.pending,
+        arrivedAt: stop.arrivedAt ?? null,
+        completedAt: stop.completedAt ?? null,
         latitude: Number(stop.deliveryLat) || null,
         longitude: Number(stop.deliverLong) || null,
       }))
-      .sort((a, b) => (a.branchID ?? 0) - (b.branchID ?? 0)),
+      .sort((a, b) => a.sequence - b.sequence || (a.branchID ?? 0) - (b.branchID ?? 0)),
+    pickups: pickupRows
+      .map((pickup, index) => ({
+        pickupID: pickup.pickupID ?? null,
+        warehouseName: pickup.warehouseName || "Pickup point",
+        pickupAddress: pickup.pickupAddress || "",
+        contactPerson: pickup.contactPerson || "",
+        contactNum: pickup.contactNum || "",
+        expectedTime: pickup.expectedTime ?? null,
+        sequence: Number(pickup.sequence) || index + 1,
+        status: pickup.stopStatus || STOP_STATUS.pending,
+        arrivedAt: pickup.arrivedAt ?? null,
+        completedAt: pickup.completedAt ?? null,
+        latitude: Number(pickup.pickupLat) || null,
+        longitude: Number(pickup.pickupLong) || null,
+      }))
+      .sort((a, b) => a.sequence - b.sequence),
     remarks,
     dispatchStatus: liveDispatch?.status ?? null,
     hasDispatch: Boolean(liveDispatch),
@@ -238,6 +311,7 @@ export function mapOrderToBookingView(order: any): BookingView {
     crews,
     currentStep: liveDispatch?.current_step ?? 0,
     completedAt: liveDispatch?.completedAt ?? null,
+    pickupCompletedAt: liveDispatch?.pickupCompletedAt ?? null,
     rejectionReason: liveDispatch?.rejectionreason || "",
     dispatchNote: liveDispatch?.dispatchNote || "",
     totalQuantity: String(
@@ -377,9 +451,26 @@ function confirmationLabel(booking: BookingView): string {
   }
 }
 
-// The booking form records the pickup as "Pickup: <address> @ <time>" inside
-// Order.notes; there is no pickup table yet.
+// Pickups are rows now. Orders created before the PickupStops table still
+// carry theirs as "Pickup: <place> @ <time>" in Order.notes, and those are
+// read here so old bookings keep showing a collection point.
 function parsePickup(booking: BookingView): FeedStopRow[] {
+  if (booking.pickups.length > 0) {
+    return booking.pickups.map((pickup) => ({
+      warehouseName: pickup.warehouseName,
+      warehouseAddress: pickup.pickupAddress || pickup.warehouseName,
+      contactPerson: pickup.contactPerson,
+      contactNumber: pickup.contactNum,
+      pickupTime: pickup.expectedTime || "",
+      quantity: booking.totalQuantity,
+      stopStatus: isStopDelivered(pickup.status)
+        ? "Completed"
+        : booking.pickupCompletedAt
+          ? "Completed"
+          : pickup.status,
+    }));
+  }
+
   const raw = /Pickup:\s*(.+)/i.exec(booking.notes || "");
   if (!raw) return [];
 
@@ -392,7 +483,8 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       contactNumber: "",
       pickupTime: time || "",
       quantity: booking.totalQuantity,
-      stopStatus: booking.currentStep > 0 ? "Completed" : "Pending",
+      stopStatus:
+        booking.pickupCompletedAt || booking.currentStep > 0 ? "Completed" : "Pending",
     },
   ];
 }

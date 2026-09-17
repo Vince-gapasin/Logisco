@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     const receiverName = (formData.get("receiverName") as string | null) || "";
     const title = (formData.get("title") as string | null) || "";
     const branchIDValue = formData.get("branchID") as string | null;
+    const pickupIDValue = formData.get("pickupID") as string | null;
     const file = formData.get("podImage") as File | null;
 
     if (!isUuid(dispatchID) || !status) {
@@ -121,6 +122,21 @@ export async function POST(request: Request) {
       }
     }
 
+    // Same for the collection point, when this update is a pickup.
+    let pickupID: number | null = null;
+    if (pickupIDValue) {
+      const parsedPickup = parseInt(pickupIDValue, 10);
+      if (!Number.isNaN(parsedPickup)) {
+        const { data: pickup } = await supabase
+          .from("PickupStops")
+          .select("pickupID")
+          .eq("pickupID", parsedPickup)
+          .eq("orderID", current.orderID)
+          .maybeSingle();
+        pickupID = pickup?.pickupID ?? null;
+      }
+    }
+
     let podUrl: string | null = null;
 
     // 3. Upload the proof-of-delivery photo, if any
@@ -167,6 +183,12 @@ export async function POST(request: Request) {
     if (podUrl) updatePayload.pod_url = podUrl;
     if (status === DELIVERY_STATUS.completed) updatePayload.completedAt = new Date().toISOString();
 
+    // The pickup leg used to be recorded only as current_step = 1, which is
+    // an index into a list the browser built. Now it has a timestamp.
+    if (pickupID !== null && !current.pickupCompletedAt) {
+      updatePayload.pickupCompletedAt = new Date().toISOString();
+    }
+
     // Conditional on the status we read, so two crew members submitting at
     // once cannot both apply their change.
     const { data: updated, error: updateErr } = await supabase
@@ -182,13 +204,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "This trip was updated by someone else. Please refresh." }, { status: 409 });
     }
 
-    // Mark the delivered stop so the admin dashboards see the progress.
-    if (branchID !== null && podUrl) {
+    // Mark the stop that was just completed, so the admin dashboards and the
+    // customer tracking page read progress from the itinerary rather than
+    // from a step index. This used to require a proof-of-delivery photo to
+    // have uploaded successfully, so a failed upload left the stop Pending
+    // forever even though the trip had moved on.
+    const completedAt = new Date().toISOString();
+
+    if (branchID !== null) {
       const { error: stopErr } = await supabase
         .from("BranchStops")
-        .update({ stopStatus: STOP_STATUS.delivered })
+        .update({
+          stopStatus: STOP_STATUS.delivered,
+          arrivedAt: completedAt,
+          completedAt,
+        })
         .eq("branchID", branchID);
       if (stopErr) console.error("[Status API] Stop status update failed:", stopErr.message);
+    }
+
+    if (pickupID !== null) {
+      const { error: pickupErr } = await supabase
+        .from("PickupStops")
+        .update({
+          stopStatus: STOP_STATUS.delivered,
+          arrivedAt: completedAt,
+          completedAt,
+        })
+        .eq("pickupID", pickupID);
+      if (pickupErr) console.error("[Status API] Pickup status update failed:", pickupErr.message);
     }
 
     // 5. Free the truck and crew once the trip is completed. The status is

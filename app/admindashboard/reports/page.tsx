@@ -117,8 +117,17 @@ function ViewOrderModal({
 
   const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
   const pickupParts = pickupLine.split(" @ ");
-  const pickupAddr = pickupParts[0]?.trim() || "N/A";
-  const pickupTime = pickupParts[1]?.trim() || "N/A";
+  // Prefer the PickupStops row; the notes line is what bookings made before
+  // that table existed still carry.
+  const firstPickup = (raw.PickupStops ?? [])[0];
+  const pickupAddr =
+    firstPickup?.pickupAddress ||
+    firstPickup?.warehouseName ||
+    pickupParts[0]?.trim() ||
+    "N/A";
+  const pickupTime = firstPickup?.expectedTime
+    ? String(firstPickup.expectedTime).slice(0, 5)
+    : pickupParts[1]?.trim() || "N/A";
 
   const dispatchRecord = Array.isArray(raw.DispatchOrder)
     ? raw.DispatchOrder[0]

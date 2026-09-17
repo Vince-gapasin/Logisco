@@ -1,12 +1,21 @@
 import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses } from "@/services/geo/geocodingService";
-import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
+import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, STOP_STATUS } from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 
 // ==========================================
 // HELPERS
 // ==========================================
+
+// The pickup time column is a Postgres `time`, and the form sends either
+// "08:00", "08:00:00" or an empty string. Anything else is dropped rather
+// than failing the whole booking over a malformed time.
+function normalizeTime(value?: string | null): string | null {
+  const trimmed = (value ?? "").trim();
+  if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(trimmed)) return null;
+  return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+}
 
 const generateOrderCode = (): string => {
   const timestampPart = Date.now().toString().slice(-6);
@@ -30,13 +39,15 @@ const BOOKING_COLUMNS = `
   clientID,
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
-  BranchStops ( branchID, branchName, contactPerson, contactNum, expectedTime, stopStatus, deliveryLat, deliverLong, dispatchID ),
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID ),
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
     status,
     current_step,
     completedAt,
+    pickupCompletedAt,
     dispatchNote,
     rejectionreason,
     truckID,
@@ -50,12 +61,17 @@ const BOOKING_COLUMNS = `
 // Dispatch statuses behind each booking screen, so the database does the
 // filtering instead of every screen downloading every order.
 const STAGE_STATUSES: Record<string, string[]> = {
-  "awaiting-crew": ["Pending", "Assigned"],
-  departing: ["Pending", "Assigned", "Accepted"],
-  "in-transit": ["In Transit"],
-  completed: ["Completed", "Delivered", "Returned"],
-  "foul-trip": ["Foul Trip"],
-  cancelled: ["Cancelled"],
+  "awaiting-crew": [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned],
+  departing: [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned, DELIVERY_STATUS.accepted],
+  "in-transit": [
+    DELIVERY_STATUS.startDelivery,
+    DELIVERY_STATUS.inWarehouse,
+    DELIVERY_STATUS.inTransit,
+    DELIVERY_STATUS.arrived,
+  ],
+  completed: FINISHED_DELIVERY_STATUSES,
+  "foul-trip": [DELIVERY_STATUS.foulTrip],
+  cancelled: [DELIVERY_STATUS.cancelled],
 };
 
 const DEFAULT_STAGE_LIMIT = 300;
@@ -152,6 +168,7 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
 // supabase-js has no transactions: if a later insert fails, remove what was
 // already written so a half-created order never shows up in the queues.
 async function rollbackOrder(orderID: string) {
+  await supabase.from("PickupStops").delete().eq("orderID", orderID);
   await supabase.from("BranchStops").delete().eq("orderID", orderID);
   await supabase.from("OrderDetails").delete().eq("orderID", orderID);
   const { error } = await supabase.from("Order").delete().eq("orderID", orderID);
@@ -284,7 +301,7 @@ export async function createBooking(dto: CreateOrderDto) {
       dto.stops.map((stop) => stop.deliveryAddress || "").filter(Boolean),
     );
 
-    const formattedStops = dto.stops.map((stop) => {
+    const formattedStops = dto.stops.map((stop, index) => {
       const coordinates = stop.deliveryAddress
         ? coordinatesByAddress.get(stop.deliveryAddress.trim())
         : undefined;
@@ -292,12 +309,16 @@ export async function createBooking(dto: CreateOrderDto) {
       return {
         orderID: newOrderID,
         branchName: stop.branchName || "Unknown Stop",
+        // Kept so a stop that failed to geocode can be retried later, and so
+        // the crew app has an address to show rather than just a branch name.
+        deliveryAddress: stop.deliveryAddress?.trim() || null,
         contactPerson: stop.contactPerson || "",
         contactNum: stop.contactNum || "",
         notes: "",
         deliveryLat: coordinates?.latitude ?? 0,
         deliverLong: coordinates?.longitude ?? 0,
         expectedTime: stop.expectedTime || "12:00:00",
+        sequence: index + 1,
         stopStatus: STOP_STATUS.pending,
       };
     });
@@ -310,6 +331,44 @@ export async function createBooking(dto: CreateOrderDto) {
       console.error("BranchStops Insert Error:", stopsError);
       await rollbackOrder(newOrderID);
       throw new Error("Failed to insert delivery itinerary");
+    }
+  }
+
+  // 5. Insert the collection points (PickupStops)
+  const pickups = (dto.pickups ?? []).filter((pickup) => pickup.warehouseName?.trim());
+
+  if (pickups.length > 0) {
+    const pickupCoordinates = await geocodeAddresses(
+      pickups.map((pickup) => pickup.pickupAddress || "").filter(Boolean),
+    );
+
+    const formattedPickups = pickups.map((pickup, index) => {
+      const address = pickup.pickupAddress?.trim() || "";
+      const coordinates = address ? pickupCoordinates.get(address) : undefined;
+
+      return {
+        orderID: newOrderID,
+        warehouseID: pickup.warehouseID || null,
+        warehouseName: pickup.warehouseName.trim(),
+        pickupAddress: address || null,
+        contactPerson: pickup.contactPerson || null,
+        contactNum: pickup.contactNum || null,
+        expectedTime: normalizeTime(pickup.expectedTime),
+        pickupLat: coordinates?.latitude ?? null,
+        pickupLong: coordinates?.longitude ?? null,
+        sequence: index + 1,
+        stopStatus: STOP_STATUS.pending,
+      };
+    });
+
+    const { error: pickupError } = await supabase
+      .from("PickupStops")
+      .insert(formattedPickups);
+
+    if (pickupError) {
+      console.error("PickupStops Insert Error:", pickupError);
+      await rollbackOrder(newOrderID);
+      throw new Error("Failed to insert the pickup schedule");
     }
   }
 
