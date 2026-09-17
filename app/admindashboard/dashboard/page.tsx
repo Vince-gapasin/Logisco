@@ -5,6 +5,15 @@
 "use client";
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, HELPER_STATUS } from "@/app/lib/enums";
+
+// A trip that has left the yard and has not finished yet.
+const ON_THE_ROAD_STATUSES: string[] = [
+  DELIVERY_STATUS.startDelivery,
+  DELIVERY_STATUS.inWarehouse,
+  DELIVERY_STATUS.inTransit,
+  DELIVERY_STATUS.arrived,
+];
 import Link from "next/link";
 import {
   Clock,
@@ -3190,44 +3199,65 @@ export default function AdminDashboardPage() {
             dispatchRecord?.Helper1?.employeeName ||
             (helperMatch ? helperMatch[1].trim() : "None");
 
+          const driverHasConfirmed =
+            dispatchStatus === DELIVERY_STATUS.accepted ||
+            ON_THE_ROAD_STATUSES.includes(dispatchStatus);
+
           const driverConfirmed = Boolean(
-            o.driverConfirmed ||
-            o.driver_confirmed ||
-            dispatchStatus === "Accepted" ||
-            dispatchStatus === "In Transit",
-          );
-          const helperConfirmed = Boolean(
-            o.helperConfirmed ||
-            o.helper_confirmed ||
-            dispatchStatus === "Accepted" ||
-            dispatchStatus === "In Transit",
+            o.driverConfirmed || o.driver_confirmed || driverHasConfirmed,
           );
 
+          // Each helper carries their own status. This used to be inferred
+          // from the dispatch status, so every helper was reported as
+          // confirmed the moment the driver accepted - including helpers who
+          // had not replied at all, and a trip could leave showing a crew
+          // that had never confirmed.
+          const helperRows: any[] = Array.isArray(dispatchRecord?.DispatchHelper)
+            ? dispatchRecord.DispatchHelper
+            : [];
+          const helperConfirmed = Boolean(
+            o.helperConfirmed ||
+              o.helper_confirmed ||
+              (helperRows.length > 0 &&
+                helperRows.every((row) => row?.status === HELPER_STATUS.accepted)),
+          );
+
+          // The dispatch status decides the bucket. The first stop's status
+          // used to be consulted at the same level, which put a trip whose
+          // first drop-off was done into "Completed" while the truck was
+          // still on the road with four stops to go. It is now only a
+          // fallback for orders that have no dispatch at all. The list also
+          // checked for "Ongoing Delivery", which is not one of the statuses
+          // delivery_status can hold.
           let category = "Pending Bookings";
           const stopStatus = (
             stopsArr[0]?.stopStatus || "pending"
           ).toLowerCase();
 
-          if (
-            dispatchStatus === "Rejected" ||
-            dispatchStatus === "Foul Trip" ||
+          if (dispatchRecord?.status) {
+            if (
+              dispatchStatus === DELIVERY_STATUS.rejected ||
+              dispatchStatus === DELIVERY_STATUS.foulTrip ||
+              dispatchStatus === DELIVERY_STATUS.cancelled
+            ) {
+              category = "Foul Trip";
+            } else if (FINISHED_DELIVERY_STATUSES.includes(dispatchStatus)) {
+              category = "Completed";
+            } else if (ON_THE_ROAD_STATUSES.includes(dispatchStatus)) {
+              category = "In-Transit";
+            }
+          } else if (
             stopStatus.includes("foul") ||
             stopStatus.includes("fail") ||
             stopStatus.includes("cancel")
           ) {
             category = "Foul Trip";
           } else if (
-            dispatchStatus === "Completed" ||
-            dispatchStatus === "Delivered" ||
-            dispatchStatus === "Returned" ||
             stopStatus.includes("complete") ||
             stopStatus.includes("delivered")
           ) {
             category = "Completed";
           } else if (
-            dispatchStatus === "In Transit" ||
-            dispatchStatus === "Arrived" ||
-            dispatchStatus === "Ongoing Delivery" ||
             stopStatus.includes("transit") ||
             stopStatus.includes("progress")
           ) {
