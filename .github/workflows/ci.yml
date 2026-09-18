@@ -30,10 +30,23 @@ jobs:
       # Next 16 needs Node 20.9 or newer.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
-      - run: npm ci
+      # npm ci failed on the runner with "Missing: @emnapi/runtime from lock
+      # file". Those are optional transitive dependencies of a wasm32-wasi
+      # binary, and npm writes them into the lockfile in a shape that depends
+      # on the platform and npm major that generated it - this one was written
+      # by npm 11 on Windows. Node 24 above matches that npm major, which
+      # resolves it in the common case; the fallback keeps a lockfile written
+      # on another machine from blocking every build, and warns rather
+      # than failing silently.
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund || {
+            echo "::warning::npm ci could not use the lockfile on this platform; falling back to npm install. Regenerate package-lock.json on Linux or macOS to fix it properly."
+            npm install --no-audit --no-fund
+          }
 
       - name: Typecheck
         run: npm run typecheck
