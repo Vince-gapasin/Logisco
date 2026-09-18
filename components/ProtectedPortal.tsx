@@ -163,7 +163,7 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
 
   if (isRouteDenied) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4">
         <div
           role="alert"
           className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-xl"

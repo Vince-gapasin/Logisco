@@ -617,7 +617,7 @@ export default function ForecastingPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-600">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center text-sm text-slate-600">
         Loading forecasting data…
       </div>
     );
@@ -625,7 +625,7 @@ export default function ForecastingPage() {
 
   if (loadError || !forecast || !summary) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
           <h2 className="font-semibold text-red-700">Unable to load forecasting data</h2>
           <p className="mt-2 text-sm text-red-600">{loadError}</p>
@@ -638,7 +638,7 @@ export default function ForecastingPage() {
   }
 
   return (
-    <div id="forecast-report" className="flex min-h-screen w-full bg-slate-50 font-sans relative">
+    <div id="forecast-report" className="flex min-h-[100dvh] w-full bg-slate-50 font-sans relative">
       <style jsx global>{`
         @media print {
           @page {
@@ -681,7 +681,7 @@ export default function ForecastingPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Forecasting
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-700 mt-1">
+                <p className="text-sm text-slate-700 mt-1">
                   Data-driven delivery volume forecasts compared with actual performance.
                 </p>
               </div>
@@ -1016,7 +1016,7 @@ export default function ForecastingPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                         Evaluated Snapshots
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
@@ -1024,7 +1024,7 @@ export default function ForecastingPage() {
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                         Snapshot MAE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
@@ -1032,7 +1032,7 @@ export default function ForecastingPage() {
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                         Snapshot RMSE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">

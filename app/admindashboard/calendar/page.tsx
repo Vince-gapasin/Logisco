@@ -222,10 +222,10 @@ export default function CalendarPage() {
         STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
       }`}
     >
-      <span className="block text-[11px] font-semibold truncate">
+      <span className="block text-xs sm:text-[11px] font-semibold truncate">
         {event.time} {event.clientName}
       </span>
-      {!compact && <span className="block text-[10px] opacity-80 truncate">{event.orderId}</span>}
+      {!compact && <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>}
     </button>
   );
 
@@ -285,7 +285,7 @@ export default function CalendarPage() {
 
           <div className="grid grid-cols-7 gap-1 text-center mb-2">
             {miniWeekDays.map((d) => (
-              <div key={d} className="text-[11px] text-slate-500 font-semibold">
+              <div key={d} className="text-xs sm:text-[11px] text-slate-500 font-semibold">
                 {d}
               </div>
             ))}
@@ -343,7 +343,7 @@ export default function CalendarPage() {
               <span className="font-semibold text-slate-900">
                 Unassigned Bookings
               </span>
-              <span className="text-[11px] text-slate-500 font-normal">
+              <span className="text-xs sm:text-[11px] text-slate-500 font-normal">
                 {unassignedCount} pending assignment
               </span>
             </div>
@@ -363,14 +363,14 @@ export default function CalendarPage() {
               <span className="font-semibold text-slate-900">
                 Awaiting Crew Confirmation
               </span>
-              <span className="text-[11px] text-slate-500 font-normal">
+              <span className="text-xs sm:text-[11px] text-slate-500 font-normal">
                 {awaitingCrewCount} awaiting response
               </span>
             </div>
           </button>
 
           {unscheduledCount > 0 && (
-            <p className="text-[11px] text-slate-500 px-1">
+            <p className="text-xs sm:text-[11px] text-slate-500 px-1">
               {unscheduledCount} booking{unscheduledCount === 1 ? "" : "s"} have no delivery
               schedule and do not appear on the calendar.
             </p>
@@ -411,7 +411,7 @@ export default function CalendarPage() {
             </button>
             <button
               onClick={goToToday}
-              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
             >
               Today
             </button>
@@ -506,7 +506,7 @@ export default function CalendarPage() {
                         isToday ? "bg-blue-50/40" : ""
                       }`}
                     >
-                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      <span className="text-xs sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                         {col.name}
                       </span>
                       <span

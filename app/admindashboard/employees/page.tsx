@@ -583,7 +583,7 @@ function EmployeeModal({
 
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+          className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900"
         >
           {/* ================================== */}
           {/* PERSONAL INFORMATION */}
@@ -606,7 +606,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.firstName && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.firstName}
                   </p>
                 )}
@@ -637,7 +637,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.lastName && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.lastName}
                   </p>
                 )}
@@ -696,7 +696,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.address && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.address}
                   </p>
                 )}
@@ -714,7 +714,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contactNumber}
                   </p>
                 )}
@@ -733,7 +733,7 @@ function EmployeeModal({
                   className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.emailAddress}
                   </p>
                 )}
@@ -814,7 +814,7 @@ function EmployeeModal({
                   <option value="Helper">Helper</option>
                 </select>
                 {errors.role && (
-                  <p className="text-red-500 text-[11px] mt-1">{errors.role}</p>
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.role}</p>
                 )}
               </div>
               <div>
@@ -830,7 +830,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.availability ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.availability && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.availability}
                   </p>
                 )}
@@ -871,7 +871,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.licenseNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.licenseNumber}
                   </p>
                 )}
@@ -889,7 +889,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.driverLicenseType && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.driverLicenseType}
                   </p>
                 )}
@@ -906,7 +906,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseExpirationDate ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.licenseExpirationDate && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.licenseExpirationDate}
                   </p>
                 )}
@@ -925,7 +925,7 @@ function EmployeeModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.drivingExperience && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.drivingExperience}
                   </p>
                 )}
@@ -959,7 +959,7 @@ function EmployeeModal({
                   </option>
                 </select>
                 {errors.healthCondition && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.healthCondition}
                   </p>
                 )}
@@ -1066,7 +1066,7 @@ function EmployeeModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-700 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-xs sm:text-[10px] text-slate-500 mt-1">
                   Certificate upload is not connected yet.
                 </p>
               </div>
@@ -1093,7 +1093,7 @@ function EmployeeModal({
               onClick={handleClose}
               disabled={isSubmitting}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 disabled:opacity-50"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -1101,7 +1101,7 @@ function EmployeeModal({
               type="submit"
               disabled={isSubmitting}
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 hover:opacity-95 disabled:opacity-50"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 hover:opacity-95 disabled:opacity-50"
             >
               {isSubmitting && (
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1200,7 +1200,7 @@ function EmployeeDetailView({
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
@@ -1215,7 +1215,7 @@ function EmployeeDetailView({
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Employee Information Record
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            <p className="text-sm text-slate-600 mt-0.5">
               Complete employee profile and account management.
             </p>
           </div>
@@ -1228,7 +1228,7 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-default"
+                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-default"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Login Access
@@ -1237,7 +1237,7 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-not-allowed"
               >
                 <Loader2 className="w-4 h-4" />
                 Resend in {activationRemainingMinutes} min
@@ -1247,7 +1247,7 @@ function EmployeeDetailView({
                 type="button"
                 onClick={handleActivation}
                 disabled={isActivating || !employee.emailAddress}
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isActivating ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1266,7 +1266,7 @@ function EmployeeDetailView({
           {canEdit && (
             <button
               onClick={() => onEdit(employee)}
-              className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+              className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
             >
               <Edit3 className="w-4 h-4" />
               <span>Edit Employee</span>
@@ -1277,7 +1277,7 @@ function EmployeeDetailView({
           {isAdmin && (
             <button
               onClick={() => setShowDeleteModal(true)}
-              className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+              className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               <span>Delete</span>
@@ -1458,7 +1458,7 @@ function EmployeeDetailView({
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               Delete Employee Record
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6">
+            <p className="text-sm text-slate-600 mb-6">
               Are you sure you want to delete{" "}
               <strong className="text-slate-900">
                 {employee.firstName} {employee.lastName}
@@ -1469,14 +1469,14 @@ function EmployeeDetailView({
               <button
                 onClick={() => setShowDeleteModal(false)}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md flex items-center justify-center gap-2"
               >
                 {isDeleting && (
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1943,14 +1943,14 @@ export default function EmployeesPage() {
   // ==========================================
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Employee Directory
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+          <p className="text-sm text-slate-600 mt-1">
             Manage your staff listings, employee profiles, and directory
             records.
           </p>

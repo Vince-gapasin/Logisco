@@ -184,7 +184,7 @@ export default function LiveRouteMap({
           >
             <div className="px-1 py-0.5">
               <p className="text-xs font-bold text-slate-900">{selected.label}</p>
-              {selected.detail && <p className="mt-0.5 text-[11px] text-slate-600">{selected.detail}</p>}
+              {selected.detail && <p className="mt-0.5 text-xs sm:text-[11px] text-slate-600">{selected.detail}</p>}
             </div>
           </Popup>
         )}

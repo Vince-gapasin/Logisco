@@ -165,7 +165,7 @@ function SuccessModal({ isOpen, onClose, orderCode, trackingToken }: SuccessModa
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5">
+            <p className="text-xs sm:text-[11px] text-slate-500 mt-1.5">
               Share this with the client to let them follow the delivery.
             </p>
           </div>
@@ -394,7 +394,7 @@ function ViewOrderModal({
           </button>
         </div>
 
-        <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+        <div className="p-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
           
           {/* DYNAMIC STATUS BANNER */}
           <div className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${bannerBg}`}>
@@ -408,31 +408,31 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Company Name
                   </label>
                   <input readOnly value={cName} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Contact Person
                   </label>
                   <input readOnly value={cPerson} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Contact Number
                   </label>
                   <input readOnly value={cNum} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Email Address
                   </label>
                   <input readOnly value={cEmail} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Business Address
                   </label>
                   <input readOnly value={cAddr} className={inputClass} />
@@ -506,7 +506,7 @@ function ViewOrderModal({
                           </td>
                           <td className="p-2 text-center bg-slate-50">
                             <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              className={`px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${
                                 collected
                                   ? "bg-green-100 text-green-700 border border-green-200"
                                   : enRoute
@@ -612,7 +612,7 @@ function ViewOrderModal({
                           </td>
                           <td className="p-2 text-center bg-slate-50">
                             <span
-                              className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
+                              className={`px-2 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
                             >
                               {stopLabel}
                             </span>
@@ -631,25 +631,25 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Request Date
                   </label>
                   <input readOnly value={reqDate} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Delivery Schedule
                   </label>
                   <input readOnly value={delSchedule} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Product To Deliver
                   </label>
                   <input readOnly value={product} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Priority Level
                   </label>
                   <input readOnly value={priority} className={inputClass} />
@@ -663,25 +663,25 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Truck Plate No.
                   </label>
                   <input readOnly value={truck} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Driver
                   </label>
                   <input readOnly value={driver} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Helper #1
                   </label>
                   <input readOnly value={h1} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Helper #2
                   </label>
                   <input readOnly value={h2} className={inputClass} />
@@ -790,7 +790,7 @@ function ClientSearchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center max-h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center max-h-[90dvh]">
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
@@ -816,7 +816,7 @@ function ClientSearchModal({
             <div className="text-left font-bold text-slate-800 text-xs mb-1.5 ml-1 shrink-0">
               {searchTerm.trim() ? "Results" : "All Registered Clients"}
             </div>
-            <div className="border border-slate-300 rounded-lg shadow-sm overflow-y-auto max-h-[40vh] feed-scrollbar">
+            <div className="border border-slate-300 rounded-lg shadow-sm overflow-y-auto max-h-[40dvh] feed-scrollbar">
               <table className="w-full text-left border-collapse bg-white relative">
                 <tbody className="divide-y divide-slate-200">
                   {filteredClients.map((client, index) => (
@@ -1272,14 +1272,14 @@ function BookingModal({
 
           <form
             onSubmit={validateAndSubmit}
-            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+            className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900"
           >
             {/* Client Info */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
                 <span>1. Client Information</span>
                 {!preSelectedClientID && (
-                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                  <span className="text-xs sm:text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
                     Walk-in / On-Call
                   </span>
                 )}
@@ -2242,13 +2242,13 @@ function NewClientBookingModal({
 
           <form
             onSubmit={validateAndSubmit}
-            className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+            className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900"
           >
             {/* Client Info */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
                 <span>1. Client Information</span>
-                <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                <span className="text-xs sm:text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
                   New Client
                 </span>
               </div>
@@ -2934,7 +2934,7 @@ function KPIGrid({
             </div>
             <div>
               <p className="text-3xl font-extrabold text-slate-800">{count}</p>
-              <p className="text-gray-500 text-[11px] font-bold tracking-wider mt-0.5">
+              <p className="text-gray-500 text-xs sm:text-[11px] font-bold tracking-wider mt-0.5">
                 {tab.name.toUpperCase()}
               </p>
             </div>
@@ -3015,18 +3015,18 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span
-                        className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-[11px] font-bold whitespace-nowrap`}
+                        className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs sm:text-[11px] font-bold whitespace-nowrap`}
                       >
                         {displayStatus}
                       </span>
-                      <span className="text-gray-500 text-[11px] font-medium whitespace-nowrap">
+                      <span className="text-gray-500 text-xs sm:text-[11px] font-medium whitespace-nowrap">
                         {b.dateTime}
                       </span>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm mt-4 pt-4 border-t border-gray-200/80">
                     <div className="min-w-0">
-                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
                         Product
                       </span>
                       <span
@@ -3037,7 +3037,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
                         Driver
                       </span>
                       <span
@@ -3048,7 +3048,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <span className="text-gray-500 text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
                         Helper
                       </span>
                       <span
@@ -3600,7 +3600,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 relative">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+          <p className="text-sm text-slate-700 mt-1">
             Track pending bookings, in-transit deliveries, completed trips, and
             foul trips at a glance.
           </p>
@@ -3649,7 +3649,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Main Panel Scrollable Container */}
-              <div className="max-h-[68vh] overflow-y-auto pr-1 space-y-4 feed-scrollbar">
+              <div className="max-h-[68dvh] overflow-y-auto pr-1 space-y-4 feed-scrollbar">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                     Date
@@ -3680,7 +3680,7 @@ export default function AdminDashboardPage() {
                 {dashboardFilters.dateRange === "custom" && (
                   <div className="flex gap-3">
                     <div className="w-1/2">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                      <label className="block text-xs sm:text-[10px] font-semibold text-slate-500 mb-1">
                         Start Date
                       </label>
                       <input
@@ -3696,7 +3696,7 @@ export default function AdminDashboardPage() {
                       />
                     </div>
                     <div className="w-1/2">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                      <label className="block text-xs sm:text-[10px] font-semibold text-slate-500 mb-1">
                         End Date
                       </label>
                       <input

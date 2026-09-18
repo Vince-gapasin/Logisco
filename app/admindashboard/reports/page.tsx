@@ -219,7 +219,7 @@ function ViewOrderModal({
           </button>
         </div>
 
-        <div className="p-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+        <div className="p-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
           <div
             className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
               isPending && !isCrewConfirmed
@@ -267,31 +267,31 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Company Name
                   </label>
                   <input readOnly value={cName} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Contact Person
                   </label>
                   <input readOnly value={cPerson} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Contact Number
                   </label>
                   <input readOnly value={cNum} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Email Address
                   </label>
                   <input readOnly value={cEmail} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Business Address
                   </label>
                   <input readOnly value={cAddr} className={inputClass} />
@@ -420,7 +420,7 @@ function ViewOrderModal({
                           </td>
                           <td className="p-2 text-center bg-slate-50">
                             <span
-                              className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
+                              className={`px-2 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
                             >
                               {d.stopStatus || order.status}
                             </span>
@@ -439,25 +439,25 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Request Date
                   </label>
                   <input readOnly value={reqDate} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Delivery Schedule
                   </label>
                   <input readOnly value={delSchedule} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Product To Deliver
                   </label>
                   <input readOnly value={product} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Priority Level
                   </label>
                   <input readOnly value={priority} className={inputClass} />
@@ -471,25 +471,25 @@ function ViewOrderModal({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Truck Plate No.
                   </label>
                   <input readOnly value={truck} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Driver
                   </label>
                   <input readOnly value={driver} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Helper #1
                   </label>
                   <input readOnly value={h1} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                     Helper #2
                   </label>
                   <input readOnly value={h2} className={inputClass} />
@@ -1044,7 +1044,7 @@ export default function ReportsForecastingPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       <div className="space-y-6">
         {/* HEADER SECTION ALIGNED WITH THE BUTTON */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1052,7 +1052,7 @@ export default function ReportsForecastingPage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Reports Dashboard
             </h1>
-            <p className="text-xs sm:text-sm text-slate-700 mt-1">
+            <p className="text-sm text-slate-700 mt-1">
               View delivery performance reports and analyze historical records.
             </p>
           </div>

@@ -196,7 +196,7 @@ function LogMaintenanceModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
           {/* Section 1 */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">1. Record Details</div>
@@ -211,7 +211,7 @@ function LogMaintenanceModal({
                   onChange={handleInputChange as any}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.date ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.date && <p className="text-red-500 text-[11px] mt-1">{errors.date}</p>}
+                {errors.date && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.date}</p>}
               </div>
 
               <div>
@@ -250,7 +250,7 @@ function LogMaintenanceModal({
                     </div>
                   )}
                 </div>
-                {errors.truckID && <p className="text-red-500 text-[11px] mt-1">{errors.truckID}</p>}
+                {errors.truckID && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.truckID}</p>}
               </div>
 
               <div>
@@ -290,7 +290,7 @@ function LogMaintenanceModal({
                     </div>
                   )}
                 </div>
-                {errors.primaryMechanicID && <p className="text-red-500 text-[11px] mt-1">{errors.primaryMechanicID}</p>}
+                {errors.primaryMechanicID && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.primaryMechanicID}</p>}
               </div>
 
               <div>
@@ -338,7 +338,7 @@ function LogMaintenanceModal({
                     </div>
                   )}
                 </div>
-                {errors.additionalMechanicID && <p className="text-red-500 text-[11px] mt-1">{errors.additionalMechanicID}</p>}
+                {errors.additionalMechanicID && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.additionalMechanicID}</p>}
               </div>
             </div>
           </div>
@@ -357,7 +357,7 @@ function LogMaintenanceModal({
                   onChange={handleInputChange as any}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
-                {errors.issue && <p className="text-red-500 text-[11px] mt-1">{errors.issue}</p>}
+                {errors.issue && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.issue}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">Remarks (Optional)</label>
@@ -453,8 +453,8 @@ function LogMaintenanceModal({
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
-            <button type="button" onClick={handleCloseModal} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">Cancel</button>
-            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">{editData ? "Save Changes" : "Save Log"}</button>
+            <button type="button" onClick={handleCloseModal} style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">Cancel</button>
+            <button type="submit" style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }} className="w-full sm:w-40 py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 cursor-pointer">{editData ? "Save Changes" : "Save Log"}</button>
           </div>
         </form>
       </div>
@@ -473,7 +473,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer" title="Back to History Logs">
@@ -481,15 +481,15 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Maintenance Log Details</h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">Complete maintenance record and remarks.</p>
+            <p className="text-sm text-slate-600 mt-0.5">Complete maintenance record and remarks.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
+          <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
             <Edit3 className="w-4 h-4" /><span>Edit Log</span>
           </button>
-          <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer">
+          <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
             <Trash2 className="w-4 h-4" /><span>Delete</span>
           </button>
         </div>
@@ -578,10 +578,10 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto">
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-6 h-6" /></div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Maintenance Log</h3>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6">Are you sure you want to delete this record for <strong className="text-slate-900">{log.plateNumber}</strong>? This will permanently remove the log from the list.</p>
+            <p className="text-sm text-slate-600 mb-6">Are you sure you want to delete this record for <strong className="text-slate-900">{log.plateNumber}</strong>? This will permanently remove the log from the list.</p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer">Cancel</button>
-              <button onClick={() => { onDelete(log.id); setShowDeleteModal(false); }} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer">Confirm Delete</button>
+              <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer">Cancel</button>
+              <button onClick={() => { onDelete(log.id); setShowDeleteModal(false); }} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer">Confirm Delete</button>
             </div>
           </div>
         </div>
@@ -786,7 +786,7 @@ export default function MechanicHistoryLogsPage() {
   const paginatedLogs = sortedLogs.slice(startIndex, endIndex);
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       {selectedLog ? (
         <LogDetailView
           log={selectedLog}
@@ -799,7 +799,7 @@ export default function MechanicHistoryLogsPage() {
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
-              <p className="text-xs sm:text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
+              <p className="text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
             </div>
             <button onClick={() => { setEditingLog(null); setIsModalOpen(true); }} className="w-full sm:w-auto h-11 px-5 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap self-start sm:self-auto cursor-pointer">
               <Wrench className="w-4 h-4 shrink-0" /><span>Log Maintenance</span>
@@ -866,7 +866,7 @@ export default function MechanicHistoryLogsPage() {
                           </td>
                           <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
                             {log.statusBefore && log.statusBefore !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
+                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
                                 {log.statusBefore}
                               </div>
                             ) : (
@@ -875,7 +875,7 @@ export default function MechanicHistoryLogsPage() {
                           </td>
                           <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
                             {log.statusAfter && log.statusAfter !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
+                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
                                 {log.statusAfter}
                               </div>
                             ) : (

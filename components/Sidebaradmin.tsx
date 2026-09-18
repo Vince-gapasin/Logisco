@@ -99,7 +99,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <h2 className="font-bold text-base tracking-wide text-[#f0f4ff]">
             JOANNE PATERNO
           </h2>
-          <p className="text-[#8ba4d5] text-[11px] font-semibold tracking-[0.2em] mt-0.5">
+          <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
             ADMINISTRATOR
           </p>
         </div>

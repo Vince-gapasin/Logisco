@@ -89,7 +89,7 @@ export default function Sidebarcrew({ isOpen, setIsOpen }: SidebarProps) {
           <h2 className="font-bold text-base tracking-wide text-[#f0f4ff]">
             CREW PORTAL
           </h2>
-          <p className="text-[#8ba4d5] text-[11px] font-semibold tracking-[0.2em] mt-0.5">
+          <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
             DELIVERY CREW
           </p>
         </div>

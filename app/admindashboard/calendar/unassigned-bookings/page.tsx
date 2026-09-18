@@ -418,13 +418,13 @@ function AssignBookingModal({
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto flex flex-col max-h-[90vh] relative">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto flex flex-col max-h-[90dvh] relative">
         <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white tracking-wide">
               Assign Booking: {booking.orderId}
             </h2>
-            <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+            <span className="text-xs sm:text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
               Unassigned
             </span>
           </div>
@@ -446,7 +446,7 @@ function AssignBookingModal({
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -454,7 +454,7 @@ function AssignBookingModal({
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -462,11 +462,11 @@ function AssignBookingModal({
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
-                  className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-wider ${
+                  className={`inline-flex px-2 py-0.5 rounded font-bold text-xs sm:text-[10px] uppercase tracking-wider ${
                     booking.priorityLevel === "High Priority" ||
                     booking.priorityLevel === "Urgent"
                       ? "bg-red-100 text-red-700"
@@ -479,7 +479,7 @@ function AssignBookingModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status || "Created"} />
@@ -691,21 +691,21 @@ function AssignBookingModal({
                       <td className="p-2 text-center align-middle">
                         {pickupToDelete === idx ? (
                           <div className="flex flex-col gap-1.5 items-center bg-red-50 p-2 rounded-lg border border-red-100 min-w-35">
-                            <span className="text-[10px] font-semibold text-red-700 text-center leading-tight">
+                            <span className="text-xs sm:text-[10px] font-semibold text-red-700 text-center leading-tight">
                               Are you sure you want to delete this address?
                             </span>
                             <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={() => confirmRemovePickup(idx)}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-medium transition-colors cursor-pointer"
+                                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
                               >
                                 Confirm
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setPickupToDelete(null)}
-                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
                               >
                                 Cancel
                               </button>
@@ -872,21 +872,21 @@ function AssignBookingModal({
                       <td className="p-2 text-center align-middle">
                         {deliveryToDelete === idx ? (
                           <div className="flex flex-col gap-1.5 items-center bg-red-50 p-2 rounded-lg border border-red-100 min-w-35">
-                            <span className="text-[10px] font-semibold text-red-700 text-center leading-tight">
+                            <span className="text-xs sm:text-[10px] font-semibold text-red-700 text-center leading-tight">
                               Are you sure you want to delete this address?
                             </span>
                             <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={() => confirmRemoveDelivery(idx)}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-medium transition-colors cursor-pointer"
+                                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
                               >
                                 Confirm
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setDeliveryToDelete(null)}
-                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-[10px] font-medium transition-colors cursor-pointer"
+                                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
                               >
                                 Cancel
                               </button>
@@ -1399,7 +1399,7 @@ export default function UnassignedBookingsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       {/* ========================================== */}
       {/* HEADER */}
       {/* ========================================== */}
@@ -1417,7 +1417,7 @@ export default function UnassignedBookingsPage() {
               <Inbox className="w-6 h-6 text-orange-500" />
               Unassigned Bookings
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            <p className="text-sm text-slate-600 mt-1">
               Review and assign pending delivery schedules to available fleets.
             </p>
           </div>

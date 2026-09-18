@@ -83,20 +83,20 @@ const renderStopStatus = (status?: string) => {
 
   if (s === "in progress") {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
         <Clock className="w-3 h-3" /> {currentStatus}
       </span>
     );
   } else if (s.includes("deliver") || s === "completed" || s === "complete") {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
         <CheckCircle2 className="w-3 h-3" /> {currentStatus}
       </span>
     );
   } else {
     // Treat as Not Completed / Pending / No
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600 border border-red-200">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600 border border-red-200">
         <X className="w-3 h-3" />{" "}
         {currentStatus === "Pending" ? "No" : currentStatus}
       </span>
@@ -339,7 +339,7 @@ function BookingDetailsModal({
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -347,7 +347,7 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -355,11 +355,11 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
-                  className={`inline-flex px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-wider ${
+                  className={`inline-flex px-2 py-0.5 rounded font-bold text-xs sm:text-[10px] uppercase tracking-wider ${
                     booking.priorityLevel === "High Priority" ||
                     booking.priorityLevel === "Urgent"
                       ? "bg-red-100 text-red-700"
@@ -372,7 +372,7 @@ function BookingDetailsModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status} />
@@ -420,7 +420,7 @@ function BookingDetailsModal({
                       {option.title}
                     </h4>
                     <p
-                      className={`text-[10px] leading-snug ${isSelected ? "text-blue-700/80" : "text-slate-500"}`}
+                      className={`text-xs sm:text-[10px] leading-snug ${isSelected ? "text-blue-700/80" : "text-slate-500"}`}
                     >
                       {option.description}
                     </p>
@@ -1082,7 +1082,7 @@ function BookingDetailsModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                   Truck Plate No.
                 </label>
                 <input
@@ -1092,7 +1092,7 @@ function BookingDetailsModal({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                   Driver
                 </label>
                 <input
@@ -1102,7 +1102,7 @@ function BookingDetailsModal({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                   Helper #1
                 </label>
                 <input
@@ -1112,7 +1112,7 @@ function BookingDetailsModal({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
                   Helper #2
                 </label>
                 <input
@@ -1310,7 +1310,7 @@ export default function FoulTripFeedPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       
       {/* CENTERED SUCCESS NOTIFICATION TOAST */}
       {showSuccessToast && (
@@ -1343,7 +1343,7 @@ export default function FoulTripFeedPage() {
               <AlertTriangle className="w-6 h-6 text-red-500" />
               Foul Trip Feed
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            <p className="text-sm text-slate-600 mt-1">
               Inspect cancelled or failed trip exceptions and incidents.
             </p>
           </div>
@@ -1452,7 +1452,7 @@ export default function FoulTripFeedPage() {
                     {/* STATUS COLUMN */}
                     <td className="py-4 pl-4 pr-6 sm:pr-8 align-top">
                       <span
-                        className={`inline-flex items-center justify-center px-2.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(
+                        className={`inline-flex items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(
                           booking.confirmationStatus,
                         )}`}
                       >

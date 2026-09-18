@@ -352,7 +352,7 @@ export function ClientModal({
 
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-6 max-h-[80vh] overflow-y-auto text-sm text-slate-900"
+          className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900"
         >
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
@@ -372,7 +372,7 @@ export function ClientModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
-                  <p className="text-red-500 text-[11px] mt-1">{errors.name}</p>
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
                 )}
               </div>
               <div>
@@ -388,7 +388,7 @@ export function ClientModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactName && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contactName}
                   </p>
                 )}
@@ -406,7 +406,7 @@ export function ClientModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contactNumber}
                   </p>
                 )}
@@ -424,7 +424,7 @@ export function ClientModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.emailAddress}
                   </p>
                 )}
@@ -442,7 +442,7 @@ export function ClientModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.businessAddress}
                   </p>
                 )}
@@ -516,7 +516,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errName ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errName && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errName}
                             </p>
                           )}
@@ -536,7 +536,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errAddr ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errAddr && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errAddr}
                             </p>
                           )}
@@ -556,7 +556,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errPerson ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errPerson && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errPerson}
                             </p>
                           )}
@@ -576,7 +576,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
-                            <p className="text-red-500 text-[10px] mt-0.5 text-center">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
                               {errNum}
                             </p>
                           )}
@@ -592,7 +592,7 @@ export function ClientModal({
                               }}
                             >
                               <span
-                                className="text-[10px] font-semibold leading-tight"
+                                className="text-xs sm:text-[10px] font-semibold leading-tight"
                                 style={{ color: "oklch(50% 0.237 25.331)" }}
                               >
                                 Are you sure you want to delete?
@@ -605,7 +605,7 @@ export function ClientModal({
                                     backgroundColor:
                                       "oklch(63.7% 0.237 25.331)",
                                   }}
-                                  className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90 transition-colors"
+                                  className="px-2 py-0.5 text-white rounded text-xs sm:text-[10px] font-bold hover:opacity-90 transition-colors"
                                 >
                                   Yes
                                 </button>
@@ -617,7 +617,7 @@ export function ClientModal({
                                       [confirmKey]: false,
                                     }))
                                   }
-                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold hover:bg-slate-300 transition-colors"
+                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-xs sm:text-[10px] font-bold hover:bg-slate-300 transition-colors"
                                 >
                                   No
                                 </button>
@@ -719,7 +719,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errBranch ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errBranch && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errBranch}
                             </p>
                           )}
@@ -739,7 +739,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errAddr ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errAddr && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errAddr}
                             </p>
                           )}
@@ -759,7 +759,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 focus:ring-0 focus:outline-none ${errPerson ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errPerson && (
-                            <p className="text-red-500 text-[10px] mt-0.5">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5">
                               {errPerson}
                             </p>
                           )}
@@ -779,7 +779,7 @@ export function ClientModal({
                             className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
-                            <p className="text-red-500 text-[10px] mt-0.5 text-center">
+                            <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
                               {errNum}
                             </p>
                           )}
@@ -795,7 +795,7 @@ export function ClientModal({
                               }}
                             >
                               <span
-                                className="text-[10px] font-semibold leading-tight"
+                                className="text-xs sm:text-[10px] font-semibold leading-tight"
                                 style={{ color: "oklch(50% 0.237 25.331)" }}
                               >
                                 Are you sure you want to delete?
@@ -808,7 +808,7 @@ export function ClientModal({
                                     backgroundColor:
                                       "oklch(63.7% 0.237 25.331)",
                                   }}
-                                  className="px-2 py-0.5 text-white rounded text-[10px] font-bold hover:opacity-90 transition-colors"
+                                  className="px-2 py-0.5 text-white rounded text-xs sm:text-[10px] font-bold hover:opacity-90 transition-colors"
                                 >
                                   Yes
                                 </button>
@@ -820,7 +820,7 @@ export function ClientModal({
                                       [confirmKey]: false,
                                     }))
                                   }
-                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold hover:bg-slate-300 transition-colors"
+                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-xs sm:text-[10px] font-bold hover:bg-slate-300 transition-colors"
                                 >
                                   No
                                 </button>
@@ -861,14 +861,14 @@ export function ClientModal({
               type="button"
               onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               {editData ? "Save Changes" : "Add Client"}
             </button>
@@ -1023,7 +1023,7 @@ export function PartnerModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
-                  <p className="text-red-500 text-[11px] mt-1">{errors.name}</p>
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
                 )}
               </div>
 
@@ -1081,7 +1081,7 @@ export function PartnerModal({
                   )}
                 </div>
                 {errors.contractType && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contractType}
                   </p>
                 )}
@@ -1100,7 +1100,7 @@ export function PartnerModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactPerson && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contactPerson}
                   </p>
                 )}
@@ -1119,7 +1119,7 @@ export function PartnerModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.contactNumber}
                   </p>
                 )}
@@ -1138,7 +1138,7 @@ export function PartnerModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.emailAddress}
                   </p>
                 )}
@@ -1157,7 +1157,7 @@ export function PartnerModal({
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
-                  <p className="text-red-500 text-[11px] mt-1">
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.businessAddress}
                   </p>
                 )}
@@ -1170,14 +1170,14 @@ export function PartnerModal({
               type="button"
               onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
             >
               {editData ? "Save Changes" : "Add partner"}
             </button>
@@ -1215,7 +1215,7 @@ function RecordDetailView({
     tabType === "Partners";
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen animate-fade-in">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -1229,7 +1229,7 @@ function RecordDetailView({
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               {tabType.slice(0, -1)} Information Record
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            <p className="text-sm text-slate-600 mt-0.5">
               Complete profile retrieved directly from database.
             </p>
           </div>
@@ -1238,14 +1238,14 @@ function RecordDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={() => onEdit(record)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
           >
             <Edit3 className="w-4 h-4" />
             <span>Edit Record</span>
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors"
+            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete</span>
@@ -1458,7 +1458,7 @@ function RecordDetailView({
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               Delete Record
             </h3>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6">
+            <p className="text-sm text-slate-600 mb-6">
               Are you sure you want to delete{" "}
               <strong className="text-slate-900">{record.name}</strong>? This
               will permanently remove the record from the database.
@@ -1466,7 +1466,7 @@ function RecordDetailView({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -1475,7 +1475,7 @@ function RecordDetailView({
                   onDelete(record.id);
                   setShowDeleteModal(false);
                 }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors shadow-md"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md"
               >
                 Confirm Delete
               </button>
@@ -1901,13 +1901,13 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Clients & Partners
           </h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+          <p className="text-sm text-slate-700 mt-1">
             Manage your client directories and partner relationships.
           </p>
         </div>
