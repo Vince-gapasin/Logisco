@@ -10,24 +10,19 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const missing = [
-  !supabaseUrl && "NEXT_PUBLIC_SUPABASE_URL",
-  !supabaseAnonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-].filter(Boolean);
-
-if (missing.length > 0) {
+function required(value: string | undefined, name: string): string {
+  if (value) return value;
   throw new Error(
-    `Missing Supabase environment variable${missing.length > 1 ? "s" : ""}: ` +
-      `${missing.join(" and ")}. ` +
-      "Set it in the deployment environment as well as .env - it is needed at " +
-      "build time, not only at runtime, because route handlers import this " +
-      "module and Next evaluates them while collecting page data.",
+    `Missing Supabase environment variable: ${name}. Set it in the deployment ` +
+      "environment as well as .env - it is needed at build time, not only at " +
+      "runtime, because route handlers import this module and Next evaluates " +
+      "them while collecting page data.",
   );
 }
 
 export const supabaseAuth = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
+  required(supabaseUrl, "NEXT_PUBLIC_SUPABASE_URL"),
+  required(supabaseAnonKey, "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   {
     auth: {
       persistSession: false,
