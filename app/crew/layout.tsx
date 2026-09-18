@@ -17,7 +17,7 @@ export default function CrewLayout({
 
   return (
     <ProtectedPortal>
-      <div className="relative flex h-screen w-full overflow-hidden bg-slate-50 font-sans">
+      <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans">
         <Sidebarcrew isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
         <div className="flex w-full flex-1 flex-col overflow-hidden">

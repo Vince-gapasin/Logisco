@@ -167,7 +167,7 @@ export default function DeliveryHistoryPage() {
   // ==========================================
   if (selectedDelivery) {
     return (
-      <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans animate-fade-in">
+      <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans animate-fade-in">
         {/* Header with Back button and Report Button (Absolute positioning for mobile) */}
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-3 pr-24 sm:pr-0">
@@ -386,7 +386,7 @@ export default function DeliveryHistoryPage() {
         ======================================================== */}
         {showReportModal && (
           <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="text-lg font-bold text-slate-900">Report an Issue</h3>
                 <button onClick={() => setShowReportModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -468,13 +468,13 @@ export default function DeliveryHistoryPage() {
                   <div className="flex items-center gap-3 pt-2">
                     <button
                       onClick={() => setShowReportModal(false)}
-                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+                      className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSendReport}
-                      className="flex-1 py-2.5 bg-red-600 hover:bg-black text-white font-semibold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+                      className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-black text-white font-semibold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
                     >
                       Submit Report
                     </button>
@@ -492,7 +492,7 @@ export default function DeliveryHistoryPage() {
   // DELIVERY HISTORY VIEW (LIST)
   // ==========================================
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans relative">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
@@ -560,7 +560,7 @@ export default function DeliveryHistoryPage() {
                           <Eye className="w-3.5 h-3.5 shrink-0" />
                           <span>Click to View</span>
                         </span>
-                        <span className="inline-flex items-center justify-center px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">
+                        <span className="inline-flex items-center justify-center px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 whitespace-nowrap">
                           {delivery.status}
                         </span>
                       </div>

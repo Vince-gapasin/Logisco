@@ -17,7 +17,7 @@ export default function MechanicLayout({
 
   return (
     <ProtectedPortal>
-      <div className="relative flex h-screen w-full overflow-hidden bg-slate-50 font-sans">
+      <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans">
         <SidebarMechanic
           isOpen={isSidebarOpen}
           setIsOpen={setIsSidebarOpen}

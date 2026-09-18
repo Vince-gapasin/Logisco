@@ -230,7 +230,7 @@ export default function CrewCalendarPage() {
             : "bg-orange-100 border-orange-300 text-orange-900 hover:bg-orange-200"
         }`}
       >
-        <span className="block text-[11px] font-semibold truncate">
+        <span className="block text-xs font-semibold truncate">
           {delivery.startTime} {delivery.clientName}
         </span>
       </button>
@@ -295,7 +295,7 @@ export default function CrewCalendarPage() {
 
           <div className="grid grid-cols-7 gap-1 text-center mb-2">
             {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-              <div key={d} className="text-[11px] text-slate-500 font-semibold">
+              <div key={d} className="text-xs text-slate-500 font-semibold py-1">
                 {d}
               </div>
             ))}
@@ -310,11 +310,11 @@ export default function CrewCalendarPage() {
               const hasDeliveries = cellIso ? deliveriesByDate.has(cellIso) : false;
 
               return (
-                <div key={idx} className="flex justify-center items-center h-8">
+                <div key={idx} className="flex justify-center items-center h-11 sm:h-8">
                   <button
                     onClick={() => cell.isCurrentMonth && setSelectedDay(cell.day)}
                     disabled={!cell.isCurrentMonth}
-                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all font-semibold relative ${
+                    className={`w-11 h-11 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-all font-semibold relative ${
                       !cell.isCurrentMonth
                         ? "text-slate-300 cursor-not-allowed"
                         : "text-slate-700 hover:bg-slate-100 cursor-pointer"
@@ -324,7 +324,7 @@ export default function CrewCalendarPage() {
                   >
                     {cell.day}
                     {hasDeliveries && !isSelected && (
-                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-orange-500" />
+                      <span className="absolute bottom-1 sm:bottom-0 left-1/2 -translate-x-1/2 h-1.5 w-1.5 sm:h-1 sm:w-1 rounded-full bg-orange-500" />
                     )}
                   </button>
                 </div>
@@ -337,7 +337,7 @@ export default function CrewCalendarPage() {
         <div className="mb-6 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 text-slate-800">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-bold text-slate-700">Selected Date Stats</span>
-            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
               {completedDeliveries}/{totalDeliveries} Completed
             </span>
           </div>
@@ -349,7 +349,7 @@ export default function CrewCalendarPage() {
           <div className="px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Scheduled Deliveries</div>
 
           {loadError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-[11px]">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2.5 rounded-xl text-xs">
               {loadError}
             </div>
           )}
@@ -374,7 +374,7 @@ export default function CrewCalendarPage() {
                 </div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-xs leading-tight tracking-wide">{delivery.clientName}</h4>
-                  <p className="text-slate-300 text-[11px] mt-1 font-medium">{delivery.timeWindow}</p>
+                  <p className="text-slate-300 text-xs mt-1 font-medium">{delivery.timeWindow}</p>
                 </div>
               </div>
             ))
@@ -478,7 +478,7 @@ export default function CrewCalendarPage() {
                       col.iso === selectedDateString ? "bg-blue-50/40" : ""
                     }`}
                   >
-                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                       {col.name}
                     </span>
                     <span

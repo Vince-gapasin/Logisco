@@ -245,7 +245,7 @@ const formatDispatchNote = (note?: string, delivery?: DeliveryRecord) => {
 
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           return (
-            <div key={idx} className="font-bold text-emerald-800 text-[11px] tracking-wider uppercase mt-4 mb-2 border-b border-emerald-200/50 pb-1 first:mt-0">
+            <div key={idx} className="font-bold text-emerald-800 text-xs tracking-wider uppercase mt-4 mb-2 border-b border-emerald-200/50 pb-1 first:mt-0">
               {trimmed.replace(/\[|\]/g, '')}
             </div>
           );
@@ -827,7 +827,7 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowDetailsModal(false)}
-          className="w-full sm:w-40 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Close Details
         </button>
@@ -839,13 +839,13 @@ export default function CrewDashboardPage({
         <>
           <button
             onClick={() => setShowDeclineConfirmModal(true)}
-            className="w-full sm:w-40 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
           >
             Decline
           </button>
           <button
             onClick={() => setShowAcceptConfirmModal(true)}
-            className="w-full sm:w-40 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
             Accept
           </button>
@@ -857,7 +857,7 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowStartConfirmModal(true)}
-          className="w-full sm:w-48 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Start Delivery
         </button>
@@ -877,7 +877,7 @@ export default function CrewDashboardPage({
           setShowDetailsModal(false);
           setViewMode("update-status");
         }}
-        className="w-full sm:w-48 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
       >
         Update Status
       </button>
@@ -887,7 +887,7 @@ export default function CrewDashboardPage({
   return (
     <>
       {viewMode === "update-status" && selectedDelivery ? (
-        <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans relative">
+        <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">
             <div className="flex items-center gap-3">
               <button onClick={() => setViewMode("list")} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
@@ -976,7 +976,7 @@ export default function CrewDashboardPage({
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
                         <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
                         <span className="text-slate-700 truncate">{pickup.address}</span>
@@ -1011,7 +1011,7 @@ export default function CrewDashboardPage({
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
                         <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
                         <span className="text-slate-700 truncate">{deliv.address}</span>
@@ -1109,7 +1109,7 @@ export default function CrewDashboardPage({
                     setViewMode("list");
                     setSelectedDelivery(null);
                   }}
-                  className="w-full sm:w-48 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                  className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
                 >
                   Back to Deliveries
                 </button>
@@ -1117,7 +1117,7 @@ export default function CrewDashboardPage({
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
                   disabled={isSubmittingResponse}
-                  className="w-full sm:w-64 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
+                  className="w-full sm:w-64 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
@@ -1129,7 +1129,7 @@ export default function CrewDashboardPage({
         </div>
       ) : (
         // ======================= LIST VIEW =======================
-        <div className="p-3 sm:p-5 md:p-6 w-full max-w-7xl mx-auto bg-slate-50 min-h-screen font-sans relative">
+        <div className="p-3 sm:p-5 md:p-6 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 pl-1 lg:pl-0">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Crew Delivery Dashboard</h1>
@@ -1179,7 +1179,7 @@ export default function CrewDashboardPage({
                         <td className="py-3 pr-4 sm:pr-8 md:pr-16 pl-2 align-top w-1/3">
                           <div className="flex flex-col items-end justify-start gap-1 h-full">
                             <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700 transition-colors text-right whitespace-nowrap"><Eye className="w-3.5 h-3.5 shrink-0" /><span>Click to View</span></div>
-                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${getStatusBadgeClass(delivery.status)}`}>
+                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${getStatusBadgeClass(delivery.status)}`}>
                               {getDisplayStatus(delivery)}
                             </span>
                           </div>
@@ -1208,13 +1208,13 @@ export default function CrewDashboardPage({
       {/* 1. DELIVERY INFORMATION MODAL POPUP */}
       {showDetailsModal && selectedDelivery && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto max-h-[80vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto max-h-[85dvh] flex flex-col">
             <div className="flex items-center justify-between px-3 sm:px-6 py-4 bg-[#000c31] text-white border-b border-slate-800 shrink-0 gap-2">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0"><Truck className="w-4 h-4 text-white" /></div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xs sm:text-sm md:text-lg font-bold text-white tracking-tight truncate leading-tight">Delivery Information</h2>
-                  <p className="text-slate-300 text-[10px] sm:text-xs font-semibold mt-0.5 truncate">Order ID: <span className="font-semibold text-white">{selectedDelivery.bookingId}</span></p>
+                  <p className="text-slate-300 text-xs sm:text-xs font-semibold mt-0.5 truncate">Order ID: <span className="font-semibold text-white">{selectedDelivery.bookingId}</span></p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -1279,7 +1279,7 @@ export default function CrewDashboardPage({
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Pickup Address #{idx + 1}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
                         <span className="text-base font-bold text-slate-900 truncate">{pickup.warehouse}</span>
                         <span className="text-slate-700 truncate">{pickup.address}</span>
@@ -1314,7 +1314,7 @@ export default function CrewDashboardPage({
                       <div key={idx} className={`p-4 rounded-xl border transition-colors flex flex-col gap-2 text-sm ${isNodeCompleted ? 'border-emerald-200 bg-emerald-50/30' : isNodeAborted ? 'border-red-300 bg-red-50/30' : isNodeOngoing ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className={`font-bold truncate ${isNodeCompleted ? 'text-emerald-700' : isNodeAborted ? 'text-red-700' : 'text-blue-700'}`}>Delivery Address #{idx + 1}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wider shrink-0 ${getStatusBadgeClass(status)}`}>{status}</span>
                         </div>
                         <span className="text-base font-bold text-slate-900 truncate">{deliv.branch}</span>
                         <span className="text-slate-700 truncate">{deliv.address}</span>
@@ -1422,8 +1422,8 @@ export default function CrewDashboardPage({
               {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>
@@ -1442,8 +1442,8 @@ export default function CrewDashboardPage({
               <div><label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Issues (If any)</label><textarea value={vehicleIssues} onChange={(e) => setVehicleIssues(e.target.value)} placeholder="Any unusual sounds, flat tires, etc." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-20"></textarea></div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={completeTripWorkflow} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
-              <button onClick={handleSendRemarks} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
+              <button onClick={completeTripWorkflow} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
+              <button onClick={handleSendRemarks} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
                 {showRemarksSuccess ? "Saved!" : "Save Report"}
               </button>
             </div>
@@ -1462,14 +1462,14 @@ export default function CrewDashboardPage({
               {showStartConfirmModal ? "Open tracking and update the status of this delivery?" : "Confirm this delivery assignment?"}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
+              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
               <button onClick={() => {
                   if (showStartConfirmModal) {
                     handleStartDelivery();
                   } else {
                     handleDispatchResponse("accept");
                   }
-                }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
+                }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
               >
                 {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : isSubmittingResponse && showStartConfirmModal ? "Starting..." : "Yes"}
               </button>
@@ -1486,8 +1486,8 @@ export default function CrewDashboardPage({
             <p className="text-xs sm:text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
             <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required></textarea>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); }} disabled={isSubmittingResponse} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim()} className="flex-1 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
+              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim()} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
                 {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
               </button>
             </div>
@@ -1520,8 +1520,8 @@ export default function CrewDashboardPage({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
-              <button onClick={handleSendEmergencyAlert} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
+              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+              <button onClick={handleSendEmergencyAlert} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
                 {emergencySubmitted ? "Alert Sent!" : "Send Alert"}
               </button>
             </div>
