@@ -6,6 +6,17 @@
 // fall back to the 0/0 placeholder that BranchStops has always used.
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN;
+
+// Said once, at startup, rather than swallowed on every call. Without this a
+// missing token is invisible: bookings are saved with the 0/0 placeholder and
+// nothing anywhere says why the stops will not plot.
+if (!MAPBOX_TOKEN) {
+  console.warn(
+    "[geocoding] NEXT_PUBLIC_MAPBOX_TOKEN is not set. Stop addresses will not " +
+      "be resolved to coordinates and will be saved as 0/0, so they will not " +
+      "appear on any map.",
+  );
+}
 const GEOCODE_URL = "https://api.mapbox.com/search/geocode/v6/forward";
 const REQUEST_TIMEOUT_MS = 5000;
 
