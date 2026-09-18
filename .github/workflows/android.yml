@@ -24,7 +24,7 @@ jobs:
 
       # Gradle 8.14.3 does not support Java 25. Android Studio bundles its own
       # JDK 21; CI has to ask for one.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -34,13 +34,30 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: android-actions/setup-android@v3
-
-      # compileSdkVersion 36 is recent enough that the runner image may not
-      # carry it. Build tools are left to AGP 8.13, which picks its own
-      # default - pinning a version here would be a guess at what it wants.
+      # No setup-android action here. It decided the runner's preinstalled
+      # sdkmanager was the wrong version, downloaded a newer one, and then ran
+      # "sdkmanager --licenses" with nothing on stdin to answer its "Accept?
+      # (y/N)" prompt - so it printed every license into the log and died.
+      #
+      # The runner already ships an Android SDK with its licenses accepted.
+      # compileSdkVersion 36 is recent enough that the image may not carry it,
+      # so it is installed explicitly, with "yes" answering any prompt.
+      # Licence output is discarded: it is thousands of lines.
+      #
+      # Build tools are left to AGP 8.13, which picks its own default -
+      # pinning a version here would be a guess at what it wants.
       - name: Install the compile SDK
-        run: sdkmanager --install "platforms;android-36" "platform-tools"
+        run: |
+          set -o pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "Using $SDKMANAGER"
+          # sdkmanager exits non-zero when yes(1) closes the pipe, which is not
+          # a failure; the install that follows is what has to succeed.
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          yes | "$SDKMANAGER" "platforms;android-36" "platform-tools" | grep -v "^[" || true
+          test -d "$ANDROID_HOME/platforms/android-36" || {
+            echo "::error::platforms/android-36 was not installed"; exit 1;
+          }
 
       - run: npm ci
 
