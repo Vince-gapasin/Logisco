@@ -219,11 +219,11 @@ function ClientTrackerView() {
           <div className="bg-white px-4 sm:px-6 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10">
             <div className="flex items-center gap-2">
               <MapPin className={`w-4 h-4 text-blue-600 ${data.isCompleted ? "" : "animate-pulse"}`} />
-              <span className="text-xs sm:text-sm font-bold text-slate-900">
+              <span className="text-sm font-bold text-slate-900">
                 Live Route Tracking — {data.orderNumber}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span className="font-semibold text-slate-600">
                 Status: <strong className="text-blue-600">{data.deliveryStatus}</strong>
               </span>
@@ -254,7 +254,7 @@ function ClientTrackerView() {
           <div className="w-full">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{headline}</h1>
             {!data.isCompleted && data.nextStopName && (
-              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              <p className="text-sm text-slate-600 mt-1">
                 Next stop: {data.nextStopName}
                 {data.liveEta ? ` - ${data.liveEta.distanceKm} km away` : ""}
               </p>

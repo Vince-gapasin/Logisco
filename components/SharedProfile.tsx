@@ -175,7 +175,7 @@ export default function SharedProfile() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Profile
           </h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+          <p className="text-sm text-slate-700 mt-1">
             Manage your account credentials, security settings, and profile info.
           </p>
         </div>

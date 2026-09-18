@@ -117,7 +117,7 @@ export default function FleetLiveTracking() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Fleet Live Tracking
           </h1>
-          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+          <p className="text-sm text-slate-700 mt-1">
             Monitor active deliveries and track the real-time location and
             status of your fleet.
           </p>

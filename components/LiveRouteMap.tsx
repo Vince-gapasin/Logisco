@@ -44,7 +44,7 @@ const FALLBACK_CENTER = { latitude: 14.5995, longitude: 120.9842, zoom: 10 };
 function Placeholder({ message }: { message: string }) {
   return (
     <div className="flex h-full w-full items-center justify-center bg-slate-100 px-6 text-center">
-      <p className="text-xs sm:text-sm text-slate-600 max-w-sm">{message}</p>
+      <p className="text-sm text-slate-600 max-w-sm">{message}</p>
     </div>
   );
 }

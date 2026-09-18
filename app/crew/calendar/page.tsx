@@ -406,7 +406,7 @@ export default function CrewCalendarPage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => selectDate(new Date())}
-              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+              className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
             >
               Today
             </button>

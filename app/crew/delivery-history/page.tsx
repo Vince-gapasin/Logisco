@@ -182,14 +182,14 @@ export default function DeliveryHistoryPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 Delivery Information Record
               </h1>
-              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+              <p className="text-sm text-slate-600 mt-0.5">
                 Complete profile and history details for booking {selectedDelivery.bookingId}.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowReportModal(true)}
-            className="absolute top-0 right-0 sm:static px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            className="absolute top-0 right-0 sm:static px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
           >
             <AlertTriangle className="w-4 h-4" />
             <span>Report</span>
@@ -499,7 +499,7 @@ export default function DeliveryHistoryPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Delivery History
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+          <p className="text-sm text-slate-600 mt-1">
             View all past delivery history records.
           </p>
         </div>
