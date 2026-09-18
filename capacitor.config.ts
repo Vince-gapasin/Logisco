@@ -8,11 +8,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // talking to Supabase - so nothing ever wrote out/, and the index.html sitting
 // there is zero bytes. The app installed and opened to a blank screen.
 //
-// Set CAPACITOR_SERVER_URL to the deployed site (for example
-// https://logisco.vercel.app) before running `npx cap sync`. Without it the
-// shell falls back to capacitor-shell/, a single page that says so instead
-// of showing nothing.
-const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim();
+// The deployed site is the default, so `npx cap sync` does the right thing
+// on a fresh clone with nothing configured. Set CAPACITOR_SERVER_URL to point
+// a build somewhere else - a preview deployment, or a machine on the LAN when
+// testing against a local dev server (use the machine IP, not localhost: on a
+// phone or emulator localhost is the device itself).
+const DEPLOYED_URL = "https://logisco-system.vercel.app";
+const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim() || DEPLOYED_URL;
 
 const config: CapacitorConfig = {
   appId: "com.logisco.app",
