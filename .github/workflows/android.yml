@@ -1,0 +1,68 @@
+name: Android APK
+
+# The APK is a shell that loads the deployed site at runtime - it does not
+# bundle the app. A change to a booking screen produces a byte-identical APK,
+# so this builds only when something that genuinely affects it changes, plus
+# on demand from the Actions tab (Run workflow).
+on:
+  push:
+    branches: [main, monorepo-copy]
+    paths:
+      - "android/**"
+      - "capacitor.config.ts"
+      - "capacitor-shell/**"
+      - "package.json"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Gradle 8.14.3 does not support Java 25. Android Studio bundles its own
+      # JDK 21; CI has to ask for one.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: android-actions/setup-android@v3
+
+      # compileSdkVersion 36 is recent enough that the runner image may not
+      # carry it. Build tools are left to AGP 8.13, which picks its own
+      # default - pinning a version here would be a guess at what it wants.
+      - name: Install the compile SDK
+        run: sdkmanager --install "platforms;android-36" "platform-tools"
+
+      - run: npm ci
+
+      # Writes android/app/src/main/assets/capacitor.config.json with the
+      # server URL from capacitor.config.ts. Both that file and the copied web
+      # assets are gitignored, so this step is what puts them in place.
+      - name: Sync the native project
+        run: npx cap sync android
+
+      - name: Show what the APK will point at
+        run: cat android/app/src/main/assets/capacitor.config.json
+
+      - name: Build
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      # Debug-signed, so it installs after allowing "install unknown apps" on
+      # the phone. A Play Store build needs a release keystore, which does not
+      # belong in a repository - set that up when you are ready to publish.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logisco-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          if-no-files-found: error
