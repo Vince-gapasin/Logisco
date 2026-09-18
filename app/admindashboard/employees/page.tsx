@@ -2048,14 +2048,14 @@ export default function EmployeesPage() {
 
         {/* TABLE */}
         <div className="overflow-x-auto min-h-135">
-          <table className="w-full text-left border-collapse min-w-200 table-fixed">
+          <table className="w-full text-left border-collapse md:min-w-200 table-fixed">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6 w-[25%]">Name</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[15%]">Role</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[20%]">Address</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[20%]">Contact</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[20%]">Account</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[45%] md:w-[25%]">Name</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[25%] md:w-[15%]">Role</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Address</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Contact</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[30%] md:w-[20%]">Account</th>
               </tr>
             </thead>
             <tbody>
@@ -2092,13 +2092,13 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td
-                      className="py-3.5 px-4 sm:px-6 truncate"
+                      className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.address}
                     >
                       {employee.address || "N/A"}
                     </td>
                     <td
-                      className="py-3.5 px-4 sm:px-6 truncate"
+                      className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.contactNumber}
                     >
                       {employee.contactNumber || "N/A"}

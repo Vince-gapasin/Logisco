@@ -1213,15 +1213,15 @@ export default function ReportsForecastingPage() {
         </div>
 
         <div className="w-full overflow-x-auto pb-2 min-h-75">
-          <table className="w-full text-left border-collapse min-w-225">
+          <table className="w-full text-left border-collapse md:min-w-225">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6">Date</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Date</th>
                 <th className="py-3.5 px-4 sm:px-6">Order ID</th>
                 <th className="py-3.5 px-4 sm:px-6">Client</th>
                 <th className="py-3.5 px-4 sm:px-6">Final Status</th>
-                <th className="py-3.5 px-4 sm:px-6">Delivery Crews</th>
-                <th className="py-3.5 px-4 sm:px-6">Remarks</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Crews</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Remarks</th>
               </tr>
             </thead>
 
@@ -1242,7 +1242,7 @@ export default function ReportsForecastingPage() {
                     onClick={() => handleRowClick(record)}
                     className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
                       {record.date}
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
@@ -1258,10 +1258,10 @@ export default function ReportsForecastingPage() {
                         {record.status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">
+                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">
                       {record.crew}
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
+                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
                       {record.remarks}
                     </td>
                   </tr>

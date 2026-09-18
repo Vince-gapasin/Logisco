@@ -1509,7 +1509,7 @@ function TruckSpecificHistoryView({
               <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
                 <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
-                <th className="py-3.5 px-4 w-1/4 text-left">
+                <th className="hidden md:table-cell py-3.5 px-4 w-1/4 text-left">
                   Status Before Change
                 </th>
                 <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
@@ -1548,7 +1548,7 @@ function TruckSpecificHistoryView({
                           {log.mechanicName || "Mechanic"}
                         </div>
                       </td>
-                      <td className="py-4 px-4 w-1/4 text-left align-middle">
+                      <td className="hidden md:table-cell py-4 px-4 w-1/4 text-left align-middle">
                         <span
                           className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${stylesBefore.bgLight}`}
                         >
