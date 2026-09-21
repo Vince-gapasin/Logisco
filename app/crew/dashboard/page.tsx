@@ -3,7 +3,8 @@
 // ==========================================
 "use client";
 
-import React, { useState, useEffect } from "react";
+import UrlSearchSync from "@/components/UrlSearchSync";
+import React, { useState, useEffect, useCallback } from "react";
 import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
@@ -295,6 +296,17 @@ export default function CrewDashboardPage({
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
+  // A search handed over from the header. Applied once the list has loaded,
+  // because only then is it known which tab the match sits on.
+  const [pendingUrlSearch, setPendingUrlSearch] = useState<string | null>(null);
+  const applyUrlSearch = useCallback((query: string) => {
+    setSearchTerm(query);
+    setPendingUrlSearch(query);
+    setShowDetailsModal(false);
+    setSelectedDelivery(null);
+    setViewMode("list");
+  }, []);
+
   const [showStartConfirmModal, setShowStartConfirmModal] = useState<boolean>(false);
   const [showAcceptConfirmModal, setShowAcceptConfirmModal] = useState<boolean>(false);
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState<boolean>(false);
@@ -395,6 +407,23 @@ export default function CrewDashboardPage({
   const unconfirmedCount = deliveryList.filter((d) => isUnconfirmed(d.status)).length;
   const activeCount = deliveryList.filter((d) => isActive(d.status)).length;
   const completedCount = deliveryList.filter((d) => isCompleted(d.status)).length;
+
+  if (pendingUrlSearch !== null && !isLoading) {
+    const needle = pendingUrlSearch.toLowerCase();
+    const match = deliveryList.find(
+      (d) =>
+        d.bookingId.toLowerCase().includes(needle) ||
+        d.clientName.toLowerCase().includes(needle) ||
+        d.address.toLowerCase().includes(needle),
+    );
+    if (match) {
+      // Same order the tab filter checks in.
+      setSelectedFilter(
+        isActive(match.status) ? "Active" : isCompleted(match.status) ? "Completed" : "Unconfirmed",
+      );
+    }
+    setPendingUrlSearch(null);
+  }
 
   const filteredDeliveries = deliveryList
     .filter((delivery) => {
@@ -886,6 +915,7 @@ export default function CrewDashboardPage({
 
   return (
     <>
+      <UrlSearchSync onQuery={applyUrlSearch} />
       {viewMode === "update-status" && selectedDelivery ? (
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">

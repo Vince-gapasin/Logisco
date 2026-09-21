@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
@@ -2808,6 +2809,7 @@ export default function MechanicFleetStatusPage({
               </div>
               <div className="relative w-full lg:w-80">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <UrlSearchSync onQuery={setSearchTerm} />
                 <input
                   type="text"
                   placeholder="Search by Plate No or Type..."

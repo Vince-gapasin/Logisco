@@ -4,6 +4,7 @@
 
 "use client";
 
+import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
@@ -670,6 +671,7 @@ export default function FleetStatusPage() {
         <div className="p-4 sm:p-5 border-b border-slate-100">
           <div className="relative w-full sm:w-96">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <UrlSearchSync onQuery={setSearchTerm} />
             <input
               type="text"
               placeholder="Search by plate number or status..."

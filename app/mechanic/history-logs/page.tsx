@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos, needsPhotos } from "@/app/lib/logPhotos";
@@ -814,6 +815,7 @@ export default function MechanicHistoryLogsPage() {
               </div>
               <div className="relative w-full lg:w-80">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <UrlSearchSync onQuery={setSearchTerm} />
                 <input type="text" placeholder="Search plate, mechanic, issue..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400" />
               </div>
             </div>

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Bell, Menu } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
+import GlobalSearch from "@/components/GlobalSearch";
 
 interface SharedHeaderProps {
   isOpen: boolean;
@@ -41,14 +42,8 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
           </button>
         )}
 
-        <div className="relative w-full min-w-0 max-w-50 sm:max-w-xs md:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-full bg-gray-100/80 text-xs md:text-sm text-gray-700 rounded-full pl-9 md:pl-10 pr-4 py-2 md:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-          />
-        </div>
+        {/* Was an input with no handler: it did nothing when typed into. */}
+        <GlobalSearch basePath={basePath} />
       </div>
 
       <div className="flex items-center space-x-3 sm:space-x-4 md:space-x-6 shrink-0">
