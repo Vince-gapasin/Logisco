@@ -262,7 +262,7 @@ export default function CrewCalendarPage() {
           <span className="font-bold text-slate-900">Calendar Menu</span>
           <button
             onClick={() => setIsMiniSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-gray-100"
+            className="p-1.5 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-600 hover:bg-gray-100"
             aria-label="Close Calendar Menu"
           >
             <X size={20} />
@@ -279,14 +279,14 @@ export default function CrewCalendarPage() {
               <button
                 onClick={handlePrevMonth}
                 aria-label="Previous Month"
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                className="p-1.5 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={handleNextMonth}
                 aria-label="Next Month"
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                className="p-1.5 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
               >
                 <ChevronRight size={16} />
               </button>
@@ -391,7 +391,7 @@ export default function CrewCalendarPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMiniSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
+              className="p-2 -ml-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
               aria-label="Open Calendar Menu"
             >
               <Menu size={20} />
@@ -418,7 +418,7 @@ export default function CrewCalendarPage() {
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
             <button
               onClick={handlePrevDay}
-              className="p-1.5 rounded-lg hover:bg-gray-200 text-slate-700 cursor-pointer"
+              className="p-1.5 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg hover:bg-gray-200 text-slate-700 cursor-pointer"
               aria-label="Previous Day"
             >
               <ChevronLeft size={18} />
@@ -431,7 +431,7 @@ export default function CrewCalendarPage() {
             </div>
             <button
               onClick={handleNextDay}
-              className="p-1.5 rounded-lg hover:bg-gray-200 text-slate-700 cursor-pointer"
+              className="p-1.5 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg hover:bg-gray-200 text-slate-700 cursor-pointer"
               aria-label="Next Day"
             >
               <ChevronRight size={18} />

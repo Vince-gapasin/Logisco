@@ -30,18 +30,18 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
 
   return (
     <header className="h-16 bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
-      <div className="flex items-center gap-3 w-full max-w-md">
+      <div className="flex items-center gap-3 w-full max-w-md min-w-0">
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className="p-2 bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
+            className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
             aria-label="Open Menu"
           >
             <Menu className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         )}
 
-        <div className="relative w-full max-w-50 sm:max-w-xs md:max-w-md">
+        <div className="relative w-full min-w-0 max-w-50 sm:max-w-xs md:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 md:w-5 md:h-5" />
           <input
             type="text"
@@ -51,10 +51,10 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 sm:space-x-4 md:space-x-6 shrink-0">
+      <div className="flex items-center space-x-3 sm:space-x-4 md:space-x-6 shrink-0">
         <Link
           href={`${basePath}/notifications`}
-          className="relative cursor-pointer hover:bg-gray-100 p-2 rounded-full transition flex items-center justify-center"
+          className="relative cursor-pointer hover:bg-gray-100 p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full transition flex items-center justify-center"
           title="Notifications"
         >
           <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
@@ -62,7 +62,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
 
         <Link
           href={`${basePath}/profile`}
-          className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition block shrink-0"
+          className="w-11 h-11 sm:w-8 sm:h-8 md:w-10 md:h-10 bg-blue-600 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition block shrink-0"
           title="Profile Settings"
         >
           <img

@@ -890,7 +890,7 @@ export default function CrewDashboardPage({
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">
             <div className="flex items-center gap-3">
-              <button onClick={() => setViewMode("list")} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
+              <button onClick={() => setViewMode("list")} className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
@@ -1101,8 +1101,13 @@ export default function CrewDashboardPage({
               )}
             </div>
 
-            {/* View Mode Actions */}
-            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
+            {/* View Mode Actions. On a phone this sits below a 320px map and
+                the stop details, so it is pinned to the bottom of the screen:
+                the driver should not scroll past everything at every stop to
+                reach the one button they came for. The negative margins
+                stretch it across the card padding; from sm up it returns to
+                the normal flow. */}
+            <div className="sticky bottom-0 z-20 -mx-4 -mb-4 px-4 pt-3 pb-4 bg-white/95 backdrop-blur-sm rounded-b-2xl shadow-[0_-4px_12px_rgba(15,23,42,0.06)] sm:static sm:mx-0 sm:mb-0 sm:px-0 sm:pt-4 sm:pb-0 sm:bg-transparent sm:backdrop-blur-none sm:rounded-none sm:shadow-none flex flex-col sm:flex-row justify-end border-t border-slate-200 gap-3">
               {isCompleted(selectedDelivery.status) ? (
                 <button
                   onClick={() => {
@@ -1117,7 +1122,7 @@ export default function CrewDashboardPage({
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
                   disabled={isSubmittingResponse}
-                  className="w-full sm:w-64 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
+                  className="w-full sm:w-64 min-h-11 sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
@@ -1137,9 +1142,9 @@ export default function CrewDashboardPage({
             </div>
             
             <div className="relative w-full md:w-72 shrink-0">
-              <input type="text" placeholder="Search Booking ID or Client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all" />
+              <input type="text" placeholder="Search Booking ID or Client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-11 sm:pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all" />
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>}
+              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-0 sm:right-3 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Clear search"><X className="w-3.5 h-3.5" /></button>}
             </div>
           </div>
 
@@ -1223,7 +1228,7 @@ export default function CrewDashboardPage({
                 ) : (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Awaiting Confirmation</span>
                 )}
-                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
+                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
               </div>
             </div>
 

@@ -173,7 +173,7 @@ export default function DeliveryHistoryPage() {
           <div className="flex items-center gap-3 pr-24 sm:pr-0">
             <button
               onClick={() => setSelectedDelivery(null)}
-              className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+              className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
               title="Back to History List"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -389,7 +389,7 @@ export default function DeliveryHistoryPage() {
             <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="text-lg font-bold text-slate-900">Report an Issue</h3>
-                <button onClick={() => setShowReportModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button onClick={() => setShowReportModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -458,7 +458,7 @@ export default function DeliveryHistoryPage() {
                     {reportImage && (
                       <div className="relative mt-2 w-20 h-20 rounded-xl overflow-hidden border border-slate-200">
                         <img src={reportImage} alt="Proof preview" className="w-full h-full object-cover" />
-                        <button onClick={() => setReportImage(null)} className="absolute top-1 right-1 bg-slate-900/70 text-white rounded-full p-0.5 hover:bg-slate-900">
+                        <button onClick={() => setReportImage(null)} className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-8 h-8 sm:w-auto sm:h-auto flex items-center justify-center bg-slate-900/70 text-white rounded-full p-0 sm:p-0.5 hover:bg-slate-900">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
