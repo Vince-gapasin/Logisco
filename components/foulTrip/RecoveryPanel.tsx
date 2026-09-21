@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Calendar,
@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 
 // What dispatch can do about a foul trip. This replaces a screen whose four
@@ -23,10 +24,11 @@ import type { IncidentView } from "@/services/foulTrip/foulTripService";
 type Action = "reassign" | "reschedule" | "subcontract" | "send_mechanic" | "cancel" | "close";
 
 interface Resources {
-  trucks: { truckID: string; plateNumber: string; model?: string | null; truckType?: string | null }[];
-  drivers: { employeeID: string; employeeName: string }[];
-  helpers: { employeeID: string; employeeName: string }[];
+  trucks: { truckID: string; plateNumber: string; model?: string | null; truckType?: string | null; capacity?: number | null; truckCode?: string | null }[];
+  drivers: CrewMember[];
+  helpers: CrewMember[];
 }
+interface CrewMember { employeeID: string; employeeName: string; employeeCode?: string | null; contact?: string | null }
 interface Partner { subConID: string; companyName: string; isActive?: boolean | null }
 interface Mechanic { employeeID: string; employeeName: string; isActive?: boolean | null; availability?: string | null }
 
@@ -164,7 +166,37 @@ export default function RecoveryPanel({
       .catch((e: Error) => setError(e.message));
   }, [action, mechanics]);
 
-  const helpers = useMemo(() => resources?.helpers ?? [], [resources]);
+  // Dropdown rows. The broken truck's type and the original crew are tagged
+  // and listed first, so the obvious choice is at the top.
+  const truckOptions = useMemo<SelectMenuOption[]>(() => {
+    const sameType = (t: Resources["trucks"][number]) => Boolean(incident.truckType) && t.truckType === incident.truckType;
+    return [...(resources?.trucks ?? [])]
+      .sort((a, b) => Number(sameType(b)) - Number(sameType(a)))
+      .map((t) => ({
+        value: t.truckID,
+        label: t.plateNumber,
+        detail: [t.truckType, t.model, t.capacity ? `${Number(t.capacity).toLocaleString("en-PH")} kg` : null].filter(Boolean).join(" · "),
+        tag: sameType(t) ? "Same type" : null,
+      }));
+  }, [resources, incident.truckType]);
+
+  const crewOptions = useCallback(
+    (people: CrewMember[], original: string[], tag: string, exclude?: string) =>
+      [...people]
+        .filter((p) => p.employeeID !== exclude)
+        .sort((a, b) => Number(original.includes(b.employeeID)) - Number(original.includes(a.employeeID)))
+        .map<SelectMenuOption>((p) => ({
+          value: p.employeeID,
+          label: p.employeeName,
+          detail: [p.employeeCode, p.contact].filter(Boolean).join(" · ") || null,
+          tag: original.includes(p.employeeID) ? tag : null,
+        })),
+    [],
+  );
+  const originalDriver = incident.originalDriverID ? [incident.originalDriverID] : [];
+  const driverOptions = crewOptions(resources?.drivers ?? [], originalDriver, "Original driver");
+  const helper1Options = crewOptions(resources?.helpers ?? [], incident.originalHelperIDs, "Original crew", helper2ID);
+  const helper2Options = crewOptions(resources?.helpers ?? [], incident.originalHelperIDs, "Original crew", helper1ID);
 
   const choose = (next: Action) => {
     if (next === "send_mechanic" && !canSendMechanic) return;
@@ -345,44 +377,46 @@ export default function RecoveryPanel({
                   )}
                   <div>
                     <label className={label} htmlFor="rt-truck">Truck</label>
-                    <select id="rt-truck" value={truckID} onChange={(e) => setTruckID(e.target.value)} className={field}>
-                      <option value="">{resources.trucks.length ? "Choose a truck" : "No truck is free"}</option>
-                      {resources.trucks.map((t) => (
-                        <option key={t.truckID} value={t.truckID}>
-                          {t.plateNumber}{t.model || t.truckType ? ` – ${t.model || t.truckType}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectMenu
+                      id="rt-truck"
+                      value={truckID}
+                      onChange={setTruckID}
+                      options={truckOptions}
+                      placeholder="Choose a truck"
+                      emptyText="No truck is free"
+                      searchPlaceholder="Search plate, type or model"
+                    />
                   </div>
                   <div>
                     <label className={label} htmlFor="rt-driver">Driver</label>
-                    <select id="rt-driver" value={driverID} onChange={(e) => setDriverID(e.target.value)} className={field}>
-                      <option value="">{resources.drivers.length ? "Choose a driver" : "No driver is free"}</option>
-                      {resources.drivers.map((d) => (
-                        <option key={d.employeeID} value={d.employeeID}>{d.employeeName}</option>
-                      ))}
-                    </select>
+                    <SelectMenu
+                      id="rt-driver"
+                      value={driverID}
+                      onChange={setDriverID}
+                      options={driverOptions}
+                      placeholder="Choose a driver"
+                      emptyText="No driver is free"
+                      searchPlaceholder="Search name or ID"
+                    />
                   </div>
-                  {[["Helper 1", helper1ID, setHelper1ID, helper2ID], ["Helper 2", helper2ID, setHelper2ID, helper1ID]].map(
-                    ([name, value, set, other]) => (
-                      <div key={name as string}>
-                        <label className={label} htmlFor={`rt-${name}`}>{name as string} (optional)</label>
-                        <select
-                          id={`rt-${name}`}
-                          value={value as string}
-                          onChange={(e) => (set as (v: string) => void)(e.target.value)}
-                          className={field}
-                        >
-                          <option value="">None</option>
-                          {helpers
-                            .filter((h) => h.employeeID !== other)
-                            .map((h) => (
-                              <option key={h.employeeID} value={h.employeeID}>{h.employeeName}</option>
-                            ))}
-                        </select>
-                      </div>
-                    ),
-                  )}
+                  {([
+                    ["Helper 1", helper1ID, setHelper1ID, helper1Options],
+                    ["Helper 2", helper2ID, setHelper2ID, helper2Options],
+                  ] as const).map(([name, value, set, options]) => (
+                    <div key={name}>
+                      <label className={label} htmlFor={`rt-${name.replace(" ", "")}`}>{name} (optional)</label>
+                      <SelectMenu
+                        id={`rt-${name.replace(" ", "")}`}
+                        value={value}
+                        onChange={set}
+                        options={options}
+                        placeholder="None"
+                        emptyText="No helper is free"
+                        searchPlaceholder="Search name or ID"
+                        allowNone
+                      />
+                    </div>
+                  ))}
                 </>
               )}
             </div>
@@ -392,12 +426,16 @@ export default function RecoveryPanel({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className={label} htmlFor="sc-partner">Sub-contractor</label>
-                <select id="sc-partner" value={subConID} onChange={(e) => setSubConID(e.target.value)} className={field} disabled={!partners}>
-                  <option value="">{partners ? (partners.length ? "Choose a partner" : "No active sub-contractors") : "Loading…"}</option>
-                  {(partners ?? []).map((p) => (
-                    <option key={p.subConID} value={p.subConID}>{p.companyName}</option>
-                  ))}
-                </select>
+                <SelectMenu
+                  id="sc-partner"
+                  value={subConID}
+                  onChange={setSubConID}
+                  options={(partners ?? []).map((p) => ({ value: p.subConID, label: p.companyName }))}
+                  placeholder={partners ? "Choose a partner" : "Loading…"}
+                  emptyText={partners ? "No active sub-contractors" : "Loading…"}
+                  searchPlaceholder="Search company"
+                  disabled={!partners}
+                />
               </div>
               <div>
                 <label className={label} htmlFor="sc-driver">Their driver</label>
@@ -418,12 +456,21 @@ export default function RecoveryPanel({
             <div className="space-y-4">
               <div>
                 <label className={label} htmlFor="mc-mechanic">Mechanic</label>
-                <select id="mc-mechanic" value={mechanicID} onChange={(e) => setMechanicID(e.target.value)} className={field} disabled={!mechanics}>
-                  <option value="">{mechanics ? (mechanics.length ? "Choose a mechanic" : "No active mechanics") : "Loading…"}</option>
-                  {(mechanics ?? []).map((m) => (
-                    <option key={m.employeeID} value={m.employeeID}>{m.employeeName}</option>
-                  ))}
-                </select>
+                <SelectMenu
+                  id="mc-mechanic"
+                  value={mechanicID}
+                  onChange={setMechanicID}
+                  options={(mechanics ?? []).map((m) => ({
+                    value: m.employeeID,
+                    label: m.employeeName,
+                    detail: m.availability ?? null,
+                    tag: (m.availability ?? "").toLowerCase() === "available" ? "Free" : null,
+                  }))}
+                  placeholder={mechanics ? "Choose a mechanic" : "Loading…"}
+                  emptyText={mechanics ? "No active mechanics" : "Loading…"}
+                  searchPlaceholder="Search name"
+                  disabled={!mechanics}
+                />
               </div>
               <fieldset>
                 <legend className={label}>How serious is it?</legend>
