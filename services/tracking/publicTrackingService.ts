@@ -243,9 +243,13 @@ export async function getTrackingByToken(
   if (dispatch?.status === DELIVERY_STATUS.foulTrip) {
     // What is being done about it, without any of the incident's details:
     // this page is public.
-    const incident = ((order.FoulTripIncident ?? []) as { dispatchID: string; status: string }[]).find(
+    // A trip can have several incidents (repaired, then broke down again);
+    // the open one is what is happening now.
+    const incidents = ((order.FoulTripIncident ?? []) as { dispatchID: string; status: string }[]).filter(
       (i) => i.dispatchID === dispatch.dispatchID,
     );
+    const incident =
+      incidents.find((i) => i.status === "open" || i.status === "mechanic_assigned") ?? incidents[0];
     deliveryStatus =
       incident?.status === "mechanic_assigned"
         ? "Delayed: roadside repair under way"

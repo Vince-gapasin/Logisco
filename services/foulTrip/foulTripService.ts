@@ -293,10 +293,13 @@ export interface NewIncident {
   cargoLoaded: boolean;
 }
 
+// Always a new row. A trip repaired on site carries on under the same
+// dispatch, so it can break down again; upserting on dispatchID used to
+// overwrite the resolved incident, and the second breakdown never showed.
 export async function recordIncident(incident: NewIncident): Promise<IncidentRow> {
   const { data, error } = await supabase
     .from("FoulTripIncident")
-    .upsert(incident, { onConflict: "dispatchID" })
+    .insert(incident)
     .select("*")
     .single();
   if (error) throw new Error(`Failed to record the foul trip: ${error.message}`);

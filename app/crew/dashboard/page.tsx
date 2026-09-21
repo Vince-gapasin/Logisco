@@ -5,6 +5,7 @@
 
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
+import { usePolling } from "@/app/lib/usePolling";
 import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
@@ -337,10 +338,13 @@ export default function CrewDashboardPage({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const fetchMyDispatches = async () => {
+  // Polled, not loaded once: dispatch and the roadside mechanic change trips
+  // from their side. A truck repaired on site resumes its trip, and the crew
+  // used to keep seeing it as a foul trip until they reloaded the app.
+  // isLoading starts true, so only the first answer clears the spinner.
+  const fetchMyDispatches = useCallback(async () => {
+      const startedAt = Date.now();
       try {
-        setIsLoading(true);
         const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
         const token = sessionStr ? JSON.parse(sessionStr).token : "";
 
@@ -359,17 +363,31 @@ export default function CrewDashboardPage({
 
         if (!response.ok) throw new Error("Failed to fetch dispatches");
         
-        const data = await response.json();
-        setDeliveryList(data);
+        const data: DeliveryRecord[] = await response.json();
+        // A row this screen changed after the request left is newer than the
+        // server's answer; keep it.
+        setDeliveryList((prev) => {
+          const local = new Map(prev.map((d) => [d.id, d]));
+          return data.map((d) => {
+            const mine = local.get(d.id);
+            return mine?.localUpdatedAt && mine.localUpdatedAt > startedAt ? mine : d;
+          });
+        });
+        // The open trip only follows the server when the server moved it on
+        // from a foul trip; mid-delivery, the screen's own state stands.
+        setSelectedDelivery((current) => {
+          if (!current || current.status !== "Foul Trip") return current;
+          const fresh = data.find((d) => d.id === current.id);
+          return fresh && fresh.status !== current.status ? fresh : current;
+        });
       } catch (error) {
         console.error("Error fetching dispatches:", error);
       } finally {
         setIsLoading(false);
       }
-    };
-
-    fetchMyDispatches();
   }, []);
+
+  usePolling(() => void fetchMyDispatches(), 30000);
 
   useEffect(() => {
     setCurrentPage(1);
