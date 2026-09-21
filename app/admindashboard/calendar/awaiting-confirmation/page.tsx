@@ -9,8 +9,12 @@ import { apiFetch } from "@/app/lib/apiClient";
 import {
   isAwaitingCrewConfirmation,
   mapOrderToBookingView,
+  toFeedBooking,
   type BookingView,
 } from "@/app/lib/bookingView";
+import CrewPicker from "@/components/booking/CrewPicker";
+import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
+import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
 import {
   Search,
   FileText,
@@ -161,16 +165,16 @@ function ReassignBookingModal({
 
   const [formData, setFormData] = useState({
     clientName: "",
-    contactPerson: "Juan Dela Cruz",
-    contactNumber: "09123456789",
-    emailAddress: "N/A",
-    businessAddress: "N/A",
+    contactPerson: "",
+    contactNumber: "",
+    emailAddress: "",
+    businessAddress: "",
     requestDate: currentDate,
     deliverySchedule: "",
     product: "",
     priorityLevel: "Standard",
     subconPartner: "",
-    truckPlate: "TRK-101",
+    truckPlate: "",
     driver: "",
     helper1: "",
     helper2: "",
@@ -184,16 +188,7 @@ function ReassignBookingModal({
   const [pickupToDelete, setPickupToDelete] = useState<number | null>(null);
   const [deliveryToDelete, setDeliveryToDelete] = useState<number | null>(null);
 
-  const [pickupList, setPickupList] = useState<any[]>([
-    {
-      warehouseName: "Main Warehouse",
-      warehouseAddress: "Manila Hub",
-      contactPerson: "Warehouse Admin",
-      contactNumber: "09181112233",
-      pickupTime: "08:00",
-      quantity: "50",
-    },
-  ]);
+  const [pickupList, setPickupList] = useState<any[]>([]);
   const [deliveryList, setDeliveryList] = useState<any[]>([
     {
       branchName: "",
@@ -206,67 +201,12 @@ function ReassignBookingModal({
   ]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const [availableTrucks, setAvailableTrucks] = useState<any[]>([]);
-  const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
-  const [availableHelpers, setAvailableHelpers] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   // Free trucks and crew for the delivery date, plus whoever is already on
   // this dispatch (they are "busy" precisely because of this booking).
-  const scheduleDate = formData.deliverySchedule;
-  useEffect(() => {
-    if (!isOpen || !booking) return;
-    let active = true;
-
-    const mergeCurrent = (list: any[], current: any) =>
-      current && !list.some((item) => item[current.key] === current.id)
-        ? [...list, current.record]
-        : list;
-
-    const loadResources = async () => {
-      const date = scheduleDate || new Date().toISOString().split("T")[0];
-      try {
-        const result = await apiFetch<any>(`/api/dispatch/available-resources?date=${date}`);
-        if (!active) return;
-
-        const driverCrew = booking.crews?.find((c: any) => c.role === "Driver");
-        const helperCrews = (booking.crews ?? []).filter((c: any) => c.role.startsWith("Helper"));
-
-        setAvailableTrucks(
-          mergeCurrent(result?.data?.trucks ?? [], booking.truckID && {
-            key: "truckID",
-            id: booking.truckID,
-            record: { truckID: booking.truckID, plateNumber: booking.truckPlate, model: booking.truckModel },
-          }),
-        );
-        setAvailableDrivers(
-          mergeCurrent(result?.data?.drivers ?? [], driverCrew?.employeeID && {
-            key: "employeeID",
-            id: driverCrew.employeeID,
-            record: { employeeID: driverCrew.employeeID, employeeName: driverCrew.name },
-          }),
-        );
-
-        let helpers = result?.data?.helpers ?? [];
-        for (const crew of helperCrews) {
-          helpers = mergeCurrent(helpers, crew.employeeID && {
-            key: "employeeID",
-            id: crew.employeeID,
-            record: { employeeID: crew.employeeID, employeeName: crew.name },
-          });
-        }
-        setAvailableHelpers(helpers);
-      } catch (error) {
-        if (active) setSubmitError(error instanceof Error ? error.message : "Failed to load available crew.");
-      }
-    };
-
-    void loadResources();
-    return () => {
-      active = false;
-    };
-  }, [isOpen, booking, scheduleDate]);
+  const crew = useAssignableCrew(formData.deliverySchedule, isOpen && Boolean(booking), booking ?? undefined);
 
   useEffect(() => {
     if (isOpen && booking) {
@@ -276,9 +216,9 @@ function ReassignBookingModal({
       setDeliveryToDelete(null);
 
       // Extract existing crew members if available
-      const driverObj = booking.crews?.find((c: any) => c.role === "Driver");
-      const h1Obj = booking.crews?.find((c: any) => c.role === "Helper #1");
-      const h2Obj = booking.crews?.find((c: any) => c.role === "Helper #2");
+      const driverObj = booking.crews?.find((c: { role: string }) => c.role === "Driver");
+      const h1Obj = booking.crews?.find((c: { role: string }) => c.role === "Helper #1");
+      const h2Obj = booking.crews?.find((c: { role: string }) => c.role === "Helper #2");
 
       setFormData({
         clientName: booking.clientName || "",
@@ -297,36 +237,13 @@ function ReassignBookingModal({
         helper2: h2Obj?.employeeID || "",
         notes: "",
       });
-      setPickupList([
-        {
-          warehouseName: "Main Warehouse",
-          warehouseAddress: "Manila Hub",
-          contactPerson: "Warehouse Admin",
-          contactNumber: "09181112233",
-          pickupTime: "08:00",
-          quantity: "50",
-        },
-      ]);
+      // What was recorded when the booking was made.
+      const feed = toFeedBooking(booking);
+      setPickupList(feed.pickupList.map((row) => ({ ...row })));
       setDeliveryList(
-        booking.stops && booking.stops.length > 0
-          ? booking.stops.map((stop: any) => ({
-              branchName: stop.branchName,
-              deliveryAddress: booking.businessAddress || "",
-              contactPerson: stop.contactPerson,
-              contactNumber: stop.contactNum,
-              deliveryTime: (stop.expectedTime || "12:00").slice(0, 5),
-              quantity: "",
-            }))
-          : [
-              {
-                branchName: "",
-                deliveryAddress: booking.businessAddress || "",
-                contactPerson: booking.contactPerson || "",
-                contactNumber: booking.contactNumber || "",
-                deliveryTime: "12:00",
-                quantity: "",
-              },
-            ],
+        feed.deliveryList.length
+          ? feed.deliveryList.map((row) => ({ ...row }))
+          : [{ branchName: "", deliveryAddress: "", contactPerson: "", contactNumber: "", deliveryTime: "", quantity: "" }],
       );
       setErrors({});
 
@@ -539,7 +456,7 @@ function ReassignBookingModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Company Name
+                  Company / Client Name
                 </label>
                 <input
                   type="text"
@@ -1060,19 +977,11 @@ function ReassignBookingModal({
                   <label className="block text-xs font-medium text-black mb-1">
                     Select Subcon Partner *
                   </label>
-                  <select
-                    name="subconPartner"
+                  <SubconPartnerSelect
+                    id="subcon-partner"
                     value={formData.subconPartner}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="" disabled>
-                      Select partner
-                    </option>
-                    <option value="FastLogistics">FastLogistics</option>
-                    <option value="SpeedyTransit">SpeedyTransit</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    onChange={(next) => setFormData((prev) => ({ ...prev, subconPartner: next }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">
@@ -1128,89 +1037,27 @@ function ReassignBookingModal({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
-                  <select
-                    name="truckPlate"
-                    value={formData.truckPlate}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.truckPlate ? "border-red-500" : "border-slate-300"}`}
-                  >
-                    <option value="">
-                      {availableTrucks.length === 0 ? "No trucks available" : "Select truck"}
-                    </option>
-                    {availableTrucks.map((truck: any) => (
-                      <option key={truck.truckID} value={truck.truckID}>
-                        {truck.plateNumber}
-                        {truck.model ? ` (${truck.model})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
-                  <select
-                    name="driver"
-                    value={formData.driver}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.driver ? "border-red-500" : "border-slate-300"}`}
-                  >
-                    <option value="">
-                      {availableDrivers.length === 0 ? "No drivers available" : "Select driver"}
-                    </option>
-                    {availableDrivers.map((driver: any) => (
-                      <option key={driver.employeeID} value={driver.employeeID}>
-                        {driver.employeeName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1
-                  </label>
-                  <select
-                    name="helper1"
-                    value={formData.helper1}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="">Select helper</option>
-                    {availableHelpers
-                      .filter((helper: any) => helper.employeeID !== formData.helper2)
-                      .map((helper: any) => (
-                        <option key={helper.employeeID} value={helper.employeeID}>
-                          {helper.employeeName}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2
-                  </label>
-                  <select
-                    name="helper2"
-                    value={formData.helper2}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="">Select helper</option>
-                    {availableHelpers
-                      .filter((helper: any) => helper.employeeID !== formData.helper1)
-                      .map((helper: any) => (
-                        <option key={helper.employeeID} value={helper.employeeID}>
-                          {helper.employeeName}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
+              <>
+                <CrewPicker
+                  required
+                  value={{
+                    truckPlate: formData.truckPlate,
+                    driver: formData.driver,
+                    helper1: formData.helper1,
+                    helper2: formData.helper2,
+                  }}
+                  onChange={(field, next) => {
+                    setFormData((prev) => ({ ...prev, [field]: next }));
+                    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+                  }}
+                  trucks={crew.trucks}
+                  drivers={crew.drivers}
+                  helpers={crew.helpers}
+                  loading={crew.loading}
+                  errors={{ truckPlate: errors.truckPlate, driver: errors.driver }}
+                />
+                {crew.error && <p className="mt-2 text-xs text-red-600">{crew.error}</p>}
+              </>
             )}
           </div>
 

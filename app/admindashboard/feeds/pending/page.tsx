@@ -11,6 +11,9 @@ import {
   toFeedBooking,
   type FeedBooking,
 } from "@/app/lib/bookingView";
+import CrewPicker from "@/components/booking/CrewPicker";
+import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
+import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -183,7 +186,7 @@ function BookingDetailsModal({
   const currentDate = new Date().toISOString().split("T")[0];
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<Record<string, string>>({});
   const [pickupList, setPickupList] = useState<any[]>([]);
   const [deliveryList, setDeliveryList] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -193,6 +196,13 @@ function BookingDetailsModal({
   // Trackers for inline deletion confirmation
   const [pickupToDelete, setPickupToDelete] = useState<number | null>(null);
   const [deliveryToDelete, setDeliveryToDelete] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  // Free trucks and crew for the date, plus whoever is on this trip now.
+  // The lists here used to be typed into the page ("TRK-102", "Juan Dela
+  // Cruz"), so a re-assignment could only ever pick someone invented.
+  const crew = useAssignableCrew(formData.deliverySchedule ?? "", isOpen && Boolean(booking), booking ?? undefined);
 
   useEffect(() => {
     if (isOpen && booking) {
@@ -203,8 +213,8 @@ function BookingDetailsModal({
 
       setFormData({
         clientName: booking.clientName || "",
-        contactPerson: booking.contactPerson || "Juan Dela Cruz",
-        contactNumber: booking.contactNumber || "09123456789",
+        contactPerson: booking.contactPerson || "",
+        contactNumber: booking.contactNumber || "",
         emailAddress: booking.emailAddress || "",
         businessAddress: booking.businessAddress || "",
         requestDate: booking.dateCreated || currentDate,
@@ -212,27 +222,17 @@ function BookingDetailsModal({
         product: booking.product || "",
         priorityLevel: booking.priorityLevel || "Standard",
         subconPartner: booking.subconPartner || "",
-        truckPlate:
-          booking.truckPlate === "Not Assigned" ? "" : booking.truckPlate,
-        driver: booking.driver === "Not Assigned" ? "" : booking.driver,
-        helper1: booking.helper1 === "Not Assigned" ? "" : booking.helper1,
-        helper2: booking.helper2 === "Not Assigned" ? "" : booking.helper2,
+        truckPlate: booking.truckID || "",
+        driver: booking.crews?.find((c: { role: string }) => c.role === "Driver")?.employeeID || "",
+        helper1: booking.crews?.find((c: { role: string }) => c.role === "Helper #1")?.employeeID || "",
+        helper2: booking.crews?.find((c: { role: string }) => c.role === "Helper #2")?.employeeID || "",
         notes: booking.notes || "",
       });
 
       setPickupList(
         booking.pickupList?.length
           ? JSON.parse(JSON.stringify(booking.pickupList))
-          : [
-              {
-                warehouseName: "Main Warehouse",
-                warehouseAddress: "Manila Hub",
-                contactPerson: "Warehouse Admin",
-                contactNumber: "09181112233",
-                pickupTime: "08:00",
-                quantity: "50",
-              },
-            ],
+          : [],
       );
 
       setDeliveryList(
@@ -244,14 +244,15 @@ function BookingDetailsModal({
                 deliveryAddress: "",
                 contactPerson: "",
                 contactNumber: "",
-                deliveryTime: "12:00",
-                quantity: "50",
+                deliveryTime: "",
+                quantity: "",
                 stopStatus: "Pending",
               },
             ],
       );
 
       setErrors({});
+      setSubmitError("");
 
       setTimeout(() => {
         crewSectionRef.current?.scrollIntoView({
@@ -348,9 +349,10 @@ function BookingDetailsModal({
     setDeliveryToDelete(null);
   };
 
-  const validateAndSubmit = (e: React.FormEvent) => {
+  const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isEditable) return;
+    if (!isEditable || isSubmitting) return;
+    setSubmitError("");
 
     const newErrors: { [key: string]: string } = {};
 
@@ -368,8 +370,31 @@ function BookingDetailsModal({
       return;
     }
 
-    onSubmitSuccess(booking.orderId, booking.confirmationStatus);
-    onClose();
+    if (isSubconMode) {
+      setSubmitError("Subcontractor assignment is not supported yet. Assign an in-house truck and driver for now.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const body = JSON.stringify({
+        truckID: formData.truckPlate,
+        driverID: formData.driver,
+        helper1ID: formData.helper1 || undefined,
+        helper2ID: formData.helper2 || undefined,
+        totalCargoWeight: 0,
+      });
+      // Re-assign the trip there is; assign one if there is none.
+      await (booking.dispatchID
+        ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
+        : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
+      onSubmitSuccess(booking.orderId, booking.confirmationStatus);
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Failed to save this assignment.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputClass = isEditable
@@ -461,7 +486,7 @@ function BookingDetailsModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Company Name
+                  Company / Client Name
                 </label>
                 <input
                   type="text"
@@ -1153,19 +1178,11 @@ function BookingDetailsModal({
                   <label className="block text-xs font-medium text-black mb-1">
                     Select Subcon Partner *
                   </label>
-                  <select
-                    name="subconPartner"
+                  <SubconPartnerSelect
+                    id="subcon-partner"
                     value={formData.subconPartner}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="" disabled>
-                      Select partner
-                    </option>
-                    <option value="FastLogistics">FastLogistics</option>
-                    <option value="SpeedyTransit">SpeedyTransit</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    onChange={(next) => setFormData((prev) => ({ ...prev, subconPartner: next }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">
@@ -1221,89 +1238,27 @@ function BookingDetailsModal({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Truck Plate No. *
-                  </label>
-                  <select
-                    name="truckPlate"
-                    value={formData.truckPlate}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${
-                      errors.truckPlate ? "border-red-500" : "border-slate-300"
-                    }`}
-                  >
-                    <option value="">Select truck</option>
-                    <option value="TRK-101 (Isuzu Elf)">
-                      TRK-101 (Isuzu Elf)
-                    </option>
-                    <option value="TRK-102 (Mitsubishi Fuso)">
-                      TRK-102 (Mitsubishi Fuso)
-                    </option>
-                    <option value="TRK-103 (Hino 300)">
-                      TRK-103 (Hino 300)
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Driver *
-                  </label>
-                  <select
-                    name="driver"
-                    value={formData.driver}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${
-                      errors.driver ? "border-red-500" : "border-slate-300"
-                    }`}
-                  >
-                    <option value="">Select driver</option>
-                    <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-                    <option value="Pedro Santos">Pedro Santos</option>
-                    <option value="Luis Manzano">Luis Manzano</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
-                    <option value="Antonio Luna">Antonio Luna</option>
-                    <option value="Andres Bonifacio">Andres Bonifacio</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #1
-                  </label>
-                  <select
-                    name="helper1"
-                    value={formData.helper1}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="">Select helper</option>
-                    <option value="Mark Santos">Mark Santos</option>
-                    <option value="James Garcia">James Garcia</option>
-                    <option value="Daniel Cruz">Daniel Cruz</option>
-                    <option value="Paolo Reyes">Paolo Reyes</option>
-                    <option value="Gabriela Silang">Gabriela Silang</option>
-                    <option value="Pedro Santos">Pedro Santos</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Helper #2
-                  </label>
-                  <select
-                    name="helper2"
-                    value={formData.helper2}
-                    onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                  >
-                    <option value="">Select helper</option>
-                    <option value="Carlo Reyes">Carlo Reyes</option>
-                    <option value="Ryan Mendoza">Ryan Mendoza</option>
-                    <option value="Nico Santos">Nico Santos</option>
-                    <option value="Apolinario Mabini">Apolinario Mabini</option>
-                  </select>
-                </div>
-              </div>
+              <>
+                <CrewPicker
+                  required
+                  value={{
+                    truckPlate: formData.truckPlate,
+                    driver: formData.driver,
+                    helper1: formData.helper1,
+                    helper2: formData.helper2,
+                  }}
+                  onChange={(field, next) => {
+                    setFormData((prev) => ({ ...prev, [field]: next }));
+                    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+                  }}
+                  trucks={crew.trucks}
+                  drivers={crew.drivers}
+                  helpers={crew.helpers}
+                  loading={crew.loading}
+                  errors={{ truckPlate: errors.truckPlate, driver: errors.driver }}
+                />
+                {crew.error && <p className="mt-2 text-xs text-red-600">{crew.error}</p>}
+              </>
             )}
           </div>
 
@@ -1415,13 +1370,17 @@ function BookingDetailsModal({
             Close Details
           </button>
 
+          {submitError && (
+            <p role="alert" className="w-full sm:w-auto sm:mr-auto text-xs text-red-600">{submitError}</p>
+          )}
           {isAssignCrew && (
             <button
               type="submit"
               form="pending-booking-form"
+              disabled={isSubmitting}
               className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
             >
-              Assign Now
+              {isSubmitting ? "Saving…" : "Assign Now"}
             </button>
           )}
 
@@ -1429,9 +1388,10 @@ function BookingDetailsModal({
             <button
               type="submit"
               form="pending-booking-form"
+              disabled={isSubmitting}
               className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
             >
-              Re-assign Booking
+              {isSubmitting ? "Saving…" : "Re-assign Booking"}
             </button>
           )}
         </div>
@@ -1543,6 +1503,7 @@ export default function PendingBookingPage() {
   };
 
   const handleModalSubmitSuccess = (orderId: string, status: string) => {
+    void loadBookings();
     setSuccessOrderCode(orderId);
     if (status === "Assign Crew") {
       setSuccessTitle("Booking Assigned Successfully!");

@@ -33,6 +33,8 @@ export interface BookingStopView {
   contactPerson: string;
   contactNum: string;
   expectedTime: string | null;
+  // Units dropped or collected here; null on rows from before it was kept.
+  quantity: number | null;
   sequence: number;
   status: string;
   arrivedAt: string | null;
@@ -48,6 +50,8 @@ export interface BookingPickupView {
   contactPerson: string;
   contactNum: string;
   expectedTime: string | null;
+  // Units dropped or collected here; null on rows from before it was kept.
+  quantity: number | null;
   sequence: number;
   status: string;
   arrivedAt: string | null;
@@ -272,6 +276,7 @@ export function mapOrderToBookingView(order: any): BookingView {
         contactPerson: stop.contactPerson || "",
         contactNum: stop.contactNum || "",
         expectedTime: stop.expectedTime ?? null,
+        quantity: Number(stop.quantity) || null,
         // Older stops predate the sequence column; their insert order is
         // still reflected by the identity branchID.
         sequence: Number(stop.sequence) || index + 1,
@@ -290,6 +295,7 @@ export function mapOrderToBookingView(order: any): BookingView {
         contactPerson: pickup.contactPerson || "",
         contactNum: pickup.contactNum || "",
         expectedTime: pickup.expectedTime ?? null,
+        quantity: Number(pickup.quantity) || null,
         sequence: Number(pickup.sequence) || index + 1,
         status: pickup.stopStatus || STOP_STATUS.pending,
         arrivedAt: pickup.arrivedAt ?? null,
@@ -411,6 +417,10 @@ export interface FeedBooking {
   driver: string;
   helper: string;
   truckPlate: string;
+  // The live trip, so a screen can re-assign it.
+  dispatchID: string | null;
+  truckID: string | null;
+  truckModel: string;
   subconPartner: string;
   pickupList: FeedStopRow[];
   deliveryList: FeedStopRow[];
@@ -462,7 +472,8 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       contactPerson: pickup.contactPerson,
       contactNumber: pickup.contactNum,
       pickupTime: pickup.expectedTime || "",
-      quantity: booking.totalQuantity,
+      // Older pickups have no quantity of their own; show the order's.
+      quantity: pickup.quantity ? String(pickup.quantity) : booking.totalQuantity,
       stopStatus: isStopDelivered(pickup.status)
         ? "Completed"
         : booking.pickupCompletedAt
@@ -531,15 +542,18 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
     driver: booking.driverName || "Unassigned",
     helper: helpers.map((crew) => crew.name).join(", ") || "None",
     truckPlate: booking.truckPlate || "TBD",
+    dispatchID: booking.dispatchID,
+    truckID: booking.truckID,
+    truckModel: booking.truckModel,
     subconPartner: booking.subconPartner,
     pickupList: parsePickup(booking),
     deliveryList: booking.stops.map((stop) => ({
       branchName: stop.branchName,
-      deliveryAddress: booking.businessAddress,
+      deliveryAddress: stop.deliveryAddress || booking.businessAddress,
       contactPerson: stop.contactPerson,
       contactNumber: stop.contactNum,
       deliveryTime: formatStopTime(stop.expectedTime),
-      quantity: "",
+      quantity: stop.quantity ? String(stop.quantity) : "",
       stopStatus: stop.status,
     })),
     foulDetails: parseFoulDetails(booking),

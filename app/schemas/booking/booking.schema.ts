@@ -1,4 +1,25 @@
 import { z } from "zod";
+import { MIN_QUANTITY, normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+
+// Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
+const phone = z
+  .string()
+  .trim()
+  .transform((value, ctx) => {
+    const normalized = normalizePhone(value);
+    if (!normalized) {
+      ctx.addIssue({ code: "custom", message: PHONE_RULE });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+// How many units are collected or dropped at one stop.
+const stopQuantity = z.coerce
+  .number()
+  .int("Quantity must be a whole number")
+  .min(MIN_QUANTITY, `Quantity must be at least ${MIN_QUANTITY}`)
+  .optional();
 
 // ==========================================
 // ORDER ITEMS & STOPS
@@ -20,8 +41,9 @@ const orderItemSchema = z.object({
 const branchStopSchema = z.object({
   branchName: z.string().min(1, "Branch/Stop name is required").trim(),
   contactPerson: z.string().min(1, "Contact person is required").trim(),
-  contactNum: z.string().min(1, "Contact number is required").trim(),
+  contactNum: phone,
   expectedTime: z.string().min(1, "Expected time is required").trim(),
+  quantity: stopQuantity,
 
   // Optional: geocoded on the server so the stop can be shown on the map.
   deliveryAddress: z.string().trim().optional(),
@@ -35,8 +57,9 @@ const pickupStopSchema = z.object({
   warehouseName: z.string().min(1, "Warehouse name is required").trim(),
   pickupAddress: z.string().trim().optional(),
   contactPerson: z.string().trim().optional(),
-  contactNum: z.string().trim().optional(),
+  contactNum: z.union([z.literal(""), phone]).optional(),
   expectedTime: z.string().trim().optional(),
+  quantity: stopQuantity,
 });
 
 // ==========================================

@@ -40,8 +40,8 @@ const BOOKING_COLUMNS = `
   clientID,
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
-  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID ),
-  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID ),
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
@@ -405,6 +405,7 @@ export async function createBooking(dto: CreateOrderDto) {
         deliveryLat: coordinates?.latitude ?? 0,
         deliverLong: coordinates?.longitude ?? 0,
         expectedTime: stop.expectedTime || "12:00:00",
+        quantity: stop.quantity ?? null,
         sequence: index + 1,
         stopStatus: STOP_STATUS.pending,
       };
@@ -441,6 +442,7 @@ export async function createBooking(dto: CreateOrderDto) {
         contactPerson: pickup.contactPerson || null,
         contactNum: pickup.contactNum || null,
         expectedTime: normalizeTime(pickup.expectedTime),
+        quantity: pickup.quantity ?? null,
         pickupLat: coordinates?.latitude ?? null,
         pickupLong: coordinates?.longitude ?? null,
         sequence: index + 1,

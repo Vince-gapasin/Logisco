@@ -85,6 +85,7 @@ export interface CreateBranchStopDto {
   contactNum: string;
   expectedTime: string;
   deliveryAddress?: string;
+  quantity?: number;
 }
 
 export interface CreatePickupStopDto {
@@ -94,6 +95,7 @@ export interface CreatePickupStopDto {
   contactPerson?: string;
   contactNum?: string;
   expectedTime?: string;
+  quantity?: number;
 }
 
 export interface CreateOrderDto {

@@ -24,6 +24,8 @@ interface SelectMenuProps {
   searchPlaceholder?: string;
   /** Adds a "None" row, for optional fields such as a second helper. */
   allowNone?: boolean;
+  /** What the empty choice is called, e.g. "Unassigned". */
+  noneLabel?: string;
   disabled?: boolean;
 }
 
@@ -36,6 +38,7 @@ export default function SelectMenu({
   emptyText = "Nothing to choose from",
   searchPlaceholder = "Search…",
   allowNone = false,
+  noneLabel = "None",
   disabled = false,
 }: SelectMenuProps) {
   const [open, setOpen] = useState(false);
@@ -52,8 +55,8 @@ export default function SelectMenu({
     const matches = q
       ? options.filter((o) => [o.label, o.detail, o.tag].some((text) => text?.toLowerCase().includes(q)))
       : options;
-    return allowNone && !q ? [{ value: "", label: "None" } as SelectMenuOption, ...matches] : matches;
-  }, [options, query, allowNone]);
+    return allowNone && !q ? [{ value: "", label: noneLabel } as SelectMenuOption, ...matches] : matches;
+  }, [options, query, allowNone, noneLabel]);
 
   // Close on a click anywhere else.
   useEffect(() => {
