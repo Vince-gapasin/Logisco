@@ -15,6 +15,9 @@ const ON_THE_ROAD_STATUSES: string[] = [
   DELIVERY_STATUS.arrived,
 ];
 import Link from "next/link";
+import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
+import type { IncidentView } from "@/services/foulTrip/foulTripService";
+import { mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
 import {
   Clock,
   CheckCircle2,
@@ -3366,9 +3369,35 @@ export default function AdminDashboardPage() {
       block: "start",
     });
   };
-  const handleViewOrder = (order: any) => {
+  // A foul trip that still needs recovery opens the same screen as the Foul
+  // Trip feed, with its recovery options. Anything else in the bucket
+  // (rejected, cancelled) has nothing to act on and opens read-only.
+  const [foulTripRow, setFoulTripRow] = useState<FoulTripRow | null>(null);
+  const [foulTripNotice, setFoulTripNotice] = useState("");
+
+  const handleViewOrder = async (order: any) => {
+    if (order.statusCategory === "Foul Trip") {
+      try {
+        const foul = await apiFetch<{ open: IncidentView[] }>("/api/foul-trips", { cache: "no-store" });
+        const booking = toFeedBooking(mapOrderToBookingView(order.rawOrder));
+        const incident = foul.open.find((i) => i.orderCode === booking.orderId);
+        if (incident) {
+          setFoulTripRow(attachIncident(booking, incident));
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to load the foul trip:", error);
+      }
+    }
     setSelectedOrderForView(order);
     setIsViewOrderModalOpen(true);
+  };
+
+  const handleFoulTripDone = (message: string) => {
+    setFoulTripRow(null);
+    setFoulTripNotice(message);
+    window.setTimeout(() => setFoulTripNotice(""), 5000);
+    void fetchOrders();
   };
 
   const handleModalSubmit = async (data: any) => {
@@ -3982,6 +4011,17 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* MODALS */}
+      {foulTripNotice && (
+        <div role="status" className="fixed bottom-6 right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
+          {foulTripNotice}
+        </div>
+      )}
+      <FoulTripDetailsModal
+        isOpen={foulTripRow !== null}
+        onClose={() => setFoulTripRow(null)}
+        onProceedSuccess={handleFoulTripDone}
+        booking={foulTripRow}
+      />
       <ViewOrderModal
         isOpen={isViewOrderModalOpen}
         onClose={() => setIsViewOrderModalOpen(false)}

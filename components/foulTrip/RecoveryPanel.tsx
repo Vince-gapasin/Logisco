@@ -113,6 +113,9 @@ export default function RecoveryPanel({
 
   const choose = (next: Action) => {
     if (next === "send_mechanic" && !canSendMechanic) return;
+    // Clicking the open option again used to clear the truck and driver
+    // lists without reloading them, leaving "Checking…" for good.
+    if (next === action) return;
     setAction(next);
     setError("");
     setText("");
