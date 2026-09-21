@@ -167,15 +167,36 @@ async function adminNotifications(): Promise<AppNotification[]> {
         time: relativeTime(order.createdAt),
         type: "reminder",
       });
-    } else if (live.status === DELIVERY_STATUS.foulTrip) {
-      notifications.push({
-        id: `admin-foul-${live.dispatchID}`,
-        title: "Foul trip reported",
-        message: `${order.orderCode}${company} was interrupted and needs attention.`,
-        time: relativeTime(order.createdAt),
-        type: "warning",
-      });
     }
+  }
+
+  // Foul trips waiting on dispatch, from the incident record - which knows
+  // when it was reported and whether a mechanic is already on the way.
+  const { data: incidents, error: incidentError } = await supabase
+    .from("FoulTripIncident")
+    .select("incidentID, status, issueType, reportedAt, Order ( orderCode, Client ( company ) )")
+    .in("status", ["open", "mechanic_assigned"])
+    .order("reportedAt", { ascending: false })
+    .limit(50);
+
+  if (incidentError) throw new Error(incidentError.message);
+
+  for (const incident of incidents ?? []) {
+    const order = firstRelated<{ orderCode: string; Client: unknown }>(
+      incident.Order as unknown as { orderCode: string; Client: unknown },
+    );
+    const client = firstRelated<{ company: string }>(order?.Client as { company: string } | null);
+    const company = client?.company ? ` (${client.company})` : "";
+    const enRoute = incident.status === "mechanic_assigned";
+    notifications.push({
+      id: `admin-foul-${incident.incidentID}`,
+      title: enRoute ? "Mechanic on the way" : `Foul trip: ${incident.issueType}`,
+      message: enRoute
+        ? `${order?.orderCode ?? "A booking"}${company} - waiting for the mechanic's report.`
+        : `${order?.orderCode ?? "A booking"}${company} was interrupted and needs recovery.`,
+      time: relativeTime(incident.reportedAt),
+      type: enRoute ? "reminder" : "warning",
+    });
   }
 
   // Trucks that are out of service.
@@ -204,8 +225,29 @@ async function adminNotifications(): Promise<AppNotification[]> {
 // ==========================================
 // MECHANIC
 // ==========================================
-async function mechanicNotifications(): Promise<AppNotification[]> {
+async function mechanicNotifications(employeeID: string): Promise<AppNotification[]> {
   const notifications: AppNotification[] = [];
+
+  // Broken-down trucks this mechanic has been sent to.
+  const { data: jobs, error: jobError } = await supabase
+    .from("FoulTripIncident")
+    .select("incidentID, severity, issueType, mechanicAssignedAt, Truck ( plateNumber )")
+    .eq("mechanicID", employeeID)
+    .eq("status", "mechanic_assigned");
+
+  if (jobError) throw new Error(jobError.message);
+
+  for (const job of jobs ?? []) {
+    const truck = firstRelated<{ plateNumber: string }>(job.Truck as unknown as { plateNumber: string });
+    notifications.push({
+      id: `mech-roadside-${job.incidentID}`,
+      title: job.severity === "major" ? "Roadside job - major" : "Roadside job",
+      message: `${truck?.plateNumber ?? "A truck"} broke down (${job.issueType}). Open Roadside Jobs for the location.`,
+      time: relativeTime(job.mechanicAssignedAt),
+      type: "assignment",
+      truckPlate: truck?.plateNumber,
+    });
+  }
 
   const { data: trucks, error } = await supabase
     .from("Truck")
@@ -260,7 +302,7 @@ export async function getNotificationsForEmployee(employee: {
   const role = (employee.role ?? "").trim().toLowerCase();
 
   if (role === "driver" || role === "helper") return crewNotifications(employee.employeeID);
-  if (role === "mechanic") return mechanicNotifications();
+  if (role === "mechanic") return mechanicNotifications(employee.employeeID);
   if (role === "admin" || role === "coordinator" || role === "dispatcher") return adminNotifications();
 
   return [];

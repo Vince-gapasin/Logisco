@@ -103,6 +103,17 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
 
         {/* Navigation Menu */}
         <nav className="relative z-10 flex-1 px-4 py-5 space-y-1.5 overflow-y-auto">
+          {/* Broken-down trucks this mechanic has been sent to. First, because it
+              is the one that has someone waiting at the side of a road. */}
+          <Link
+            href="/mechanic/roadside"
+            className={getLinkClass("/mechanic/roadside")}
+            onClick={closeSidebar}
+          >
+            <Wrench className="w-5 h-5 mr-3 shrink-0" />
+            <span>Roadside Jobs</span>
+          </Link>
+
           <Link
             href="/mechanic/fleet-status"
             className={getLinkClass("/mechanic/fleet-status")}

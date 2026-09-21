@@ -106,6 +106,7 @@ interface OrderRow {
   orderID: string;
   orderCode: string;
   DispatchOrder: { status: string | null }[] | null;
+  FoulTripIncident: { status: string }[] | null;
   Client: Embed<{ company: string | null }>;
 }
 
@@ -147,7 +148,8 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
   const pattern = `%${q}%`;
   const quoted = `"${pattern}"`;
 
-  const bookingColumns = "orderID, orderCode, createdAt, DispatchOrder ( status )";
+  const bookingColumns =
+    "orderID, orderCode, createdAt, DispatchOrder ( status ), FoulTripIncident ( status )";
 
   // Cancelled bookings are left out: every booking screen lists active
   // orders only, so a cancelled one would lead to a screen that cannot show it.
@@ -208,6 +210,14 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
     const dispatches = Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [];
     const where = bookingDestination(dispatches.map((d) => d?.status));
     if (!where) continue;
+    // The foul-trip screen lists open incidents only. A failed trip that was
+    // closed without a recovery trip appears on no screen, so no link.
+    if (
+      where.path.endsWith("/foul-trip") &&
+      !(order.FoulTripIncident ?? []).some((i) => i.status === "open" || i.status === "mechanic_assigned")
+    ) {
+      continue;
+    }
     const company = first(order.Client)?.company || "Walk-in customer";
     bookings.push({
       id: `booking-${order.orderID}`,

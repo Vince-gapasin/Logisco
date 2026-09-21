@@ -130,6 +130,33 @@ async function withSignedProofs(orders: Order[]): Promise<Order[]> {
   return orders;
 }
 
+// Foul trips someone still has to act on. This used to be every order with
+// a Foul Trip dispatch anywhere in its history - so a recovered booking would
+// have appeared here and on its new stage's screen at once, and the 123
+// historical ones never left.
+async function getOpenFoulTripBookings(limit: number, columns: string): Promise<Order[]> {
+  const { data: incidents, error } = await supabase
+    .from("FoulTripIncident")
+    .select("orderID")
+    .in("status", ["open", "mechanic_assigned"])
+    .order("reportedAt", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  const orderIDs = [...new Set((incidents ?? []).map((incident) => incident.orderID as string))];
+  if (orderIDs.length === 0) return [];
+
+  const { data, error: rowsError } = await supabase
+    .from("Order")
+    .select(columns)
+    .in("orderID", orderIDs)
+    .order("createdAt", { ascending: false });
+
+  if (rowsError) throw rowsError;
+  return withSignedProofs((data ?? []) as unknown as Order[]);
+}
+
 // Orders with no dispatch yet, or whose only dispatches were rejected.
 // Resolved in two cheap steps: ids first, then the full rows for those ids.
 async function getUnassignedBookings(limit: number): Promise<Order[]> {
@@ -167,6 +194,10 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
 
   if (query.stage === "unassigned") {
     return getUnassignedBookings(limit);
+  }
+
+  if (query.stage === "foul-trip") {
+    return getOpenFoulTripBookings(limit, columns);
   }
 
   // A stage maps to dispatch statuses: an inner join keeps only matching orders.

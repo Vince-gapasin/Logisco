@@ -313,7 +313,10 @@ export default function CrewDashboardPage({
 
   const [showEmergencyModal, setShowEmergencyModal] = useState<boolean>(false);
   const [emergencyReason, setEmergencyReason] = useState<string>("Broken Truck");
-  const [otherReason, setOtherReason] = useState<string>("");
+  // The report's own photo. The form used to send selectedFile - the proof of
+  // delivery picked for the current stop - and had no photo field of its own.
+  const [emergencyFile, setEmergencyFile] = useState<File | null>(null);
+  const [isSendingEmergency, setIsSendingEmergency] = useState<boolean>(false);
   const [emergencyMessage, setEmergencyMessage] = useState<string>("");
   const [emergencyImage, setEmergencyImage] = useState<string | null>(null);
   const [emergencySubmitted, setEmergencySubmitted] = useState<boolean>(false);
@@ -705,21 +708,61 @@ export default function CrewDashboardPage({
     }
   };
 
-  const handleSendEmergencyAlert = async () => {
-    if (!selectedDelivery) return;
+  // Best available position for the report: the live fix if tracking is
+  // running, otherwise one quick attempt. Never blocks the alert for long.
+  const currentPosition = (): Promise<{ latitude: number; longitude: number } | null> => {
+    if (driverPosition) return Promise.resolve({ latitude: driverPosition.latitude, longitude: driverPosition.longitude });
+    if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 },
+      );
+    });
+  };
 
+  const handleEmergencyPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (emergencyImage) URL.revokeObjectURL(emergencyImage);
+    setEmergencyImage(URL.createObjectURL(file));
+    compressImage(file)
+      .then(setEmergencyFile)
+      .catch(() => setEmergencyFile(file));
+  };
+
+  const clearEmergencyPhoto = () => {
+    if (emergencyImage) URL.revokeObjectURL(emergencyImage);
+    setEmergencyImage(null);
+    setEmergencyFile(null);
+  };
+
+  const handleSendEmergencyAlert = async () => {
+    if (!selectedDelivery || isSendingEmergency) return;
+
+    // "Other" used to arrive at dispatch as the single word "Other".
+    if (emergencyReason === "Other" && !emergencyMessage.trim()) {
+      alert("Describe what happened - dispatch needs to know what to send.");
+      return;
+    }
+
+    setIsSendingEmergency(true);
     try {
       const sessionStr = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
       const token = sessionStr ? JSON.parse(sessionStr).token : "";
 
+      const position = await currentPosition();
+
       const formData = new FormData();
       formData.append("dispatchID", String(selectedDelivery.id));
-      formData.append("issueType", emergencyReason === "Other" && otherReason ? otherReason : emergencyReason);
-      formData.append("details", emergencyMessage);
-      
-      if (selectedFile) {
-        formData.append("emergencyImage", selectedFile);
+      formData.append("issueType", emergencyReason);
+      formData.append("details", emergencyMessage.trim());
+      if (position) {
+        formData.append("latitude", String(position.latitude));
+        formData.append("longitude", String(position.longitude));
       }
+      if (emergencyFile) formData.append("emergencyImage", emergencyFile);
 
       const response = await fetch("/api/crew/dispatches/emergency", {
         method: "POST",
@@ -727,11 +770,14 @@ export default function CrewDashboardPage({
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Failed to send emergency alert");
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || "Failed to send emergency alert");
+      }
 
       setEmergencySubmitted(true);
       void stopLiveTracking();
-      
+
       setDeliveryList((prev) =>
         prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: "Foul Trip", localUpdatedAt: Date.now() } : d)
       );
@@ -740,17 +786,15 @@ export default function CrewDashboardPage({
         setEmergencySubmitted(false);
         setShowEmergencyModal(false);
         setEmergencyMessage("");
-        setOtherReason("");
-        if (emergencyImage) {
-          URL.revokeObjectURL(emergencyImage);
-          setEmergencyImage(null);
-        }
+        clearEmergencyPhoto();
         setViewMode("list");
         setSelectedDelivery(null);
       }, 2000);
 
     } catch (error: any) {
       alert(`Error sending alert: ${error.message}`);
+    } finally {
+      setIsSendingEmergency(false);
     }
   };
 
@@ -1550,14 +1594,35 @@ export default function CrewDashboardPage({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Details</label>
-                <textarea value={emergencyMessage} onChange={(e) => setEmergencyMessage(e.target.value)} placeholder="Describe the situation..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-20"></textarea>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {emergencyReason === "Other" ? "What happened? (required)" : "Details"}
+                </label>
+                <textarea value={emergencyMessage} onChange={(e) => setEmergencyMessage(e.target.value)} placeholder={emergencyReason === "Other" ? "Describe what happened..." : "Describe the situation..."} className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-20"></textarea>
               </div>
+              <div>
+                <span className="block text-xs font-semibold text-slate-700 mb-1">Photo (optional)</span>
+                {emergencyImage ? (
+                  <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={emergencyImage} alt="Emergency photo" className="w-full h-full object-cover" />
+                    <button type="button" onClick={clearEmergencyPhoto} aria-label="Remove photo" className="absolute top-0.5 right-0.5 w-8 h-8 flex items-center justify-center bg-slate-900/70 text-white rounded-full">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex min-h-11 items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-600 cursor-pointer">
+                    <Camera className="w-4 h-4 text-slate-500" />
+                    Take or attach a photo
+                    <input type="file" accept="image/*" capture="environment" onChange={handleEmergencyPhoto} className="hidden" />
+                  </label>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">Your current location is sent with the report.</p>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
-              <button onClick={handleSendEmergencyAlert} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
-                {emergencySubmitted ? "Alert Sent!" : "Send Alert"}
+              <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
+                {emergencySubmitted ? "Alert Sent!" : isSendingEmergency ? "Sending..." : "Send Alert"}
               </button>
             </div>
           </div>

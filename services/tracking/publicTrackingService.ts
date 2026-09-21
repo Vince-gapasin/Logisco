@@ -156,6 +156,7 @@ export async function getTrackingByToken(
       `orderID, orderCode, createdAt, isActive,
        Client ( company ),
        BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong ),
+       FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt,
          Truck ( plateNumber, model ),
          Employee!DispatchOrder_driverID_fkey ( employeeName, contact ) )`,
@@ -239,7 +240,19 @@ export async function getTrackingByToken(
   }
 
   let deliveryStatus = "Awaiting dispatch";
-  if (dispatch?.status === DELIVERY_STATUS.foulTrip) deliveryStatus = "Trip interrupted";
+  if (dispatch?.status === DELIVERY_STATUS.foulTrip) {
+    // What is being done about it, without any of the incident's details:
+    // this page is public.
+    const incident = ((order.FoulTripIncident ?? []) as { dispatchID: string; status: string }[]).find(
+      (i) => i.dispatchID === dispatch.dispatchID,
+    );
+    deliveryStatus =
+      incident?.status === "mechanic_assigned"
+        ? "Delayed: roadside repair under way"
+        : incident?.status === "open"
+          ? "Delayed: arranging a replacement truck"
+          : "Trip interrupted";
+  }
   else if (isCompleted) deliveryStatus = "Delivery completed";
   else if (dispatch?.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit";
   else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";

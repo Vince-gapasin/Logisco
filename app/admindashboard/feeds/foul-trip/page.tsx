@@ -4,9 +4,10 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
+import RecoveryPanel from "@/components/foulTrip/RecoveryPanel";
+import type { FoulTripSummary, IncidentView } from "@/services/foulTrip/foulTripService";
 import { apiFetch } from "@/app/lib/apiClient";
 import {
-  isFoulTrip,
   mapOrderToBookingView,
   toFeedBooking,
   type FeedBooking,
@@ -20,49 +21,9 @@ import {
   X,
   CheckCircle2,
   Clock,
-  Calendar,
-  Users,
-  Truck,
-  Wrench,
-  Paperclip,
 } from "lucide-react";
 
-// ==========================================
-// DUMMY DATA (Realistic Foul Trip records with Full Pending History)
-// ==========================================
-
 const ITEMS_PER_PAGE = 10;
-
-// ==========================================
-// DUMMY AVAILABILITY DATA
-// ==========================================
-const availableStaff = [
-  { id: "staff-001", name: "Juan Dela Cruz", role: "Driver", available: true },
-  { id: "staff-002", name: "Pedro Santos", role: "Driver", available: true },
-  { id: "staff-003", name: "Luis Manzano", role: "Driver", available: false },
-  { id: "staff-004", name: "Marco Reyes", role: "Driver", available: true },
-];
-
-const availableTrucks = [
-  { id: "truck-001", name: "TRK-105 (Isuzu Forward)", available: false },
-  { id: "truck-002", name: "TRK-108 (Fuso Canter)", available: true },
-  { id: "truck-003", name: "TRK-220 (Isuzu Elf)", available: true },
-  { id: "truck-004", name: "TRK-305 (Hino 300)", available: true },
-];
-
-const availableSubconTrucks = [
-  { id: "subcon-001", name: "SUBCON-001 – Isuzu Forward", available: true },
-  { id: "subcon-002", name: "SUBCON-002 – Mitsubishi Fuso", available: true },
-  { id: "subcon-003", name: "SUBCON-003 – Hino Dutro", available: false },
-  { id: "subcon-004", name: "SUBCON-004 – Isuzu Elf", available: true },
-];
-
-const mechanicStaff = [
-  { id: "mech-001", name: "Ramon Garcia", role: "Mechanic" },
-  { id: "mech-002", name: "Albert Cruz", role: "Mechanic" },
-  { id: "mech-003", name: "Mark Villanueva", role: "Mechanic" },
-  { id: "mech-004", name: "Roberto Santos", role: "Mechanic" },
-];
 
 // ==========================================
 // STATUS BADGE HELPERS
@@ -192,39 +153,13 @@ function BookingDetailsModal({
   const [formData, setFormData] = useState<any>({});
   const [pickupList, setPickupList] = useState<any[]>([]);
   const [deliveryList, setDeliveryList] = useState<any[]>([]);
-  const [selectedRecoveryAction, setSelectedRecoveryAction] = useState<
-    string | null
-  >(null);
-
-  // Expanded Action States
-  const [newScheduleDate, setNewScheduleDate] = useState("");
-  const [newScheduleTime, setNewScheduleTime] = useState("");
-  const [rescheduleDriver, setRescheduleDriver] = useState("");
-  const [rescheduleHelper1, setRescheduleHelper1] = useState("");
-  const [rescheduleHelper2, setRescheduleHelper2] = useState("");
-  const [rescheduleTruck, setRescheduleTruck] = useState("");
-
-  const [selectedSubconTruck, setSelectedSubconTruck] = useState("");
-  const [selectedMechanic, setSelectedMechanic] = useState("");
 
   useEffect(() => {
     if (isOpen && booking) {
-      // Reset selected action & states on open
-      setSelectedRecoveryAction(null);
-
-      setNewScheduleDate("");
-      setNewScheduleTime("");
-      setRescheduleDriver("");
-      setRescheduleHelper1("");
-      setRescheduleHelper2("");
-      setRescheduleTruck("");
-      setSelectedSubconTruck("");
-      setSelectedMechanic("");
-
       setFormData({
         clientName: booking.clientName || "",
-        contactPerson: booking.contactPerson || "Juan Dela Cruz",
-        contactNumber: booking.contactNumber || "09123456789",
+        contactPerson: booking.contactPerson || "",
+        contactNumber: booking.contactNumber || "",
         emailAddress: booking.emailAddress || "",
         businessAddress: booking.businessAddress || "",
         requestDate: booking.dateCreated || currentDate,
@@ -255,27 +190,6 @@ function BookingDetailsModal({
     }
   }, [isOpen, booking, currentDate]);
 
-  const handleProceedRecovery = () => {
-    let msg = "";
-    switch (selectedRecoveryAction) {
-      case "reschedule":
-        msg = "Delivery has been rescheduled successfully. Waiting for crew to accept the new schedule.";
-        break;
-      case "reassign":
-        msg = "New staff and vehicle have been assigned successfully. Waiting for crew to accept the assignment.";
-        break;
-      case "subcon":
-        msg = "Sub-Con truck request has been sent successfully. Waiting for Sub-Con partner's confirmation.";
-        break;
-      case "inspection":
-        msg = "Inspection request has been sent successfully. Waiting for the assigned mechanic to confirm the inspection.";
-        break;
-      default:
-        return;
-    }
-
-    onProceedSuccess(msg);
-  };
 
   if (!isOpen || !booking) return null;
 
@@ -284,32 +198,6 @@ function BookingDetailsModal({
   const tableInputClass =
     "w-full bg-transparent border-none px-1.5 py-1 font-medium text-slate-700 cursor-default focus:outline-none";
 
-  const recoveryOptions = [
-    {
-      id: "reschedule",
-      title: "Reschedule Delivery",
-      description: "Reschedule delivery for a later date and time",
-      icon: Calendar,
-    },
-    {
-      id: "reassign",
-      title: "Re-assign New Staff and Vehicle",
-      description: "Re-assign this booking to another driver and vehicle",
-      icon: Users,
-    },
-    {
-      id: "subcon",
-      title: "Assign Sub-Con Truck",
-      description: "Assign a Sub-Con Truck to this booking",
-      icon: Truck,
-    },
-    {
-      id: "inspection",
-      title: "Request Inspection",
-      description: "Request inspection to the mechanic",
-      icon: Wrench,
-    },
-  ];
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
@@ -380,307 +268,15 @@ function BookingDetailsModal({
             </div>
           </div>
 
-          {/* ========================================== */}
-          {/* 1. Foul Trip – Choose Recovery Action */}
-          {/* ========================================== */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              Foul Trip – Choose Recovery Action
+          {/* 1. Recovery. booking.incident is attached by the page from
+              /api/foul-trips; a booking without one cannot be acted on. */}
+          {booking.incident ? (
+            <RecoveryPanel incident={booking.incident} onDone={onProceedSuccess} />
+          ) : (
+            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50 text-sm text-amber-900">
+              This foul trip has no incident record, so no recovery can be started from here.
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {recoveryOptions.map((option) => {
-                const isSelected = selectedRecoveryAction === option.id;
-                const Icon = option.icon;
-                return (
-                  <div
-                    key={option.id}
-                    onClick={() => setSelectedRecoveryAction(option.id)}
-                    className={`flex flex-col p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50/50 shadow-sm"
-                        : "border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div
-                        className={`p-2 rounded-lg ${isSelected ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"}`}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-blue-500" : "border-slate-300"}`}
-                      >
-                        {isSelected && (
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        )}
-                      </div>
-                    </div>
-                    <h4
-                      className={`font-bold text-xs mb-1 ${isSelected ? "text-blue-900" : "text-slate-800"}`}
-                    >
-                      {option.title}
-                    </h4>
-                    <p
-                      className={`text-xs sm:text-[10px] leading-snug ${isSelected ? "text-blue-700/80" : "text-slate-500"}`}
-                    >
-                      {option.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* EXPANDED ACTION CONTROLS */}
-            {selectedRecoveryAction && (
-              <div className="mt-5 pt-5 border-t border-slate-200 animate-fade-in">
-                
-                {selectedRecoveryAction === "reschedule" && (
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Schedule Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newScheduleDate}
-                        onChange={(e) => setNewScheduleDate(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Schedule Time
-                      </label>
-                      <input
-                        type="time"
-                        value={newScheduleTime}
-                        onChange={(e) => setNewScheduleTime(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Driver
-                      </label>
-                      <select
-                        value={rescheduleDriver}
-                        onChange={(e) => setRescheduleDriver(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Driver </option>
-                        <option value="Juan Dela Cruz">Juan Dela Cruz</option>
-                        <option value="Pedro Santos">Pedro Santos</option>
-                        <option value="Luis Manzano">Luis Manzano</option>
-                        <option value="Marco Reyes">Marco Reyes</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Helper 1
-                      </label>
-                      <select
-                        value={rescheduleHelper1}
-                        onChange={(e) => setRescheduleHelper1(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Helper 1</option>
-                        <option value="Jose Rizal">Jose Rizal</option>
-                        <option value="Carlo Mendoza">Carlo Mendoza</option>
-                        <option value="Miguel Santos">Miguel Santos</option>
-                        <option value="Daniel Cruz">Daniel Cruz</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Helper 2
-                      </label>
-                      <select
-                        value={rescheduleHelper2}
-                        onChange={(e) => setRescheduleHelper2(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Helper 2</option>
-                        <option value="Jose Rizal">Jose Rizal</option>
-                        <option value="Carlo Mendoza">Carlo Mendoza</option>
-                        <option value="Miguel Santos">Miguel Santos</option>
-                        <option value="Daniel Cruz">Daniel Cruz</option>
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        New Truck
-                      </label>
-                      <select
-                        value={rescheduleTruck}
-                        onChange={(e) => setRescheduleTruck(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Truck </option>
-                        <option value="TRK-105 (Isuzu Forward)">TRK-105 (Isuzu Forward)</option>
-                        <option value="TRK-108 (Fuso Canter)">TRK-108 (Fuso Canter)</option>
-                        <option value="TRK-220 (Isuzu Elf)">TRK-220 (Isuzu Elf)</option>
-                        <option value="TRK-305 (Hino 300)">TRK-305 (Hino 300)</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {selectedRecoveryAction === "reassign" && (
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    {(() => {
-                      const availableStaffList = availableStaff.filter(
-                        (staff) => staff.available
-                      );
-                      const autoAssignedDriver = availableStaffList[0];
-                      const autoAssignedHelper1 = availableStaffList[1];
-                      const autoAssignedHelper2 = availableStaffList[2];
-                      const autoAssignedTruck = availableTrucks.find(
-                        (truck) => truck.available
-                      );
-
-                      return (
-                        <>
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
-                              Driver
-                            </label>
-                            <input
-                              type="text"
-                              readOnly
-                              value={autoAssignedDriver ? autoAssignedDriver.name : "None Available"}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
-                              Helper 1
-                            </label>
-                            <input
-                              type="text"
-                              readOnly
-                              value={autoAssignedHelper1 ? autoAssignedHelper1.name : "None Available"}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
-                              Helper 2
-                            </label>
-                            <input
-                              type="text"
-                              readOnly
-                              value={autoAssignedHelper2 ? autoAssignedHelper2.name : "None Available"}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium text-slate-700 mb-1">
-                              Truck
-                            </label>
-                            <input
-                              type="text"
-                              readOnly
-                              value={autoAssignedTruck ? autoAssignedTruck.name : "None Available"}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none transition-colors cursor-default"
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {selectedRecoveryAction === "subcon" && (
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Available Sub-Con Truck
-                      </label>
-                      <select
-                        value={selectedSubconTruck}
-                        onChange={(e) => setSelectedSubconTruck(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Sub-Con Truck </option>
-                        {availableSubconTrucks
-                          .filter((subcon) => subcon.available)
-                          .map((subcon) => (
-                            <option key={subcon.id} value={subcon.id}>
-                              {subcon.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Driver
-                      </label>
-                      <input
-                        type="text"
-                        readOnly
-                        value="Optional"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Helper 1
-                      </label>
-                      <input
-                        type="text"
-                        readOnly
-                        value="Optional"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Helper 2
-                      </label>
-                      <input
-                        type="text"
-                        readOnly
-                        value="Optional"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-500 italic focus:outline-none cursor-default"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {selectedRecoveryAction === "inspection" && (
-                  <div className="flex flex-col gap-4">
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-blue-900">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <AlertTriangle className="w-4 h-4 text-blue-600" />
-                        <h4 className="font-bold text-sm">Inspection Reminder</h4>
-                      </div>
-                      <p className="text-xs leading-relaxed text-blue-800">
-                        The mechanic may proceed to the truck's current location for inspection if the location is within a reasonable distance from the warehouse. If the location is too far, coordinate with the operations team for further instructions.
-                      </p>
-                    </div>
-
-                    <div className="w-full sm:w-1/2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Assign Mechanic Staff
-                      </label>
-                      <select
-                        value={selectedMechanic}
-                        onChange={(e) => setSelectedMechanic(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="">Select Mechanic</option>
-                        {mechanicStaff.map((mech) => (
-                          <option key={mech.id} value={mech.id}>
-                            {mech.name} – {mech.role}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* ========================================== */}
           {/* 2. Foul Trip Details                  */}
@@ -732,15 +328,16 @@ function BookingDetailsModal({
                   Attachment
                 </label>
                 {formData.foulDetails?.attachment ? (
-                  <div className="w-full flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2">
-                    <Paperclip className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span
-                      className="text-xs font-bold text-blue-600 truncate cursor-pointer hover:underline"
-                      title={formData.foulDetails.attachment}
-                    >
-                      {formData.foulDetails.attachment}
-                    </span>
-                  </div>
+                  <a
+                    href={formData.foulDetails.attachment}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-md p-2 hover:bg-slate-50"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={formData.foulDetails.attachment} alt="Photo from the crew" className="w-12 h-12 rounded object-cover shrink-0" />
+                    <span className="text-xs font-bold text-blue-600 hover:underline">View photo full size</span>
+                  </a>
                 ) : (
                   <input
                     type="text"
@@ -1210,16 +807,6 @@ function BookingDetailsModal({
         {/* FIXED FOOTER */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex justify-between items-center bg-slate-50">
           <div>
-            {/* Primary save button if actionable */}
-            {selectedRecoveryAction && (
-              <button
-                type="button"
-                onClick={handleProceedRecovery}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm"
-              >
-                Proceed with Recovery
-              </button>
-            )}
           </div>
           <button
             type="button"
@@ -1237,17 +824,76 @@ function BookingDetailsModal({
 // ==========================================
 // MAIN PAGE COMPONENT
 // ==========================================
+// The foul-trip screen is driven by incidents: a booking is listed while its
+// incident is open. Each row carries its incident, and the details section
+// reads what the crew actually reported instead of parsing the trip note.
+type FoulTripRow = FeedBooking & { incident: IncidentView | null };
+
+const RESOLUTION_LABEL: Record<string, string> = {
+  reassigned: "Re-assigned",
+  rescheduled: "Rescheduled",
+  subcontracted: "Sub-contracted",
+  repaired_on_site: "Repaired on site",
+  cancelled: "Booking cancelled",
+  closed: "Closed",
+};
+
+function attachIncident(booking: FeedBooking, incident: IncidentView | undefined): FoulTripRow {
+  if (!incident) return { ...booking, incident: null };
+  const located = incident.latitude != null && incident.longitude != null;
+  return {
+    ...booking,
+    incident,
+    foulDetails: {
+      reason: incident.issueType,
+      reportedAt: new Date(incident.reportedAt).toLocaleString("en-PH"),
+      reportedBy: [incident.reporterName, incident.reporterContact].filter(Boolean).join(" · ") || "Crew",
+      description: [
+        incident.details,
+        located ? `Location: ${incident.latitude!.toFixed(5)}, ${incident.longitude!.toFixed(5)}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      attachment: incident.photoUrl ?? "",
+    },
+  };
+}
+
+function hoursLabel(hours: number | null): string {
+  if (hours == null) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 48) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} days`;
+}
+
 export default function FoulTripFeedPage() {
-  const [bookings, setBookings] = useState<FeedBooking[]>([]);
+  const [bookings, setBookings] = useState<FoulTripRow[]>([]);
+  const [summary, setSummary] = useState<FoulTripSummary | null>(null);
+  const [recent, setRecent] = useState<IncidentView[]>([]);
+  const [completing, setCompleting] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings?stage=foul-trip");
+      // Fresh every time: after a recovery the list must not come back from
+      // the 60-second GET cache still showing what was just resolved.
+      const [orders, foul] = await Promise.all([
+        apiFetch<any[]>("/api/bookings?stage=foul-trip", { cache: "no-store" }),
+        apiFetch<{ open: IncidentView[]; recent: IncidentView[]; summary: FoulTripSummary }>(
+          "/api/foul-trips",
+          { cache: "no-store" },
+        ),
+      ]);
+      const byOrder = new Map(foul.open.map((incident) => [incident.orderCode, incident]));
       setBookings(
-        (orders ?? []).map(mapOrderToBookingView).filter(isFoulTrip).map(toFeedBooking),
+        (orders ?? [])
+          .map(mapOrderToBookingView)
+          .map(toFeedBooking)
+          .map((booking) => attachIncident(booking, byOrder.get(booking.orderId))),
       );
+      setSummary(foul.summary);
+      setRecent(foul.recent);
       setLoadError("");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
@@ -1303,11 +949,27 @@ export default function FoulTripFeedPage() {
     setIsModalOpen(false); // Close the Foul Trip Details Modal immediately
     setToastMessage(message);
     setShowSuccessToast(true);
+    void loadBookings();
 
     // Auto dismiss after 3 seconds
     setTimeout(() => {
       setShowSuccessToast(false);
     }, 3000);
+  };
+
+  const markSubcontractDelivered = async (incident: IncidentView) => {
+    setCompleting(incident.incidentID);
+    try {
+      await apiFetch(`/api/foul-trips/${incident.incidentID}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "complete_subcontract" }),
+      });
+      handleProceedSuccess(`${incident.orderCode ?? "The booking"} marked delivered.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not mark it delivered.");
+    } finally {
+      setCompleting(null);
+    }
   };
 
   return (
@@ -1345,7 +1007,7 @@ export default function FoulTripFeedPage() {
               Foul Trip Feed
             </h1>
             <p className="text-sm text-slate-600 mt-1">
-              Inspect cancelled or failed trip exceptions and incidents.
+              Trips that could not finish, and what is being done about each.
             </p>
           </div>
         </div>
@@ -1358,6 +1020,54 @@ export default function FoulTripFeedPage() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        {summary && (
+          <div className="p-4 sm:p-5 border-b border-slate-100 space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                ["Waiting for recovery", summary.open, summary.open ? "text-red-600" : "text-slate-900"],
+                ["Mechanic on the way", summary.mechanicAssigned, "text-blue-600"],
+                ["Resolved, last 30 days", summary.resolvedLast30Days, "text-emerald-600"],
+                ["Typical time to resolve", hoursLabel(summary.medianHoursToResolve), "text-slate-900"],
+              ].map(([label, value, tone]) => (
+                <div key={label as string} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-medium text-slate-500">{label}</div>
+                  <div className={`mt-1 text-xl font-bold ${tone}`}>{value}</div>
+                </div>
+              ))}
+            </div>
+            {(summary.reasons.length > 0 || summary.trucksAboveFleetRate.length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
+                {summary.reasons.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="text-xs font-semibold text-slate-700 mb-2">Reported reasons</div>
+                    <div className="flex flex-wrap gap-2">
+                      {summary.reasons.map((r) => (
+                        <span key={r.issueType} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+                          {r.issueType} · {r.count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {summary.trucksAboveFleetRate.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="text-xs font-semibold text-amber-900 mb-2">
+                      Trucks failing well above the fleet rate of {(summary.fleetRate * 100).toFixed(1)}%
+                    </div>
+                    <ul className="space-y-1 text-xs text-amber-900">
+                      {summary.trucksAboveFleetRate.map((t) => (
+                        <li key={t.plateNumber}>
+                          <strong>{t.plateNumber}</strong>: {t.foulTrips} foul trips in {t.trips} trips ({(t.rate * 100).toFixed(0)}%)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ========================================== */}
         {/* FILTERS */}
         {/* ========================================== */}
@@ -1460,6 +1170,12 @@ export default function FoulTripFeedPage() {
                       >
                         {booking.confirmationStatus}
                       </span>
+                      {booking.incident?.status === "mechanic_assigned" && (
+                        <div className="mt-1.5 text-xs font-medium text-blue-600">Mechanic on the way</div>
+                      )}
+                      {booking.incident?.status === "open" && booking.incident.mechanicOutcome === "not_fixable" && (
+                        <div className="mt-1.5 text-xs font-medium text-amber-700">Not fixable on site</div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -1523,6 +1239,48 @@ export default function FoulTripFeedPage() {
           </div>
         </div>
       </div>
+
+      {recent.length > 0 && (
+        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900">Recently resolved</h2>
+            <p className="text-xs text-slate-500 mt-0.5">The last 30 days.</p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {recent.map((incident) => {
+              const awaitingPartner =
+                incident.resolution === "subcontracted" &&
+                incident.newDispatch?.status !== "Completed";
+              return (
+                <li key={incident.incidentID} className="px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {incident.orderCode ?? "Booking"}
+                      <span className="font-normal text-slate-500"> · {incident.clientName ?? "Client"} · {incident.issueType}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {RESOLUTION_LABEL[incident.resolution ?? ""] ?? incident.resolution}
+                      {incident.resolverName ? ` by ${incident.resolverName}` : ""}
+                      {incident.resolvedAt ? ` · ${new Date(incident.resolvedAt).toLocaleString("en-PH")}` : ""}
+                      {incident.resolutionNotes ? ` · ${incident.resolutionNotes}` : ""}
+                    </div>
+                  </div>
+                  {awaitingPartner && (
+                    <button
+                      type="button"
+                      onClick={() => markSubcontractDelivered(incident)}
+                      disabled={completing === incident.incidentID}
+                      className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {completing === incident.incidentID ? "Saving…" : "Mark delivered"}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* Booking Details Modal */}
       <BookingDetailsModal
