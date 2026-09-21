@@ -95,7 +95,8 @@ export interface IncidentRow {
 const INCIDENT_COLUMNS = `
   *,
   Order ( orderCode, Client ( company ) ),
-  Truck ( plateNumber, model ),
+  Truck ( plateNumber, model, truckType ),
+  Trip:DispatchOrder!FoulTripIncident_dispatchID_fkey ( driverID, DispatchHelper ( helperID, status ) ),
   Reporter:Employee!reportedBy ( employeeName, contact ),
   Mechanic:Employee!mechanicID ( employeeName ),
   Resolver:Employee!resolvedBy ( employeeName ),
@@ -110,6 +111,10 @@ export interface IncidentView extends IncidentRow {
   orderCode: string | null;
   clientName: string | null;
   truckPlate: string | null;
+  truckType: string | null;
+  // The failed trip's crew, so a recovery can suggest them again.
+  originalDriverID: string | null;
+  originalHelperIDs: string[];
   reporterName: string | null;
   reporterContact: string | null;
   mechanicName: string | null;
@@ -125,11 +130,19 @@ async function toViews(rows: Record<string, unknown>[]): Promise<IncidentView[]>
     const order = first(row.Order as Embed<{ orderCode: string; Client: Embed<{ company: string }> }>);
     const newDispatch = first(row.NewDispatch as Embed<{ dispatchID: string; status: string | null; truckID: string | null }>);
     const incident = row as unknown as IncidentRow;
+    const trip = first(
+      row.Trip as Embed<{ driverID: string | null; DispatchHelper: { helperID: string | null; status: string | null }[] | null }>,
+    );
     return {
       ...incident,
       orderCode: order?.orderCode ?? null,
       clientName: first(order?.Client)?.company ?? null,
       truckPlate: first(row.Truck as Embed<{ plateNumber: string }>)?.plateNumber ?? null,
+      truckType: first(row.Truck as Embed<{ truckType: string | null }>)?.truckType ?? null,
+      originalDriverID: trip?.driverID ?? null,
+      originalHelperIDs: (trip?.DispatchHelper ?? [])
+        .filter((h) => h.helperID && h.status !== HELPER_STATUS.declined)
+        .map((h) => h.helperID as string),
       reporterName: first(row.Reporter as Embed<{ employeeName: string }>)?.employeeName ?? null,
       reporterContact: first(row.Reporter as Embed<{ contact: string }>)?.contact ?? null,
       mechanicName: first(row.Mechanic as Embed<{ employeeName: string }>)?.employeeName ?? null,

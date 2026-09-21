@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Calendar,
@@ -28,7 +28,7 @@ interface Resources {
   helpers: { employeeID: string; employeeName: string }[];
 }
 interface Partner { subConID: string; companyName: string; isActive?: boolean | null }
-interface Mechanic { employeeID: string; employeeName: string; isActive?: boolean | null }
+interface Mechanic { employeeID: string; employeeName: string; isActive?: boolean | null; availability?: string | null }
 
 const OPTIONS: { id: Action; title: string; description: string; icon: LucideIcon }[] = [
   { id: "reassign", title: "Re-assign now", description: "A free truck and crew take over today.", icon: Users },
@@ -41,6 +41,37 @@ const OPTIONS: { id: Action; title: string; description: string; icon: LucideIco
 
 const today = () => new Date().toISOString().slice(0, 10);
 const tomorrow = () => new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+
+// A starting crew for a re-assignment or reschedule, all of it editable. The
+// failed trip's own driver and helpers were released when it broke down, so
+// they come first if still free; the truck is one of the same type as the one
+// that broke down, else the first free one. A choice already made stays while
+// it is still free.
+function suggestCrew(resources: Resources, incident: IncidentView, current: { truckID: string; driverID: string; helper1ID: string; helper2ID: string }) {
+  const truckFree = (id: string) => resources.trucks.some((t) => t.truckID === id);
+  const driverFree = (id: string) => resources.drivers.some((d) => d.employeeID === id);
+  const helperFree = (id: string) => resources.helpers.some((h) => h.employeeID === id);
+
+  const truckID = truckFree(current.truckID)
+    ? current.truckID
+    : (resources.trucks.find((t) => incident.truckType && t.truckType === incident.truckType) ?? resources.trucks[0])?.truckID ?? "";
+
+  const driverID = driverFree(current.driverID)
+    ? current.driverID
+    : incident.originalDriverID && driverFree(incident.originalDriverID)
+      ? incident.originalDriverID
+      : resources.drivers[0]?.employeeID ?? "";
+
+  // As many helpers as the trip had, the same people where possible.
+  const kept = [current.helper1ID, current.helper2ID].filter((id) => id && helperFree(id));
+  const wanted = kept.length ? kept.length : Math.min(2, incident.originalHelperIDs.length);
+  const picks = [...kept];
+  for (const id of [...incident.originalHelperIDs.filter(helperFree), ...resources.helpers.map((h) => h.employeeID)]) {
+    if (picks.length >= wanted) break;
+    if (!picks.includes(id)) picks.push(id);
+  }
+  return { truckID, driverID, helper1ID: picks[0] ?? "", helper2ID: picks[1] ?? "" };
+}
 
 const field = "w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50";
 const label = "block text-xs font-semibold text-slate-700 mb-1";
@@ -78,6 +109,12 @@ export default function RecoveryPanel({
   // cancel / close
   const [text, setText] = useState("");
 
+  // Read by the loader without making every pick reload the lists.
+  const crewRef = useRef({ truckID, driverID, helper1ID, helper2ID });
+  useEffect(() => {
+    crewRef.current = { truckID, driverID, helper1ID, helper2ID };
+  }, [truckID, driverID, helper1ID, helper2ID]);
+
   const enRoute = incident.status === "mechanic_assigned";
   const canSendMechanic = Boolean(incident.truckID) && !enRoute;
   const resourceDate = action === "reschedule" ? date : today();
@@ -88,24 +125,42 @@ export default function RecoveryPanel({
     if (action !== "reassign" && action !== "reschedule") return;
     let live = true;
     apiFetch<{ data: Resources }>(`/api/dispatch/available-resources?date=${resourceDate}`, { cache: "no-store" })
-      .then((res) => live && setResources(res.data))
+      .then((res) => {
+        if (!live) return;
+        setResources(res.data);
+        const picked = suggestCrew(res.data, incident, crewRef.current);
+        setTruckID(picked.truckID);
+        setDriverID(picked.driverID);
+        setHelper1ID(picked.helper1ID);
+        setHelper2ID(picked.helper2ID);
+      })
       .catch((e: Error) => live && setError(e.message));
     return () => {
       live = false;
     };
-  }, [action, resourceDate]);
+  }, [action, resourceDate, incident]);
 
   useEffect(() => {
     if (action !== "subcontract" || partners) return;
     apiFetch<{ data: Partner[] }>("/api/subcontractors")
-      .then((res) => setPartners((res.data ?? []).filter((p) => p.isActive !== false)))
+      .then((res) => {
+        const active = (res.data ?? []).filter((p) => p.isActive !== false);
+        setPartners(active);
+        setSubConID((current) => current || active[0]?.subConID || "");
+      })
       .catch((e: Error) => setError(e.message));
   }, [action, partners]);
 
   useEffect(() => {
     if (action !== "send_mechanic" || mechanics) return;
     apiFetch<{ data: Mechanic[] }>("/api/employees?role=Mechanic&limit=100")
-      .then((res) => setMechanics((res.data ?? []).filter((m) => m.isActive !== false)))
+      .then((res) => {
+        const active = (res.data ?? []).filter((m) => m.isActive !== false);
+        setMechanics(active);
+        // A mechanic who is free first; any active one otherwise.
+        const free = active.find((m) => (m.availability ?? "").toLowerCase() === "available") ?? active[0];
+        setMechanicID((current) => current || free?.employeeID || "");
+      })
       .catch((e: Error) => setError(e.message));
   }, [action, mechanics]);
 
@@ -268,7 +323,7 @@ export default function RecoveryPanel({
                 <>
                   <div>
                     <label className={label} htmlFor="rt-date">New date</label>
-                    <input id="rt-date" type="date" min={today()} value={date} onChange={(e) => { setDate(e.target.value); setResources(null); setTruckID(""); setDriverID(""); setHelper1ID(""); setHelper2ID(""); }} className={field} />
+                    <input id="rt-date" type="date" min={today()} value={date} onChange={(e) => { setDate(e.target.value); setResources(null); }} className={field} />
                   </div>
                   <div>
                     <label className={label} htmlFor="rt-time">Time (optional)</label>
@@ -282,6 +337,12 @@ export default function RecoveryPanel({
                 </p>
               ) : (
                 <>
+                  {(truckID || driverID) && (
+                    <p className="sm:col-span-2 text-xs text-slate-500">
+                      Suggested from who is free{incident.originalDriverID && driverID === incident.originalDriverID ? ", keeping the original driver" : ""}
+                      {incident.truckType && resources.trucks.find((t) => t.truckID === truckID)?.truckType === incident.truckType ? ` and a ${incident.truckType} like the one that broke down` : ""}. Change any of them.
+                    </p>
+                  )}
                   <div>
                     <label className={label} htmlFor="rt-truck">Truck</label>
                     <select id="rt-truck" value={truckID} onChange={(e) => setTruckID(e.target.value)} className={field}>
