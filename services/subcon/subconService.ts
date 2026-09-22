@@ -260,6 +260,18 @@ export async function createSubconTrip(orderID: string, choice: PartnerChoice, a
   if (live.some((d) => !NOT_DEPARTED.includes(d.status))) {
     throw new SubconError("This booking's trip is already on the road. Report a foul trip to hand it over.", 409);
   }
+  // A foul trip is handed on from the foul-trip screen, which moves its
+  // undelivered stops to the new trip; here they would stay on the failed one.
+  const { count: openIncidents, error: incidentError } = await supabase
+    .from("FoulTripIncident")
+    .select("incidentID", { count: "exact", head: true })
+    .eq("orderID", orderID)
+    .in("status", ["open", "mechanic_assigned"]);
+  if (incidentError) throw new Error(incidentError.message);
+  if (openIncidents) {
+    throw new SubconError("This booking has an open foul trip. Hand it to a partner from the Foul Trip feed.", 409);
+  }
+
   for (const trip of live) await discardTrip(trip.dispatchID);
 
   const { data: dispatch, error } = await supabase
