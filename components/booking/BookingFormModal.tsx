@@ -487,7 +487,7 @@ function BookingForm({
                     <input
                       type="text"
                       name="clientName"
-                      placeholder="e.g., Acme Corp or Juan Dela Cruz"
+                      placeholder="Company or Client Name"
                       value={formData.clientName}
                       onChange={handleChange}
                       className={inputClass("clientName")}
