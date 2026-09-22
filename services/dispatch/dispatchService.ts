@@ -1,7 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import {
   ACTIVE_DELIVERY_STATUSES,
-  AVAILABILITY,
   DELIVERY_STATUS,
   EMPLOYEE_ROLE,
   TERMINAL_DELIVERY_STATUSES,
@@ -43,17 +42,6 @@ async function findActiveDispatchFor(
 
   if (error) throw new Error(`Supabase Dispatch Error: ${error.message}`);
   return data?.[0] ?? null;
-}
-
-async function setAvailability(employeeIDs: string[], availability: string) {
-  if (employeeIDs.length === 0) return;
-
-  const { error } = await supabase
-    .from("Employee")
-    .update({ availability })
-    .in("employeeID", employeeIDs);
-
-  if (error) throw new Error(`Failed to update crew availability: ${error.message}`);
 }
 
 async function setTruckStatus(truckID: string, truckStatus: string) {
@@ -159,9 +147,9 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
     throw error;
   }
 
-  // 4. Lock Resources ("On Delivery")
+  // 4. Lock the truck. Crew availability is calculated from the dispatch
+  // status and schedule whenever employees are fetched.
   await setTruckStatus(dto.truckID, TRUCK_STATUS.onDelivery);
-  await setAvailability([dto.driverID, ...helperIDs], AVAILABILITY.onDelivery);
 
   return dispatch;
 }
@@ -230,10 +218,6 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
   }
 
   const newHelperIDs = [...new Set([dto.helper1ID, dto.helper2ID].filter((id): id is string => Boolean(id)))];
-  const oldHelperIDs = ((dispatch.DispatchHelper as any[]) ?? [])
-    .map((helper) => helper.helperID)
-    .filter(Boolean) as string[];
-
   // 2. Apply the new assignment, resetting crew confirmation
   const { error: updateErr } = await supabase
     .from("DispatchOrder")
@@ -262,17 +246,12 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
     if (helperErr) throw new Error(`Failed to assign dispatch helpers: ${helperErr.message}`);
   }
 
-  // 3. Free whoever was dropped, lock whoever was added
+  // 3. Update the assigned truck. Crew availability is derived from the
+  // resulting dispatch assignment instead of being manually persisted.
   if (dispatch.truckID && dispatch.truckID !== dto.truckID) {
     await setTruckStatus(dispatch.truckID, TRUCK_STATUS.available);
   }
   await setTruckStatus(dto.truckID, TRUCK_STATUS.onDelivery);
-
-  const released = [dispatch.driverID, ...oldHelperIDs].filter(
-    (id): id is string => Boolean(id) && id !== dto.driverID && !newHelperIDs.includes(id),
-  );
-  await setAvailability(released, AVAILABILITY.available);
-  await setAvailability([dto.driverID, ...newHelperIDs], AVAILABILITY.onDelivery);
 
   return { dispatchID };
 }
@@ -285,7 +264,7 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 export async function releaseDispatchResources(dispatchID: string, truckStatus: string = TRUCK_STATUS.available) {
   const { data: dispatchRecord, error } = await supabase
     .from("DispatchOrder")
-    .select("truckID, driverID, DispatchHelper(helperID)")
+    .select("truckID")
     .eq("dispatchID", dispatchID)
     .maybeSingle();
 
@@ -295,13 +274,6 @@ export async function releaseDispatchResources(dispatchID: string, truckStatus: 
   if (dispatchRecord.truckID) {
     await setTruckStatus(dispatchRecord.truckID, truckStatus);
   }
-
-  const crewIDs = [
-    dispatchRecord.driverID,
-    ...(dispatchRecord.DispatchHelper ?? []).map((helper: { helperID: string | null }) => helper.helperID),
-  ].filter((id): id is string => Boolean(id));
-
-  await setAvailability(crewIDs, AVAILABILITY.available);
 
   // Remove the live map pin for this trip.
   await supabase.from("FleetLocations").delete().eq("dispatch_id", dispatchID);
@@ -429,7 +401,6 @@ export async function getAvailableResources(targetDate: string) {
   });
 
   const isFree = (employee: any) =>
-    (employee.availability || "").toLowerCase() === "available" &&
     !busyEmployees.has(employee.employeeID);
 
   const availableDrivers = (allEmployees || []).filter(

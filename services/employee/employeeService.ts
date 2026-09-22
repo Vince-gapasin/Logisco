@@ -1,6 +1,12 @@
 import { supabase } from "@/app/lib/supabase";
 // EMPLOYEE_LOGIN_ACCESS_V3
 
+import { AVAILABILITY } from "@/app/lib/enums";
+import {
+  getEmployeeAvailability,
+  getEmployeeAvailabilityMap,
+} from "@/services/employee/employeeAvailabilityService";
+
 import type {
   Employee,
   CreateEmployeeDto,
@@ -20,6 +26,7 @@ const LIST_COLUMNS = [
   "middleName",
   "suffix",
   "role",
+  "availability",
   "address",
   "contact",
   "emailAddress",
@@ -35,7 +42,7 @@ export async function getEmployees(query: EmployeeQueryDto) {
     limit,
     search,
     role,
-    availability,
+    availability: requestedAvailability,
     healthStatus,
     isActive,
     sortBy,
@@ -57,9 +64,9 @@ export async function getEmployees(query: EmployeeQueryDto) {
     dbQuery = dbQuery.eq("role", role);
   }
 
-  if (availability) {
-    dbQuery = dbQuery.eq("availability", availability);
-  }
+  // Availability is calculated from live dispatches, so the legacy stored
+  // column must not be used to filter the directory.
+  void requestedAvailability;
 
   if (healthStatus) {
     dbQuery = dbQuery.eq("healthStatus", healthStatus);
@@ -75,8 +82,22 @@ export async function getEmployees(query: EmployeeQueryDto) {
 
   if (error) throw error;
 
+  const employees = (data ?? []) as unknown as Employee[];
+  const availabilityByEmployee = await getEmployeeAvailabilityMap(
+    employees
+      .filter((employee) => employee.isActive !== false)
+      .map((employee) => employee.employeeID),
+  );
+
   return {
-    employees: (data ?? []) as unknown as Employee[],
+    employees: employees.map((employee) => ({
+      ...employee,
+      availability:
+        employee.isActive === false
+          ? AVAILABILITY.available
+          : availabilityByEmployee.get(employee.employeeID) ??
+            AVAILABILITY.available,
+    })),
     total: count ?? 0,
   };
 }
@@ -89,7 +110,15 @@ export async function getEmployeeById(id: string): Promise<Employee | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return data as Employee | null;
+  if (!data) return null;
+
+  return {
+    ...data,
+    availability:
+      data.isActive === false
+        ? AVAILABILITY.available
+        : await getEmployeeAvailability(data.employeeID),
+  } as Employee;
 }
 
 export async function createEmployee(
@@ -99,6 +128,7 @@ export async function createEmployee(
     .from(TABLE)
     .insert({
       ...employee,
+      availability: AVAILABILITY.available,
       isActive: true,
       auth_id: null,
       activation_sent_at: null,
@@ -224,9 +254,15 @@ export async function updateEmployee(
   id: string,
   employee: UpdateEmployeeDto,
 ): Promise<Employee | null> {
+  // Availability is system-calculated. Ignore any legacy/manual value sent by
+  // older clients while still allowing normal employee updates.
+  const { availability: _ignoredAvailability, ...updates } = employee as
+    UpdateEmployeeDto & { availability?: unknown };
+  void _ignoredAvailability;
+
   const { data, error } = await supabase
     .from(TABLE)
-    .update(employee)
+    .update(updates)
     .eq("employeeID", id)
     .select()
     .maybeSingle();

@@ -114,6 +114,9 @@ export type TruckStatus = (typeof TRUCK_STATUS)[keyof typeof TRUCK_STATUS];
 // ==========================================
 export const AVAILABILITY = {
   available: "Available",
+  booked: "Booked",
+  inTransit: "In Transit",
+  // Retained until every legacy availability write is removed.
   onDelivery: "On Delivery",
 } as const;
 

@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 // EMPLOYEE_LOGIN_ACCESS_V1
 // EMPLOYEE_COORDINATOR_READ_ONLY_V1
+// EMPLOYEE_AUTOMATIC_AVAILABILITY_V5
 // ==========================================
 // LOGISCO - EMPLOYEE DIRECTORY
 // ==========================================
@@ -25,6 +26,11 @@ import {
   Loader2,
   MailCheck,
   CheckCircle2,
+  MoreHorizontal,
+  UserCheck,
+  UserX,
+  Paperclip,
+  HeartPulse,
 } from "lucide-react";
 
 // ==========================================
@@ -509,10 +515,6 @@ function EmployeeModal({
       newErrors.role = "Role is required.";
     }
 
-    if (!formData.availability.trim()) {
-      newErrors.availability = "Availability is required.";
-    }
-
     if (!formData.address.trim()) {
       newErrors.address = "Address is required.";
     }
@@ -820,21 +822,23 @@ function EmployeeModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Availability *
+                  Availability (Automatic)
                 </label>
                 <input
                   type="text"
                   name="availability"
                   value={formData.availability}
-                  onChange={handleInputChange}
-                  placeholder="Enter availability"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.availability ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  disabled
+                  readOnly
+                  aria-describedby="availability-help"
+                  className="w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600"
                 />
-                {errors.availability && (
-                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">
-                    {errors.availability}
-                  </p>
-                )}
+                <p
+                  id="availability-help"
+                  className="mt-1 text-xs text-slate-500"
+                >
+                  Updated automatically from assigned deliveries.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -1127,7 +1131,10 @@ interface EmployeeDetailViewProps {
   onEdit: (employee: EmployeeRecord) => void;
   onDelete: (id: string) => Promise<void>;
   onActivate: (id: string) => Promise<void>;
+  onToggleStatus: (employee: EmployeeRecord) => Promise<void>;
 }
+
+type EmployeeDetailTab = "overview" | "health" | "attachments";
 
 function EmployeeDetailView({
   employee,
@@ -1136,10 +1143,17 @@ function EmployeeDetailView({
   onEdit,
   onDelete,
   onActivate,
+  onToggleStatus,
 }: EmployeeDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [activeTab, setActiveTab] =
+    useState<EmployeeDetailTab>("overview");
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = currentRole.toLowerCase() === "admin";
   const canEdit = isAdmin;
@@ -1177,6 +1191,20 @@ function EmployeeDetailView({
 
   const activationRemainingMinutes = Math.ceil(activationRemainingMs / 60000);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        moreMenuRef.current &&
+        !moreMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsMoreOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // EXACT LOGIC FROM YOUR UPDATED CODE, modified only to safely close the UI modal
   const confirmDelete = async () => {
     try {
@@ -1200,47 +1228,89 @@ function EmployeeDetailView({
     }
   };
 
+  const confirmStatusChange = async () => {
+    try {
+      setIsUpdatingStatus(true);
+      await onToggleStatus(employee);
+      setShowStatusModal(false);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const employeeName = [
+    employee.firstName,
+    employee.middleName,
+    employee.lastName,
+    employee.suffix,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const availabilityBadgeClass =
+    employee.availability === "In Transit"
+      ? "bg-blue-100 text-blue-700"
+      : employee.availability === "Booked"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-emerald-100 text-emerald-700";
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-        <div className="flex items-center gap-3">
+      {/* PROFILE HEADER */}
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-xs transition-colors hover:bg-slate-100"
             title="Back to Directory"
+            aria-label="Back to Employee Directory"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Employee Information Record
-            </h1>
-            <p className="text-sm text-slate-600 mt-0.5">
-              Complete employee profile and account management.
-            </p>
+
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-base font-bold text-blue-700 sm:h-14 sm:w-14 sm:text-lg">
+              {employee.firstName ? employee.firstName[0] : "E"}
+              {employee.lastName ? employee.lastName[0] : ""}
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                {employeeName || "Employee"}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
+                  {employee.role}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                    employee.isActive
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {employee.isActive ? "Active" : "Inactive"}
+                </span>
+                {employee.isActive && (
+                  <span
+                    className={`rounded-full px-3 py-1 text-sm font-semibold ${availabilityBadgeClass}`}
+                  >
+                    {employee.availability || "Available"}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* ACTIVATE ACCOUNT */}
-          {isAdmin &&
-            (accountActivated ? (
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {isAdmin && !accountActivated && (
+            activationCooldownActive ? (
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-default"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500 cursor-not-allowed"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                Login Access
-              </button>
-            ) : activationCooldownActive ? (
-              <button
-                type="button"
-                disabled
-                className="inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-500 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-not-allowed"
-              >
-                <Loader2 className="w-4 h-4" />
+                <Loader2 className="h-4 w-4" />
                 Resend in {activationRemainingMinutes} min
               </button>
             ) : (
@@ -1248,12 +1318,12 @@ function EmployeeDetailView({
                 type="button"
                 onClick={handleActivation}
                 disabled={isActivating || !employee.emailAddress}
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isActivating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <MailCheck className="w-4 h-4" />
+                  <MailCheck className="h-4 w-4" />
                 )}
                 {isActivating
                   ? "Sending Invite..."
@@ -1261,73 +1331,110 @@ function EmployeeDetailView({
                     ? "Resend Activation"
                     : "Allow Login"}
               </button>
-            ))}
-
-          {/* EDIT */}
-          {canEdit && (
-            <button
-              onClick={() => onEdit(employee)}
-              className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>Edit Employee</span>
-            </button>
+            )
           )}
 
-          {/* DELETE */}
-          {isAdmin && (
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
-            </button>
+          {isAdmin && accountActivated && (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Login Access
+            </div>
+          )}
+
+          {canEdit && (
+            <div ref={moreMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMoreOpen((open) => !open)}
+                aria-expanded={isMoreOpen}
+                aria-haspopup="menu"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                More
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {isMoreOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMoreOpen(false);
+                      onEdit(employee);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Edit3 className="h-4 w-4 text-blue-600" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMoreOpen(false);
+                      setShowStatusModal(true);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {employee.isActive ? (
+                      <UserX className="h-4 w-4 text-amber-600" />
+                    ) : (
+                      <UserCheck className="h-4 w-4 text-emerald-600" />
+                    )}
+                    {employee.isActive ? "Disable" : "Enable"}
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMoreOpen(false);
+                      setShowDeleteModal(true);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-        {/* PROFILE SUMMARY */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-2xl font-bold border border-blue-100">
-              {employee.firstName ? employee.firstName[0] : "E"}
-              {employee.lastName ? employee.lastName[0] : ""}
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {employee.firstName} {employee.middleName} {employee.lastName}{" "}
-                {employee.suffix}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {employee.role}
-                </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    employee.isActive
-                      ? "bg-green-100 text-green-700"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {employee.isActive ? "Active" : "Inactive"}
-                </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    accountActivated
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  {accountActivated ? "Login Access ✓" : "No Access"}
-                </span>
-              </div>
-            </div>
-          </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 sm:px-6">
+          {(
+            [
+              ["overview", "Overview"],
+              ["health", "Health Info"],
+              ["attachments", "Attachments"],
+            ] as const
+          ).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`whitespace-nowrap border-b-2 px-3 py-4 text-sm font-semibold transition-colors ${
+                activeTab === tab
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="space-y-6 text-sm text-slate-900">
+        <div className="p-4 sm:p-6">
+          {activeTab === "overview" && (
+            <div className="space-y-6 text-sm text-slate-900">
           {/* PERSONAL */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
@@ -1357,97 +1464,180 @@ function EmployeeDetailView({
             </div>
           </div>
 
-          {/* EMPLOYEE */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              2. Employee Details
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <ReadField label="Role" value={employee.role} />
-              <ReadField label="Availability" value={employee.availability} />
-              <ReadField
-                label="Date Employed"
-                value={formatDate(employee.dateEmployed)}
-              />
-            </div>
-          </div>
-
-          {/* DRIVER */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              3. Driver Information (if applicable)
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <ReadField
-                label="Driver's License No."
-                value={employee.licenseNumber}
-              />
-              <ReadField
-                label="License Type / Restriction"
-                value={employee.driverLicenseType}
-              />
-              <ReadField
-                label="License Expiration Date"
-                value={formatDate(employee.licenseExpirationDate)}
-              />
-              <ReadField
-                label="Driving Experience (Years)"
-                value={
-                  employee.drivingExperience
-                    ? `${employee.drivingExperience} years`
-                    : ""
-                }
-              />
-            </div>
-          </div>
-
-          {/* HEALTH */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              4. Health & Emergency Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              <ReadField
-                label="Health Condition"
-                value={employee.healthCondition}
-              />
-              <ReadField
-                label="Drug Test Status"
-                value={employee.drugTestStatus}
-              />
-              <ReadField
-                label="Last Medical Check-up"
-                value={formatDate(employee.lastMedicalCheckup)}
-              />
-              <ReadField
-                label="Emergency Contact Person"
-                value={employee.emergencyContactPerson}
-              />
-              <ReadField
-                label="Emergency Contact Number"
-                value={employee.emergencyContactNumber}
-              />
-              <ReadField label="Relationship" value={employee.relationship} />
-            </div>
-          </div>
-
-          {/* OTHER */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              5. Other Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <ReadField
-                  label="Skills / Specialization"
-                  value={employee.skills}
-                />
+              {/* EMPLOYMENT */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <div className="mb-4 border-b border-slate-200 pb-2 text-sm font-semibold tracking-wide text-black">
+                  2. Employment Information
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <ReadField label="Role" value={employee.role} />
+                  <ReadField
+                    label="Availability"
+                    value={employee.availability}
+                  />
+                  <ReadField
+                    label="Date Employed"
+                    value={formatDate(employee.dateEmployed)}
+                  />
+                </div>
               </div>
-              <ReadField label="Other Remarks" value={employee.remarks} />
+
+              {/* DRIVER */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <div className="mb-4 border-b border-slate-200 pb-2 text-sm font-semibold tracking-wide text-black">
+                  3. Driver Information (if applicable)
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+                  <ReadField
+                    label="Driver's License No."
+                    value={employee.licenseNumber}
+                  />
+                  <ReadField
+                    label="License Type / Restriction"
+                    value={employee.driverLicenseType}
+                  />
+                  <ReadField
+                    label="License Expiration Date"
+                    value={formatDate(employee.licenseExpirationDate)}
+                  />
+                  <ReadField
+                    label="Driving Experience (Years)"
+                    value={
+                      employee.drivingExperience
+                        ? `${employee.drivingExperience} years`
+                        : ""
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* OTHER */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <div className="mb-4 border-b border-slate-200 pb-2 text-sm font-semibold tracking-wide text-black">
+                  4. Other Information
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <ReadField
+                      label="Skills / Specialization"
+                      value={employee.skills}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <ReadField label="Other Remarks" value={employee.remarks} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "health" && (
+            <div className="space-y-6 text-sm text-slate-900">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3 text-sm font-semibold tracking-wide text-black">
+                  <HeartPulse className="h-4 w-4 text-blue-600" />
+                  Health & Emergency Information
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  <ReadField
+                    label="Health Condition"
+                    value={employee.healthCondition}
+                  />
+                  <ReadField
+                    label="Drug Test Status"
+                    value={employee.drugTestStatus}
+                  />
+                  <ReadField
+                    label="Last Medical Check-up"
+                    value={formatDate(employee.lastMedicalCheckup)}
+                  />
+                  <ReadField
+                    label="Emergency Contact Person"
+                    value={employee.emergencyContactPerson}
+                  />
+                  <ReadField
+                    label="Emergency Contact Number"
+                    value={employee.emergencyContactNumber}
+                  />
+                  <ReadField
+                    label="Relationship"
+                    value={employee.relationship}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "attachments" && (
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                <Paperclip className="h-5 w-5" />
+              </div>
+              <h2 className="text-base font-bold text-slate-900">
+                Employee Attachments
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
+                Medical documents, certificates, and other employee files will
+                appear here when attachment storage is connected.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* STATUS MODAL */}
+      {showStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+            <div
+              className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${
+                employee.isActive
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {employee.isActive ? (
+                <UserX className="h-6 w-6" />
+              ) : (
+                <UserCheck className="h-6 w-6" />
+              )}
+            </div>
+            <h3 className="mb-2 text-lg font-bold text-slate-900">
+              {employee.isActive ? "Disable Employee" : "Enable Employee"}
+            </h3>
+            <p className="mb-6 text-sm leading-6 text-slate-600">
+              {employee.isActive
+                ? `Disable ${employeeName}? They will no longer be treated as an active employee.`
+                : `Enable ${employeeName}? They will be restored as an active employee.`}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowStatusModal(false)}
+                disabled={isUpdatingStatus}
+                className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStatusChange}
+                disabled={isUpdatingStatus}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-md transition-colors disabled:opacity-50 ${
+                  employee.isActive
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {isUpdatingStatus && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                {employee.isActive ? "Confirm Disable" : "Confirm Enable"}
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* DELETE MODAL */}
       {showDeleteModal && (
@@ -1623,6 +1813,30 @@ export default function EmployeesPage() {
     }
   };
 
+  // Refresh an open profile once per minute so the three-hour Booked window
+  // and live dispatch status can change without reopening the employee.
+  useEffect(() => {
+    const employeeID = selectedEmployee?.id;
+    if (!employeeID) return;
+
+    const refreshAvailability = async () => {
+      try {
+        const response = await apiFetch<EmployeeApiResponse>(
+          `/api/employees/${employeeID}`,
+        );
+        setSelectedEmployee(mapApiEmployee(response.data));
+      } catch (error) {
+        console.error("Refresh employee availability error:", error);
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void refreshAvailability();
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
+  }, [selectedEmployee?.id]);
+
   // ==========================================
   // CREATE / UPDATE
   // ==========================================
@@ -1641,7 +1855,6 @@ export default function EmployeesPage() {
           middleName: formData.middleName || null,
           suffix: formData.suffix || null,
           role: formData.role,
-          availability: formData.availability,
           gender: formData.gender || null,
           birthdate: formData.birthdate || null,
           address: formData.address,
@@ -1672,7 +1885,6 @@ export default function EmployeesPage() {
           updatePayload.middleName !== (editData.middleName || null) ||
           updatePayload.suffix !== (editData.suffix || null) ||
           updatePayload.role !== editData.role ||
-          updatePayload.availability !== editData.availability ||
           updatePayload.gender !== (editData.gender || null) ||
           updatePayload.birthdate !==
             (editData.birthdate ? editData.birthdate.split("T")[0] : null) ||
@@ -1736,7 +1948,7 @@ export default function EmployeesPage() {
           middleName: formData.middleName || null,
           suffix: formData.suffix || null,
           role: formData.role,
-          availability: formData.availability,
+          availability: "Available",
           healthStatus: formData.healthCondition,
           address: formData.address,
           contact: formData.contactNumber,
@@ -1804,6 +2016,34 @@ export default function EmployeesPage() {
     } catch (error) {
       const message = getErrorMessage(error);
       setErrorMessage(message);
+      throw error;
+    }
+  };
+
+  // ==========================================
+  // ENABLE / DISABLE EMPLOYEE
+  // ==========================================
+
+  const handleToggleEmployeeStatus = async (employee: EmployeeRecord) => {
+    try {
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      await apiFetch<EmployeeApiResponse>(`/api/employees/${employee.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: !employee.isActive }),
+      });
+
+      setSuccessMessage(
+        employee.isActive
+          ? "Employee disabled successfully."
+          : "Employee enabled successfully.",
+      );
+
+      await handleRowClick(employee.id);
+      await fetchEmployees();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
       throw error;
     }
   };
@@ -1915,6 +2155,7 @@ export default function EmployeesPage() {
           }}
           onDelete={handleDeleteEmployee}
           onActivate={handleActivateEmployee}
+          onToggleStatus={handleToggleEmployeeStatus}
         />
         <EmployeeModal
           isOpen={isModalOpen}
