@@ -198,7 +198,73 @@ export async function updateClient(id: string, dto: Partial<CreateClientDto>): P
     .single();
 
   if (error) throw error;
+
+  // Warehouses and branches, when the edit included them.
+  if (dto.pickupAddresses) {
+    await syncRows({
+      table: "Warehouse",
+      idColumn: "warehouseID",
+      clientID: id,
+      rows: dto.pickupAddresses.map((p) => ({
+        id: p.warehouseID,
+        values: { whName: p.warehouseName, warehouseLoc: p.warehouseAddress, contactPerson: p.contactPerson, contactNum: p.contactNumber },
+      })),
+    });
+  }
+  if (dto.deliveryAddresses) {
+    await syncRows({
+      table: "Branch",
+      idColumn: "branchID",
+      clientID: id,
+      rows: dto.deliveryAddresses.map((d) => ({
+        id: d.branchID,
+        values: { branchName: d.branchName, deliveryAddress: d.deliveryAddress, contactPerson: d.contactPerson, contactNumber: d.contactNumber },
+      })),
+    });
+  }
+
   return data as Client;
+}
+
+// Makes a client's warehouses (or branches) match the edited list: rows with
+// an id are updated, rows without one are added, and the client's rows that
+// are no longer listed are removed. Editing a client used to save only the
+// name and contact details, and dropped these changes silently.
+//
+// Removing one is safe for past bookings: they keep their own copy of each
+// pickup and drop-off, and PickupStops.warehouseID is cleared on delete.
+async function syncRows({
+  table,
+  idColumn,
+  clientID,
+  rows,
+}: {
+  table: "Warehouse" | "Branch";
+  idColumn: "warehouseID" | "branchID";
+  clientID: string;
+  rows: { id?: string; values: Record<string, string> }[];
+}) {
+  const { data: existing, error } = await supabase.from(table).select(idColumn).eq("clientID", clientID);
+  if (error) throw new Error(`Failed to read the client's ${table === "Warehouse" ? "warehouses" : "branches"}: ${error.message}`);
+  const owned = new Set((existing ?? []).map((row) => (row as Record<string, string>)[idColumn]));
+
+  for (const row of rows) {
+    // Only this client's rows can be edited through its id.
+    if (row.id && owned.has(row.id)) {
+      const { error: updateError } = await supabase.from(table).update(row.values).eq(idColumn, row.id).eq("clientID", clientID);
+      if (updateError) throw new Error(`Failed to save ${table.toLowerCase()} changes: ${updateError.message}`);
+    } else {
+      const { error: insertError } = await supabase.from(table).insert({ ...row.values, clientID });
+      if (insertError) throw new Error(`Failed to add the ${table.toLowerCase()}: ${insertError.message}`);
+    }
+  }
+
+  const kept = new Set(rows.map((row) => row.id).filter(Boolean));
+  const removed = [...owned].filter((rowID) => !kept.has(rowID));
+  if (removed.length) {
+    const { error: deleteError } = await supabase.from(table).delete().in(idColumn, removed).eq("clientID", clientID);
+    if (deleteError) throw new Error(`Failed to remove the ${table.toLowerCase()}: ${deleteError.message}`);
+  }
 }
 
 export async function updatePartner(id: string, dto: Partial<CreatePartnerDto>): Promise<SubContractor> {

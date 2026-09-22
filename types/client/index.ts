@@ -54,6 +54,7 @@ export interface SubContractor {
 // ==========================================
 
 export interface CreateWarehouseDto {
+  warehouseID?: string;
   warehouseName: string;      // Changed from whName
   warehouseAddress: string;   // Changed from warehouseLoc
   contactPerson: string;
@@ -61,6 +62,7 @@ export interface CreateWarehouseDto {
 }
 
 export interface CreateBranchDto {
+  branchID?: string;
   branchName: string;
   deliveryAddress: string;
   contactPerson: string;

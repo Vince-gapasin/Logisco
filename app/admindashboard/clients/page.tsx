@@ -7,6 +7,7 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
   UserPlus,
   Search,
@@ -27,6 +28,8 @@ import {
 type TabType = "Clients" | "Partners";
 
 interface PickupAddress {
+  // Set for a warehouse the client already has; absent on a new row.
+  warehouseID?: string;
   warehouseName: string;
   warehouseAddress: string;
   contactPerson: string;
@@ -34,6 +37,7 @@ interface PickupAddress {
 }
 
 interface DeliveryAddress {
+  branchID?: string;
   branchName: string;
   deliveryAddress: string;
   contactPerson: string;
@@ -138,7 +142,7 @@ export function ClientModal({
       });
       setPickupList(
         editData.pickupAddresses && editData.pickupAddresses.length > 0
-          ? [...editData.pickupAddresses]
+          ? editData.pickupAddresses.map((row) => ({ ...row }))
           : [
               {
                 warehouseName: "",
@@ -150,7 +154,7 @@ export function ClientModal({
       );
       setDeliveryList(
         editData.deliveryAddresses && editData.deliveryAddresses.length > 0
-          ? [...editData.deliveryAddresses]
+          ? editData.deliveryAddresses.map((row) => ({ ...row }))
           : [
               {
                 branchName: "",
@@ -217,9 +221,7 @@ export function ClientModal({
     field: keyof PickupAddress,
     value: string,
   ) => {
-    const updated = [...pickupList];
-    updated[index][field] = value;
-    setPickupList(updated);
+    setPickupList((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
     if (errors[`pickup-${index}-${field}`])
       setErrors((prev) => ({ ...prev, [`pickup-${index}-${field}`]: "" }));
   };
@@ -229,9 +231,7 @@ export function ClientModal({
     field: keyof DeliveryAddress,
     value: string,
   ) => {
-    const updated = [...deliveryList];
-    updated[index][field] = value;
-    setDeliveryList(updated);
+    setDeliveryList((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
     if (errors[`delivery-${index}-${field}`])
       setErrors((prev) => ({ ...prev, [`delivery-${index}-${field}`]: "" }));
   };
@@ -277,6 +277,8 @@ export function ClientModal({
       newErrors.contactName = "Contact name is required.";
     if (!formData.contactNumber.trim())
       newErrors.contactNumber = "Contact number is required.";
+    else if (!normalizePhone(formData.contactNumber))
+      newErrors.contactNumber = PHONE_RULE;
     if (!formData.emailAddress.trim())
       newErrors.emailAddress = "Email address is required.";
     if (!formData.businessAddress.trim())
@@ -296,6 +298,8 @@ export function ClientModal({
         if (!p.contactNumber.trim())
           newErrors[`pickup-${idx}-contactNumber`] =
             "Contact number is required.";
+        else if (!normalizePhone(p.contactNumber))
+          newErrors[`pickup-${idx}-contactNumber`] = PHONE_RULE;
       }
     });
 
@@ -312,6 +316,8 @@ export function ClientModal({
         if (!d.contactNumber.trim())
           newErrors[`delivery-${idx}-contactNumber`] =
             "Contact number is required.";
+        else if (!normalizePhone(d.contactNumber))
+          newErrors[`delivery-${idx}-contactNumber`] = PHONE_RULE;
       }
     });
 
@@ -325,11 +331,15 @@ export function ClientModal({
       name: formData.name,
       status: editData ? editData.status : "Active",
       contactPerson: formData.contactName,
-      contactNumber: formData.contactNumber,
+      contactNumber: normalizePhone(formData.contactNumber) ?? formData.contactNumber,
       emailAddress: formData.emailAddress,
       businessAddress: formData.businessAddress,
-      pickupAddresses: pickupList.filter((p) => p.warehouseName.trim() !== ""),
-      deliveryAddresses: deliveryList.filter((d) => d.branchName.trim() !== ""),
+      pickupAddresses: pickupList
+        .filter((p) => p.warehouseName.trim() !== "")
+        .map((p) => ({ ...p, contactNumber: normalizePhone(p.contactNumber) ?? p.contactNumber })),
+      deliveryAddresses: deliveryList
+        .filter((d) => d.branchName.trim() !== "")
+        .map((d) => ({ ...d, contactNumber: normalizePhone(d.contactNumber) ?? d.contactNumber })),
     };
 
     onSubmitSuccess(newRecord);
@@ -956,6 +966,8 @@ export function PartnerModal({
       newErrors.contactPerson = "Contact person is required.";
     if (!formData.contactNumber.trim())
       newErrors.contactNumber = "Contact number is required.";
+    else if (!normalizePhone(formData.contactNumber))
+      newErrors.contactNumber = PHONE_RULE;
     if (!formData.emailAddress.trim())
       newErrors.emailAddress = "Email address is required.";
     if (!formData.businessAddress.trim())
@@ -972,7 +984,7 @@ export function PartnerModal({
       status: editData ? editData.status : "Active",
       contractType: formData.contractType,
       contactPerson: formData.contactPerson,
-      contactNumber: formData.contactNumber,
+      contactNumber: normalizePhone(formData.contactNumber) ?? formData.contactNumber,
       emailAddress: formData.emailAddress,
       businessAddress: formData.businessAddress,
     };
@@ -1654,6 +1666,7 @@ export default function ClientsPage() {
             c.warehouses ||
             []
           ).map((w: any) => ({
+            warehouseID: w.warehouseID,
             warehouseName: w.whName || "",
             warehouseAddress: w.warehouseLoc || "",
             contactPerson: w.contactPerson || "",
@@ -1661,6 +1674,7 @@ export default function ClientsPage() {
           })),
           deliveryAddresses: (c.Branch || c.branch || c.branches || []).map(
             (b: any) => ({
+              branchID: b.branchID,
               branchName: b.branchName || "",
               deliveryAddress: b.deliveryAddress || "",
               contactPerson: b.contactPerson || "",
@@ -1721,6 +1735,9 @@ export default function ClientsPage() {
           contactNumber: newRecord.contactNumber,
           emailAddress: newRecord.emailAddress,
           businessAddress: newRecord.businessAddress,
+          // Sent so they are saved; the edit used to drop them.
+          pickupAddresses: newRecord.pickupAddresses ?? [],
+          deliveryAddresses: newRecord.deliveryAddresses ?? [],
         };
 
         await apiFetch(`/api/clients/${newRecord.id}`, {
