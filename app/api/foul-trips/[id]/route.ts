@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
+import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import {
   cancel,
   close,
-  completeSubcontractedTrip,
   FoulTripError,
   reassign,
   sendMechanic,
@@ -39,7 +39,12 @@ const actionSchema = z.discriminatedUnion("action", [
     subConID: uuid,
     driverName: z.string().trim().min(2, "Enter the partner driver's name").max(120),
     plateNumber: z.string().trim().min(2, "Enter the partner truck's plate").max(20),
-    contactNumber: z.string().trim().max(40).optional(),
+    contactNumber: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .refine((value) => !value || isValidPhone(value), PHONE_RULE),
   }),
   z.object({
     action: z.literal("send_mechanic"),
@@ -49,7 +54,6 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("cancel"), reason: z.string().trim().min(3, "Give a reason").max(500) }),
   z.object({ action: z.literal("close"), notes: z.string().trim().min(3, "Say how it was handled").max(1000) }),
-  z.object({ action: z.literal("complete_subcontract") }),
 ]);
 
 // POST /api/foul-trips/:incidentID - what dispatch decided to do about it.
@@ -95,9 +99,6 @@ export async function POST(request: Request, { params }: RouteContext) {
         break;
       case "close":
         result = await close(id, input.notes, actor);
-        break;
-      case "complete_subcontract":
-        result = await completeSubcontractedTrip(id);
         break;
     }
 

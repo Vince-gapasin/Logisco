@@ -6,6 +6,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
+import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
   isAwaitingCrewConfirmation,
   mapOrderToBookingView,
@@ -174,6 +175,7 @@ function ReassignBookingModal({
     product: "",
     priorityLevel: "Standard",
     subconPartner: "",
+    partnerContact: "",
     truckPlate: "",
     driver: "",
     helper1: "",
@@ -226,6 +228,7 @@ function ReassignBookingModal({
         product: booking.product || "",
         priorityLevel: booking.priorityLevel || "Standard",
         subconPartner: "",
+        partnerContact: "",
         truckPlate: booking.truckID || "",
         driver: driverObj?.employeeID || "",
         helper1: h1Obj?.employeeID || "",
@@ -282,10 +285,38 @@ function ReassignBookingModal({
       return;
     }
 
+    // A partner has no app: the coordinator records their trip under
+    // Reports > Sub-con Trips once it is handed over.
     if (isSubconMode) {
-      setSubmitError(
-        "Subcontractor assignment is not supported yet. Assign an in-house truck and driver for now.",
-      );
+      const partnerContact = (formData.partnerContact ?? "").trim();
+      if (!formData.subconPartner) {
+        setErrors({ subconPartner: "Choose the sub-contractor." });
+        return;
+      }
+      if (partnerContact && !isValidPhone(partnerContact)) {
+        setErrors({ partnerContact: PHONE_RULE });
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        await apiFetch("/api/subcon-trips", {
+          method: "POST",
+          body: JSON.stringify({
+            orderID: booking.id,
+            subConID: formData.subconPartner,
+            driverName: formData.driver || undefined,
+            plateNumber: formData.truckPlate || undefined,
+            contactNumber: partnerContact || undefined,
+            helpers: [formData.helper1, formData.helper2].filter(Boolean),
+          }),
+        });
+        onSubmitSuccess(booking.orderId);
+        onClose();
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : "Failed to hand the booking to the partner.");
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -564,6 +595,7 @@ function ReassignBookingModal({
                     value={formData.subconPartner}
                     onChange={(next) => setFormData((prev) => ({ ...prev, subconPartner: next }))}
                   />
+                  {errors.subconPartner && <p className="mt-1 text-xs text-red-600">{errors.subconPartner}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">
@@ -590,6 +622,20 @@ function ReassignBookingModal({
                     onChange={handleChange}
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-400"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-black mb-1">
+                    Driver&apos;s Contact No.
+                  </label>
+                  <input
+                    type="tel"
+                    name="partnerContact"
+                    placeholder="09XXXXXXXXX (optional)"
+                    value={formData.partnerContact ?? ""}
+                    onChange={handleChange}
+                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-400 ${errors.partnerContact ? "border-red-500" : "border-slate-300"}`}
+                  />
+                  {errors.partnerContact && <p className="mt-1 text-[11px] leading-tight text-red-600">{errors.partnerContact}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">

@@ -52,7 +52,10 @@ export interface BookingFormResult {
   deliverySchedule: string;
   product: string;
   priorityLevel: string;
+  /** The partner's subConID when handed to a sub-contractor. */
   subconPartner: string;
+  subconPartnerName: string;
+  partnerContact: string;
   truckPlate: string;
   driver: string;
   helper1: string;
@@ -121,6 +124,7 @@ function initialForm() {
     product: "",
     priorityLevel: "",
     subconPartner: "",
+    partnerContact: "",
     truckPlate: "",
     driver: "",
     helper1: "",
@@ -186,6 +190,10 @@ function BookingForm({
       : {}),
   }));
   const [isSubconMode, setIsSubconMode] = useState(false);
+  const subconRef = useRef(false);
+  useEffect(() => {
+    subconRef.current = isSubconMode;
+  }, [isSubconMode]);
   // Who is free on the chosen date, once loaded; until then the lists the
   // dashboard already had.
   // Lists are absent when that load failed.
@@ -235,7 +243,8 @@ function BookingForm({
         };
         setFreeCrew(next);
         const picked = suggestCrew(crewRef.current, touched.current, next.trucks, next.drivers, next.helpers);
-        setFormData((prev) => ({ ...prev, ...picked }));
+        // A partner trip has its own driver and plate, typed in.
+        if (!subconRef.current) setFormData((prev) => ({ ...prev, ...picked }));
       })
       .catch((error) => {
         console.error("Failed to load resources for this date:", error);
@@ -249,7 +258,8 @@ function BookingForm({
           (drivers ?? []).map(toPerson),
           (helpers ?? []).map(toPerson),
         );
-        setFormData((prev) => ({ ...prev, ...picked }));
+        // A partner trip has its own driver and plate, typed in.
+        if (!subconRef.current) setFormData((prev) => ({ ...prev, ...picked }));
       });
     return () => {
       live = false;
@@ -283,7 +293,7 @@ function BookingForm({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name } = e.target;
-    const value = name === "contactNumber" ? sanitizePhoneInput(e.target.value) : e.target.value;
+    const value = name === "contactNumber" || name === "partnerContact" ? sanitizePhoneInput(e.target.value) : e.target.value;
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearError(name);
   };
@@ -400,6 +410,7 @@ function BookingForm({
     }
 
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
+    if (isSubconMode && formData.partnerContact.trim() && !normalizePhone(formData.partnerContact)) next.partnerContact = PHONE_RULE;
 
     if (Object.keys(next).length > 0) {
       setErrors(next);
@@ -415,6 +426,10 @@ function BookingForm({
     const result: BookingFormResult = {
       ...formData,
       subconPartner: isSubconMode ? formData.subconPartner : "",
+      subconPartnerName: isSubconMode
+        ? (subcontractors.find((p) => (p.subConID || p.id) === formData.subconPartner)?.companyName ?? "")
+        : "",
+      partnerContact: isSubconMode ? (normalizePhone(formData.partnerContact) ?? "") : "",
       contactNumber: normalizePhone(formData.contactNumber) ?? formData.contactNumber,
       emailAddress: formData.emailAddress.trim() || "N/A",
       businessAddress: formData.businessAddress.trim() || "N/A",
@@ -439,10 +454,32 @@ function BookingForm({
     onClose();
   };
 
-  const partnerOptions = [
-    ...subcontractors.map((s: any) => ({ value: s.companyName, label: s.companyName })),
-    { value: "Other", label: "Other" },
-  ];
+  // By id: the trip is linked to the partner. A new partner is added under
+  // Clients & Partners first.
+  const partnerOptions = subcontractors
+    .filter((p) => p.isActive !== false && (p.subConID || p.id))
+    .map((p) => ({ value: String(p.subConID || p.id), label: p.companyName, detail: p.contactNumber || null }));
+
+  // The partner's driver and plate are typed, the crew picker's are ids;
+  // switching clears one for the other.
+  const switchMode = () => {
+    const toSubcon = !isSubconMode;
+    setIsSubconMode(toSubcon);
+    setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !["subconPartner", "partnerContact"].includes(k))));
+    if (toSubcon) {
+      touched.current = {};
+      setFormData((prev) => ({ ...prev, truckPlate: "", driver: "", helper1: "", helper2: "" }));
+    } else {
+      const picked = suggestCrew(
+        { truckPlate: "", driver: "", helper1: "", helper2: "" },
+        {},
+        availableTrucks,
+        availableDrivers,
+        availableHelpers,
+      );
+      setFormData((prev) => ({ ...prev, subconPartner: "", partnerContact: "", ...(prev.deliverySchedule ? picked : { truckPlate: "", driver: "", helper1: "", helper2: "" }) }));
+    }
+  };
 
   const errorCount = Object.keys(errors).length;
   const badge = BADGES[variant];
@@ -835,7 +872,7 @@ function BookingForm({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsSubconMode((on) => !on)}
+                  onClick={switchMode}
                   className="text-xs text-blue-600 underline hover:text-blue-800"
                 >
                   {isSubconMode ? "Assign to Own Resources" : "Assign to Subcon Partner"}
@@ -843,7 +880,7 @@ function BookingForm({
               </div>
 
               {isSubconMode ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-black mb-1" htmlFor="subcon-partner">
                       Select Subcon Partner *
@@ -857,28 +894,33 @@ function BookingForm({
                       }}
                       options={partnerOptions}
                       placeholder="Select partner"
+                      emptyText="No active partners. Add one under Clients & Partners."
                       searchPlaceholder="Search company"
                     />
                     {errors.subconPartner && <p className="mt-1 text-xs text-red-600">{errors.subconPartner}</p>}
                   </div>
                   {(
                     [
-                      ["truckPlate", "Truck / Plate No."],
-                      ["driver", "Driver Name"],
-                      ["helper1", "Helper #1"],
-                      ["helper2", "Helper #2"],
+                      ["truckPlate", "Truck / Plate No.", "text"],
+                      ["driver", "Driver Name", "text"],
+                      ["partnerContact", "Driver's Contact No.", "tel"],
+                      ["helper1", "Helper #1", "text"],
+                      ["helper2", "Helper #2", "text"],
                     ] as const
-                  ).map(([name, title]) => (
+                  ).map(([name, title, type]) => (
                     <div key={name}>
                       <label className="block text-xs font-medium text-black mb-1">{title}</label>
                       <input
-                        type="text"
+                        type={type}
                         name={name}
-                        placeholder="Optional"
+                        placeholder={name === "partnerContact" ? "09XXXXXXXXX (optional)" : "Optional"}
                         value={formData[name]}
                         onChange={handleChange}
-                        className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                        className={inputClass(name)}
                       />
+                      {errors[name] && name === "partnerContact" && (
+                        <p className="mt-1 text-[11px] leading-tight text-red-600">{errors[name]}</p>
+                      )}
                     </div>
                   ))}
                 </div>

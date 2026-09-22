@@ -28,6 +28,7 @@ import {
 } from "@/services/dispatch/dispatchService";
 import { cancelBooking } from "@/services/booking/bookingService";
 import { signPodUrls } from "@/services/storage/podService";
+import { partnerColumns, partnerNote } from "@/services/subcon/partner";
 
 export const INCIDENT_STATUS = {
   open: "open",
@@ -486,15 +487,11 @@ export async function subcontract(incidentID: string, choice: SubcontractChoice,
   if (error) throw new Error(error.message);
   if (!partner || partner.isActive === false) throw new FoulTripError("That sub-contractor is not active.");
 
-  const note = [
-    `Subcontractor: ${partner.companyName}`,
-    `External Driver: ${choice.driverName}`,
-    `Temporary Plate: ${choice.plateNumber}`,
-    choice.contactNumber ? `Driver Contact: ${choice.contactNumber}` : null,
+  const note = partnerNote(
+    partner.companyName,
+    choice,
     `Recovery for foul trip reported ${new Date(incident.reportedAt).toLocaleString("en-PH")}.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  );
 
   const { data: dispatch, error: insertError } = await supabase
     .from("DispatchOrder")
@@ -505,6 +502,8 @@ export async function subcontract(incidentID: string, choice: SubcontractChoice,
       coorID: actor.employeeID,
       status: DELIVERY_STATUS.inTransit,
       dispatchNote: note,
+      // The coordinator records its progress under Reports > Sub-con Trips.
+      ...partnerColumns(choice),
     })
     .select("dispatchID")
     .single();
@@ -523,41 +522,6 @@ export async function subcontract(incidentID: string, choice: SubcontractChoice,
   }
 
   return { incidentID, newDispatchID: dispatch.dispatchID as string };
-}
-
-/**
- * A sub-contractor has no one in the crew app to finish the trip, and no
- * screen ever called the office "complete" endpoint - so without this the
- * trip would sit in transit forever.
- */
-export async function completeSubcontractedTrip(incidentID: string) {
-  const incident = await loadIncident(incidentID);
-  if (incident.resolution !== RESOLUTION.subcontracted || !incident.newDispatchID) {
-    throw new FoulTripError("This foul trip was not handed to a sub-contractor.");
-  }
-
-  const { data: trip } = await supabase
-    .from("DispatchOrder")
-    .select("status")
-    .eq("dispatchID", incident.newDispatchID)
-    .maybeSingle();
-  if (trip?.status === DELIVERY_STATUS.completed) {
-    throw new FoulTripError("That trip is already marked delivered.", 409);
-  }
-
-  const now = new Date().toISOString();
-  await supabase
-    .from("BranchStops")
-    .update({ stopStatus: STOP_STATUS.delivered, completedAt: now })
-    .eq("dispatchID", incident.newDispatchID)
-    .neq("stopStatus", STOP_STATUS.delivered);
-  await supabase
-    .from("PickupStops")
-    .update({ stopStatus: STOP_STATUS.delivered, completedAt: now })
-    .eq("dispatchID", incident.newDispatchID);
-
-  await completeDispatch(incident.newDispatchID);
-  return { incidentID, dispatchID: incident.newDispatchID };
 }
 
 /** Send a mechanic to the truck. How serious it is decides what they bring. */

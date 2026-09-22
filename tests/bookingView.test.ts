@@ -166,3 +166,49 @@ describe("pickups on the booking feeds", () => {
     expect(feed.pickupList).toHaveLength(0);
   });
 });
+
+describe("a booking carried by a sub-contractor", () => {
+  it("names the partner and their driver and plate, with no crew of ours", () => {
+    const view = mapOrderToBookingView(
+      order({
+        DispatchOrder: [
+          {
+            dispatchID: "d-1",
+            status: DELIVERY_STATUS.accepted,
+            truckID: null,
+            driverID: null,
+            subConID: "sub-1",
+            partnerDriver: "Eduardo Ramos",
+            partnerPlate: "JFY-9337",
+            SubContractor: { companyName: "Central Plains Hauling" },
+            DispatchHelper: [],
+          },
+        ],
+      }),
+    );
+    expect(view.isSubcon).toBe(true);
+    expect(view.subconPartner).toBe("Central Plains Hauling");
+    expect(view.driverName).toBe("Eduardo Ramos");
+    expect(view.truckPlate).toBe("JFY-9337");
+    expect(view.crews).toEqual([]);
+    expect(toFeedBooking(view).confirmationStatus).toBe("Sub-con");
+  });
+
+  it("recognises older partner trips from their note", () => {
+    const view = mapOrderToBookingView(
+      order({
+        DispatchOrder: [
+          {
+            dispatchID: "d-2",
+            status: DELIVERY_STATUS.completed,
+            truckID: null,
+            dispatchNote: "Subcontractor: Prime Route Logistics\nExternal Driver: Eduardo Ramos",
+            DispatchHelper: [],
+          },
+        ],
+      }),
+    );
+    expect(view.isSubcon).toBe(true);
+    expect(view.subconPartner).toBe("Prime Route Logistics");
+  });
+});

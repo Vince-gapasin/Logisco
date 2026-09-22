@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
 
 export async function getAllSubcontractors() {
   const { data, error } = await supabase
@@ -10,12 +11,22 @@ export async function getAllSubcontractors() {
   return data;
 }
 
+// A partner number follows the same rule as every other phone number:
+// an 11-digit mobile, stored as 09XXXXXXXXX.
+function partnerPhone(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const normalized = normalizePhone(String(value));
+  if (!normalized) throw new Error(PHONE_RULE);
+  return normalized;
+}
+
 export async function createSubcontractor(payload: any) {
-  const { companyName, contactPerson, contactNumber } = payload;
+  const { companyName, contactPerson } = payload;
 
   if (!companyName || !contactPerson) {
     throw new Error("Company Name and Contact Person are required.");
   }
+  const contactNumber = partnerPhone(payload.contactNumber);
 
   const { data, error } = await supabase
     .from("SubContractor")
@@ -38,7 +49,7 @@ export async function updateSubcontractor(id: string, payload: any) {
       companyName: payload.companyName,
       contractType: payload.contractType,
       contactName: payload.contactPerson,
-      contactNumber: payload.contactNumber,
+      contactNumber: partnerPhone(payload.contactNumber),
       emailAddress: payload.emailAddress,
       businessAddress: payload.businessAddress
     })

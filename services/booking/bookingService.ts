@@ -54,6 +54,11 @@ const BOOKING_COLUMNS = `
     rejectionreason,
     truckID,
     driverID,
+    subConID,
+    partnerDriver,
+    partnerPlate,
+    partnerContact,
+    SubContractor ( companyName, contactNumber ),
     Truck ( plateNumber, model ),
     Driver:Employee!driverID ( employeeName ),
     DispatchHelper ( helperID, status, declinereason, Helper:Employee!helperID ( employeeName ) )

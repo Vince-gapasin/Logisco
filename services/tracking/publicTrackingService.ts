@@ -157,7 +157,7 @@ export async function getTrackingByToken(
        Client ( company ),
        BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong ),
        FoulTripIncident ( dispatchID, status ),
-       DispatchOrder ( dispatchID, status, completedAt,
+       DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
          Truck ( plateNumber, model ),
          Employee!DispatchOrder_driverID_fkey ( employeeName, contact ) )`,
     )
@@ -258,6 +258,9 @@ export async function getTrackingByToken(
           : "Trip interrupted";
   }
   else if (isCompleted) deliveryStatus = "Delivery completed";
+  // A partner carrier has no app, so there is no live position to show.
+  else if (dispatch?.subConID && dispatch.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit with our partner carrier";
+  else if (dispatch?.subConID) deliveryStatus = "Handed to our partner carrier";
   else if (dispatch?.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit";
   else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";
   else if (dispatch?.status) deliveryStatus = "Crew assigned";
@@ -274,9 +277,9 @@ export async function getTrackingByToken(
     estimatedArrival,
     liveEta,
     nextStopName: nextStop?.branchName ?? null,
-    plateNumber: truck?.plateNumber ?? null,
+    plateNumber: truck?.plateNumber ?? dispatch?.partnerPlate ?? null,
     truckModel: truck?.model ?? null,
-    driverName: driver?.employeeName ?? null,
+    driverName: driver?.employeeName ?? dispatch?.partnerDriver ?? null,
     driverContact: driver?.contact ?? null,
     currentLocation,
     trail,

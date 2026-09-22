@@ -16,6 +16,7 @@ const ON_THE_ROAD_STATUSES: string[] = [
 ];
 import Link from "next/link";
 import BookingFormModal, { type BookingFormResult } from "@/components/booking/BookingFormModal";
+import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
@@ -723,11 +724,18 @@ function ViewOrderModal({
                   {podUrl && (
                     <div>
                       <span className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? 'text-red-800' : 'text-emerald-800'}`}>Attached Proof / Photo</span>
-                      <img 
-                        src={podUrl} 
-                        alt="Uploaded Proof" 
-                        className={`w-full max-w-sm h-auto object-cover rounded-xl border shadow-sm ${category === "Foul Trip" ? 'border-red-200' : 'border-emerald-200'}`} 
-                      />
+                      {/* A partner may send the proof as a PDF. */}
+                      {/\.pdf(\?|$)/i.test(podUrl) ? (
+                        <a href={podUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline">
+                          <FileText className="w-4 h-4" /> View proof of delivery (PDF)
+                        </a>
+                      ) : (
+                        <img
+                          src={podUrl}
+                          alt="Uploaded Proof"
+                          className={`w-full max-w-sm h-auto object-cover rounded-xl border shadow-sm ${category === "Foul Trip" ? "border-red-200" : "border-emerald-200"}`}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -942,7 +950,9 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
           <div className="flex flex-col gap-4">
             {data.map((b: any) => {
               let displayStatus = tabConfig.statusLabel;
-              if (tabConfig.name === "Pending Bookings") {
+              if (b.isSubcon && b.dispatchStatus !== "Completed") {
+                displayStatus = b.dispatchStatus === "Accepted" ? "Sub-con: awaiting pickup" : `Sub-con: ${b.dispatchStatus}`;
+              } else if (tabConfig.name === "Pending Bookings") {
                 const ds = b.dispatchStatus;
                 const drv = b.driver;
                 const hasDriver = drv && drv !== "Unassigned" && drv !== "N/A";
@@ -1142,19 +1152,34 @@ export default function AdminDashboardPage() {
           const dispatchStatus = dispatchRecord?.status || "Pending";
           const currentStep = Number(dispatchRecord?.current_step || dispatchRecord?.currentStep || 0);
 
+          // A partner's trip: no truck or crew of ours; its driver and plate
+          // were typed in when it was handed over.
+          const isSubcon = Boolean(
+            dispatchRecord &&
+              (dispatchRecord.subConID ||
+                (!dispatchRecord.truckID && /Subcontractor:/.test(dispatchRecord.dispatchNote || ""))),
+          );
+          const partnerName =
+            (Array.isArray(dispatchRecord?.SubContractor) ? dispatchRecord.SubContractor[0] : dispatchRecord?.SubContractor)?.companyName ||
+            /Subcontractor:\s*([^\n]*)/.exec(dispatchRecord?.dispatchNote || "")?.[1]?.trim() ||
+            "Partner";
+
           const truck =
+            dispatchRecord?.partnerPlate ||
             dispatchRecord?.Truck?.plateNumber ||
             o.notes?.match(/Truck:\s*(.*)/)?.[1] ||
             "Unassigned";
 
           const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
           const driver =
+            dispatchRecord?.partnerDriver ||
             dispatchRecord?.Driver?.employeeName ||
             (driverMatch ? driverMatch[1].trim() : "Unassigned");
 
           const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
-          const helper =
-            dispatchRecord?.Helper1?.employeeName ||
+          const helper = isSubcon
+            ? `Sub-con: ${partnerName}`
+            : dispatchRecord?.Helper1?.employeeName ||
             (helperMatch ? helperMatch[1].trim() : "None");
 
           const driverHasConfirmed =
@@ -1233,6 +1258,9 @@ export default function AdminDashboardPage() {
             helperConfirmed,
             dispatchStatus,
             currentStep,
+            isSubcon,
+            partnerName,
+            dispatchID: dispatchRecord?.dispatchID ?? null,
             rawOrder: o,
             statusCategory: category,
           });
@@ -1330,7 +1358,13 @@ export default function AdminDashboardPage() {
   const [foulTripRow, setFoulTripRow] = useState<FoulTripRow | null>(null);
   const [foulTripNotice, setFoulTripNotice] = useState("");
 
+  const [subconTripID, setSubconTripID] = useState<string | null>(null);
+
   const handleViewOrder = async (order: any) => {
+    if (order.isSubcon && order.dispatchID && order.statusCategory !== "Foul Trip") {
+      setSubconTripID(order.dispatchID);
+      return;
+    }
     if (order.statusCategory === "Foul Trip") {
       try {
         const foul = await apiFetch<{ open: IncidentView[] }>("/api/foul-trips", { cache: "no-store" });
@@ -1372,7 +1406,7 @@ export default function AdminDashboardPage() {
       detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate || new Date().toISOString().split("T")[0]}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupList[0]?.warehouseAddress} @ ${data.pickupList[0]?.pickupTime}\n`;
 
       if (data.subconPartner) {
-        detailedNotes += `\n[SUBCON ASSIGNMENT]\nPartner: ${data.subconPartner}\nTruck/Plate: ${data.truckPlate || "TBD"}\nDriver: ${data.driver || "TBD"}\n`;
+        detailedNotes += `\n[SUBCON ASSIGNMENT]\nPartner: ${data.subconPartnerName}\nTruck/Plate: ${data.truckPlate || "TBD"}\nDriver: ${data.driver || "TBD"}\n`;
       } else {
         detailedNotes += `\n[ASSIGNED CREW]\nTruck: ${truckName}\nDriver: ${driverName}\nHelper 1: ${helper1Name}\nHelper 2: ${helper2Name}\n`;
       }
@@ -1431,7 +1465,24 @@ export default function AdminDashboardPage() {
       });
       const newOrderID = res.orderID;
 
-      if (!data.subconPartner && !data.unassigned) {
+      if (data.subconPartner) {
+        try {
+          await apiFetch("/api/subcon-trips", {
+            method: "POST",
+            body: JSON.stringify({
+              orderID: newOrderID,
+              subConID: data.subconPartner,
+              driverName: data.driver || undefined,
+              plateNumber: data.truckPlate || undefined,
+              contactNumber: data.partnerContact || undefined,
+              helpers: [data.helper1, data.helper2].filter(Boolean),
+            }),
+          });
+        } catch (partnerError) {
+          const reason = partnerError instanceof Error ? partnerError.message : "unknown error";
+          alert(`Booking created, but handing it to ${data.subconPartnerName || "the partner"} failed: ${reason}`);
+        }
+      } else if (!data.unassigned) {
         try {
           await apiFetch(`/api/dispatch/${newOrderID}/assign`, {
             method: "POST",
@@ -1963,6 +2014,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* MODALS */}
+      <SubconTripModal dispatchID={subconTripID} onClose={() => setSubconTripID(null)} onChanged={() => void fetchOrders()} />
       {foulTripNotice && (
         <div role="status" className="fixed bottom-6 right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
           {foulTripNotice}

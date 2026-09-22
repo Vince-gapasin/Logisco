@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
   TrendingUp,
   FileText,
@@ -698,6 +699,8 @@ const MultiSelectDropdown = ({
 };
 
 export default function ReportsForecastingPage() {
+  // Delivery records, or the partner trips the coordinator keeps up to date.
+  const [view, setView] = useState<"records" | "subcon">("records");
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
@@ -1070,6 +1073,28 @@ export default function ReportsForecastingPage() {
         </div>
       </div>
 
+      <div role="tablist" aria-label="Reports" className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+        {([
+          ["records", "Delivery Records"],
+          ["subcon", "Sub-con Trips"],
+        ] as const).map(([id, title]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={view === id}
+            onClick={() => setView(id)}
+            className={`min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            {title}
+          </button>
+        ))}
+      </div>
+
+      {view === "subcon" ? (
+        <SubconTripsPanel />
+      ) : (
+      <>
       {/* FILTER SECTION */}
       <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 mt-6">
         <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
@@ -1318,6 +1343,9 @@ export default function ReportsForecastingPage() {
           </div>
         </div>
       </div>
+
+      </>
+      )}
 
       {/* Reused View Booking Modal */}
       <ViewOrderModal

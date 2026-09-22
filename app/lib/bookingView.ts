@@ -113,6 +113,8 @@ export interface BookingView {
   dispatchNote: string;
   totalQuantity: string;
   subconPartner: string;
+  // Carried by a sub-contractor: the coordinator records its progress.
+  isSubcon: boolean;
   plainNotes: string;
 }
 
@@ -184,6 +186,9 @@ export function mapOrderToBookingView(order: any): BookingView {
   // their own status on their DispatchHelper row.
   const driver = firstRelated<any>(liveDispatch?.Driver);
   const truck = firstRelated<any>(liveDispatch?.Truck);
+  const partner = firstRelated<{ companyName?: string | null }>(liveDispatch?.SubContractor);
+  const partnerFromNote = /Subcontractor:\s*([^\n]*)/.exec(liveDispatch?.dispatchNote || "")?.[1]?.trim() || "";
+  const isSubcon = Boolean(liveDispatch && (liveDispatch.subConID || (!liveDispatch.truckID && partnerFromNote)));
 
   const driverStatus = (() => {
     if (!liveDispatch) return HELPER_STATUS.pending;
@@ -197,7 +202,8 @@ export function mapOrderToBookingView(order: any): BookingView {
   })();
 
   const crews: BookingCrewView[] = [];
-  if (liveDispatch) {
+  // A partner trip has no crew of ours to confirm.
+  if (liveDispatch && !isSubcon) {
     crews.push({
       role: "Driver",
       name: driver?.employeeName || "Unassigned",
@@ -311,9 +317,9 @@ export function mapOrderToBookingView(order: any): BookingView {
     dispatchID: liveDispatch?.dispatchID ?? null,
     truckID: liveDispatch?.truckID ?? null,
     driverID: liveDispatch?.driverID ?? null,
-    truckPlate: truck?.plateNumber || "",
+    truckPlate: truck?.plateNumber || liveDispatch?.partnerPlate || "",
     truckModel: truck?.model || "",
-    driverName: driver?.employeeName || "",
+    driverName: driver?.employeeName || liveDispatch?.partnerDriver || "",
     crews,
     currentStep: liveDispatch?.current_step ?? 0,
     completedAt: liveDispatch?.completedAt ?? null,
@@ -323,7 +329,8 @@ export function mapOrderToBookingView(order: any): BookingView {
     totalQuantity: String(
       items.reduce((total, item) => total + (Number(item.quantity) || 0), 0),
     ),
-    subconPartner: readNoteField(notes, "Partner"),
+    subconPartner: partner?.companyName || partnerFromNote || readNoteField(notes, "Partner"),
+    isSubcon,
     plainNotes: (notes.split("[NOTES]")[1] || "").trim(),
   };
 }
@@ -434,6 +441,7 @@ export interface FeedBooking {
 }
 
 function confirmationLabel(booking: BookingView): string {
+  if (booking.isSubcon && ["Pending", "Assigned", "Accepted"].includes(booking.dispatchStatus ?? "")) return "Sub-con";
   switch (booking.dispatchStatus) {
     case null:
     case undefined:

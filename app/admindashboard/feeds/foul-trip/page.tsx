@@ -4,6 +4,7 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
+import SubconTripModal from "@/components/subcon/SubconTripModal";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { FoulTripSummary, IncidentView } from "@/services/foulTrip/foulTripService";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -63,7 +64,7 @@ export default function FoulTripFeedPage() {
   const [bookings, setBookings] = useState<FoulTripRow[]>([]);
   const [summary, setSummary] = useState<FoulTripSummary | null>(null);
   const [recent, setRecent] = useState<IncidentView[]>([]);
-  const [completing, setCompleting] = useState<string | null>(null);
+  const [partnerTripID, setPartnerTripID] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -148,21 +149,6 @@ export default function FoulTripFeedPage() {
     setTimeout(() => {
       setShowSuccessToast(false);
     }, 3000);
-  };
-
-  const markSubcontractDelivered = async (incident: IncidentView) => {
-    setCompleting(incident.incidentID);
-    try {
-      await apiFetch(`/api/foul-trips/${incident.incidentID}`, {
-        method: "POST",
-        body: JSON.stringify({ action: "complete_subcontract" }),
-      });
-      handleProceedSuccess(`${incident.orderCode ?? "The booking"} marked delivered.`);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not mark it delivered.");
-    } finally {
-      setCompleting(null);
-    }
   };
 
   return (
@@ -441,9 +427,10 @@ export default function FoulTripFeedPage() {
           </div>
           <ul className="divide-y divide-slate-100">
             {recent.map((incident) => {
-              const awaitingPartner =
-                incident.resolution === "subcontracted" &&
-                incident.newDispatch?.status !== "Completed";
+              // A partner has no app: the coordinator records their trip.
+              const partnerTrip =
+                incident.resolution === "subcontracted" && incident.newDispatch ? incident.newDispatch : null;
+              const awaitingPartner = Boolean(partnerTrip && partnerTrip.status !== "Completed");
               return (
                 <li key={incident.incidentID} className="px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <div className="min-w-0 flex-1">
@@ -461,11 +448,10 @@ export default function FoulTripFeedPage() {
                   {awaitingPartner && (
                     <button
                       type="button"
-                      onClick={() => markSubcontractDelivered(incident)}
-                      disabled={completing === incident.incidentID}
-                      className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                      onClick={() => setPartnerTripID(partnerTrip!.dispatchID)}
+                      className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap"
                     >
-                      {completing === incident.incidentID ? "Saving…" : "Mark delivered"}
+                      Update partner trip
                     </button>
                   )}
                 </li>
@@ -474,6 +460,8 @@ export default function FoulTripFeedPage() {
           </ul>
         </div>
       )}
+
+      <SubconTripModal dispatchID={partnerTripID} onClose={() => setPartnerTripID(null)} onChanged={() => void loadBookings()} />
 
       {/* Booking Details Modal */}
       <FoulTripDetailsModal
