@@ -1632,8 +1632,10 @@ function TruckDetailView({
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Only true if the truck is actively broken down or being worked on
-  const isUnderMaintenance =
-    truck.status === "On Maintenance" || truck.status === "Out of Service";
+  const isUnderMaintenance = truck.status === "On Maintenance" || truck.status === "Out of Service";
+
+  // True if the truck is currently tied to an active dispatch/booking
+  const isRestrictedStatus = truck.status === "On Delivery" || truck.status === "Already Booked";
 
   // 1. Isolate logs for this truck (Ultra-aggressive match ensures IDs and Plates link)
   const sortedTruckLogs = logs.filter((l) => {
@@ -1683,6 +1685,13 @@ function TruckDetailView({
     ? String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
       String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
     : true;
+
+  // --- ADD THIS NEW VARIABLE ---
+  // Evaluates to true ONLY if the mechanic is explicitly assigned to an active log (bypasses delivery restrictions for foul trips)
+  const isExplicitlyAssigned = activeCycleLog ? (
+    String(activeCycleLog.primaryMechanicID).trim() === currentUserStr || 
+    String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
+  ) : false;
 
   const progressUpdates = currentCycleLogs
     .filter((l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl)
@@ -1768,14 +1777,9 @@ function TruckDetailView({
             </button>
           )}
 
-          {/* Hide top action buttons if the truck is being fixed by another mechanic */}
-          {(!isUnderMaintenance || hasMechanicAccess) && (
-            <button
-              onClick={onUpdateStatusClick}
-              className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer"
-            >
-              <span>Update Status</span>
-            </button>
+          {/* Hide top action buttons if the truck is being fixed by another mechanic OR is restricted (unless assigned to a foul trip) */}
+          {(!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
+            <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
           )}
 
           {/* History Button (Always visible) */}
@@ -1819,16 +1823,12 @@ function TruckDetailView({
                     </button>
 
                     {/* Disable Button inside Dropdown */}
-                    {truck.status !== "Disabled" && (
-                      <button
-                        onClick={() => {
-                          setIsMoreMenuOpen(false);
-                          onDisableClick();
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                    {truck.status !== "Disabled" && (!isRestrictedStatus || isExplicitlyAssigned) && (
+                      <button 
+                        onClick={() => { setIsMoreMenuOpen(false); onDisableClick(); }} 
+                        className="w-full text-left px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
                       >
-                        <Archive className="w-4 h-4 text-slate-500" /> Disable
-                        Truck
+                        <Archive className="w-4 h-4 text-slate-500" /> Disable Truck
                       </button>
                     )}
 

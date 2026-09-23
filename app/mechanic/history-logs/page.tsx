@@ -468,10 +468,16 @@ interface LogDetailViewProps {
   onBack: () => void;
   onEdit: (logRecord: HistoryLogRecord) => void;
   onDelete: (id: string | number) => void;
+  currentUserId: string; 
 }
 
-function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
+function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const currentUserStr = String(currentUserId).trim();
+  const hasMechanicAccess = 
+    String(log.primaryMechanicID).trim() === currentUserStr || 
+    String(log.additionalMechanicID).trim() === currentUserStr;
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -486,14 +492,16 @@ function LogDetailView({ log, onBack, onEdit, onDelete }: LogDetailViewProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
-            <Edit3 className="w-4 h-4" /><span>Edit Log</span>
-          </button>
-          <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
-            <Trash2 className="w-4 h-4" /><span>Delete</span>
-          </button>
-        </div>
+        {hasMechanicAccess && (
+          <div className="flex items-center gap-3">
+            <button onClick={() => onEdit(log)} className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
+              <Edit3 className="w-4 h-4" /><span>Edit Log</span>
+            </button>
+            <button onClick={() => setShowDeleteModal(true)} className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">
+              <Trash2 className="w-4 h-4" /><span>Delete</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
@@ -596,6 +604,19 @@ export default function MechanicHistoryLogsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [selectedLog, setSelectedLog] = useState<HistoryLogRecord | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("logisco_user_session") || sessionStorage.getItem("logisco_user_session");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setCurrentUserId(String(parsedUser.id || parsedUser.employeeID));
+      } catch (error) {
+        console.error("Failed to parse user session");
+      }
+    }
+  }, []);
 
   // Photos are excluded from the list payload; load them for the open log.
   useEffect(() => {
@@ -794,17 +815,13 @@ export default function MechanicHistoryLogsPage() {
           onBack={() => setSelectedLog(null)}
           onEdit={(logRecord) => { setEditingLog(logRecord); setIsModalOpen(true); }}
           onDelete={handleDeleteLog}
+          currentUserId={currentUserId}
         />
       ) : (
         <>
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
-              <p className="text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
-            </div>
-            <button onClick={() => { setEditingLog(null); setIsModalOpen(true); }} className="w-full sm:w-auto h-11 px-5 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 whitespace-nowrap self-start sm:self-auto cursor-pointer">
-              <Wrench className="w-4 h-4 shrink-0" /><span>Log Maintenance</span>
-            </button>
+          <div className="mb-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
+            <p className="text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
