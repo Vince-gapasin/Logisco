@@ -3,6 +3,7 @@ import {
   ACTIVE_DELIVERY_STATUSES,
   DELIVERY_STATUS,
   EMPLOYEE_ROLE,
+  isAssignable,
   TERMINAL_DELIVERY_STATUSES,
   TRUCK_STATUS,
 } from "@/app/lib/enums";
@@ -400,8 +401,10 @@ export async function getAvailableResources(targetDate: string) {
     return isAvailable && !busyTrucks.has(truck.truckID);
   });
 
+  // Free means: not on a trip already, and not on leave. Being booked or on
+  // the road is the first check; the second is what an admin set.
   const isFree = (employee: any) =>
-    !busyEmployees.has(employee.employeeID);
+    !busyEmployees.has(employee.employeeID) && isAssignable(employee.availability);
 
   const availableDrivers = (allEmployees || []).filter(
     (employee: any) => employee.role === EMPLOYEE_ROLE.driver && isFree(employee),

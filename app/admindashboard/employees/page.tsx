@@ -11,6 +11,7 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { AVAILABILITY, MANUAL_AVAILABILITY } from "@/app/lib/enums";
 
 import {
   Search,
@@ -269,7 +270,13 @@ function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
     lastName,
     suffix: employee.suffix || "",
     role: employee.role,
-    availability: employee.availability || "",
+    // Booked or In Transit describes their trip, not a choice: the field
+    // offers only what an admin can set.
+    availability: MANUAL_AVAILABILITY.includes(
+      (employee.availability ?? "") as (typeof MANUAL_AVAILABILITY)[number],
+    )
+      ? employee.availability
+      : AVAILABILITY.available,
     gender: employee.gender || "",
     birthdate: employee.birthdate || "",
     address: employee.address || "",
@@ -822,22 +829,31 @@ function EmployeeModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Availability (Automatic)
+                  Availability
                 </label>
-                <input
-                  type="text"
+                <select
                   name="availability"
-                  value={formData.availability}
-                  disabled
-                  readOnly
+                  value={
+                    MANUAL_AVAILABILITY.includes(formData.availability as (typeof MANUAL_AVAILABILITY)[number])
+                      ? formData.availability
+                      : AVAILABILITY.available
+                  }
+                  onChange={handleInputChange}
                   aria-describedby="availability-help"
-                  className="w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600"
-                />
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs"
+                >
+                  {MANUAL_AVAILABILITY.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
                 <p
                   id="availability-help"
                   className="mt-1 text-xs text-slate-500"
                 >
-                  Updated automatically from assigned deliveries.
+                  Set On Leave or Unavailable to keep them off deliveries. Booked and In Transit are shown
+                  automatically from their trips.
                 </p>
               </div>
               <div>
@@ -1248,11 +1264,13 @@ function EmployeeDetailView({
     .join(" ");
 
   const availabilityBadgeClass =
-    employee.availability === "In Transit"
+    employee.availability === AVAILABILITY.inTransit
       ? "bg-blue-100 text-blue-700"
-      : employee.availability === "Booked"
+      : employee.availability === AVAILABILITY.booked
         ? "bg-amber-100 text-amber-700"
-        : "bg-emerald-100 text-emerald-700";
+        : employee.availability === AVAILABILITY.onLeave || employee.availability === AVAILABILITY.unavailable
+          ? "bg-slate-200 text-slate-700"
+          : "bg-emerald-100 text-emerald-700";
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -1877,9 +1895,19 @@ export default function EmployeesPage() {
           relationship: formData.relationship || null,
           skills: formData.skills || null,
           remarks: formData.remarks || null,
+          // Only what an admin set; a trip state is never sent back.
+          availability: MANUAL_AVAILABILITY.includes(
+            formData.availability as (typeof MANUAL_AVAILABILITY)[number],
+          )
+            ? formData.availability
+            : AVAILABILITY.available,
         };
 
         const hasChanges =
+          updatePayload.availability !==
+            (MANUAL_AVAILABILITY.includes(editData.availability as (typeof MANUAL_AVAILABILITY)[number])
+              ? editData.availability
+              : AVAILABILITY.available) ||
           updatePayload.employeeName !==
             `${editData.firstName} ${editData.lastName}`.trim() ||
           updatePayload.middleName !== (editData.middleName || null) ||

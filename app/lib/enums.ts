@@ -112,13 +112,38 @@ export type TruckStatus = (typeof TRUCK_STATUS)[keyof typeof TRUCK_STATUS];
 // ==========================================
 // Employee.availability
 // ==========================================
+// Two things in one word. "Available", "On Leave" and "Unavailable" are what
+// an admin set and are the only values stored on the employee; "Booked" and
+// "In Transit" are worked out from live dispatches when employees are read.
 export const AVAILABILITY = {
   available: "Available",
+  onLeave: "On Leave",
+  unavailable: "Unavailable",
   booked: "Booked",
   inTransit: "In Transit",
-  // Retained until every legacy availability write is removed.
-  onDelivery: "On Delivery",
 } as const;
+
+export type Availability = (typeof AVAILABILITY)[keyof typeof AVAILABILITY];
+
+/** The values an admin can set, and the only ones the column may hold. */
+export const MANUAL_AVAILABILITY: Availability[] = [
+  AVAILABILITY.available,
+  AVAILABILITY.onLeave,
+  AVAILABILITY.unavailable,
+];
+
+export function isManualAvailability(value: unknown): value is Availability {
+  return typeof value === "string" && MANUAL_AVAILABILITY.includes(value as Availability);
+}
+
+/**
+ * Whether someone can be given a trip at all. Being booked or on the road
+ * makes them busy, which the dispatch screens judge from live trips; this is
+ * only about leave.
+ */
+export function isAssignable(availability: string | null | undefined): boolean {
+  return availability !== AVAILABILITY.onLeave && availability !== AVAILABILITY.unavailable;
+}
 
 // ==========================================
 // Matching helpers

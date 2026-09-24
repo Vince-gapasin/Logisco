@@ -1,7 +1,7 @@
 import { supabase } from "@/app/lib/supabase";
 // EMPLOYEE_LOGIN_ACCESS_V3
 
-import { AVAILABILITY } from "@/app/lib/enums";
+import { AVAILABILITY, isManualAvailability, MANUAL_AVAILABILITY } from "@/app/lib/enums";
 import {
   getEmployeeAvailability,
   getEmployeeAvailabilityMap,
@@ -64,9 +64,11 @@ export async function getEmployees(query: EmployeeQueryDto) {
     dbQuery = dbQuery.eq("role", role);
   }
 
-  // Availability is calculated from live dispatches, so the legacy stored
-  // column must not be used to filter the directory.
-  void requestedAvailability;
+  // Only what an admin set can be filtered here; Booked and In Transit are
+  // worked out per employee below and are not in the database to filter on.
+  if (requestedAvailability && isManualAvailability(requestedAvailability)) {
+    dbQuery = dbQuery.eq("availability", requestedAvailability);
+  }
 
   if (healthStatus) {
     dbQuery = dbQuery.eq("healthStatus", healthStatus);
@@ -254,11 +256,13 @@ export async function updateEmployee(
   id: string,
   employee: UpdateEmployeeDto,
 ): Promise<Employee | null> {
-  // Availability is system-calculated. Ignore any legacy/manual value sent by
-  // older clients while still allowing normal employee updates.
-  const { availability: _ignoredAvailability, ...updates } = employee as
-    UpdateEmployeeDto & { availability?: unknown };
-  void _ignoredAvailability;
+  // An admin sets Available, On Leave or Unavailable. Booked and In Transit
+  // come from the employee's trips and are never stored.
+  const { availability, ...rest } = employee as UpdateEmployeeDto & { availability?: unknown };
+  if (availability !== undefined && !isManualAvailability(availability)) {
+    throw new Error(`Availability must be one of: ${MANUAL_AVAILABILITY.join(", ")}.`);
+  }
+  const updates = availability === undefined ? rest : { ...rest, availability };
 
   const { data, error } = await supabase
     .from(TABLE)

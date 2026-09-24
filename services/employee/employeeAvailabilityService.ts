@@ -4,6 +4,7 @@ import {
   AVAILABILITY,
   DELIVERY_STATUS,
   HELPER_STATUS,
+  isManualAvailability,
 } from "@/app/lib/enums";
 
 export type EmployeeAvailability =
@@ -59,19 +60,63 @@ function getScheduledTime(
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+/**
+ * What one person's availability comes to. On the road wins, because that is
+ * what they are actually doing; then what an admin set (On Leave,
+ * Unavailable), which is why someone on leave no longer reads as available;
+ * then a trip about to start.
+ */
+export function decideAvailability(state: {
+  manual?: string | null;
+  onTheRoad?: boolean;
+  bookedSoon?: boolean;
+}): EmployeeAvailability {
+  if (state.onTheRoad) return AVAILABILITY.inTransit;
+  if (isManualAvailability(state.manual) && state.manual !== AVAILABILITY.available) {
+    return state.manual as EmployeeAvailability;
+  }
+  return state.bookedSoon ? AVAILABILITY.booked : AVAILABILITY.available;
+}
+
 export async function getEmployeeAvailabilityMap(
   employeeIDs: string[],
   now = Date.now(),
 ): Promise<Map<string, EmployeeAvailability>> {
   const uniqueEmployeeIDs = [...new Set(employeeIDs.filter(Boolean))];
-  const availability = new Map<string, EmployeeAvailability>(
-    uniqueEmployeeIDs.map((employeeID) => [
-      employeeID,
-      AVAILABILITY.available,
-    ]),
-  );
+  const availability = new Map<string, EmployeeAvailability>();
 
   if (uniqueEmployeeIDs.length === 0) return availability;
+
+  // What an admin set for each of them. Nothing else is stored here.
+  const { data: employeeRows, error: employeeError } = await supabase
+    .from("Employee")
+    .select("employeeID, availability")
+    .in("employeeID", uniqueEmployeeIDs);
+
+  if (employeeError) {
+    throw new Error(
+      `Failed to read employee availability: ${employeeError.message}`,
+    );
+  }
+
+  const manualByEmployee = new Map<string, string | null>(
+    (employeeRows ?? []).map((row) => [row.employeeID, row.availability ?? null]),
+  );
+  const onTheRoad = new Set<string>();
+  const bookedSoon = new Set<string>();
+  const settle = () => {
+    for (const employeeID of uniqueEmployeeIDs) {
+      availability.set(
+        employeeID,
+        decideAvailability({
+          manual: manualByEmployee.get(employeeID),
+          onTheRoad: onTheRoad.has(employeeID),
+          bookedSoon: bookedSoon.has(employeeID),
+        }),
+      );
+    }
+    return availability;
+  };
 
   // Start with active dispatches so historical helper assignments never
   // produce an oversized DispatchOrder request.
@@ -87,7 +132,7 @@ export async function getEmployeeAvailabilityMap(
   }
 
   const allActiveDispatches = (dispatchRows ?? []) as ActiveDispatch[];
-  if (allActiveDispatches.length === 0) return availability;
+  if (allActiveDispatches.length === 0) return settle();
 
   const activeDispatchIDs = allActiveDispatches.map(
     ({ dispatchID }) => dispatchID,
@@ -117,7 +162,7 @@ export async function getEmployeeAvailabilityMap(
       helperDispatchIDSet.has(dispatchID),
   );
 
-  if (activeDispatches.length === 0) return availability;
+  if (activeDispatches.length === 0) return settle();
 
   const orderIDs = [
     ...new Set(activeDispatches.map(({ orderID }) => orderID).filter(Boolean)),
@@ -190,7 +235,7 @@ export async function getEmployeeAvailabilityMap(
 
     if (IN_TRANSIT_STATUSES.has(dispatch.status)) {
       for (const employeeID of assignedEmployees) {
-        availability.set(employeeID, AVAILABILITY.inTransit);
+        onTheRoad.add(employeeID);
       }
       continue;
     }
@@ -205,13 +250,11 @@ export async function getEmployeeAvailabilityMap(
     if (!bookingWindowStarted) continue;
 
     for (const employeeID of assignedEmployees) {
-      if (availability.get(employeeID) !== AVAILABILITY.inTransit) {
-        availability.set(employeeID, AVAILABILITY.booked);
-      }
+      bookedSoon.add(employeeID);
     }
   }
 
-  return availability;
+  return settle();
 }
 
 export async function getEmployeeAvailability(

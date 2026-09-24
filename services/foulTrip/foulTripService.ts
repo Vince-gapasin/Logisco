@@ -12,8 +12,7 @@
 
 import { supabase } from "@/app/lib/supabase";
 import {
-  ACTIVE_DELIVERY_STATUSES,
-  AVAILABILITY,
+  ACTIVE_DELIVERY_STATUSES,
   DELIVERY_STATUS,
   EMPLOYEE_ROLE,
   HELPER_STATUS,
@@ -22,8 +21,7 @@ import {
   isStopDelivered,
 } from "@/app/lib/enums";
 import {
-  assignDispatch,
-  completeDispatch,
+  assignDispatch,
   releaseDispatchResources,
 } from "@/services/dispatch/dispatchService";
 import { cancelBooking } from "@/services/booking/bookingService";
@@ -681,9 +679,8 @@ export async function mechanicReport(
   if (dispatch.truckID) {
     await supabase.from("Truck").update({ truckStatus: TRUCK_STATUS.onDelivery }).eq("truckID", dispatch.truckID);
   }
-  if (crew.length) {
-    await supabase.from("Employee").update({ availability: AVAILABILITY.onDelivery }).in("employeeID", crew);
-  }
+  // The crew are back on this trip; that they are busy again follows from the
+  // trip itself, which is what the employee screens read.
 
   const { error } = await supabase
     .from("FoulTripIncident")
