@@ -135,12 +135,20 @@ export async function sendPush(employeeIDs: string[], message: PushMessage): Pro
           sent++;
           return;
         }
-        // The app was uninstalled, or the token was replaced.
-        if (response.status === 404 || response.status === 403) {
+
+        const detail = await response.text();
+        // The app was uninstalled, or the token was replaced or malformed.
+        // A bad token answers 404 UNREGISTERED or 400 INVALID_ARGUMENT; both
+        // mean this row will never reach a phone again.
+        const gone =
+          response.status === 404 ||
+          response.status === 403 ||
+          (response.status === 400 && /registration token/i.test(detail));
+        if (gone) {
           dead.push(device.tokenID as string);
           return;
         }
-        console.error(`[Push] FCM refused a message (${response.status}): ${(await response.text()).slice(0, 200)}`);
+        console.error(`[Push] FCM refused a message (${response.status}): ${detail.slice(0, 200)}`);
       }),
     );
 

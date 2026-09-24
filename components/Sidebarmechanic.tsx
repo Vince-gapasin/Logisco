@@ -3,6 +3,8 @@
 // ==========================================
 "use client";
 
+import { releasePushToken } from "@/components/PushNotifications";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -43,7 +45,10 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
   };
 
   // Handler for confirming logout action
-  const handleConfirmLogout = () => {
+  const handleConfirmLogout = async () => {
+    // The phone stops receiving this person's notifications.
+    await releasePushToken();
+
     // 🔑 CRITICAL FIX: Clear auto-login and session storage keys
     localStorage.removeItem("logisco_user_session");
     sessionStorage.removeItem("logisco_user_session");

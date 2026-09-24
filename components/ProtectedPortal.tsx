@@ -5,6 +5,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import PushRegistration, { releasePushToken } from "@/components/PushNotifications";
 import { ShieldAlert } from "lucide-react";
 
 import { supabaseBrowser } from "@/app/lib/supabase-browser";
@@ -39,6 +40,7 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const redirectToLogin = async () => {
+      await releasePushToken();
       clearStoredSession();
       await signOutBrowserSession();
       if (isActive) router.replace("/login");
@@ -187,5 +189,11 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {/* Only inside the phone app; on the web it does nothing. */}
+      <PushRegistration />
+      {children}
+    </>
+  );
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "323420398789",
+    "project_id": "logisco-5bfd8",
+    "storage_bucket": "logisco-5bfd8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:323420398789:android:e0e89470775843cb963cac",
+        "android_client_info": {
+          "package_name": "com.logisco.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaQEhFp0t1rNblwXA4u-YfadtzDt6Pltk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
