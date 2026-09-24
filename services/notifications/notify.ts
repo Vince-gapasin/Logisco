@@ -91,8 +91,11 @@ export async function notify(input: NotifyInput): Promise<number> {
     );
     if (recipientError) throw new Error(recipientError.message);
 
-    // Phones, for whoever has the app installed. Also best-effort.
-    void sendPush([...recipients], {
+    // Phones, for whoever has the app installed. Awaited, not left running:
+    // the server stops the moment it answers the request, so a push that was
+    // merely started is killed in flight and never reaches anyone. It is
+    // still best-effort - sendPush swallows its own failures.
+    await sendPush([...recipients], {
       title: input.title,
       body: input.body,
       link: input.link ?? null,
@@ -158,18 +161,22 @@ export async function bookingCrew(orderID: string): Promise<{ orderCode: string 
   }
 }
 
-/** A trip's booking code, for saying which delivery a message is about. */
+/** Which delivery a message is about: "ORD-123456-AB1C (Acme Corp)". */
 export async function tripLabel(dispatchID: string | null | undefined): Promise<string | null> {
   if (!dispatchID) return null;
   try {
     const { data, error } = await supabase
       .from("DispatchOrder")
-      .select("Order ( orderCode )")
+      .select("Order ( orderCode, Client ( company ) )")
       .eq("dispatchID", dispatchID)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    const order = data?.Order as { orderCode?: string } | { orderCode?: string }[] | null;
-    return (Array.isArray(order) ? order[0]?.orderCode : order?.orderCode) ?? null;
+    type OrderRow = { orderCode?: string; Client?: { company?: string } | { company?: string }[] | null };
+    const raw = data?.Order as OrderRow | OrderRow[] | null;
+    const order = Array.isArray(raw) ? raw[0] : raw;
+    if (!order?.orderCode) return null;
+    const client = Array.isArray(order.Client) ? order.Client[0] : order.Client;
+    return client?.company ? `${order.orderCode} (${client.company})` : order.orderCode;
   } catch (error) {
     console.error("[Notify] Could not read the booking code:", error instanceof Error ? error.message : error);
     return null;

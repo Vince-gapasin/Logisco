@@ -27,6 +27,10 @@ export interface AppNotification {
   isRead?: boolean;
   isStored?: boolean;
   createdAt?: string;
+  /** What this item is about: "DispatchOrder:<id>". */
+  entityKey?: string;
+  /** Events that already told them this; the standing item then stays quiet. */
+  supersededBy?: string[];
   truckPlate?: string;
   vehicleType?: string;
   issue?: string;
@@ -46,7 +50,7 @@ async function storedNotifications(employeeID: string, limit = 100): Promise<App
   const { data, error } = await supabase
     .from("NotificationRecipient")
     .select(
-      "recipientID, readAt, Notification ( notificationID, event, title, body, severity, link, createdAt, actorName )",
+      "recipientID, readAt, Notification ( notificationID, event, title, body, severity, link, createdAt, actorName, entityTable, entityID )",
     )
     .eq("employeeID", employeeID)
     .order("recipientID", { ascending: false })
@@ -58,11 +62,14 @@ async function storedNotifications(employeeID: string, limit = 100): Promise<App
     .map((row): AppNotification | null => {
       const event = firstRelated<{
         notificationID: string;
+        event: string;
         title: string;
         body: string;
         severity: string;
         link: string | null;
         createdAt: string;
+        entityTable: string | null;
+        entityID: string | null;
       }>(row.Notification);
       if (!event) return null;
       return {
@@ -75,6 +82,9 @@ async function storedNotifications(employeeID: string, limit = 100): Promise<App
         isRead: Boolean(row.readAt),
         isStored: true,
         createdAt: event.createdAt,
+        entityKey: event.entityTable && event.entityID ? `${event.entityTable}:${event.entityID}` : undefined,
+        // Carried so a standing item can tell it already said this.
+        supersededBy: [event.event],
       };
     })
     .filter((item): item is AppNotification => item !== null)
@@ -133,6 +143,8 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         time: "",
         type: "assignment",
         truckPlate: truck?.plateNumber,
+        entityKey: `DispatchOrder:${dispatch.dispatchID}`,
+        supersededBy: ["CREW_ASSIGNED"],
       });
     } else if (dispatch.status === DELIVERY_STATUS.inTransit) {
       notifications.push({
@@ -175,6 +187,8 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
       message: `You are assigned as helper on ${order?.orderCode ?? dispatch.dispatchID}${client?.company ? ` (Client: ${client.company})` : ""}. Please confirm.`,
       time: "",
       type: "assignment",
+      entityKey: `DispatchOrder:${dispatch.dispatchID}`,
+      supersededBy: ["CREW_ASSIGNED"],
     });
   }
 
@@ -228,7 +242,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
   // when it was reported and whether a mechanic is already on the way.
   const { data: incidents, error: incidentError } = await supabase
     .from("FoulTripIncident")
-    .select("incidentID, status, issueType, reportedAt, Order ( orderCode, Client ( company ) )")
+    .select("incidentID, dispatchID, status, issueType, reportedAt, Order ( orderCode, Client ( company ) )")
     .in("status", ["open", "mechanic_assigned"])
     .order("reportedAt", { ascending: false })
     .limit(50);
@@ -243,6 +257,8 @@ async function adminNotifications(): Promise<AppNotification[]> {
     const company = client?.company ? ` (${client.company})` : "";
     const enRoute = incident.status === "mechanic_assigned";
     notifications.push({
+      entityKey: incident.dispatchID ? `DispatchOrder:${incident.dispatchID}` : undefined,
+      supersededBy: ["FOUL_TRIP_REPORTED"],
       id: `admin-foul-${incident.incidentID}`,
       title: enRoute ? "Mechanic on the way" : `Foul trip: ${incident.issueType}`,
       message: enRoute
@@ -376,7 +392,17 @@ export async function getNotificationsForEmployee(employee: {
     }),
   ]);
 
-  return [...stored, ...standing];
+  // A condition that still holds can repeat what an event already said - a
+  // crew member was told of the assignment, and it is also still unanswered.
+  // The event is the one with a time and a read state, so it stays.
+  const told = new Set(
+    stored.flatMap((item) => (item.entityKey ? (item.supersededBy ?? []).map((event) => `${event}|${item.entityKey}`) : [])),
+  );
+  const notAlreadyTold = standing.filter(
+    (item) => !(item.entityKey && (item.supersededBy ?? []).some((event) => told.has(`${event}|${item.entityKey}`))),
+  );
+
+  return [...stored, ...notAlreadyTold];
 }
 
 /** Unread events. Standing items are not counted: they are not "new". */

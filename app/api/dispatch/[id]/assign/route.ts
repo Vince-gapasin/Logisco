@@ -3,7 +3,7 @@ import { requireAuth, requireRole } from "@/app/lib/auth";
 import { assignDispatch, reassignDispatch } from "@/services/dispatch/dispatchService";
 import { assignDispatchSchema } from "@/app/schemas/dispatch/dispatch.schema";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
-import { crewOf, notify } from "@/services/notifications/notify";
+import { crewOf, notify, tripLabel } from "@/services/notifications/notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     await notify({
       event: "CREW_ASSIGNED",
       title: "New delivery assignment",
-      body: "You have been assigned a delivery. Open it to accept or decline.",
+      body: `New assignment for ${(await tripLabel(dispatch?.dispatchID)) ?? "a delivery"}. Open it to accept or decline.`,
       severity: "action",
       employeeIDs: [validation.data.driverID, validation.data.helper1ID, validation.data.helper2ID],
       entity: { table: "DispatchOrder", id: dispatch?.dispatchID },
@@ -86,7 +86,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     await notify({
       event: "CREW_ASSIGNED",
       title: "New delivery assignment",
-      body: "You have been assigned a delivery. Open it to accept or decline.",
+      body: `New assignment for ${(await tripLabel(id)) ?? "a delivery"}. Open it to accept or decline.`,
       severity: "action",
       employeeIDs: newCrew,
       entity: { table: "DispatchOrder", id },
@@ -96,7 +96,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     await notify({
       event: "CREW_REMOVED",
       title: "You are off a delivery",
-      body: "A delivery you were assigned to has been given to another crew.",
+      body: `${(await tripLabel(id)) ?? "A delivery"} you were assigned to has been given to another crew.`,
       severity: "info",
       employeeIDs: previousCrew.filter((employeeID) => !newCrew.includes(employeeID)),
       entity: { table: "DispatchOrder", id },
