@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { notify, OFFICE } from "@/services/notifications/notify";
 // EMPLOYEE_LOGIN_ACCESS_V1
 
 import { requireAuth, requireRole } from "@/app/lib/auth";
@@ -107,6 +108,17 @@ export async function POST(request: Request) {
     }
 
     const employee = await createEmployee(validation.data);
+
+    await notify({
+      event: "EMPLOYEE_ADDED",
+      title: "New employee",
+      body: `${validation.data.employeeName} was added as ${validation.data.role}.`,
+      severity: "info",
+      roles: OFFICE,
+      entity: { table: "Employee", id: employee?.employeeID },
+      link: "/admindashboard/employees",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    });
 
     await recordAudit({
       table: "Employee",

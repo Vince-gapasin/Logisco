@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authorize } from "@/app/lib/auth";
 import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { crewOf, notify, OFFICE } from "@/services/notifications/notify";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import { FoulTripError, mechanicReport } from "@/services/foulTrip/foulTripService";
 
@@ -42,6 +43,21 @@ export async function POST(request: Request, { params }: RouteContext) {
       actor: auditActor(auth),
       after: { ...parsed.data, ...result },
     });
+    const fixed = parsed.data.outcome === "fixed";
+    await notify({
+      event: fixed ? "TRUCK_REPAIRED" : "TRUCK_NOT_FIXABLE",
+      title: fixed ? "Truck repaired on site" : "Truck cannot be fixed on site",
+      body: fixed
+        ? `${auth.employee.employeeName} repaired the truck.${result.resumed ? " The crew can carry on with the delivery." : " The trip still needs a crew."}`
+        : `${auth.employee.employeeName} could not fix the truck. A replacement is needed.${parsed.data.notes ? ` ${parsed.data.notes}` : ""}`,
+      severity: fixed && result.resumed ? "info" : "action",
+      roles: OFFICE,
+      employeeIDs: result.resumed ? await crewOf(result.dispatchID) : [],
+      entity: { table: "FoulTripIncident", id },
+      link: fixed && result.resumed ? "/crew/dashboard" : "/admindashboard/feeds/foul-trip",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    });
+
     return NextResponse.json({ data: result });
   } catch (error) {
     if (error instanceof FoulTripError) {

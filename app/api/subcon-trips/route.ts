@@ -4,6 +4,7 @@ import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { createSubconTrip, listSubconTrips, SubconError } from "@/services/subcon/subconService";
+import { notify, OFFICE } from "@/services/notifications/notify";
 
 // Partner trips, which the coordinator updates on the partner's behalf.
 
@@ -66,6 +67,17 @@ export async function POST(request: Request) {
       actor: auditActor(auth),
       after: { orderID, ...choice, replacedTrips: result.replaced },
     });
+    await notify({
+      event: "SUBCON_ASSIGNED",
+      title: "Booking handed to a partner",
+      body: `${result.partner} is carrying a booking. Record their pickup and deliveries under Reports > Sub-con Trips.`,
+      severity: "info",
+      roles: OFFICE,
+      entity: { table: "DispatchOrder", id: result.dispatchID },
+      link: "/admindashboard/reports",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    });
+
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {
     if (error instanceof SubconError) return NextResponse.json({ message: error.message }, { status: error.status });

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { AVAILABILITY } from "@/app/lib/enums";
+import { notify, OFFICE } from "@/services/notifications/notify";
 
 import {
   requireAuth,
@@ -242,6 +244,20 @@ export async function PATCH(
           status: 404,
         }
       );
+    }
+
+    const availability = (validation.data as { availability?: string }).availability;
+    if (availability && availability !== AVAILABILITY.available) {
+      await notify({
+        event: "EMPLOYEE_UNAVAILABLE",
+        title: `${employee?.employeeName ?? "An employee"} is ${availability.toLowerCase()}`,
+        body: `They cannot be assigned deliveries until this is changed back.`,
+        severity: "action",
+        roles: OFFICE,
+        entity: { table: "Employee", id: idValidation.data },
+        link: "/admindashboard/employees",
+        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
     }
 
     await recordAudit({

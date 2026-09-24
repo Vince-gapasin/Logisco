@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from "@/app/lib/auth";
 import { assignDispatch, reassignDispatch } from "@/services/dispatch/dispatchService";
 import { assignDispatchSchema } from "@/app/schemas/dispatch/dispatch.schema";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { crewOf, notify } from "@/services/notifications/notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -32,6 +33,17 @@ export async function POST(request: Request, { params }: RouteContext) {
       after: { orderID: id, ...validation.data },
     });
 
+    await notify({
+      event: "CREW_ASSIGNED",
+      title: "New delivery assignment",
+      body: "You have been assigned a delivery. Open it to accept or decline.",
+      severity: "action",
+      employeeIDs: [validation.data.driverID, validation.data.helper1ID, validation.data.helper2ID],
+      entity: { table: "DispatchOrder", id: dispatch?.dispatchID },
+      link: "/crew/dashboard",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    });
+
     return NextResponse.json({ message: "Crew and Truck successfully assigned.", data: dispatch }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: 400 });
@@ -56,6 +68,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       return NextResponse.json({ message: "Validation failed", errors: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
+    // Read before the change, so whoever is dropped can be told.
+    const previousCrew = await crewOf(id);
     const dispatch = await reassignDispatch(id, validation.data);
 
     await recordAudit({
@@ -64,6 +78,30 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       action: "REASSIGN",
       actor: auditActor(auth),
       after: validation.data,
+    });
+
+    const newCrew = [validation.data.driverID, validation.data.helper1ID, validation.data.helper2ID].filter(
+      (employeeID): employeeID is string => Boolean(employeeID),
+    );
+    await notify({
+      event: "CREW_ASSIGNED",
+      title: "New delivery assignment",
+      body: "You have been assigned a delivery. Open it to accept or decline.",
+      severity: "action",
+      employeeIDs: newCrew,
+      entity: { table: "DispatchOrder", id },
+      link: "/crew/dashboard",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    });
+    await notify({
+      event: "CREW_REMOVED",
+      title: "You are off a delivery",
+      body: "A delivery you were assigned to has been given to another crew.",
+      severity: "info",
+      employeeIDs: previousCrew.filter((employeeID) => !newCrew.includes(employeeID)),
+      entity: { table: "DispatchOrder", id },
+      link: "/crew/dashboard",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
     });
 
     return NextResponse.json({ message: "Crew and truck updated. Confirmation has been reset.", data: dispatch }, { status: 200 });

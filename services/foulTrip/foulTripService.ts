@@ -12,7 +12,8 @@
 
 import { supabase } from "@/app/lib/supabase";
 import {
-  ACTIVE_DELIVERY_STATUSES,
+  ACTIVE_DELIVERY_STATUSES,
+
   DELIVERY_STATUS,
   EMPLOYEE_ROLE,
   HELPER_STATUS,
@@ -21,7 +22,8 @@ import {
   isStopDelivered,
 } from "@/app/lib/enums";
 import {
-  assignDispatch,
+  assignDispatch,
+
   releaseDispatchResources,
 } from "@/services/dispatch/dispatchService";
 import { cancelBooking } from "@/services/booking/bookingService";
@@ -598,7 +600,7 @@ export async function mechanicReport(
       .update({ status: INCIDENT_STATUS.open, mechanicOutcome: "not_fixable", mechanicRespondedAt: now, mechanicNotes })
       .eq("incidentID", incidentID);
     if (error) throw new Error(error.message);
-    return { incidentID, resumed: false, reason: "not_fixable" as const };
+    return { incidentID, dispatchID: incident.dispatchID, resumed: false, reason: "not_fixable" as const };
   }
 
   // Can the same trip carry on?
@@ -655,7 +657,7 @@ export async function mechanicReport(
       })
       .eq("incidentID", incidentID);
     if (error) throw new Error(error.message);
-    return { incidentID, resumed: false, reason: "crew_reassigned" as const };
+    return { incidentID, dispatchID: incident.dispatchID, resumed: false, reason: "crew_reassigned" as const };
   }
 
   const resumeTo =
@@ -696,7 +698,7 @@ export async function mechanicReport(
     .eq("incidentID", incidentID);
   if (error) throw new Error(error.message);
 
-  return { incidentID, resumed: true, reason: null };
+  return { incidentID, dispatchID: incident.dispatchID, resumed: true, reason: null };
 }
 
 /** Cancel the booking outright. Uses the booking cancellation that exists. */

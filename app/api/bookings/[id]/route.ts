@@ -3,6 +3,7 @@ import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { cancelBooking, getBookingById } from "@/services/booking/bookingService";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { bookingCrew, notify, OFFICE } from "@/services/notifications/notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -54,6 +55,8 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       : `Booking cancelled by ${auth.employee.employeeName}`;
 
   try {
+    // Read before cancelling: afterwards the trips are gone.
+    const affected = await bookingCrew(id);
     const result = await cancelBooking(id, reason);
 
     await recordAudit({
@@ -62,6 +65,18 @@ export async function PATCH(request: Request, { params }: RouteContext) {
       action: "CANCEL",
       actor: auditActor(auth),
       after: { reason, cancelledDispatches: result.cancelledDispatches },
+    });
+
+    await notify({
+      event: "BOOKING_CANCELLED",
+      title: "Booking cancelled",
+      body: `${affected.orderCode ?? "A booking"} was cancelled. ${reason}`,
+      severity: "action",
+      roles: OFFICE,
+      employeeIDs: affected.crew,
+      entity: { table: "Order", id },
+      link: "/admindashboard/feeds/foul-trip",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
     });
 
     return NextResponse.json({ message: "Booking cancelled successfully.", data: result });

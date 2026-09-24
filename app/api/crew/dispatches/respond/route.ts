@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
   getCrewAssignment,
   isUuid,
@@ -79,6 +80,19 @@ export async function POST(request: Request) {
         after: { ...updateData, as: "driver" },
       });
 
+      if (action === "decline") {
+        await notify({
+          event: "CREW_DECLINED",
+          title: "Driver declined a delivery",
+          body: `${auth.employee.employeeName} declined ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."} It needs another crew.`,
+          severity: "action",
+          roles: OFFICE,
+          entity: { table: "DispatchOrder", id: dispatchID },
+          link: "/admindashboard/calendar/unassigned-bookings",
+          actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+        });
+      }
+
       return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
     }
 
@@ -118,6 +132,19 @@ export async function POST(request: Request) {
       before: { status: helper.status },
       after: { ...updateData, dispatchID, as: "helper" },
     });
+
+    if (action === "decline") {
+      await notify({
+        event: "CREW_DECLINED",
+        title: "Helper declined a delivery",
+        body: `${auth.employee.employeeName} declined to help on ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."}`,
+        severity: "action",
+        roles: OFFICE,
+        entity: { table: "DispatchOrder", id: dispatchID },
+        link: "/admindashboard/feeds/pending",
+        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
+    }
 
     return NextResponse.json({ message: `Assignment ${action}ed successfully.` });
   } catch (error) {

@@ -6,13 +6,14 @@ import {
   TRUCK_STATUS,
 } from "@/app/lib/enums";
 
-// Notifications are derived from current operational data rather than stored:
-// there is no Notification table yet, and every item below is something the
-// database already knows. Each item carries a stable id so the client can
-// remember which ones the user has dismissed.
+// A person's notifications: what happened, and what is still the case.
 //
-// Note this is polled, not pushed - a driver still only sees a new assignment
-// when the app is open.
+// Events are written when they happen (see notify.ts) and stored with a row
+// per recipient, so read state belongs to the person rather than to a
+// browser. Standing conditions - a truck on maintenance, a booking with no
+// crew - are not events and are still worked out from live data here; they
+// end by themselves when the condition does, so there is nothing to mark as
+// read on the server. Both are merged into one feed, newest first.
 
 export interface AppNotification {
   id: string;
@@ -20,11 +21,64 @@ export interface AppNotification {
   message: string;
   time: string;
   type: string;
+  /** Where the feed should take them. */
+  link?: string | null;
+  /** Stored events carry their read state; standing conditions do not. */
+  isRead?: boolean;
+  isStored?: boolean;
+  createdAt?: string;
   truckPlate?: string;
   vehicleType?: string;
   issue?: string;
   crewName?: string;
   reason?: string;
+}
+
+// The pages colour by type; severity is what an event records.
+const TYPE_BY_SEVERITY: Record<string, string> = {
+  urgent: "warning",
+  action: "approval",
+  info: "reminder",
+};
+
+/** Events written for this person, newest first. */
+async function storedNotifications(employeeID: string, limit = 100): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from("NotificationRecipient")
+    .select(
+      "recipientID, readAt, Notification ( notificationID, event, title, body, severity, link, createdAt, actorName )",
+    )
+    .eq("employeeID", employeeID)
+    .order("recipientID", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .map((row): AppNotification | null => {
+      const event = firstRelated<{
+        notificationID: string;
+        title: string;
+        body: string;
+        severity: string;
+        link: string | null;
+        createdAt: string;
+      }>(row.Notification);
+      if (!event) return null;
+      return {
+        id: event.notificationID,
+        title: event.title,
+        message: event.body,
+        time: relativeTime(event.createdAt),
+        type: TYPE_BY_SEVERITY[event.severity] ?? "reminder",
+        link: event.link ?? null,
+        isRead: Boolean(row.readAt),
+        isStored: true,
+        createdAt: event.createdAt,
+      };
+    })
+    .filter((item): item is AppNotification => item !== null)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 // Trucks unchecked for longer than this are flagged to mechanics.
@@ -295,10 +349,8 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
   return notifications;
 }
 
-export async function getNotificationsForEmployee(employee: {
-  employeeID: string;
-  role: string;
-}): Promise<AppNotification[]> {
+/** The conditions that still hold for this person's role. */
+async function standingNotifications(employee: { employeeID: string; role: string }): Promise<AppNotification[]> {
   const role = (employee.role ?? "").trim().toLowerCase();
 
   if (role === "driver" || role === "helper") return crewNotifications(employee.employeeID);
@@ -306,4 +358,50 @@ export async function getNotificationsForEmployee(employee: {
   if (role === "admin" || role === "coordinator" || role === "dispatcher") return adminNotifications();
 
   return [];
+}
+
+export async function getNotificationsForEmployee(employee: {
+  employeeID: string;
+  role: string;
+}): Promise<AppNotification[]> {
+  // One slow half must not cost the other.
+  const [stored, standing] = await Promise.all([
+    storedNotifications(employee.employeeID).catch((error) => {
+      console.error("[Notifications] Stored events unavailable:", error instanceof Error ? error.message : error);
+      return [] as AppNotification[];
+    }),
+    standingNotifications(employee).catch((error) => {
+      console.error("[Notifications] Standing items unavailable:", error instanceof Error ? error.message : error);
+      return [] as AppNotification[];
+    }),
+  ]);
+
+  return [...stored, ...standing];
+}
+
+/** Unread events. Standing items are not counted: they are not "new". */
+export async function getUnreadCount(employeeID: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("NotificationRecipient")
+    .select("recipientID", { count: "exact", head: true })
+    .eq("employeeID", employeeID)
+    .is("readAt", null);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/** Marks the given events read for this person, or all of them. */
+export async function markNotificationsRead(employeeID: string, notificationIDs?: string[]): Promise<number> {
+  let query = supabase
+    .from("NotificationRecipient")
+    .update({ readAt: new Date().toISOString() })
+    .eq("employeeID", employeeID)
+    .is("readAt", null);
+
+  if (notificationIDs?.length) query = query.in("notificationID", notificationIDs);
+
+  const { data, error } = await query.select("recipientID");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
 }

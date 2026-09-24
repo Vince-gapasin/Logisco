@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { OFFICE_ROLES, requireAuth, requireRole, UserRole } from "@/app/lib/auth";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { notify, OFFICE } from "@/services/notifications/notify";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 
@@ -92,6 +93,17 @@ export async function POST(request: Request) {
         pickups: validation.data.pickups?.length ?? 0,
         items: validation.data.items.length,
       },
+    });
+
+    await notify({
+      event: "BOOKING_CREATED",
+      title: "New booking",
+      body: `${newBookingResponse.orderCode} was booked: ${validation.data.stops.length} stop(s). It needs a truck and crew.`,
+      severity: "action",
+      roles: OFFICE,
+      entity: { table: "Order", id: newBookingResponse.orderID },
+      link: "/admindashboard/calendar/unassigned-bookings",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
     });
 
     return NextResponse.json(newBookingResponse, { status: 201 });

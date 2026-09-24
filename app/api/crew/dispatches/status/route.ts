@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { POD_BUCKET, signPodUrl } from "@/services/storage/podService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
   getCrewAssignment,
@@ -261,6 +262,19 @@ export async function POST(request: Request) {
     // logged and retried if the crew app submits again.
     if (status === DELIVERY_STATUS.completed) {
       await releaseResources(dispatchID);
+    }
+
+    if (status === DELIVERY_STATUS.completed) {
+      await notify({
+        event: "TRIP_COMPLETED",
+        title: "Delivery completed",
+        body: `${(await tripLabel(dispatchID)) ?? "A delivery"} was completed by ${auth.employee.employeeName}.`,
+        severity: "info",
+        roles: OFFICE,
+        entity: { table: "DispatchOrder", id: dispatchID },
+        link: "/admindashboard/feeds/completed",
+        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
     }
 
     return NextResponse.json({ message: "Status updated successfully", status, podUrl });

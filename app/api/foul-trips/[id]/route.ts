@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { crewOf, notify, OFFICE } from "@/services/notifications/notify";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import {
   cancel,
@@ -109,6 +110,58 @@ export async function POST(request: Request, { params }: RouteContext) {
       actor: auditActor(auth),
       after: { ...input, ...result },
     });
+
+    const newTrip = (result as { newDispatchID?: string }).newDispatchID;
+    const who = { employeeID: auth.employee.employeeID, name: auth.employee.employeeName };
+
+    if (input.action === "reassign" || input.action === "reschedule") {
+      const rescheduled = input.action === "reschedule";
+      await notify({
+        event: "CREW_ASSIGNED",
+        title: rescheduled ? "Rescheduled delivery assigned" : "Recovery delivery assigned",
+        body: rescheduled
+          ? "You have been assigned a rescheduled delivery. Open it to accept or decline."
+          : "You have been assigned a delivery that another crew could not finish. Open it to accept or decline.",
+        severity: "action",
+        employeeIDs: await crewOf(newTrip),
+        entity: { table: "DispatchOrder", id: newTrip },
+        link: "/crew/dashboard",
+        actor: who,
+      });
+    } else if (input.action === "send_mechanic") {
+      await notify({
+        event: "MECHANIC_SENT",
+        title: input.severity === "major" ? "Roadside job - major" : "Roadside job",
+        body: "You have been sent to a broken-down truck. Open Roadside Jobs for the location.",
+        severity: "urgent",
+        employeeIDs: [input.mechanicID],
+        entity: { table: "FoulTripIncident", id },
+        link: "/mechanic/roadside",
+        actor: who,
+      });
+    } else if (input.action === "subcontract") {
+      await notify({
+        event: "SUBCON_ASSIGNED",
+        title: "Foul trip handed to a partner",
+        body: "A partner is carrying a booking that could not be finished. Record their updates under Reports.",
+        severity: "info",
+        roles: OFFICE,
+        entity: { table: "DispatchOrder", id: newTrip },
+        link: "/admindashboard/reports",
+        actor: who,
+      });
+    } else if (input.action === "cancel") {
+      await notify({
+        event: "BOOKING_CANCELLED",
+        title: "Booking cancelled after a foul trip",
+        body: `The booking was cancelled: ${input.reason}`,
+        severity: "action",
+        roles: OFFICE,
+        entity: { table: "FoulTripIncident", id },
+        link: "/admindashboard/feeds/foul-trip",
+        actor: who,
+      });
+    }
 
     return NextResponse.json({ data: result });
   } catch (error) {

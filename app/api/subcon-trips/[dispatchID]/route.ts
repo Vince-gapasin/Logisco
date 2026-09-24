@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { isUuid } from "@/services/dispatch/dispatchService";
+import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
   getSubconTrip,
   recordDelivery,
@@ -92,6 +93,30 @@ export async function POST(request: Request, { params }: RouteContext) {
       actor: auditActor(auth),
       after: result,
     });
+    if (action === "deliver" && (result as { completed?: boolean }).completed) {
+      await notify({
+        event: "TRIP_COMPLETED",
+        title: "Partner delivery completed",
+        body: `${(await tripLabel(dispatchID)) ?? "A partner booking"} has been delivered in full.`,
+        severity: "info",
+        roles: OFFICE,
+        entity: { table: "DispatchOrder", id: dispatchID },
+        link: "/admindashboard/feeds/completed",
+        actor,
+      });
+    } else if (action === "problem") {
+      await notify({
+        event: "FOUL_TRIP_REPORTED",
+        title: `Partner reported: ${(result as { issueType?: string }).issueType ?? "a problem"}`,
+        body: `${(await tripLabel(dispatchID)) ?? "A partner booking"} could not continue. It needs recovery.`,
+        severity: "urgent",
+        roles: OFFICE,
+        entity: { table: "DispatchOrder", id: dispatchID },
+        link: "/admindashboard/feeds/foul-trip",
+        actor,
+      });
+    }
+
     return NextResponse.json({ data: result });
   } catch (error) {
     if (error instanceof SubconError) return NextResponse.json({ message: error.message }, { status: error.status });

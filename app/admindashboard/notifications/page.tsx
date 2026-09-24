@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useNotifications } from "@/app/lib/useNotifications";
 import {
   Bell,
@@ -147,6 +148,15 @@ export default function AdminNotificationsPage() {
                   <p className="text-sm text-slate-600 leading-relaxed pr-0 sm:pr-4">
                     {notif.message}
                   </p>
+                  {notif.link && (
+                    <Link
+                      href={notif.link}
+                      onClick={() => handleMarkAsRead(notif.id)}
+                      className="mt-1 inline-block text-sm font-semibold text-blue-600 hover:underline"
+                    >
+                      Open
+                    </Link>
+                  )}
                 </div>
 
                 {/* Action Buttons */}

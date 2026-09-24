@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { MECHANICS, notify, OFFICE } from "@/services/notifications/notify";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import {
   deleteTruck,
@@ -65,6 +66,21 @@ export async function PUT(request: Request, { params }: RouteContext) {
         : null,
       after: payload,
     });
+
+    const status = (payload as { truckStatus?: string }).truckStatus;
+    if (status && before && status !== before.truckStatus) {
+      const grounded = status === "On Maintenance" || status === "Out of Service";
+      await notify({
+        event: "TRUCK_STATUS_CHANGED",
+        title: grounded ? `Truck ${status.toLowerCase()}` : "Truck back in service",
+        body: `${before.plateNumber} is now ${status.toLowerCase()}.`,
+        severity: grounded ? "action" : "info",
+        roles: [...OFFICE, ...MECHANICS],
+        entity: { table: "Truck", id },
+        link: "/mechanic/fleet-status",
+        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
+    }
 
     return NextResponse.json(truck);
   } catch (error) {

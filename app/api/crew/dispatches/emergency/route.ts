@@ -4,6 +4,7 @@ import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, TRUCK_STATUS } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { recordIncident } from "@/services/foulTrip/foulTripService";
+import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { POD_BUCKET } from "@/services/storage/podService";
 import {
   getCrewAssignment,
@@ -157,6 +158,17 @@ export async function POST(request: Request) {
         photo: Boolean(photoPath),
         located: latitude !== null && longitude !== null,
       },
+    });
+
+    await notify({
+      event: "FOUL_TRIP_REPORTED",
+      title: `Foul trip: ${issueType}`,
+      body: `${auth.employee.employeeName} reported ${issueType.toLowerCase()} on ${(await tripLabel(dispatchID)) ?? "a delivery"}.${details ? ` ${details}` : ""} It needs recovery.`,
+      severity: "urgent",
+      roles: OFFICE,
+      entity: { table: "DispatchOrder", id: dispatchID },
+      link: "/admindashboard/feeds/foul-trip",
+      actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
     });
 
     return NextResponse.json({ message: "Emergency alert broadcasted successfully" }, { status: 200 });
