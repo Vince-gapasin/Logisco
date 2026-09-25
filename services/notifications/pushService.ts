@@ -91,6 +91,43 @@ async function accessToken(account: ServiceAccount): Promise<string | null> {
   return cached.token;
 }
 
+export interface PushDiagnosis {
+  /** FIREBASE_SERVICE_ACCOUNT is present and readable. */
+  configured: boolean;
+  projectID: string | null;
+  /** Google accepted the service account and issued a token. */
+  credentialOk: boolean;
+  detail: string;
+}
+
+/**
+ * Whether this server can push at all, for a screen that needs to say why a
+ * phone is silent. A push that goes nowhere leaves no trace otherwise: it is
+ * deliberately best-effort, so a missing credential looks exactly like a
+ * working one from the outside. Says nothing about the credential itself.
+ */
+export async function pushDiagnosis(): Promise<PushDiagnosis> {
+  const account = serviceAccount();
+  if (!account) {
+    return {
+      configured: false,
+      projectID: null,
+      credentialOk: false,
+      detail: "FIREBASE_SERVICE_ACCOUNT is not set on this server, or is not valid JSON. No push can be sent.",
+    };
+  }
+
+  const token = await accessToken(account);
+  return {
+    configured: true,
+    projectID: account.project_id,
+    credentialOk: Boolean(token),
+    detail: token
+      ? "Google accepted the service account; this server can send push."
+      : "Google refused the service account. It may be from another project, or its key may have been revoked.",
+  };
+}
+
 /** Sends to every live device of the given people. Returns how many were reached. */
 export async function sendPush(employeeIDs: string[], message: PushMessage): Promise<number> {
   const account = serviceAccount();
