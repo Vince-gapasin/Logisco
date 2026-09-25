@@ -7,8 +7,10 @@ android {
         applicationId "com.logisco.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The build number comes from CI, so each build is newer than the one
+        // before it and a phone will install it over what is already there.
+        versionCode = ((project.findProperty("appVersionCode") ?: "1") as String).toInteger()
+        versionName = (project.findProperty("appVersionName") ?: "1.0") as String
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +18,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Signed with one key that never changes, so every build installs over the
+    // last one instead of Android refusing it as a different app. The key is
+    // never in the repository: CI writes it out from a secret and points here
+    // at it. A build without it falls back to the throwaway debug key, which
+    // is fine for a phone on the desk and useless for updating anyone else's.
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig = System.getenv("ANDROID_KEYSTORE_PATH") ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

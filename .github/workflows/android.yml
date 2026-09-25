@@ -83,16 +83,53 @@ jobs:
       - name: Show what the APK will point at
         run: cat android/app/src/main/assets/capacitor.config.json
 
+      # One key for every build, kept as a secret and written out here. A debug
+      # key is regenerated per machine, so each build was a different signer
+      # and a phone refused to install one over another: the app had to be
+      # uninstalled, taking the signed-in session with it, every time.
+      - name: Write out the signing key
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret. Falling back to the debug key, which will not install over an app signed by any other build."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/logisco-release.jks"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
       - name: Build
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        env:
+          # Empty without the secret, which is what sends build.gradle down
+          # its debug-key path rather than failing part-way through signing.
+          ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.signed == 'true' && format('{0}/logisco-release.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -PappVersionCode=${{ github.run_number }} \
+            -PappVersionName=1.0.${{ github.run_number }}
 
-      # Debug-signed, so it installs after allowing "install unknown apps" on
-      # the phone. A Play Store build needs a release keystore, which does not
-      # belong in a repository - set that up when you are ready to publish.
+      - name: Say what came out
+        run: |
+          ls -l android/app/build/outputs/apk/release/
+          {
+            echo "### Logisco APK"
+            echo ""
+            echo "- Version 1.0.${{ github.run_number }} (build ${{ github.run_number }})"
+            echo "- Signed with the release key: ${{ steps.signing.outputs.signed }}"
+            echo "- Download it from Artifacts below, then open it on the phone."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Installing it needs "install unknown apps" allowed for whatever opens
+      # the file on the phone - the browser, or Files.
       - uses: actions/upload-artifact@v4
         with:
-          name: logisco-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: logisco-apk-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
