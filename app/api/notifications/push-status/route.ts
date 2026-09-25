@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const { data: devices } = await supabase
     .from("DeviceToken")
-    .select("platform, lastSeenAt, failedAt, Employee ( employeeName, role )");
+    .select("employeeID, platform, lastSeenAt, failedAt, Employee ( employeeName, role )");
 
   return NextResponse.json(
     {
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
             | { employeeName?: string; role?: string }
             | null;
           return {
+            employeeID: device.employeeID,
             name: person?.employeeName ?? "Unknown",
             role: person?.role ?? "",
             platform: device.platform,
