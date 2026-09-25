@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
+import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
   isAwaitingAssignment,
@@ -25,7 +26,6 @@ import {
   Inbox,
   X,
   Trash2,
-  CheckCircle2,
   Clock,
 } from "lucide-react";
 
@@ -33,67 +33,6 @@ const ITEMS_PER_PAGE = 10;
 
 // ==========================================
 // PROGRESS TRACKER COMPONENT
-// ==========================================
-const PROGRESS_STAGES = [
-  "Created",
-  "Assigned",
-  "In Transit",
-  "Complete",
-  "Returned",
-];
-
-function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
-  const currentIndex = PROGRESS_STAGES.indexOf(currentStatus);
-
-  return (
-    <div className="w-full px-2">
-      <div className="flex items-center justify-between relative">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.75 bg-slate-200 rounded-full z-0"></div>
-        <div
-          className="absolute left-0 top-1/2 -translate-y-1/2 h-0.75 bg-blue-500 rounded-full z-0 transition-all duration-500"
-          style={{
-            width: `${Math.max(0, (currentIndex / (PROGRESS_STAGES.length - 1)) * 100)}%`,
-          }}
-        ></div>
-
-        {PROGRESS_STAGES.map((stage, index) => {
-          const isCompleted = index < currentIndex;
-          const isActive = index === currentIndex;
-
-          let iconBg = "bg-slate-200 text-slate-400 border-slate-200";
-          if (isCompleted) iconBg = "bg-blue-500 text-white border-blue-500";
-          if (isActive)
-            iconBg =
-              "bg-white text-blue-600 border-[1.5px] border-blue-500 shadow-sm ring-2 ring-blue-50";
-
-          return (
-            <div
-              key={stage}
-              className="relative z-10 flex flex-col items-center gap-1 w-10"
-            >
-              <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${iconBg}`}
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-3 h-3" />
-                ) : (
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-blue-600 animate-pulse" : "bg-slate-300"}`}
-                  ></div>
-                )}
-              </div>
-              <span
-                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-blue-700" : isCompleted ? "text-slate-700" : "text-slate-400"}`}
-              >
-                {stage}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ==========================================
 // SUCCESS MODAL COMPONENT (Awaiting Crew Confirmation)
