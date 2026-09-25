@@ -467,8 +467,6 @@ export interface FeedBooking {
   truckID: string | null;
   truckModel: string;
   subconPartner: string;
-  /** Why a crew turned the trip down, when one did. */
-  rejectionReason: string;
   pickupList: FeedStopRow[];
   deliveryList: FeedStopRow[];
   foulDetails: {
@@ -594,7 +592,6 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
     truckID: booking.truckID,
     truckModel: booking.truckModel,
     subconPartner: booking.subconPartner,
-    rejectionReason: booking.rejectionReason,
     pickupList: parsePickup(booking),
     deliveryList: booking.stops.map((stop) => ({
       branchName: stop.branchName,

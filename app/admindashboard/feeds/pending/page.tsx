@@ -296,7 +296,6 @@ function BookingDetailsModal({
   const wasDeclined = booking.confirmationStatus === "Declined";
   const isUnassigned = booking.confirmationStatus === "Unassigned";
   const isEditable = isAssignCrew || isPendingCrew || wasDeclined || isUnassigned;
-  const declinedBy = booking.crews?.find((crew: { status: string }) => crew.status === "Declined")?.name;
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -422,20 +421,6 @@ function BookingDetailsModal({
           onSubmit={validateAndSubmit}
           className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-900"
         >
-          {wasDeclined && (
-            <div className="border border-red-200 bg-red-50 rounded-xl p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-red-700">
-                Declined{declinedBy ? ` by ${declinedBy}` : ""}
-              </p>
-              <p className="text-xs text-red-800 mt-1">
-                {booking.rejectionReason || "No reason was given."}
-              </p>
-              <p className="text-xs text-red-700/80 mt-1">
-                Nothing left the yard. Pick a truck and crew below to send it out.
-              </p>
-            </div>
-          )}
-
           {/* Top Info & Progress Tracker */}
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">

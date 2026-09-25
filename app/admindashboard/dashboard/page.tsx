@@ -1019,6 +1019,10 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                   displayStatus = "Pending Crew";
                 }
               }
+              // The bucket's own colour, except for a booking a crew turned
+              // down: red says at a glance which of the pending ones is
+              // waiting because something happened to it.
+              const badge = b.dispatchStatus === "Rejected" ? COLOR_STYLES.red : styles;
               return (
                 <div
                   key={b.orderId}
@@ -1037,7 +1041,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span
-                        className={`px-3 py-1 ${styles.badgeBg} ${styles.badgeText} rounded-full text-xs sm:text-[11px] font-bold whitespace-nowrap`}
+                        className={`px-3 py-1 ${badge.badgeBg} ${badge.badgeText} rounded-full text-xs sm:text-[11px] font-bold whitespace-nowrap`}
                       >
                         {displayStatus}
                       </span>
@@ -1232,13 +1236,6 @@ export default function AdminDashboardPage() {
             dispatchRecord?.Driver?.employeeName ||
             (driverMatch ? driverMatch[1].trim() : "Unassigned");
 
-          // Naming the crew who declined as "the driver" reads as though they
-          // are still on it.
-          const driverLabel =
-            dispatchStatus === DELIVERY_STATUS.rejected
-              ? `Declined by ${driver}`
-              : driver;
-
           const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
           const helper = isSubcon
             ? `Sub-con: ${partnerName}`
@@ -1318,7 +1315,7 @@ export default function AdminDashboardPage() {
             orderId: o.orderCode || o.orderID,
             client: displayClient,
             product,
-            driver: driverLabel,
+            driver,
             helper,
             dateTime,
             driverConfirmed,
