@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Truck, User, MapPin, Clock, Package } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
-import { formatDateTime } from "@/app/lib/datetime";
+import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
@@ -34,12 +34,17 @@ interface TrackingStop {
   status: string;
   latitude: number | null;
   longitude: number | null;
+  arrivedAt: string | null;
+  deliveredAt: string | null;
+  receivedBy: string | null;
 }
 
 interface TrackingData {
   isExpired: boolean;
   orderNumber: string;
   clientName: string | null;
+  clientEmail: string | null;
+  clientContact: string | null;
   deliveryStatus: string;
   isCompleted: boolean;
   estimatedArrival: string | null;
@@ -178,6 +183,9 @@ function ClientTrackerView() {
     );
   }
 
+  // The trip stopped: every stop still waiting is affected, not just one.
+  const interrupted = /interrupt/i.test(data.deliveryStatus);
+
   const mapPoints: MapPoint[] = [
     ...(data.currentLocation
       ? [
@@ -201,8 +209,15 @@ function ClientTrackerView() {
         longitude: stop.longitude as number,
         kind: "stop" as const,
         done: /complete|delivered/i.test(stop.status),
+        problem: /foul|fail|cancel/i.test(stop.status) || interrupted,
       })),
   ];
+
+  // Newest first is what people ask for here, but the list below is a
+  // progress ladder and reads backwards upside down. The latest is said once,
+  // at the top, and the ladder stays in order.
+  const latest = [...data.steps].reverse().find((step) => step.stage === "problem" || step.stage === "current")
+    ?? [...data.steps].reverse().find((step) => step.stage === "completed");
 
   // Prefer the live driving estimate; fall back to the scheduled window.
   const headline = data.isCompleted
@@ -302,6 +317,24 @@ function ClientTrackerView() {
                   </div>
                 </div>
 
+                {(data.clientEmail || data.clientContact) && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-slate-500">Booked by</div>
+                      <div className="text-sm font-medium text-slate-900 truncate">{data.clientName ?? "-"}</div>
+                      <div className="text-xs text-slate-600">
+                        {[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Partly hidden. Contact your coordinator if these are not yours.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {data.stops.length > 0 && (
                   <div className="flex items-start gap-3">
                     <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
@@ -311,17 +344,36 @@ function ClientTrackerView() {
                       <div className="text-xs font-medium text-slate-500">
                         Delivery stops ({data.stops.length})
                       </div>
-                      <ul className="text-sm font-medium text-slate-900 mt-0.5 space-y-0.5">
-                        {data.stops.map((stop) => (
-                          <li key={stop.branchID} className="flex items-center gap-2">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                                /complete|delivered/i.test(stop.status) ? "bg-emerald-500" : "bg-slate-300"
-                              }`}
-                            />
-                            <span className="truncate">{stop.branchName}</span>
-                          </li>
-                        ))}
+                      <ul className="text-sm font-medium text-slate-900 mt-0.5 space-y-1.5">
+                        {data.stops.map((stop) => {
+                          const delivered = /complete|delivered/i.test(stop.status);
+                          return (
+                            <li key={stop.branchID} className="flex items-start gap-2">
+                              <span
+                                className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
+                                  delivered ? "bg-emerald-500" : interrupted ? "bg-red-500" : "bg-slate-300"
+                                }`}
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate">{stop.branchName}</span>
+                                <span className="block text-xs font-normal text-slate-500">
+                                  {delivered
+                                    ? [
+                                        stop.deliveredAt ? `Delivered ${formatDateTime(stop.deliveredAt)}` : "Delivered",
+                                        stop.receivedBy ? `received by ${stop.receivedBy}` : null,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(", ")
+                                    : interrupted
+                                      ? "Waiting - the trip was interrupted"
+                                      : stop.expectedTime
+                                        ? `Expected by ${formatTime(stop.expectedTime)}`
+                                        : "Scheduled"}
+                                </span>
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   </div>
@@ -335,6 +387,23 @@ function ClientTrackerView() {
                 <Clock className="w-4 h-4 text-slate-700" />
                 <span className="text-sm font-semibold text-slate-900">Latest Updates</span>
               </div>
+
+              {latest && (
+                <div
+                  className={`rounded-lg border p-3 ${
+                    latest.stage === "problem" ? "border-red-200 bg-red-50" : "border-blue-100 bg-blue-50/60"
+                  }`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest</p>
+                  <p className={`text-sm font-semibold ${latest.stage === "problem" ? "text-red-800" : "text-slate-900"}`}>
+                    {latest.title}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {latest.detail}
+                    {latest.at ? ` · ${formatDateTime(latest.at)}` : ""}
+                  </p>
+                </div>
+              )}
 
               <div className="flex flex-col pl-2.5 pt-1 space-y-4 relative">
                 <div className="absolute left-4.25 top-3 bottom-3 w-0.5 bg-slate-200 z-0"></div>

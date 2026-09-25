@@ -20,6 +20,8 @@ export interface MapPoint {
   longitude: number;
   kind: "truck" | "stop";
   done?: boolean;
+  /** A stop on a trip that was interrupted, or that failed. */
+  problem?: boolean;
 }
 
 export interface TrailPointInput {
@@ -161,7 +163,9 @@ export default function LiveRouteMap({
                   ? "bg-blue-600 text-white"
                   : point.done
                     ? "bg-emerald-500 text-white"
-                    : "bg-slate-700 text-white"
+                    : point.problem
+                      ? "bg-red-600 text-white"
+                      : "bg-slate-700 text-white"
               }`}
             >
               {point.kind === "truck" ? (

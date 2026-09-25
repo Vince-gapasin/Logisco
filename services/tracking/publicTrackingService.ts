@@ -1,6 +1,8 @@
 import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
+import { formatDateTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
+import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { getTravelEstimate, toArrivalLabel } from "@/services/geo/routingService";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
@@ -31,6 +33,11 @@ export interface TrackingStop {
   status: string;
   latitude: number | null;
   longitude: number | null;
+  /** When the truck reached it and when it was signed for. */
+  arrivedAt: string | null;
+  deliveredAt: string | null;
+  /** Who took delivery, from the proof recorded at the stop. */
+  receivedBy: string | null;
 }
 
 export interface TrackingPayload {
@@ -38,6 +45,9 @@ export interface TrackingPayload {
   isExpired: boolean;
   orderNumber: string;
   clientName: string | null;
+  /** The client's own details, partly hidden: anyone with the link sees this page. */
+  clientEmail: string | null;
+  clientContact: string | null;
   deliveryStatus: string;
   isCompleted: boolean;
   estimatedArrival: string | null;
@@ -126,14 +136,23 @@ function buildSteps(
     }
 
     const expected = formatExpectedTime(stop.expectedTime);
+    const delivered = stop.deliveredAt
+      ? [`Delivered ${formatDateTime(stop.deliveredAt)}`, stop.receivedBy ? `received by ${stop.receivedBy}` : null]
+          .filter(Boolean)
+          .join(", ")
+      : null;
+
     steps.push({
       title: `Delivery to ${stop.branchName}`,
       detail: done
-        ? "Delivered."
-        : expected
-          ? `Expected by ${expected}.`
-          : "Scheduled.",
+        ? `${delivered ?? "Delivered"}.`
+        : stage === "current" && expected
+          ? `On the way. Expected by ${expected}.`
+          : expected
+            ? `Expected by ${expected}.`
+            : "Scheduled.",
       stage,
+      at: stop.deliveredAt ?? null,
     });
   }
 
@@ -150,15 +169,19 @@ function buildSteps(
     });
   }
 
-  steps.push({
-    title: isFoulTrip ? "Trip interrupted" : "Delivery completed",
-    detail: isFoulTrip
-      ? "This trip was interrupted. Our coordinator will contact you."
-      : isCompleted
-        ? "All stops have been delivered."
-        : "Pending completion of all stops.",
-    stage: isCompleted || isFoulTrip ? "completed" : "upcoming",
-  });
+  // A reported problem above already says the trip stopped, and why.
+  const saidWhy = isFoulTrip && problems.some((problem) => problem.blocking);
+  if (!saidWhy) {
+    steps.push({
+      title: isFoulTrip ? "Trip interrupted" : "Delivery completed",
+      detail: isFoulTrip
+        ? "This trip was interrupted. Our coordinator will contact you."
+        : isCompleted
+          ? "All stops have been delivered."
+          : "Pending completion of all stops.",
+      stage: isCompleted || isFoulTrip ? "completed" : "upcoming",
+    });
+  }
 
   return steps;
 }
@@ -200,8 +223,9 @@ export async function getTrackingByToken(
     .from("Order")
     .select(
       `orderID, orderCode, createdAt, isActive,
-       Client ( company ),
-       BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong ),
+       Client ( company, emailAdd, contact ),
+       BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
+         POD ( receiverName, deliveredAt ) ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
          Truck ( plateNumber, model ),
@@ -228,15 +252,23 @@ export async function getTrackingByToken(
   }
 
   const stops: TrackingStop[] = ((order.BranchStops as any[]) ?? [])
-    .map((stop) => ({
-      branchID: stop.branchID,
-      branchName: stop.branchName,
-      expectedTime: stop.expectedTime ?? null,
-      status: stop.stopStatus ?? STOP_STATUS.pending,
-      // 0/0 is the placeholder written when a stop has no geocoded position.
-      latitude: Number(stop.deliveryLat) || null,
-      longitude: Number(stop.deliverLong) || null,
-    }))
+    .map((stop) => {
+      const proof = ((stop.POD as { receiverName: string | null; deliveredAt: string | null }[] | null) ?? [])[0] ?? null;
+      return {
+        branchID: stop.branchID,
+        branchName: stop.branchName,
+        expectedTime: stop.expectedTime ?? null,
+        status: stop.stopStatus ?? STOP_STATUS.pending,
+        // 0/0 is the placeholder written when a stop has no geocoded position.
+        latitude: Number(stop.deliveryLat) || null,
+        longitude: Number(stop.deliverLong) || null,
+        arrivedAt: stop.arrivedAt ?? null,
+        deliveredAt: proof?.deliveredAt ?? stop.completedAt ?? null,
+        // The name on the receipt, never the receipt itself: it carries a
+        // signature and whatever else the crew photographed.
+        receivedBy: proof?.receiverName && proof.receiverName !== "N/A" ? proof.receiverName : null,
+      };
+    })
     .sort((a, b) => a.branchID - b.branchID);
 
   // The route driven so far, for drawing the line on the map.
@@ -319,6 +351,8 @@ export async function getTrackingByToken(
     isExpired: false,
     orderNumber: order.orderCode,
     clientName: client?.company ?? null,
+    clientEmail: maskEmail(client?.emailAdd),
+    clientContact: maskPhone(client?.contact),
     deliveryStatus,
     isCompleted,
     estimatedArrival,
