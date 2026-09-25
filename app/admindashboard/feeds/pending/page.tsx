@@ -876,25 +876,20 @@ function BookingDetailsModal({
           {submitError && (
             <p role="alert" className="w-full sm:w-auto sm:mr-auto text-xs text-red-600">{submitError}</p>
           )}
-          {isAssignCrew && (
+          {/*
+            One button for every booking this screen can act on. It used to be
+            two, each named after a status, which left a declined booking with
+            neither: the form was there and filled in, and there was nothing to
+            press to send the new crew their assignment.
+          */}
+          {isEditable && (
             <button
               type="submit"
               form="pending-booking-form"
               disabled={isSubmitting}
               className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
             >
-              {isSubmitting ? "Saving…" : "Assign Now"}
-            </button>
-          )}
-
-          {isPendingCrew && (
-            <button
-              type="submit"
-              form="pending-booking-form"
-              disabled={isSubmitting}
-              className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
-            >
-              {isSubmitting ? "Saving…" : "Re-assign Booking"}
+              {isSubmitting ? "Saving…" : isPendingCrew ? "Re-assign Booking" : "Assign Now"}
             </button>
           )}
         </div>

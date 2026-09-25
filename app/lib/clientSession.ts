@@ -25,6 +25,15 @@ function getStorage(type: BrowserStorage): Storage {
   return type === "local" ? window.localStorage : window.sessionStorage;
 }
 
+// True inside the Android app, where Capacitor puts its bridge on window.
+// Read off the global rather than imported, so nothing native is pulled into
+// a page that renders on the server.
+function isPhoneApp(): boolean {
+  if (typeof window === "undefined") return false;
+  const bridge = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return Boolean(bridge?.isNativePlatform?.());
+}
+
 function findStoredSession(): {
   storage: BrowserStorage;
   raw: string;
@@ -73,7 +82,14 @@ export function saveStoredSession(
   if (typeof window === "undefined") return;
 
   clearStoredSession();
-  const storage = rememberMe ? window.localStorage : window.sessionStorage;
+
+  // A browser tab is closed on purpose; a phone app is not. Android destroys
+  // the web view whenever it wants the memory back - leaving the app for a
+  // minute was enough - and sessionStorage went with it, so the driver came
+  // back to the login screen every time. On a phone the session is kept,
+  // and still ends by itself after the five hours it is good for.
+  const keepAcrossRestarts = rememberMe || isPhoneApp();
+  const storage = keepAcrossRestarts ? window.localStorage : window.sessionStorage;
   storage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
