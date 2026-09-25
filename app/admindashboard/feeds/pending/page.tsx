@@ -16,6 +16,7 @@ import {
   toFeedBooking,
   type BookingView,
   type FeedBooking,
+  type FeedStopRow,
 } from "@/app/lib/bookingView";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
 import CrewPicker from "@/components/booking/CrewPicker";
@@ -136,7 +137,7 @@ function SuccessModal({
 interface BookingDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  booking: any;
+  booking: FeedBooking | null;
   onSubmitSuccess: (orderId: string, status: string) => void;
   onCancelBooking: (e: React.MouseEvent, bookingId: string) => void;
 }
@@ -152,8 +153,8 @@ function BookingDetailsModal({
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const [pickupList, setPickupList] = useState<any[]>([]);
-  const [deliveryList, setDeliveryList] = useState<any[]>([]);
+  const [pickupList, setPickupList] = useState<FeedStopRow[]>([]);
+  const [deliveryList, setDeliveryList] = useState<FeedStopRow[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubconMode, setIsSubconMode] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -166,6 +167,10 @@ function BookingDetailsModal({
   // Cruz"), so a re-assignment could only ever pick someone invented.
   const crew = useAssignableCrew(formData.deliverySchedule ?? "", isOpen && Boolean(booking), booking ?? undefined);
 
+  // The form is seeded from the booking this was opened with. That is a
+  // synchronous setState in an effect, which the rule is right to notice and
+  // is also the only way to fill a form from a prop that arrives later.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen && booking) {
       setIsSubconMode(false);
@@ -227,6 +232,7 @@ function BookingDetailsModal({
       }, 100);
     }
   }, [isOpen, booking, currentDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen || !booking) return null;
 
@@ -245,7 +251,7 @@ function BookingDetailsModal({
   ) => {
     if (!isEditable) return;
     const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -605,7 +611,7 @@ function BookingDetailsModal({
                     const nextMode = !isSubconMode;
                     setIsSubconMode(nextMode);
                     if (nextMode) {
-                      setFormData((prev: any) => ({
+                      setFormData((prev) => ({
                         ...prev,
                         truckPlate: "",
                         driver: "",
@@ -630,7 +636,7 @@ function BookingDetailsModal({
                   Current Crew Responses:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {booking.crews?.map((c: any, i: number) => (
+                  {booking.crews?.map((c, i) => (
                     <div
                       key={i}
                       className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200"
@@ -945,13 +951,15 @@ export default function PendingBookingPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBookings();
   }, [loadBookings]);
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<FeedBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successOrderCode, setSuccessOrderCode] = useState("");
@@ -982,7 +990,7 @@ export default function PendingBookingPage() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  const handleOpenModal = (booking: any) => {
+  const handleOpenModal = (booking: FeedBooking) => {
     setSelectedBooking(booking);
     setIsModalOpen(true);
   };
@@ -1123,7 +1131,7 @@ export default function PendingBookingPage() {
                     <td className="py-4 px-4 align-top">
                       {booking.crews && booking.crews.length > 0 ? (
                         <div className="flex flex-col gap-1.5">
-                          {booking.crews.map((crew: any, idx: number) => (
+                          {booking.crews.map((crew, idx) => (
                             <div
                               key={idx}
                               className="flex items-center text-xs truncate"

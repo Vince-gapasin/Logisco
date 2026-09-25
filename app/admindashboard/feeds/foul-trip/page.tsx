@@ -11,6 +11,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import {
   mapOrderToBookingView,
   toFeedBooking,
+  type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
 import {
@@ -78,7 +79,7 @@ export default function FoulTripFeedPage() {
       // Fresh every time: after a recovery the list must not come back from
       // the 60-second GET cache still showing what was just resolved.
       const [orders, foul] = await Promise.all([
-        apiFetch<any[]>("/api/bookings?stage=foul-trip", { cache: "no-store" }),
+        apiFetch<OrderWithRelations[]>("/api/bookings?stage=foul-trip", { cache: "no-store" }),
         apiFetch<{ open: IncidentView[]; recent: IncidentView[]; summary: FoulTripSummary; issues: IncidentView[] }>(
           "/api/foul-trips",
           { cache: "no-store" },
@@ -105,13 +106,15 @@ export default function FoulTripFeedPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBookings();
   }, [loadBookings]);
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<FoulTripRow | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Success Toast State for Recovery Actions
@@ -142,7 +145,7 @@ export default function FoulTripFeedPage() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  const handleOpenModal = (booking: any) => {
+  const handleOpenModal = (booking: FoulTripRow) => {
     setSelectedBooking(booking);
     setIsModalOpen(true);
   };
@@ -341,7 +344,7 @@ export default function FoulTripFeedPage() {
                     <td className="py-4 px-4 align-top">
                       {booking.crews && booking.crews.length > 0 ? (
                         <div className="flex flex-col gap-1.5">
-                          {booking.crews.map((crew: any, idx: number) => (
+                          {booking.crews.map((crew, idx) => (
                             <div
                               key={idx}
                               className="flex items-center text-xs truncate"

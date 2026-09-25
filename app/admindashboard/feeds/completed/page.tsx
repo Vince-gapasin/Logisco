@@ -20,6 +20,8 @@ import {
   mapOrderToBookingView,
   toFeedBooking,
   type FeedBooking,
+  type FeedStopRow,
+  type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
 import {
@@ -57,7 +59,7 @@ const getStatusBadgeClass = (status: string) => {
 interface BookingDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  booking: any;
+  booking: FeedBooking | null;
 }
 
 function BookingDetailsModal({
@@ -68,16 +70,20 @@ function BookingDetailsModal({
   const currentDate = new Date().toISOString().split("T")[0];
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
-  const [formData, setFormData] = useState<any>({});
-  const [pickupList, setPickupList] = useState<any[]>([]);
-  const [deliveryList, setDeliveryList] = useState<any[]>([]);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const [pickupList, setPickupList] = useState<FeedStopRow[]>([]);
+  const [deliveryList, setDeliveryList] = useState<FeedStopRow[]>([]);
 
+  // The form is seeded from the booking this was opened with. That is a
+  // synchronous setState in an effect, which the rule is right to notice and
+  // is also the only way to fill a form from a prop that arrives later.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen && booking) {
       setFormData({
         clientName: booking.clientName || "",
-        contactPerson: booking.contactPerson || "Juan Dela Cruz",
-        contactNumber: booking.contactNumber || "09123456789",
+        contactPerson: booking.contactPerson || "",
+        contactNumber: booking.contactNumber || "",
         emailAddress: booking.emailAddress || "",
         businessAddress: booking.businessAddress || "",
         requestDate: booking.dateCreated || currentDate,
@@ -88,8 +94,8 @@ function BookingDetailsModal({
         truckPlate:
           booking.truckPlate === "Not Assigned" ? "" : booking.truckPlate,
         driver: booking.driver === "Not Assigned" ? "" : booking.driver,
-        helper1: booking.helper1 === "Not Assigned" ? "" : booking.helper1,
-        helper2: booking.helper2 === "Not Assigned" ? "" : booking.helper2,
+        helper1: booking.crews?.find((member) => member.role === "Helper #1")?.name ?? "",
+        helper2: booking.crews?.find((member) => member.role === "Helper #2")?.name ?? "",
         notes: booking.notes || "",
       });
 
@@ -132,6 +138,7 @@ function BookingDetailsModal({
       }, 100);
     }
   }, [isOpen, booking, currentDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen || !booking) return null;
 
@@ -250,7 +257,7 @@ export default function CompletedFeedPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings?stage=completed");
+      const orders = await apiFetch<OrderWithRelations[]>("/api/bookings?stage=completed");
       setBookings(
         (orders ?? []).map(mapOrderToBookingView).filter(isCompleted).map(toFeedBooking),
       );
@@ -263,13 +270,15 @@ export default function CompletedFeedPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBookings();
   }, [loadBookings]);
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<FeedBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // ==========================================
@@ -296,7 +305,7 @@ export default function CompletedFeedPage() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  const handleOpenModal = (booking: any) => {
+  const handleOpenModal = (booking: FeedBooking) => {
     setSelectedBooking(booking);
     setIsModalOpen(true);
   };
@@ -406,7 +415,7 @@ export default function CompletedFeedPage() {
                     <td className="py-4 px-4 align-top">
                       {booking.crews && booking.crews.length > 0 ? (
                         <div className="flex flex-col gap-1.5">
-                          {booking.crews.map((crew: any, idx: number) => (
+                          {booking.crews.map((crew, idx) => (
                             <div
                               key={idx}
                               className="flex items-center text-xs truncate"

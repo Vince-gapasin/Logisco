@@ -5,6 +5,7 @@ import { formatDateTime, formatTime } from "@/app/lib/datetime";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import type { FeedStopRow, OrderWithRelations } from "@/app/lib/bookingView";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
@@ -60,7 +61,7 @@ export interface ReportRecord {
   status: string;
   crew: string;
   remarks: string;
-  rawOrder?: any;
+  rawOrder?: OrderWithRelations;
   dispatchStatus?: string;
   driverConfirmed?: boolean;
   helperConfirmed?: boolean;
@@ -92,44 +93,27 @@ function ViewOrderModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
+  order: ReportRecord | null;
 }) {
   if (!isOpen || !order) return null;
 
   const raw = order.rawOrder || {};
   const notes = raw.notes || "";
-  const category = order.statusCategory || order.status || "Pending Bookings";
+  const category = order.status || "Pending Bookings";
   const isPending = category === "Pending Bookings" || category === "Pending";
 
-  const clientInfo = raw.Client || raw.client || {};
+  const clientInfo = (Array.isArray(raw.Client) ? raw.Client[0] : raw.Client) ?? {};
   const cName =
-    clientInfo.company ||
-    clientInfo.companyName ||
-    notes.match(/Name:\s*(.*)/)?.[1] ||
-    order.client ||
-    "Walk-in Customer";
-  const cPerson =
-    clientInfo.contactName ||
-    clientInfo.contactPerson ||
-    notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] ||
-    "N/A";
-  const cNum =
-    clientInfo.contact ||
-    clientInfo.contactNumber ||
-    notes.match(/\((.*?)\)/)?.[1] ||
-    "N/A";
-  const cEmail =
-    clientInfo.emailAdd || clientInfo.emailAddress || clientInfo.email || "N/A";
-  const cAddr =
-    clientInfo.businessAdd ||
-    clientInfo.businessAddress ||
-    clientInfo.address ||
-    "N/A";
+    clientInfo.company || notes.match(/Name:\s*(.*)/)?.[1] || order.client || "Walk-in Customer";
+  const cPerson = clientInfo.contactName || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "N/A";
+  const cNum = clientInfo.contact || notes.match(/\((.*?)\)/)?.[1] || "N/A";
+  const cEmail = clientInfo.emailAdd || "N/A";
+  const cAddr = clientInfo.businessAdd || "N/A";
 
   const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
   const reqDate =
     notes.match(/Request Date:\s*(.*)/)?.[1] ||
-    new Date(raw.createdAt || Date.now()).toLocaleDateString();
+    (raw.createdAt ? new Date(raw.createdAt).toLocaleDateString() : "N/A");
   const delSchedule =
     notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || order.date || "N/A";
 
@@ -137,7 +121,8 @@ function ViewOrderModal({
   const pickupParts = pickupLine.split(" @ ");
   // Prefer the PickupStops row; the notes line is what bookings made before
   // that table existed still carry.
-  const firstPickup = (raw.PickupStops ?? [])[0];
+  const pickupRows = Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : [];
+  const firstPickup = pickupRows[0];
   const pickupAddr =
     firstPickup?.pickupAddress ||
     firstPickup?.warehouseName ||
@@ -147,37 +132,41 @@ function ViewOrderModal({
     ? formatTime(String(firstPickup.expectedTime))
     : pickupParts[1]?.trim() || "N/A";
 
-  const dispatchRecord = Array.isArray(raw.DispatchOrder)
-    ? raw.DispatchOrder[0]
-    : raw.DispatchOrder || raw.dispatch_order;
+  const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : raw.DispatchOrder;
 
+  const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
   const truck =
-    dispatchRecord?.Truck?.plateNumber ||
+    dispatchTruck?.plateNumber ||
     notes.match(/Truck:\s*(.*)/)?.[1] ||
     "Unassigned";
-  const driver =
-    dispatchRecord?.Driver?.employeeName ||
-    notes.match(/Driver:\s*(.*)/)?.[1] ||
-    "Unassigned";
-  const h1 =
-    dispatchRecord?.Helper1?.employeeName ||
-    notes.match(/Helper 1:\s*(.*)/)?.[1] ||
-    "None";
-  const h2 =
-    dispatchRecord?.Helper2?.employeeName ||
-    notes.match(/Helper 2:\s*(.*)/)?.[1] ||
-    "None";
+  const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
+  const driver = dispatchDriver?.employeeName || notes.match(/Driver:\s*(.*)/)?.[1] || "Unassigned";
+
+  // Helpers come from their own rows. Helper1 and Helper2 were read as
+  // embeds on the trip, which no query has ever returned, so every helper
+  // name here came from the notes the booking form wrote.
+  const helperRows = Array.isArray(dispatchRecord?.DispatchHelper)
+    ? dispatchRecord.DispatchHelper
+    : dispatchRecord?.DispatchHelper
+      ? [dispatchRecord.DispatchHelper]
+      : [];
+  const helperNames = helperRows.map((row) => {
+    const person = Array.isArray(row?.Helper) ? row.Helper[0] : row?.Helper;
+    return person?.employeeName ?? "";
+  });
+
+  const h1 = helperNames[0] || notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
+  const h2 = helperNames[1] || notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
 
   const actualNotesParts = notes.split("[NOTES]");
   const actualNotes =
     actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
 
-  const itemsArr =
-    raw.OrderDetails || raw.orderdetails || raw.order_details || [];
-  const product = itemsArr[0]?.productName || order.product || "Multiple Items";
+  const itemsArr = Array.isArray(raw.OrderDetails) ? raw.OrderDetails : raw.OrderDetails ? [raw.OrderDetails] : [];
+  const product = itemsArr[0]?.productName || "Multiple Items";
   const quantity = itemsArr[0]?.quantity || 1;
 
-  const stopsArr = raw.BranchStops || raw.branchstops || raw.branch_stops || [];
+  const stopsArr = Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : [];
   const deliveries =
     stopsArr.length > 0
       ? stopsArr
@@ -399,7 +388,7 @@ function ViewOrderModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {deliveries.map((d: any, idx: number) => {
+                    {deliveries.map((d, idx) => {
                       const st = d.stopStatus?.toLowerCase() || "pending";
                       let badgeClass = "bg-orange-100 text-orange-700";
                       if (st.includes("transit") || st.includes("progress"))
@@ -428,7 +417,7 @@ function ViewOrderModal({
                             {d.contactPerson || cPerson}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.contactNum || d.contactNumber || cNum}
+                            {d.contactNum || cNum}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
                             {d.expectedTime || "N/A"}
@@ -700,6 +689,8 @@ const MultiSelectDropdown = ({
 
   useEffect(() => {
     if (!isOpen) {
+      // Clearing the search when the picker closes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchTerm("");
     }
   }, [isOpen]);
@@ -809,7 +800,7 @@ export default function ReportsForecastingPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal State for Booking details view
-  const [selectedOrderForView, setSelectedOrderForView] = useState<any>(null);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<ReportRecord | null>(null);
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
 
   // Pagination States
@@ -825,7 +816,7 @@ export default function ReportsForecastingPage() {
       try {
         // Summary rows only: the table shows a line per booking, and the
         // full booking is fetched when one is opened.
-        const orders = await apiFetch<any[]>("/api/bookings?view=summary");
+        const orders = await apiFetch<OrderWithRelations[]>("/api/bookings?view=summary");
 
         const uniqueClients = new Set<string>();
         const uniqueDrivers = new Set<string>();
@@ -833,9 +824,9 @@ export default function ReportsForecastingPage() {
         const formattedRecords: ReportRecord[] = [];
 
         if (Array.isArray(orders)) {
-          orders.forEach((o: any) => {
-            const clientObj = o.Client || o.client || {};
-            let displayClient = clientObj.company || clientObj.companyName;
+          orders.forEach((o) => {
+            const clientObj = (Array.isArray(o.Client) ? o.Client[0] : o.Client) ?? {};
+            let displayClient = clientObj.company;
             if (!displayClient) {
               const match = o.notes?.match(/Name:\s*(.*)/);
               displayClient = match
@@ -847,14 +838,17 @@ export default function ReportsForecastingPage() {
             const requestDateMatch = o.notes?.match(/Request Date:\s*([^\n]*)/);
             const reqDate = requestDateMatch
               ? requestDateMatch[1].trim()
-              : new Date(o.createdAt).toISOString().split("T")[0];
+              : o.createdAt
+                ? new Date(o.createdAt).toISOString().split("T")[0]
+                : "";
 
-            const dispatchRecord = Array.isArray(o.DispatchOrder)
-              ? o.DispatchOrder[0]
-              : o.DispatchOrder || o.dispatch_order;
+            const dispatchRecord = Array.isArray(o.DispatchOrder) ? o.DispatchOrder[0] : o.DispatchOrder;
 
+            const driverPerson = Array.isArray(dispatchRecord?.Driver)
+              ? dispatchRecord?.Driver[0]
+              : dispatchRecord?.Driver;
             const driverName =
-              dispatchRecord?.Driver?.employeeName ||
+              driverPerson?.employeeName ||
               o.notes?.match(/Driver:\s*([^\n]*)/)?.[1]?.trim() ||
               "Unassigned";
 
@@ -864,8 +858,11 @@ export default function ReportsForecastingPage() {
               ? dispatchRecord.DispatchHelper[0]
               : dispatchRecord?.DispatchHelper;
 
+            const helperPerson = Array.isArray(helperAssignment?.Helper)
+              ? helperAssignment?.Helper[0]
+              : helperAssignment?.Helper;
             const helperName =
-              helperAssignment?.Helper?.employeeName ||
+              helperPerson?.employeeName ||
               o.notes?.match(/Helper 1:\s*([^\n]*)/)?.[1]?.trim() ||
               "None";
 
@@ -874,8 +871,11 @@ export default function ReportsForecastingPage() {
             uniqueDrivers.add(driverName);
             uniqueHelpers.add(helperName);
 
-            const stopsArr =
-              o.BranchStops || o.branchstops || o.branch_stops || [];
+            const stopsArr = Array.isArray(o.BranchStops)
+              ? o.BranchStops
+              : o.BranchStops
+                ? [o.BranchStops]
+                : [];
             // The dispatch status is what actually advances; stopStatus is
             // only written when a proof of delivery is uploaded, so relying on
             // it reported finished trips as "Pending".
@@ -913,9 +913,9 @@ export default function ReportsForecastingPage() {
             }
 
             formattedRecords.push({
-              id: o.orderCode || o.orderID,
+              id: o.orderCode || o.orderID || "",
               date: reqDate,
-              orderId: o.orderCode || o.orderID,
+              orderId: o.orderCode || o.orderID || "",
               client: displayClient,
               status: category,
               crew: crewString,
@@ -1073,6 +1073,8 @@ export default function ReportsForecastingPage() {
   const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
 
   useEffect(() => {
+    // Back to page one whenever the filters change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [
     timeframe,
@@ -1124,7 +1126,7 @@ export default function ReportsForecastingPage() {
     if (!orderID || record.rawOrder?.BranchStops) return;
 
     try {
-      const full = await apiFetch<{ data: any }>(`/api/bookings/${orderID}`);
+      const full = await apiFetch<{ data: OrderWithRelations }>(`/api/bookings/${orderID}`);
       if (!full?.data) return;
 
       setRecords((prev) =>
