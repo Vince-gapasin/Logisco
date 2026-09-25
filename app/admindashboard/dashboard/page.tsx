@@ -110,10 +110,19 @@ interface SuccessModalProps {
   onClose: () => void;
   orderCode: string;
   trackingToken?: string;
+  /** The booking just made, so its link can be emailed again. */
+  orderID?: string;
 }
 
-function SuccessModal({ isOpen, onClose, orderCode, trackingToken }: SuccessModalProps) {
+function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderID }: SuccessModalProps) {
   const [copied, setCopied] = useState(false);
+  // The link is emailed to the client when the booking is made. This says
+  // where it went, and sends it again - a wrong address, or a client who
+  // never received it.
+  const [emailState, setEmailState] = useState<{ status: "idle" | "sending" | "sent" | "failed"; message: string }>({
+    status: "idle",
+    message: "",
+  });
 
   if (!isOpen) return null;
 
@@ -122,6 +131,22 @@ function SuccessModal({ isOpen, onClose, orderCode, trackingToken }: SuccessModa
     trackingToken && typeof window !== "undefined"
       ? `${window.location.origin}/client-view?token=${trackingToken}`
       : "";
+
+  const emailTrackingLink = async () => {
+    if (!orderID) return;
+    setEmailState({ status: "sending", message: "" });
+    try {
+      const res = await apiFetch<{ data: { email: string | null } }>(`/api/bookings/${orderID}/tracking-email`, {
+        method: "POST",
+      });
+      setEmailState({ status: "sent", message: `Sent to ${res.data?.email ?? "the client"}.` });
+    } catch (error) {
+      setEmailState({
+        status: "failed",
+        message: error instanceof Error ? error.message : "Could not send it.",
+      });
+    }
+  };
 
   const copyTrackingLink = async () => {
     try {
@@ -170,8 +195,23 @@ function SuccessModal({ isOpen, onClose, orderCode, trackingToken }: SuccessModa
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={emailTrackingLink}
+                disabled={!orderID || emailState.status === "sending"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
+              >
+                {emailState.status === "sending" ? "Sending…" : "Email it to the client"}
+              </button>
+              {emailState.message && (
+                <span className={`text-xs ${emailState.status === "failed" ? "text-red-600" : "text-emerald-700"}`}>
+                  {emailState.message}
+                </span>
+              )}
+            </div>
             <p className="text-xs sm:text-[11px] text-slate-500 mt-1.5">
-              Share this with the client to let them follow the delivery.
+              The client is emailed this link automatically when the booking is made.
             </p>
           </div>
         )}
@@ -1077,6 +1117,7 @@ export default function AdminDashboardPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [generatedOrderCode, setGeneratedOrderCode] = useState("");
   const [generatedTrackingToken, setGeneratedTrackingToken] = useState("");
+  const [generatedOrderID, setGeneratedOrderID] = useState("");
 
   const [clients, setClients] = useState<any[]>([]);
   const [trucks, setTrucks] = useState<any[]>([]);
@@ -1394,7 +1435,7 @@ export default function AdminDashboardPage() {
     try {
       let detailedNotes = "";
       if (!data.clientID) {
-        detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n\n`;
+        detailedNotes += `[ON-CALL CUSTOMER]\nName: ${data.clientName}\nContact: ${data.contactPerson} (${data.contactNumber})\n${data.emailAddress && data.emailAddress !== "N/A" ? `Email: ${data.emailAddress}\n` : ""}\n`;
       }
 
       // A booking saved without a truck or driver says so, rather than an
@@ -1505,6 +1546,7 @@ export default function AdminDashboardPage() {
 
       setGeneratedOrderCode(res.orderCode);
       setGeneratedTrackingToken(res.trackingToken || "");
+      setGeneratedOrderID(res.orderID || "");
       setIsSuccessModalOpen(true);
       await fetchOrders();
     } catch (err: any) {
@@ -2076,6 +2118,7 @@ export default function AdminDashboardPage() {
         onClose={() => setIsSuccessModalOpen(false)}
         orderCode={generatedOrderCode}
         trackingToken={generatedTrackingToken}
+        orderID={generatedOrderID}
       />
     </div>
   );

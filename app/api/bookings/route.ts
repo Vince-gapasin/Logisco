@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { OFFICE_ROLES, requireAuth, requireRole, UserRole } from "@/app/lib/auth";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { notify, OFFICE } from "@/services/notifications/notify";
+import { sendBookingTrackingLink } from "@/services/email/bookingEmail";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 
@@ -94,6 +95,13 @@ export async function POST(request: Request) {
         items: validation.data.items.length,
       },
     });
+
+    // The client gets the link to follow it. Best-effort: a booking that was
+    // made is made, whether or not the mail left.
+    const mailed = await sendBookingTrackingLink(newBookingResponse.orderID);
+    if (!mailed.sent) {
+      console.warn(`[Bookings] Tracking link not emailed for ${newBookingResponse.orderCode}: ${mailed.reason}`);
+    }
 
     await notify({
       event: "BOOKING_CREATED",
