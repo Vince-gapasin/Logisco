@@ -5,6 +5,7 @@ import { formatDateTime, formatTime } from "@/app/lib/datetime";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
   TrendingUp,
@@ -196,9 +197,9 @@ function ViewOrderModal({
     "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
 
   const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
-  const isCrewConfirmed =
-    order.dispatchStatus === "Accepted" ||
-    (order.driverConfirmed && (!hasHelper || order.helperConfirmed));
+  const isCrewConfirmed = Boolean(
+    order.driverConfirmed && (!hasHelper || order.helperConfirmed),
+  );
 
   const headerColors: Record<string, string> = {
     "Pending Bookings": "bg-[#000c31] border-slate-800",
@@ -921,8 +922,18 @@ export default function ReportsForecastingPage() {
               remarks: "Retrieved from DB",
               rawOrder: o,
               dispatchStatus: dispatchRecord?.status,
-              driverConfirmed: Boolean(o.driverConfirmed || o.driver_confirmed),
-              helperConfirmed: Boolean(o.helperConfirmed || o.helper_confirmed),
+              // From the trip itself. These used to read Order columns named
+              // driverConfirmed and helper_confirmed, which do not exist, so
+              // both were always false and a confirmed crew never showed as
+              // one on this screen.
+              driverConfirmed: hasDriverAccepted(dispatchRecord?.status),
+              helperConfirmed: haveHelpersAccepted(
+                Array.isArray(dispatchRecord?.DispatchHelper)
+                  ? dispatchRecord.DispatchHelper
+                  : dispatchRecord?.DispatchHelper
+                    ? [dispatchRecord.DispatchHelper]
+                    : [],
+              ),
             });
           });
         }

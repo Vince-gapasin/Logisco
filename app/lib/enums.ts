@@ -60,6 +60,20 @@ export const FINISHED_DELIVERY_STATUSES: DeliveryStatus[] = [
   DELIVERY_STATUS.returned,
 ];
 
+// Everything from the crew accepting onwards. A trip that is on the road, or
+// finished, was accepted before it got there - so this is what "the driver
+// agreed to carry it" means, whatever stage it has reached since.
+export const ACCEPTED_ONWARDS: string[] = [
+  DELIVERY_STATUS.accepted,
+  DELIVERY_STATUS.startDelivery,
+  DELIVERY_STATUS.inWarehouse,
+  DELIVERY_STATUS.inTransit,
+  DELIVERY_STATUS.arrived,
+  DELIVERY_STATUS.delivered,
+  DELIVERY_STATUS.completed,
+  DELIVERY_STATUS.returned,
+];
+
 // ==========================================
 // helper_status  (DispatchHelper.status)
 // ==========================================
@@ -169,4 +183,39 @@ export function isDeliveryTerminal(status?: string | null): boolean {
 
 export function isDeliveryActive(status?: string | null): boolean {
   return ACTIVE_DELIVERY_STATUSES.includes(status as DeliveryStatus);
+}
+
+// ==========================================
+// WHO HAS AGREED TO CARRY A TRIP
+// ==========================================
+// Read from the dispatch and its helper rows, because that is where it is
+// recorded. Two screens used to read it from columns named driverConfirmed
+// and helperConfirmed, which the Order table does not have and never had, so
+// both were always false and a confirmed crew never showed as confirmed.
+
+export interface HelperAssignment {
+  status?: string | null;
+}
+
+export function hasDriverAccepted(dispatchStatus?: string | null): boolean {
+  return ACCEPTED_ONWARDS.includes(dispatchStatus ?? "");
+}
+
+/** True when there are helpers and every one of them has accepted. */
+export function haveHelpersAccepted(helpers: HelperAssignment[] | null | undefined): boolean {
+  const rows = helpers ?? [];
+  return rows.length > 0 && rows.every((helper) => helper?.status === HELPER_STATUS.accepted);
+}
+
+/**
+ * Whether a trip's crew have agreed to it. A trip with no helpers counts as
+ * confirmed once its driver has: there is nobody else to hear from.
+ */
+export function crewHasConfirmed(
+  dispatchStatus: string | null | undefined,
+  helpers: HelperAssignment[] | null | undefined,
+): boolean {
+  if (!hasDriverAccepted(dispatchStatus)) return false;
+  const rows = helpers ?? [];
+  return rows.length === 0 || haveHelpersAccepted(rows);
 }

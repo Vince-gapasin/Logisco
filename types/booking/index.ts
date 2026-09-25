@@ -1,9 +1,13 @@
 // ==========================================
 // MODELS (Matches Supabase Schema)
 // ==========================================
+//
+// The shapes the services pass around, with their joins. Column names are
+// checked against types/database.ts, which is generated from the database
+// itself - three of these had drifted into naming columns that do not exist.
 
 export interface OrderItem {
-  orderDetailID?: string;
+  itemID?: string;
   orderID?: string;
   productName: string;
   productType: string;
@@ -12,7 +16,6 @@ export interface OrderItem {
 }
 
 export interface BranchStop {
-  stopID?: string;
   branchID?: number;
   orderID?: string;
   dispatchID?: string | null;
@@ -59,8 +62,6 @@ export interface Order {
   notes: string;
   isActive: boolean;
   createdAt: string;
-  driverConfirmed?: boolean;
-  helperConfirmed?: boolean;
   // Relational joins
   Client?: { company: string };
   OrderDetails?: OrderItem[];

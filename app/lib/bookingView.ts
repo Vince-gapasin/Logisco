@@ -9,23 +9,12 @@ import { formatTime } from "@/app/lib/datetime";
 // before that table existed.
 
 import {
+  ACCEPTED_ONWARDS,
   DELIVERY_STATUS,
   HELPER_STATUS,
   isStopDelivered,
   STOP_STATUS,
 } from "@/app/lib/enums";
-
-// The crew has confirmed the trip once the dispatch reaches any of these.
-const ACCEPTED_ONWARDS: string[] = [
-  DELIVERY_STATUS.accepted,
-  DELIVERY_STATUS.startDelivery,
-  DELIVERY_STATUS.inWarehouse,
-  DELIVERY_STATUS.inTransit,
-  DELIVERY_STATUS.arrived,
-  DELIVERY_STATUS.delivered,
-  DELIVERY_STATUS.completed,
-  DELIVERY_STATUS.returned,
-];
 
 export interface StopProofView {
   /** A signed link that expires, or null when the file could not be signed. */

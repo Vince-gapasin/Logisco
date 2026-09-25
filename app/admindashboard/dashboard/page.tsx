@@ -6,7 +6,12 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
-import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, HELPER_STATUS } from "@/app/lib/enums";
+import {
+  DELIVERY_STATUS,
+  FINISHED_DELIVERY_STATUSES,
+  hasDriverAccepted,
+  haveHelpersAccepted,
+} from "@/app/lib/enums";
 
 // A trip that has left the yard and has not finished yet.
 const ON_THE_ROAD_STATUSES: string[] = [
@@ -1242,27 +1247,19 @@ export default function AdminDashboardPage() {
             : dispatchRecord?.Helper1?.employeeName ||
             (helperMatch ? helperMatch[1].trim() : "None");
 
-          const driverHasConfirmed =
-            dispatchStatus === DELIVERY_STATUS.accepted ||
-            ON_THE_ROAD_STATUSES.includes(dispatchStatus);
-
-          const driverConfirmed = Boolean(
-            o.driverConfirmed || o.driver_confirmed || driverHasConfirmed,
-          );
+          // Read from the trip and its helper rows, which is where it is
+          // recorded. The Order columns this also used to look at -
+          // driverConfirmed, driver_confirmed - do not exist in the database
+          // and never have, so they were only ever undefined.
+          const driverConfirmed = hasDriverAccepted(dispatchStatus);
 
           // Each helper carries their own status. This used to be inferred
           // from the dispatch status, so every helper was reported as
           // confirmed the moment the driver accepted - including helpers who
           // had not replied at all, and a trip could leave showing a crew
           // that had never confirmed.
-          const helperRows: any[] = Array.isArray(dispatchRecord?.DispatchHelper)
-            ? dispatchRecord.DispatchHelper
-            : [];
-          const helperConfirmed = Boolean(
-            o.helperConfirmed ||
-              o.helper_confirmed ||
-              (helperRows.length > 0 &&
-                helperRows.every((row) => row?.status === HELPER_STATUS.accepted)),
+          const helperConfirmed = haveHelpersAccepted(
+            Array.isArray(dispatchRecord?.DispatchHelper) ? dispatchRecord.DispatchHelper : [],
           );
 
           // The dispatch status decides the bucket. The first stop's status
