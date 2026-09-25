@@ -386,13 +386,21 @@ export function isReadyToDepart(booking: BookingView): boolean {
   return booking.isActive && booking.dispatchStatus === "Accepted";
 }
 
-// Everything assigned but not yet on the road - the "pending" feed.
+// Everything assigned but not yet on the road.
 export function isAwaitingDeparture(booking: BookingView): boolean {
   return (
     booking.isActive &&
     booking.hasDispatch &&
     ["Pending", "Assigned", "Accepted"].includes(booking.dispatchStatus ?? "")
   );
+}
+
+// The "pending" feed: every booking a coordinator still has to move before it
+// can leave - waiting for a crew, declined by one, or assigned and waiting to
+// depart. This is the same rule the dashboard's Pending Bookings box uses, so
+// a booking is listed in both places or in neither.
+export function isPendingBooking(booking: BookingView): boolean {
+  return isAwaitingDeparture(booking) || isAwaitingAssignment(booking);
 }
 
 export function isInTransit(booking: BookingView): boolean {
@@ -459,6 +467,8 @@ export interface FeedBooking {
   truckID: string | null;
   truckModel: string;
   subconPartner: string;
+  /** Why a crew turned the trip down, when one did. */
+  rejectionReason: string;
   pickupList: FeedStopRow[];
   deliveryList: FeedStopRow[];
   foulDetails: {
@@ -584,6 +594,7 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
     truckID: booking.truckID,
     truckModel: booking.truckModel,
     subconPartner: booking.subconPartner,
+    rejectionReason: booking.rejectionReason,
     pickupList: parsePickup(booking),
     deliveryList: booking.stops.map((stop) => ({
       branchName: stop.branchName,

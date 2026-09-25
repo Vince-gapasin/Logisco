@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
-import { mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
+import { isPendingBooking, mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
 
 function order(overrides: Record<string, unknown> = {}) {
   return {
@@ -210,5 +210,27 @@ describe("a booking carried by a sub-contractor", () => {
     );
     expect(view.isSubcon).toBe(true);
     expect(view.subconPartner).toBe("Prime Route Logistics");
+  });
+});
+
+describe("what the pending list holds", () => {
+  const pending = (dispatches: Record<string, unknown>[], isActive = true) =>
+    isPendingBooking(mapOrderToBookingView(order({ DispatchOrder: dispatches, isActive })));
+
+  it("keeps a booking a crew declined: it still needs assigning", () => {
+    expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.rejected, driverID: "e1" }])).toBe(true);
+  });
+
+  it("keeps a booking that has never had a crew", () => {
+    expect(pending([])).toBe(true);
+  });
+
+  it("keeps a booking assigned and waiting to depart", () => {
+    expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.accepted, driverID: "e1" }])).toBe(true);
+  });
+
+  it("drops a trip already on the road, and a cancelled booking", () => {
+    expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.inTransit, driverID: "e1" }])).toBe(false);
+    expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.rejected, driverID: "e1" }], false)).toBe(false);
   });
 });

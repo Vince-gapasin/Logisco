@@ -2,6 +2,7 @@
 "use client";
 
 import UrlSearchSync from "@/components/UrlSearchSync";
+import UrlOpenSync from "@/components/UrlOpenSync";
 import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
@@ -871,6 +872,7 @@ export default function InTransitFeedPage() {
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
+              <UrlOpenSync rows={bookings} ready={!isLoading} onOpen={handleOpenModal} />
               <input
                 type="text"
                 value={searchTerm}

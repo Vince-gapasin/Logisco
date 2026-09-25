@@ -2,15 +2,17 @@
 "use client";
 
 import UrlSearchSync from "@/components/UrlSearchSync";
+import UrlOpenSync from "@/components/UrlOpenSync";
 import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
-  isAwaitingDeparture,
+  isPendingBooking,
   mapOrderToBookingView,
   toFeedBooking,
+  type BookingView,
   type FeedBooking,
 } from "@/app/lib/bookingView";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
@@ -42,11 +44,31 @@ const getStatusBadgeClass = (status: string) => {
   if (status === "Crew to Start Delivery") {
     return "bg-emerald-100 text-emerald-800 border border-emerald-200";
   }
-  if (status === "Assign Crew") {
+  if (status === "Declined") {
+    return "bg-red-100 text-red-700 border border-red-200";
+  }
+  if (status === "Assign Crew" || status === "Unassigned") {
     return "bg-blue-100 text-blue-800 border border-blue-200";
   }
   return "bg-amber-100 text-amber-800 border border-amber-200";
 };
+
+// An order as the API returns it, whatever shape that is: the one function
+// that reads it decides.
+type OrderRow = Parameters<typeof mapOrderToBookingView>[0];
+
+// What a coordinator has to act on first: a trip a crew has just turned down,
+// then one that has never had a crew, then everything already assigned. Within
+// each group the order the database gave them stands - newest first.
+function urgency(booking: BookingView): number {
+  if (booking.dispatchStatus === "Rejected") return 2;
+  if (!booking.hasDispatch) return 1;
+  return 0;
+}
+
+function byMostUrgent(a: BookingView, b: BookingView): number {
+  return urgency(b) - urgency(a);
+}
 
 const getCrewStatusBadge = (status: string) => {
   switch (status) {
@@ -220,7 +242,12 @@ function BookingDetailsModal({
         priorityLevel: booking.priorityLevel || "Standard",
         subconPartner: booking.subconPartner || "",
         truckPlate: booking.truckID || "",
-        driver: booking.crews?.find((c: { role: string }) => c.role === "Driver")?.employeeID || "",
+        // Whoever turned the trip down is not the suggestion to reopen with:
+        // the coordinator is here to pick someone else.
+        driver:
+          booking.confirmationStatus === "Declined"
+            ? ""
+            : booking.crews?.find((c: { role: string }) => c.role === "Driver")?.employeeID || "",
         helper1: booking.crews?.find((c: { role: string }) => c.role === "Helper #1")?.employeeID || "",
         helper2: booking.crews?.find((c: { role: string }) => c.role === "Helper #2")?.employeeID || "",
         notes: booking.notes || "",
@@ -264,7 +291,12 @@ function BookingDetailsModal({
 
   const isAssignCrew = booking.confirmationStatus === "Assign Crew";
   const isPendingCrew = booking.confirmationStatus === "Pending Crew";
-  const isEditable = isAssignCrew || isPendingCrew;
+  // A declined trip and one that never had a crew both need assigning, which
+  // is the whole point of opening them here.
+  const wasDeclined = booking.confirmationStatus === "Declined";
+  const isUnassigned = booking.confirmationStatus === "Unassigned";
+  const isEditable = isAssignCrew || isPendingCrew || wasDeclined || isUnassigned;
+  const declinedBy = booking.crews?.find((crew: { status: string }) => crew.status === "Declined")?.name;
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -342,8 +374,10 @@ function BookingDetailsModal({
         helper2ID: formData.helper2 || undefined,
         totalCargoWeight: 0,
       });
-      // Re-assign the trip there is; assign one if there is none.
-      await (booking.dispatchID
+      // Re-assign the trip there is; assign one if there is none. A declined
+      // trip counts as none: it is closed, kept as history, and the booking
+      // goes out on a new one - re-assigning in place is refused for it.
+      await (booking.dispatchID && !wasDeclined
         ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
         : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
       onSubmitSuccess(booking.orderId, booking.confirmationStatus);
@@ -388,6 +422,20 @@ function BookingDetailsModal({
           onSubmit={validateAndSubmit}
           className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-900"
         >
+          {wasDeclined && (
+            <div className="border border-red-200 bg-red-50 rounded-xl p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-red-700">
+                Declined{declinedBy ? ` by ${declinedBy}` : ""}
+              </p>
+              <p className="text-xs text-red-800 mt-1">
+                {booking.rejectionReason || "No reason was given."}
+              </p>
+              <p className="text-xs text-red-700/80 mt-1">
+                Nothing left the yard. Pick a truck and crew below to send it out.
+              </p>
+            </div>
+          )}
+
           {/* Top Info & Progress Tracker */}
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
@@ -917,10 +965,26 @@ export default function PendingBookingPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings?stage=departing");
-      setBookings(
-        (orders ?? []).map(mapOrderToBookingView).filter(isAwaitingDeparture).map(toFeedBooking),
-      );
+      // Two stages, because a booking waiting for a crew is as pending as one
+      // waiting to depart. A crew declining used to drop a booking out of this
+      // list entirely: it was no longer assigned, so the departing stage did
+      // not carry it, and the only place left to find it was the calendar.
+      const [assigned, awaitingCrew] = await Promise.all([
+        apiFetch<OrderRow[]>("/api/bookings?stage=departing"),
+        apiFetch<OrderRow[]>("/api/bookings?stage=unassigned"),
+      ]);
+
+      const seen = new Set<string>();
+      const rows = [...(assigned ?? []), ...(awaitingCrew ?? [])]
+        .map(mapOrderToBookingView)
+        .filter((booking) => {
+          if (seen.has(booking.id) || !isPendingBooking(booking)) return false;
+          seen.add(booking.id);
+          return true;
+        })
+        .sort(byMostUrgent);
+
+      setBookings(rows.map(toFeedBooking));
       setLoadError("");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
@@ -975,7 +1039,7 @@ export default function PendingBookingPage() {
   const handleModalSubmitSuccess = (orderId: string, status: string) => {
     void loadBookings();
     setSuccessOrderCode(orderId);
-    if (status === "Assign Crew") {
+    if (status === "Assign Crew" || status === "Unassigned") {
       setSuccessTitle("Booking Assigned Successfully!");
       setSuccessDesc(
         "The booking has already been assigned to the crew and is currently waiting for the crew's confirmation.",
@@ -1047,6 +1111,7 @@ export default function PendingBookingPage() {
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
+              <UrlOpenSync rows={bookings} ready={!isLoading} onOpen={handleOpenModal} />
               <input
                 type="text"
                 value={searchTerm}

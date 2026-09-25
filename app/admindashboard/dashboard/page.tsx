@@ -71,6 +71,16 @@ const COLOR_STYLES = {
   },
 };
 
+// Where a bucket's booking is opened: the list's own detail screen, so a card
+// here and a row under View All show the same thing. Foul trips are missing on
+// purpose - they already open the Foul Trip screen's own modal, recovery
+// options and all, without leaving the dashboard.
+const FEED_ROUTE: Record<string, string> = {
+  "Pending Bookings": "/admindashboard/feeds/pending",
+  "In-Transit": "/admindashboard/feeds/in-transit",
+  Completed: "/admindashboard/feeds/completed",
+};
+
 const TABS = [
   {
     name: "Pending Bookings",
@@ -1422,12 +1432,6 @@ export default function AdminDashboardPage() {
   const [subconTripID, setSubconTripID] = useState<string | null>(null);
 
   const handleViewOrder = async (order: any) => {
-    // Declined: the coordinator needs the screen that can assign it, not a
-    // read-only view of what went wrong.
-    if (order.dispatchStatus === DELIVERY_STATUS.rejected) {
-      router.push("/admindashboard/calendar/unassigned-bookings");
-      return;
-    }
     if (order.isSubcon && order.dispatchID && order.statusCategory !== "Foul Trip") {
       setSubconTripID(order.dispatchID);
       return;
@@ -1445,6 +1449,19 @@ export default function AdminDashboardPage() {
         console.error("Failed to load the foul trip:", error);
       }
     }
+
+    // Every bucket has one detail screen, the one its View All list opens, and
+    // this card opens that same screen. It used to open a read-only summary of
+    // its own instead, so the same booking looked like two different things
+    // depending on where it was clicked - and a declined one could not be
+    // assigned from here at all.
+    const feed = FEED_ROUTE[order.statusCategory as string];
+    if (feed) {
+      router.push(`${feed}?open=${encodeURIComponent(order.orderId)}`);
+      return;
+    }
+
+    // A cancelled booking sits in the Foul Trip bucket but no feed lists it.
     setSelectedOrderForView(order);
     setIsViewOrderModalOpen(true);
   };
