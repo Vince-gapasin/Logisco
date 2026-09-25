@@ -396,22 +396,22 @@ export async function getAvailableResources(targetDate: string) {
     throw new Error(`Supabase Employee Error: ${employeesError.message}`);
   }
 
-  const availableTrucks = (allTrucks || []).filter((truck: any) => {
-    const isAvailable = (truck.truckStatus || "").toLowerCase() === "available";
+  const availableTrucks = (allTrucks ?? []).filter((truck) => {
+    const isAvailable = String(truck.truckStatus ?? "").toLowerCase() === "available";
     return isAvailable && !busyTrucks.has(truck.truckID);
   });
 
   // Free means: not on a trip already, and not on leave. Being booked or on
   // the road is the first check; the second is what an admin set.
-  const isFree = (employee: any) =>
-    !busyEmployees.has(employee.employeeID) && isAssignable(employee.availability);
+  const isFree = (employee: { employeeID: string; availability?: string | null }) =>
+    !busyEmployees.has(employee.employeeID) && isAssignable(employee.availability ?? undefined);
 
-  const availableDrivers = (allEmployees || []).filter(
-    (employee: any) => employee.role === EMPLOYEE_ROLE.driver && isFree(employee),
+  const availableDrivers = (allEmployees ?? []).filter(
+    (employee) => employee.role === EMPLOYEE_ROLE.driver && isFree(employee),
   );
 
-  const availableHelpers = (allEmployees || []).filter(
-    (employee: any) => employee.role === EMPLOYEE_ROLE.helper && isFree(employee),
+  const availableHelpers = (allEmployees ?? []).filter(
+    (employee) => employee.role === EMPLOYEE_ROLE.helper && isFree(employee),
   );
 
   return {

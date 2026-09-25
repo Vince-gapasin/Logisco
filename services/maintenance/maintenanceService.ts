@@ -3,7 +3,7 @@ import { TRUCK_STATUS } from "@/app/lib/enums";
 
 // --- ACTIVE MAINTENANCE ---
 // Maintenance columns: truckID, mechID, remark, maintenanceDate.
-export async function createMaintenanceRecord(payload: any) {
+export async function createMaintenanceRecord(payload: Record<string, unknown>) {
   const truckID = payload.truckID;
   const mechID = payload.mechID ?? payload.mechanicID ?? null;
   const remark = payload.remark ?? payload.issueDescription;

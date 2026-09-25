@@ -20,7 +20,7 @@ function partnerPhone(value: unknown): string | undefined {
   return normalized;
 }
 
-export async function createSubcontractor(payload: any) {
+export async function createSubcontractor(payload: Record<string, unknown>) {
   const { companyName, contactPerson } = payload;
 
   if (!companyName || !contactPerson) {
@@ -42,7 +42,7 @@ export async function createSubcontractor(payload: any) {
   return data;
 }
 
-export async function updateSubcontractor(id: string, payload: any) {
+export async function updateSubcontractor(id: string, payload: Record<string, unknown>) {
   const { data, error } = await supabase
     .from("SubContractor")
     .update({

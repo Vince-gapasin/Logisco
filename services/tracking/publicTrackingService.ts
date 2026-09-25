@@ -216,6 +216,34 @@ async function reportedProblems(orderID: string): Promise<ReportedProblem[]> {
   }));
 }
 
+
+// What this page reads off a trip, from the select above it.
+interface TrackedDispatch {
+  dispatchID?: string;
+  status?: string | null;
+  completedAt?: string | null;
+  current_step?: number | null;
+  dispatchNote?: string | null;
+  partnerDriver?: string | null;
+  partnerPlate?: string | null;
+  subConID?: string | null;
+  SubContractor?: { companyName?: string | null } | null;
+  Truck?: { plateNumber?: string | null; model?: string | null } | null;
+  Employee?: { employeeName?: string | null; contact?: string | null } | null;
+}
+
+interface TrackedStop {
+  branchID: number;
+  branchName?: string | null;
+  expectedTime?: string | null;
+  stopStatus?: string | null;
+  deliveryLat?: number | null;
+  deliverLong?: number | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+  POD?: { receiverName: string | null; deliveredAt: string | null }[] | null;
+}
+
 export async function getTrackingByToken(
   token: string,
 ): Promise<TrackingPayload | { found: false } | { found: true; isExpired: true }> {
@@ -238,9 +266,9 @@ export async function getTrackingByToken(
   if (!order) return { found: false };
 
   // The most recent dispatch is the live one for this order.
-  const dispatches = (Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [order.DispatchOrder]).filter(
-    Boolean,
-  ) as any[];
+  const dispatches = (
+    Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [order.DispatchOrder]
+  ).filter(Boolean) as TrackedDispatch[];
   const dispatch = dispatches[dispatches.length - 1] ?? null;
 
   const isCompleted = dispatch?.status === DELIVERY_STATUS.completed;
@@ -251,12 +279,12 @@ export async function getTrackingByToken(
     return { found: true, isExpired: true };
   }
 
-  const stops: TrackingStop[] = ((order.BranchStops as any[]) ?? [])
+  const stops: TrackingStop[] = ((order.BranchStops as TrackedStop[] | null) ?? [])
     .map((stop) => {
       const proof = ((stop.POD as { receiverName: string | null; deliveredAt: string | null }[] | null) ?? [])[0] ?? null;
       return {
         branchID: stop.branchID,
-        branchName: stop.branchName,
+        branchName: stop.branchName ?? "Stop",
         expectedTime: stop.expectedTime ?? null,
         status: stop.stopStatus ?? STOP_STATUS.pending,
         // 0/0 is the placeholder written when a stop has no geocoded position.
@@ -291,9 +319,9 @@ export async function getTrackingByToken(
     }
   }
 
-  const truck = first<any>(dispatch?.Truck);
-  const driver = first<any>(dispatch?.Employee);
-  const client = first<any>(order.Client);
+  const truck = first(dispatch?.Truck);
+  const driver = first(dispatch?.Employee);
+  const client = first(order.Client as { company?: string | null; emailAdd?: string | null; contact?: string | null } | null);
 
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
   const estimatedArrival = isCompleted ? null : formatExpectedTime(nextStop?.expectedTime ?? null);

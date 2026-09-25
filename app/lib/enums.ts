@@ -60,6 +60,35 @@ export const FINISHED_DELIVERY_STATUSES: DeliveryStatus[] = [
   DELIVERY_STATUS.returned,
 ];
 
+// Trips that are over one way or another, so never the live one on a booking.
+export const CLOSED_DISPATCH_STATUSES: string[] = [DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip];
+
+export const CLOSED_OR_CANCELLED_STATUSES: string[] = [
+  DELIVERY_STATUS.rejected,
+  DELIVERY_STATUS.foulTrip,
+  DELIVERY_STATUS.cancelled,
+];
+
+// Assigned, and nobody has answered yet.
+export const AWAITING_CREW_STATUSES: string[] = [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned];
+
+// Nothing further will happen on these, so nobody needs reminding about them.
+export const SETTLED_DISPATCH_STATUSES: string[] = [
+  DELIVERY_STATUS.rejected,
+  DELIVERY_STATUS.foulTrip,
+  DELIVERY_STATUS.completed,
+];
+
+// A trip that has not left yet, and so can still be changed from the office.
+export const BEFORE_DEPARTURE_STATUSES: string[] = [
+  DELIVERY_STATUS.pending,
+  DELIVERY_STATUS.assigned,
+  DELIVERY_STATUS.accepted,
+];
+
+// On the road with the cargo, or finished with it.
+export const CARRYING_OR_DONE_STATUSES: string[] = [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.completed];
+
 // Everything from the crew accepting onwards. A trip that is on the road, or
 // finished, was accepted before it got there - so this is what "the driver
 // agreed to carry it" means, whatever stage it has reached since.

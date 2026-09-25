@@ -1,6 +1,15 @@
 import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses } from "@/services/geo/geocodingService";
-import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, STOP_STATUS } from "@/app/lib/enums";
+import {
+  BEFORE_DEPARTURE_STATUSES,
+  CARRYING_OR_DONE_STATUSES,
+  CLOSED_DISPATCH_STATUSES,
+  CLOSED_OR_CANCELLED_STATUSES,
+  DELIVERY_STATUS,
+  FINISHED_DELIVERY_STATUSES,
+  isDeliveryFinished,
+  STOP_STATUS,
+} from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import { signPodUrls } from "@/services/storage/podService";
 import type { Order, CreateOrderDto } from "@/types/booking";
@@ -121,29 +130,57 @@ export interface BookingQuery {
 // DispatchOrder.pod_url holds the storage path of the delivery receipt.
 // Screens get a signed URL that expires; the path itself never reaches the
 // browser. Signed in one call for the whole response rather than per row.
+// The shapes these functions read back from a query, as opposed to the shapes
+// they hand out. A select embeds whatever each caller asked for, so every
+// relation may arrive as a list, a single row, or not at all.
+type Embedded<T> = T | T[] | null | undefined;
+
+function embedded<T>(value: Embedded<T>): T[] {
+  if (Array.isArray(value)) return value.filter(Boolean) as T[];
+  return value ? [value] : [];
+}
+
+interface DispatchLike {
+  dispatchID?: string;
+  status?: string;
+  pod_url?: string | null;
+}
+
+interface ProofLike {
+  proof?: string | null;
+}
+
+interface StopLike {
+  POD?: Embedded<ProofLike>;
+}
+
+interface OrderLike {
+  orderID?: string;
+  DispatchOrder?: Embedded<DispatchLike>;
+  BranchStops?: Embedded<StopLike>;
+  OrderDetails?: Embedded<{ itemID?: string; productName?: string }>;
+}
+
 async function withSignedProofs(orders: Order[]): Promise<Order[]> {
-  const dispatches = orders.flatMap((order) => {
-    const value = (order as any).DispatchOrder;
-    return (Array.isArray(value) ? value : [value]).filter(Boolean);
-  });
+  const dispatches = orders.flatMap((order) => embedded((order as OrderLike).DispatchOrder));
   const stopProofs = orders.flatMap((order) =>
-    (((order as any).BranchStops as any[]) ?? []).flatMap((stop) =>
-      ((stop?.POD as any[]) ?? []).filter((pod) => pod?.proof),
+    embedded((order as OrderLike).BranchStops).flatMap((stop) =>
+      embedded(stop?.POD).filter((pod) => pod?.proof),
     ),
   );
 
-  const withProof = dispatches.filter((dispatch: any) => dispatch.pod_url);
+  const withProof = dispatches.filter((dispatch) => dispatch.pod_url);
   if (withProof.length === 0 && stopProofs.length === 0) return orders;
 
   const signed = await signPodUrls([
-    ...withProof.map((dispatch: any) => dispatch.pod_url),
-    ...stopProofs.map((pod: any) => pod.proof),
+    ...withProof.map((dispatch) => dispatch.pod_url as string),
+    ...stopProofs.map((pod) => pod.proof as string),
   ]);
   for (const dispatch of withProof) {
-    dispatch.pod_url = signed.get(dispatch.pod_url) ?? null;
+    dispatch.pod_url = signed.get(dispatch.pod_url ?? "") ?? null;
   }
   for (const pod of stopProofs) {
-    pod.proof = signed.get(pod.proof) ?? null;
+    pod.proof = signed.get(pod.proof ?? "") ?? null;
   }
 
   return orders;
@@ -189,12 +226,12 @@ async function getUnassignedBookings(limit: number): Promise<Order[]> {
   if (error) throw error;
 
   const orderIDs = (candidates ?? [])
-    .filter((order: any) => {
-      const dispatches: any[] = Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [];
+    .filter((order) => {
+      const dispatches = embedded((order as OrderLike).DispatchOrder);
       return dispatches.every((dispatch) => dispatch?.status === DELIVERY_STATUS.rejected);
     })
     .slice(0, limit)
-    .map((order: any) => order.orderID);
+    .map((order) => (order as OrderLike).orderID as string);
 
   if (orderIDs.length === 0) return [];
 
@@ -318,8 +355,8 @@ export async function cancelBooking(orderID: string, reason: string) {
   if (error) throw new Error(`Supabase Order Error: ${error.message}`);
   if (!order) throw new Error("Booking not found");
 
-  const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
-  const running = dispatches.find((d) => [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.completed].includes(d.status));
+  const dispatches = embedded(order.DispatchOrder as Embedded<{ dispatchID: string; status: string }>);
+  const running = dispatches.find((d) => CARRYING_OR_DONE_STATUSES.includes(d.status));
 
   if (running) {
     throw new Error(
@@ -330,7 +367,7 @@ export async function cancelBooking(orderID: string, reason: string) {
   }
 
   for (const dispatch of dispatches) {
-    if ([DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(dispatch.status)) continue;
+    if (CLOSED_DISPATCH_STATUSES.includes(dispatch.status)) continue;
 
     const { error: dispatchError } = await supabase
       .from("DispatchOrder")
@@ -376,23 +413,21 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   if (!order) throw new Error("Booking not found");
   if (order.isActive === false) throw new Error("This booking was cancelled and can no longer be edited.");
 
-  const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
-  const live = dispatches.find(
-    (dispatch) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip, DELIVERY_STATUS.cancelled].includes(dispatch.status),
-  );
+  const dispatches = embedded(order.DispatchOrder as Embedded<{ dispatchID: string; status: string }>);
+  const live = dispatches.find((dispatch) => !CLOSED_OR_CANCELLED_STATUSES.includes(dispatch.status));
 
   // Once a truck has left, the booking is a record of what is happening, not
   // a plan to change: a schedule edited from the office would never reach the
   // crew already driving it.
-  if (live && ![DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned, DELIVERY_STATUS.accepted].includes(live.status)) {
+  if (live && !BEFORE_DEPARTURE_STATUSES.includes(live.status)) {
     throw new Error(
-      FINISHED_DELIVERY_STATUSES.includes(live.status)
+      isDeliveryFinished(live.status)
         ? "This delivery is finished and can no longer be edited."
         : "This delivery is already on the road. Report a foul trip to change it.",
     );
   }
 
-  const items = ((order.OrderDetails as any[]) ?? []).filter(Boolean);
+  const items = embedded(order.OrderDetails as Embedded<{ itemID?: string; productName?: string }>);
   const before = {
     deliverySchedule: readNote(order.notes ?? "", "Delivery Schedule"),
     priorityLevel: readNote(order.notes ?? "", "Priority"),

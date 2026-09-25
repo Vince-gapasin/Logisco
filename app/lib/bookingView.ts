@@ -22,6 +22,7 @@ import type {
 
 import {
   ACCEPTED_ONWARDS,
+  CLOSED_DISPATCH_STATUSES,
   DELIVERY_STATUS,
   HELPER_STATUS,
   isStopDelivered,
@@ -226,9 +227,6 @@ export interface OrderWithRelations extends Partial<OrderRow> {
   DispatchOrder?: Related<DispatchWithCrew>;
   FoulTripIncident?: Related<Partial<FoulTripIncidentRow>>;
 }
-
-// A trip that is over one way or another, so not the one a booking is on.
-const CLOSED_DISPATCH_STATUSES: string[] = [DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip];
 
 export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
   const client = firstRelated(order.Client);

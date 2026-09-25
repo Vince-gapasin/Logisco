@@ -144,7 +144,14 @@ export async function bookingCrew(orderID: string): Promise<{ orderCode: string 
       .maybeSingle();
     if (error) throw new Error(error.message);
 
-    const trips = ((data?.DispatchOrder as any[]) ?? []).filter(
+    const trips = ((data?.DispatchOrder as
+      | {
+          dispatchID: string;
+          status: string;
+          driverID: string | null;
+          DispatchHelper?: { helperID: string | null; status: string | null }[] | null;
+        }[]
+      | null) ?? []).filter(
       (trip) => trip && !["Completed", "Cancelled", "Rejected"].includes(trip.status),
     );
     const crew = new Set<string>();

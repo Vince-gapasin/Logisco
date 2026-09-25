@@ -4,6 +4,9 @@ import {
   DELIVERY_STATUS,
   HELPER_STATUS,
   TRUCK_STATUS,
+  AWAITING_CREW_STATUSES,
+  CLOSED_DISPATCH_STATUSES,
+  SETTLED_DISPATCH_STATUSES,
 } from "@/app/lib/enums";
 
 // A person's notifications: what happened, and what is still the case.
@@ -46,6 +49,28 @@ const TYPE_BY_SEVERITY: Record<string, string> = {
 };
 
 /** Events written for this person, newest first. */
+
+// The joined shapes these standing queries read. Each selects a little more
+// than the last, so the fields are optional and the names come from the
+// generated schema.
+interface ClientEmbed {
+  company?: string | null;
+}
+interface OrderEmbed {
+  orderID?: string;
+  orderCode?: string | null;
+  Client?: ClientEmbed | ClientEmbed[] | null;
+}
+interface TruckEmbed {
+  plateNumber?: string | null;
+}
+interface DispatchEmbed {
+  dispatchID?: string;
+  status?: string | null;
+  Order?: OrderEmbed | OrderEmbed[] | null;
+  Truck?: TruckEmbed | TruckEmbed[] | null;
+}
+
 async function storedNotifications(employeeID: string, limit = 100): Promise<AppNotification[]> {
   const { data, error } = await supabase
     .from("NotificationRecipient")
@@ -130,9 +155,9 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
   if (driverError) throw new Error(driverError.message);
 
   for (const dispatch of driverDispatches ?? []) {
-    const order = firstRelated<any>(dispatch.Order);
-    const client = firstRelated<any>(order?.Client);
-    const truck = firstRelated<any>(dispatch.Truck);
+    const order = firstRelated<OrderEmbed>(dispatch.Order);
+    const client = firstRelated<ClientEmbed>(order?.Client);
+    const truck = firstRelated<TruckEmbed>(dispatch.Truck);
     const label = order?.orderCode ?? dispatch.dispatchID;
 
     if ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(dispatch.status)) {
@@ -142,7 +167,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         message: `New assignment for ${label}${client?.company ? ` (Client: ${client.company})` : ""}. Open it to accept or decline.`,
         time: "",
         type: "assignment",
-        truckPlate: truck?.plateNumber,
+        truckPlate: truck?.plateNumber ?? undefined,
         entityKey: `DispatchOrder:${dispatch.dispatchID}`,
         supersededBy: ["CREW_ASSIGNED"],
       });
@@ -153,7 +178,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         message: `${label} is in transit. Remember to upload proof of delivery at every stop.`,
         time: "",
         type: "reminder",
-        truckPlate: truck?.plateNumber,
+        truckPlate: truck?.plateNumber ?? undefined,
       });
     }
   }
@@ -168,18 +193,15 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
   if (helperError) throw new Error(helperError.message);
 
   for (const row of helperRows ?? []) {
-    const dispatch = firstRelated<any>(row.DispatchOrder);
+    const dispatch = firstRelated<DispatchEmbed>(row.DispatchOrder);
     if (!dispatch) continue;
-    if (
-      [DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip, DELIVERY_STATUS.completed].includes(
-        dispatch.status,
-      )
-    ) {
+    // A trip that is over needs nobody chased about it.
+    if (SETTLED_DISPATCH_STATUSES.includes(dispatch.status ?? "")) {
       continue;
     }
 
-    const order = firstRelated<any>(dispatch.Order);
-    const client = firstRelated<any>(order?.Client);
+    const order = firstRelated<OrderEmbed>(dispatch.Order);
+    const client = firstRelated<ClientEmbed>(order?.Client);
 
     notifications.push({
       id: `crew-helper-${row.dhID}`,
@@ -211,12 +233,11 @@ async function adminNotifications(): Promise<AppNotification[]> {
   if (orderError) throw new Error(orderError.message);
 
   for (const order of orders ?? []) {
-    const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
+    const dispatches = ((order.DispatchOrder as DispatchEmbed[] | null) ?? []).filter(Boolean);
     const live =
-      dispatches.find(
-        (d) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(d.status),
-      ) ?? dispatches[dispatches.length - 1];
-    const client = firstRelated<any>(order.Client);
+      dispatches.find((d) => !CLOSED_DISPATCH_STATUSES.includes(d.status ?? "")) ??
+      dispatches[dispatches.length - 1];
+    const client = firstRelated<ClientEmbed>(order.Client);
     const company = client?.company ? ` (${client.company})` : "";
 
     if (!live || live.status === DELIVERY_STATUS.rejected) {
@@ -227,7 +248,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         time: relativeTime(order.createdAt),
         type: "approval",
       });
-    } else if ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(live.status)) {
+    } else if (AWAITING_CREW_STATUSES.includes(live.status ?? "")) {
       notifications.push({
         id: `admin-confirm-${live.dispatchID}`,
         title: "Waiting for crew confirmation",

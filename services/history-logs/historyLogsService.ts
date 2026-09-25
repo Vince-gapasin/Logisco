@@ -6,9 +6,40 @@ import { supabase } from "@/app/lib/supabase";
 // creates roll back the parent on failure, and updates insert the new
 // children before removing the old ones.
 
-type LogBody = Record<string, any>;
+type LogBody = Record<string, unknown>;
 
 const CHILD_TABLES = ["LogMechanics", "LogNotes", "LogPhotos"] as const;
+
+// What a log's children look like coming back from the query: each row says
+// which phase or role it belongs to, and the rest is read straight through.
+interface PhaseRow {
+  phase?: string | null;
+  issue?: string | null;
+  remarks?: string | null;
+  findings?: string | null;
+  partsUsed?: string | null;
+  photoUrl?: string | null;
+  caption?: string | null;
+}
+interface MechanicRow {
+  role?: string | null;
+  employeeID?: string | null;
+  Employee?: { employeeName?: string | null } | null;
+}
+interface RawLog {
+  id?: string;
+  truckID?: string | null;
+  date?: string | null;
+  created_at?: string | null;
+  statusBefore?: string | null;
+  statusAfter?: string | null;
+  Truck?: { plateNumber?: string | null; truckType?: string | null } | null;
+  LogMechanics?: MechanicRow[] | null;
+  LogNotes?: PhaseRow[] | null;
+  LogPhotos?: PhaseRow[] | null;
+  [key: string]: unknown;
+}
+
 
 function buildChildren(logID: string, body: LogBody) {
   const mechanics = [];
@@ -43,7 +74,7 @@ async function insertChildren(logID: string, body: LogBody) {
 export function validateHistoryLog(body: LogBody, isCreate: boolean): string | null {
   if (isCreate && !body.truckID) return "Truck is required";
   if (isCreate && !body.date) return "Date is required";
-  if (body.date && Number.isNaN(Date.parse(body.date))) return "Invalid date";
+  if (body.date && Number.isNaN(Date.parse(String(body.date)))) return "Invalid date";
   return null;
 }
 
@@ -59,17 +90,17 @@ export async function getHistoryLogs() {
 
   if (error) throw error;
 
-  return (rawLogs ?? []).map((log: any) => {
-    const primaryMech = log.LogMechanics?.find((m: any) => m.role === "Primary");
-    const addMech = log.LogMechanics?.find((m: any) => m.role === "Additional");
+  return ((rawLogs ?? []) as RawLog[]).map((log) => {
+    const primaryMech = log.LogMechanics?.find((m: MechanicRow) => m.role === "Primary");
+    const addMech = log.LogMechanics?.find((m: MechanicRow) => m.role === "Additional");
 
-    const prelimNote = log.LogNotes?.find((n: any) => n.phase === "Preliminary");
-    const progNote = log.LogNotes?.find((n: any) => n.phase === "Progress");
-    const finalNote = log.LogNotes?.find((n: any) => n.phase === "Final");
+    const prelimNote = log.LogNotes?.find((n: PhaseRow) => n.phase === "Preliminary");
+    const progNote = log.LogNotes?.find((n: PhaseRow) => n.phase === "Progress");
+    const finalNote = log.LogNotes?.find((n: PhaseRow) => n.phase === "Final");
 
-    const prelimPhoto = log.LogPhotos?.find((p: any) => p.phase === "Preliminary");
-    const progPhoto = log.LogPhotos?.find((p: any) => p.phase === "Progress");
-    const finalPhoto = log.LogPhotos?.find((p: any) => p.phase === "Final");
+    const prelimPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Preliminary");
+    const progPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Progress");
+    const finalPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Final");
 
     return {
       id: log.id,
