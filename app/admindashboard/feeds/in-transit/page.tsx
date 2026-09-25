@@ -7,6 +7,7 @@ import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
+import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
 import {
   AssignedCrew,
   BookingNotes,
@@ -27,9 +28,7 @@ import {
   ArrowLeft,
   Truck,
   X,
-  CheckCircle2,
   Clock,
-  Plus,
   Trash2,
 } from "lucide-react";
 
@@ -53,43 +52,6 @@ const getStatusBadgeClass = (status: string) => {
 };
 
 // Reusable Component for inside Form lists: Pickup/Delivery Stop Statuses
-const StopStatusBadge = ({ status }: { status?: string }) => {
-  const currentStatus = status || "Pending";
-  const normalized = currentStatus.toLowerCase();
-
-  // ✓ Check — Completed
-  if (
-    normalized === "completed" ||
-    normalized === "yes" ||
-    normalized === "done"
-  ) {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm">
-        <CheckCircle2 className="w-3.5 h-3.5" />
-        {currentStatus}
-      </span>
-    );
-  }
-
-  // 🕒 Clock — In Progress
-  if (normalized === "in progress") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm">
-        <Clock className="w-3.5 h-3.5" />
-        {currentStatus}
-      </span>
-    );
-  }
-
-  // ❌ No — Default/Pending/Not Completed
-  const displayText = currentStatus === "Pending" ? "No" : currentStatus;
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200 shadow-sm">
-      <X className="w-3.5 h-3.5" />
-      {displayText}
-    </span>
-  );
-};
 
 // ==========================================
 // PROGRESS TRACKER COMPONENT
@@ -187,13 +149,6 @@ function BookingDetailsModal({
   if (!isOpen || !booking) return null;
 
   // In Transit bookings are generally read-only in this modal context
-  // This screen never edits: a trip already on the road is changed from the
-  // crew's app, not from here.
-  const isEditable = false;
-
-  const tableInputClass = isEditable
-    ? "w-full bg-transparent border border-slate-200 rounded px-1.5 py-1"
-    : "w-full bg-transparent border-none px-1.5 py-1 font-medium text-slate-700 cursor-default focus:outline-none";
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
@@ -266,208 +221,12 @@ function BookingDetailsModal({
 
           <ClientInformation fields={formData} />
 
-          {/* 2. Pickup Address */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                2. Pickup Addresses
-              </span>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg pb-2">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                      Warehouse Name
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                      Address
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Person
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Number
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                      Pick Up Time
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-24 text-center">
-                      Quantity
-                    </th>
-                    <th className="p-2.5 text-center w-[10%]">
-                      <div className="flex items-center justify-center gap-1.5">
-                        Stop Status
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pickupList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium align-middle">
-                        {idx + 1}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          readOnly
-                          value={row.warehouseName}
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.warehouseAddress}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.contactPerson}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.contactNumber}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="time"
-                          value={row.pickupTime}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="number"
-                          value={row.quantity}
-                          readOnly
-                          className={`${tableInputClass} min-w-15 text-center`}
-                        />
-                      </td>
-                      {/* Added Stop Status cell for Pickup Table */}
-                      <td className="p-2 text-center bg-slate-50 align-top">
-                        <StopStatusBadge
-                          status={row.stopStatus || "Completed"}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* 3. Delivery Address */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                3. Delivery Address
-              </span>
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg pb-2">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                      Branch Name
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                      Delivery Address
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Person
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Contact Number
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[10%]">
-                      Delivery Time
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-16 text-center">
-                      Quantity
-                    </th>
-                    <th className="p-2.5 text-center w-[10%]">
-                      <div className="flex items-center justify-center gap-1.5">
-                        Stop Status
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deliveryList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium align-middle">
-                        {idx + 1}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          readOnly
-                          value={row.branchName}
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.deliveryAddress}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.contactPerson}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="text"
-                          value={row.contactNumber}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="time"
-                          value={row.deliveryTime}
-                          readOnly
-                          className={tableInputClass}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
-                        <input
-                          type="number"
-                          value={row.quantity}
-                          readOnly
-                          className={`${tableInputClass} min-w-15 text-center`}
-                        />
-                      </td>
-                      <td className="p-2 text-center bg-slate-50 align-top">
-                        <StopStatusBadge status={row.stopStatus} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <BookingStopsReadOnly
+            pickups={pickupList}
+            deliveries={deliveryList}
+            showStatus
+            showEditNote={false}
+          />
 
           <BookingSchedule fields={formData} scheduledFor={booking.displayDate} />
 

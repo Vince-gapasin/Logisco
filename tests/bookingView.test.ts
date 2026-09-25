@@ -149,7 +149,7 @@ describe("pickups on the booking feeds", () => {
     ]);
     expect(feed.pickupList[0].stopStatus).toBe("Completed");
     expect(feed.pickupList[0].warehouseAddress).toBe("Pasig");
-    expect(feed.pickupList[1].pickupTime).toBe("09:30");
+    expect(feed.pickupList[1].pickupTime).toBe("9:30 AM");
   });
 
   it("still reads the notes line for bookings made before pickups were rows", () => {
@@ -157,7 +157,7 @@ describe("pickups on the booking feeds", () => {
 
     expect(feed.pickupList).toHaveLength(1);
     expect(feed.pickupList[0].warehouseName).toBe("Pacific Harvest Main Office");
-    expect(feed.pickupList[0].pickupTime).toBe("08:00");
+    expect(feed.pickupList[0].pickupTime).toBe("8:00 AM");
     expect(feed.pickupList[0].stopStatus).toBe("Pending");
   });
 

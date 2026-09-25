@@ -517,7 +517,7 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       warehouseAddress: pickup.pickupAddress || pickup.warehouseName,
       contactPerson: pickup.contactPerson,
       contactNumber: pickup.contactNum,
-      pickupTime: pickup.expectedTime || "",
+      pickupTime: formatStopTime(pickup.expectedTime),
       // Older pickups have no quantity of their own; show the order's.
       quantity: pickup.quantity ? String(pickup.quantity) : booking.totalQuantity,
       stopStatus: isStopDelivered(pickup.status)
@@ -538,7 +538,7 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       warehouseAddress: address || "",
       contactPerson: "",
       contactNumber: "",
-      pickupTime: time || "",
+      pickupTime: formatStopTime(time),
       quantity: booking.totalQuantity,
       stopStatus:
         booking.pickupCompletedAt || booking.currentStep > 0 ? "Completed" : "Pending",
