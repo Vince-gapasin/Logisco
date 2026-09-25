@@ -6,9 +6,15 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
+import type {
+  ClientRow,
+  EmployeeRow,
+  SubContractorRow,
+  TruckRow,
+} from "@/types/database";
 import {
   DELIVERY_STATUS,
-  FINISHED_DELIVERY_STATUSES,
+  isDeliveryFinished,
   hasDriverAccepted,
   haveHelpersAccepted,
 } from "@/app/lib/enums";
@@ -27,7 +33,11 @@ import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
-import { mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
+import {
+  mapOrderToBookingView,
+  toFeedBooking,
+  type OrderWithRelations,
+} from "@/app/lib/bookingView";
 import {
   Clock,
   CheckCircle2,
@@ -85,6 +95,26 @@ const FEED_ROUTE: Record<string, string> = {
   "In-Transit": "/admindashboard/feeds/in-transit",
   Completed: "/admindashboard/feeds/completed",
 };
+
+// A row on one of the four feed cards. Built from an order and the trip on
+// it, and read by the card, the modal and whatever the row opens.
+interface DashboardBooking {
+  orderId: string;
+  client: string;
+  product: string;
+  driver: string;
+  helper: string;
+  dateTime: string;
+  driverConfirmed: boolean;
+  helperConfirmed: boolean;
+  dispatchStatus: string;
+  currentStep: number;
+  isSubcon: boolean;
+  partnerName: string;
+  dispatchID: string | null;
+  rawOrder: OrderWithRelations;
+  statusCategory: string;
+}
 
 const TABS = [
   {
@@ -254,7 +284,7 @@ function ViewOrderModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
+  order: DashboardBooking | null;
 }) {
   if (!isOpen || !order) return null;
 
@@ -263,35 +293,21 @@ function ViewOrderModal({
   const category = order.statusCategory;
   const currentStep = order.currentStep || 0;
 
-  const clientInfo = raw.Client || raw.client || {};
+  const clientInfo = (Array.isArray(raw.Client) ? raw.Client[0] : raw.Client) ?? {};
   const cName =
     clientInfo.company ||
-    clientInfo.companyName ||
     notes.match(/Name:\s*(.*)/)?.[1] ||
     order.client ||
     "Walk-in Customer";
-  const cPerson =
-    clientInfo.contactName ||
-    clientInfo.contactPerson ||
-    notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] ||
-    "N/A";
-  const cNum =
-    clientInfo.contact ||
-    clientInfo.contactNumber ||
-    notes.match(/\((.*?)\)/)?.[1] ||
-    "N/A";
-  const cEmail =
-    clientInfo.emailAdd || clientInfo.emailAddress || clientInfo.email || "N/A";
-  const cAddr =
-    clientInfo.businessAdd ||
-    clientInfo.businessAddress ||
-    clientInfo.address ||
-    "N/A";
+  const cPerson = clientInfo.contactName || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "N/A";
+  const cNum = clientInfo.contact || notes.match(/\((.*?)\)/)?.[1] || "N/A";
+  const cEmail = clientInfo.emailAdd || "N/A";
+  const cAddr = clientInfo.businessAdd || "N/A";
 
   const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
   const reqDate =
     notes.match(/Request Date:\s*(.*)/)?.[1] ||
-    new Date(raw.createdAt).toLocaleDateString();
+    (raw.createdAt ? new Date(raw.createdAt).toLocaleDateString() : "N/A");
   const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "N/A";
 
   // Pickups are rows now. Bookings made before the PickupStops table still
@@ -301,7 +317,7 @@ function ViewOrderModal({
   const pickupAddr = pickupParts[0]?.trim() || "N/A";
   const pickupTime = pickupParts[1]?.trim() || "N/A";
 
-  const pickupRows: any[] = raw.PickupStops || raw.pickupstops || [];
+  const pickupRows = Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : [];
   const pickups =
     pickupRows.length > 0
       ? [...pickupRows]
@@ -325,40 +341,42 @@ function ViewOrderModal({
           },
         ];
 
-  const dispatchRecord = Array.isArray(raw.DispatchOrder)
-    ? raw.DispatchOrder[0]
-    : raw.DispatchOrder || raw.dispatch_order;
+  const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : raw.DispatchOrder;
 
   const dispatchNote = dispatchRecord?.dispatchNote || "";
   const podUrl = dispatchRecord?.pod_url || "";
 
-  const truck =
-    dispatchRecord?.Truck?.plateNumber ||
-    notes.match(/Truck:\s*(.*)/)?.[1] ||
-    "Unassigned";
-  const driver =
-    dispatchRecord?.Driver?.employeeName ||
-    notes.match(/Driver:\s*(.*)/)?.[1] ||
-    "Unassigned";
-  const h1 =
-    dispatchRecord?.Helper1?.employeeName ||
-    notes.match(/Helper 1:\s*(.*)/)?.[1] ||
-    "None";
-  const h2 =
-    dispatchRecord?.Helper2?.employeeName ||
-    notes.match(/Helper 2:\s*(.*)/)?.[1] ||
-    "None";
+  const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
+  const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
+
+  const truck = dispatchTruck?.plateNumber || notes.match(/Truck:\s*(.*)/)?.[1] || "Unassigned";
+  const driver = dispatchDriver?.employeeName || notes.match(/Driver:\s*(.*)/)?.[1] || "Unassigned";
+
+  // Helpers are their own rows. Helper1 and Helper2 were read as embeds on
+  // the trip, which no query returns, so both names came from the notes.
+  const helperNames = (
+    Array.isArray(dispatchRecord?.DispatchHelper)
+      ? dispatchRecord.DispatchHelper
+      : dispatchRecord?.DispatchHelper
+        ? [dispatchRecord.DispatchHelper]
+        : []
+  ).map((row) => {
+    const person = Array.isArray(row?.Helper) ? row.Helper[0] : row?.Helper;
+    return person?.employeeName ?? "";
+  });
+
+  const h1 = helperNames[0] || notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
+  const h2 = helperNames[1] || notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
 
   const actualNotesParts = notes.split("[NOTES]");
   const actualNotes =
     actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
 
-  const itemsArr =
-    raw.OrderDetails || raw.orderdetails || raw.order_details || [];
+  const itemsArr = Array.isArray(raw.OrderDetails) ? raw.OrderDetails : raw.OrderDetails ? [raw.OrderDetails] : [];
   const product = itemsArr[0]?.productName || order.product || "Multiple Items";
   const quantity = itemsArr[0]?.quantity || 1;
 
-  const stopsArr = raw.BranchStops || raw.branchstops || raw.branch_stops || [];
+  const stopsArr = Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : [];
   const deliveries =
     stopsArr.length > 0
       ? stopsArr
@@ -444,7 +462,7 @@ function ViewOrderModal({
               Booking Details: {order.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Created on {new Date(raw.createdAt).toLocaleString()}
+              Created on {raw.createdAt ? new Date(raw.createdAt).toLocaleString() : "an unknown date"}
             </p>
           </div>
           <button
@@ -533,7 +551,7 @@ function ViewOrderModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {pickups.map((p: any, idx: number) => {
+                    {pickups.map((p, idx) => {
                       // The stop row is what says whether the cargo was
                       // collected. currentStep is still consulted so that
                       // trips finished before pickups were rows still read
@@ -621,7 +639,7 @@ function ViewOrderModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {deliveries.map((d: any, idx: number) => {
+                    {deliveries.map((d, idx) => {
                       // The stop carries its own status. The step index is
                       // only a fallback for trips that finished before the
                       // crew app started recording stop completions, and it
@@ -637,7 +655,7 @@ function ViewOrderModal({
                         category === "In-Transit" &&
                         currentStep === stopStepIndex;
                       
-                      let stopLabel = isStopDelivered
+                      const stopLabel = isStopDelivered
                         ? "Delivered"
                         : isStopOngoing
                           ? "Ongoing Delivery"
@@ -663,7 +681,7 @@ function ViewOrderModal({
                             {d.contactPerson || cPerson}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.contactNum || d.contactNumber || cNum}
+                            {d.contactNum || cNum}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
                             {d.expectedTime || "N/A"}
@@ -830,7 +848,7 @@ function ViewOrderModal({
 interface ClientSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  clients: any[];
+  clients: Partial<ClientRow>[];
   onSelectClient: (clientID: string) => void;
   onOpenNewClientBooking: () => void;
 }
@@ -847,7 +865,7 @@ function ClientSearchModal({
 
   const filteredClients = searchTerm.trim()
     ? clients.filter((client) =>
-        client.company.toLowerCase().includes(searchTerm.toLowerCase()),
+        (client.company ?? "").toLowerCase().includes(searchTerm.toLowerCase()),
       )
     : clients;
 
@@ -900,7 +918,7 @@ function ClientSearchModal({
                       </td>
                       <td className="w-20 text-center border-l border-slate-200">
                         <button
-                          onClick={() => onSelectClient(client.clientID)}
+                          onClick={() => onSelectClient(client.clientID ?? "")}
                           className="text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
                         >
                           Select
@@ -937,7 +955,7 @@ function KPIGrid({
   bookingsData,
 }: {
   onNavigate: (name: string) => void;
-  bookingsData: any;
+  bookingsData: Record<string, DashboardBooking[]>;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -968,7 +986,17 @@ function KPIGrid({
   );
 }
 
-function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
+function FeedTable({
+  tabConfig,
+  bookings,
+  onViewOrder,
+  isLoading,
+}: {
+  tabConfig: (typeof TABS)[number];
+  bookings: DashboardBooking[];
+  onViewOrder: (booking: DashboardBooking) => void;
+  isLoading: boolean;
+}) {
   const styles = COLOR_STYLES[tabConfig.color as keyof typeof COLOR_STYLES];
   const data = bookings || [];
 
@@ -1005,7 +1033,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {data.map((b: any) => {
+            {data.map((b) => {
               let displayStatus = tabConfig.statusLabel;
               if (b.isSubcon && b.dispatchStatus !== "Completed") {
                 displayStatus = b.dispatchStatus === "Accepted" ? "Sub-con: awaiting pickup" : `Sub-con: ${b.dispatchStatus}`;
@@ -1136,19 +1164,19 @@ export default function AdminDashboardPage() {
   const [isClientSearchModalOpen, setIsClientSearchModalOpen] = useState(false);
   const [selectedClientForBooking, setSelectedClientForBooking] = useState("");
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
-  const [selectedOrderForView, setSelectedOrderForView] = useState<any>(null);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<DashboardBooking | null>(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [generatedOrderCode, setGeneratedOrderCode] = useState("");
   const [generatedTrackingToken, setGeneratedTrackingToken] = useState("");
   const [generatedOrderID, setGeneratedOrderID] = useState("");
 
-  const [clients, setClients] = useState<any[]>([]);
-  const [trucks, setTrucks] = useState<any[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
-  const [helpers, setHelpers] = useState<any[]>([]);
-  const [subcontractors, setSubcontractors] = useState<any[]>([]);
+  const [clients, setClients] = useState<Partial<ClientRow>[]>([]);
+  const [trucks, setTrucks] = useState<Partial<TruckRow>[]>([]);
+  const [drivers, setDrivers] = useState<Partial<EmployeeRow>[]>([]);
+  const [helpers, setHelpers] = useState<Partial<EmployeeRow>[]>([]);
+  const [subcontractors, setSubcontractors] = useState<Partial<SubContractorRow>[]>([]);
 
-  const [bookingsData, setBookingsData] = useState<{ [key: string]: any[] }>({
+  const [bookingsData, setBookingsData] = useState<Record<string, DashboardBooking[]>>({
     "Pending Bookings": [],
     "In-Transit": [],
     Completed: [],
@@ -1169,19 +1197,19 @@ export default function AdminDashboardPage() {
 
       const stageResults = await Promise.all(
         DASHBOARD_STAGES.map((stage) =>
-          apiFetch<any[]>(`/api/bookings?stage=${stage}&limit=100`).catch(() => []),
+          apiFetch<OrderWithRelations[]>(`/api/bookings?stage=${stage}&limit=100`).catch(() => []),
         ),
       );
 
       // An order can only be in one stage, but dedupe defensively.
       const seenOrderIDs = new Set<string>();
-      const orders = stageResults.flat().filter((order: any) => {
+      const orders = stageResults.flat().filter((order) => {
         const key = String(order?.orderID ?? order?.orderCode ?? "");
         if (!key || seenOrderIDs.has(key)) return false;
         seenOrderIDs.add(key);
         return true;
       });
-      const categorized: { [key: string]: any[] } = {
+      const categorized: Record<string, DashboardBooking[]> = {
         "Pending Bookings": [],
         "In-Transit": [],
         Completed: [],
@@ -1189,33 +1217,32 @@ export default function AdminDashboardPage() {
       };
 
       if (Array.isArray(orders)) {
-        orders.forEach((o: any) => {
-          const clientObj = o.Client || o.client || {};
-          let displayClient = clientObj.company || clientObj.companyName;
+        orders.forEach((o) => {
+          const clientObj = (Array.isArray(o.Client) ? o.Client[0] : o.Client) ?? {};
+          let displayClient = clientObj.company;
           if (!displayClient) {
             const match = o.notes?.match(/Name:\s*(.*)/);
             displayClient = match ? `Walk-in: ${match[1]}` : "Walk-in Customer";
           }
 
-          const detailsArr =
-            o.OrderDetails || o.orderdetails || o.order_details || [];
+          const detailsArr = Array.isArray(o.OrderDetails) ? o.OrderDetails : o.OrderDetails ? [o.OrderDetails] : [];
           const product = detailsArr[0]?.productName || "Multiple Items";
-          const stopsArr =
-            o.BranchStops || o.branchstops || o.branch_stops || [];
+          const stopsArr = Array.isArray(o.BranchStops) ? o.BranchStops : o.BranchStops ? [o.BranchStops] : [];
           const rawTime = stopsArr[0]?.expectedTime || "";
           const requestDateMatch = o.notes?.match(/Request Date:\s*(.*)/);
+          const created = o.createdAt ? new Date(o.createdAt) : null;
           const reqDate = requestDateMatch
             ? requestDateMatch[1].trim()
-            : new Date(o.createdAt).toLocaleDateString();
+            : (created?.toLocaleDateString() ?? "");
           const dateTime = rawTime
             ? `${reqDate} @ ${rawTime}`
-            : new Date(o.createdAt).toLocaleString();
+            : (created?.toLocaleString() ?? reqDate);
 
           const dispatchRecord = Array.isArray(o.DispatchOrder)
             ? o.DispatchOrder[0]
-            : o.DispatchOrder || o.dispatch_order;
+            : o.DispatchOrder;
           const dispatchStatus = dispatchRecord?.status || "Pending";
-          const currentStep = Number(dispatchRecord?.current_step || dispatchRecord?.currentStep || 0);
+          const currentStep = Number(dispatchRecord?.current_step || 0);
 
           // A partner's trip: no truck or crew of ours; its driver and plate
           // were typed in when it was handed over.
@@ -1229,23 +1256,38 @@ export default function AdminDashboardPage() {
             /Subcontractor:\s*([^\n]*)/.exec(dispatchRecord?.dispatchNote || "")?.[1]?.trim() ||
             "Partner";
 
+          const tripTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
+          const tripDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
+
           const truck =
             dispatchRecord?.partnerPlate ||
-            dispatchRecord?.Truck?.plateNumber ||
+            tripTruck?.plateNumber ||
             o.notes?.match(/Truck:\s*(.*)/)?.[1] ||
             "Unassigned";
 
           const driverMatch = o.notes?.match(/Driver:\s*(.*)/);
           const driver =
             dispatchRecord?.partnerDriver ||
-            dispatchRecord?.Driver?.employeeName ||
+            tripDriver?.employeeName ||
             (driverMatch ? driverMatch[1].trim() : "Unassigned");
+
+          // The first helper on the trip, from the helper rows rather than a
+          // Helper1 embed no query has ever returned.
+          const firstHelperRow = (
+            Array.isArray(dispatchRecord?.DispatchHelper)
+              ? dispatchRecord.DispatchHelper
+              : dispatchRecord?.DispatchHelper
+                ? [dispatchRecord.DispatchHelper]
+                : []
+          )[0];
+          const firstHelper = Array.isArray(firstHelperRow?.Helper)
+            ? firstHelperRow.Helper[0]
+            : firstHelperRow?.Helper;
 
           const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
           const helper = isSubcon
             ? `Sub-con: ${partnerName}`
-            : dispatchRecord?.Helper1?.employeeName ||
-            (helperMatch ? helperMatch[1].trim() : "None");
+            : firstHelper?.employeeName || (helperMatch ? helperMatch[1].trim() : "None");
 
           // Read from the trip and its helper rows, which is where it is
           // recorded. The Order columns this also used to look at -
@@ -1285,7 +1327,7 @@ export default function AdminDashboardPage() {
               dispatchStatus === DELIVERY_STATUS.cancelled
             ) {
               category = "Foul Trip";
-            } else if (FINISHED_DELIVERY_STATUSES.includes(dispatchStatus)) {
+            } else if (isDeliveryFinished(dispatchStatus)) {
               category = "Completed";
             } else if (ON_THE_ROAD_STATUSES.includes(dispatchStatus)) {
               category = "In-Transit";
@@ -1309,7 +1351,7 @@ export default function AdminDashboardPage() {
           }
 
           categorized[category].push({
-            orderId: o.orderCode || o.orderID,
+            orderId: o.orderCode || o.orderID || "",
             client: displayClient,
             product,
             driver,
@@ -1335,7 +1377,9 @@ export default function AdminDashboardPage() {
           // the order row's own date does not move when that happens.
           const declined = Number(b.dispatchStatus === "Rejected") - Number(a.dispatchStatus === "Rejected");
           if (declined !== 0) return declined;
-          return new Date(b.rawOrder.updatedAt || b.rawOrder.createdAt).getTime() - new Date(a.rawOrder.updatedAt || a.rawOrder.createdAt).getTime();
+          // By when the booking was made. An order carries no updatedAt -
+          // this used to ask for one first, and never got it.
+          return new Date(b.rawOrder.createdAt ?? 0).getTime() - new Date(a.rawOrder.createdAt ?? 0).getTime();
         });
       });
 
@@ -1351,52 +1395,28 @@ export default function AdminDashboardPage() {
     try {
       // Independent requests: run them together, not one after another.
       const [clientRes, truckRes, empRes, subconRes] = await Promise.all([
-        apiFetch<{ data: any[] }>("/api/clients").catch(() => ({ data: [] })),
-        apiFetch<any>("/api/fleet-status").catch(() => ({ data: [] })),
-        apiFetch<any>("/api/employees").catch(() => ({ data: [] })),
-        apiFetch<{ data: any[] }>("/api/subcontractors").catch(() => ({ data: [] })),
+        apiFetch<{ data: Partial<ClientRow>[] }>("/api/clients").catch(() => ({ data: [] })),
+        apiFetch<{ data: Partial<TruckRow>[] }>("/api/fleet-status").catch(() => ({ data: [] })),
+        apiFetch<{ data: Partial<EmployeeRow>[] }>("/api/employees").catch(() => ({ data: [] })),
+        apiFetch<{ data: Partial<SubContractorRow>[] }>("/api/subcontractors").catch(() => ({ data: [] })),
       ]);
 
       setClients(clientRes.data || []);
 
-      const allTrucks = truckRes.data || truckRes || [];
-      const mappedTrucks = allTrucks.map((t: any) => ({
-        ...t,
-        truckID: t.truckID || t.id,
-        plateNumber: t.plateNumber || t.plate_number || "Unknown Plate",
-        model: t.model || "Unknown Model",
-        isActive: t.isActive !== undefined ? t.isActive : t.status === "Active",
-        truckStatus: t.truckStatus || t.status || "Available",
-      }));
-      setTrucks(
-        mappedTrucks.filter(
-          (t: any) => t.isActive && t.truckStatus === "Available",
-        ),
-      );
+      // Straight from the tables. These used to be rebuilt first, filling in
+      // an id, a plate, a name, an active flag and an availability from
+      // columns that do not exist - t.id, t.plate_number, e.firstName,
+      // e.status - so every default was reached only when the real column was
+      // empty, which none of them are.
+      const allTrucks = truckRes.data ?? [];
+      setTrucks(allTrucks.filter((truck) => truck.isActive && truck.truckStatus === "Available"));
 
-      const allEmployees = empRes.data || empRes || [];
-      const mappedEmployees = allEmployees.map((e: any) => ({
-        ...e,
-        employeeID: e.employeeID || e.id,
-        employeeName:
-          e.employeeName ||
-          (e.firstName ? `${e.firstName} ${e.lastName}` : "Unknown Name"),
-        isActive: e.isActive !== undefined ? e.isActive : e.status === "Active",
-        availability: e.availability || "Available",
-      }));
+      const allEmployees = empRes.data ?? [];
+      const free = (employee: Partial<EmployeeRow>, role: string) =>
+        employee.role === role && employee.isActive && employee.availability === "Available";
 
-      setDrivers(
-        mappedEmployees.filter(
-          (e: any) =>
-            e.role === "Driver" && e.isActive && e.availability === "Available",
-        ),
-      );
-      setHelpers(
-        mappedEmployees.filter(
-          (e: any) =>
-            e.role === "Helper" && e.isActive && e.availability === "Available",
-        ),
-      );
+      setDrivers(allEmployees.filter((employee) => free(employee, "Driver")));
+      setHelpers(allEmployees.filter((employee) => free(employee, "Helper")));
 
       setSubcontractors(subconRes.data || []);
     } catch (error) {
@@ -1408,7 +1428,9 @@ export default function AdminDashboardPage() {
   }, [fetchOrders]);
 
   useEffect(() => {
-    fetchDashboardData();
+    // Everything on this screen is set from a response, not in the effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchDashboardData();
   }, [fetchDashboardData]);
 
   const handleNavigate = (tabName: string) => {
@@ -1425,7 +1447,7 @@ export default function AdminDashboardPage() {
 
   const [subconTripID, setSubconTripID] = useState<string | null>(null);
 
-  const handleViewOrder = async (order: any) => {
+  const handleViewOrder = async (order: DashboardBooking) => {
     if (order.isSubcon && order.dispatchID && order.statusCategory !== "Foul Trip") {
       setSubconTripID(order.dispatchID);
       return;
@@ -1537,7 +1559,7 @@ export default function AdminDashboardPage() {
           })),
       };
 
-      const res = await apiFetch<any>("/api/bookings", {
+      const res = await apiFetch<{ orderCode?: string; trackingToken?: string; orderID?: string }>("/api/bookings", {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -1573,31 +1595,31 @@ export default function AdminDashboardPage() {
             }),
           });
           console.log("Resources locked successfully!");
-        } catch (assignError: any) {
+        } catch (assignError) {
           alert(
-            `Booking created, but assignment failed: ${assignError.message}`,
+            `Booking created, but assignment failed: ${assignError instanceof Error ? assignError.message : assignError}`,
           );
         }
       }
 
-      setGeneratedOrderCode(res.orderCode);
+      setGeneratedOrderCode(res.orderCode ?? "");
       setGeneratedTrackingToken(res.trackingToken || "");
       setGeneratedOrderID(res.orderID || "");
       setIsSuccessModalOpen(true);
       await fetchOrders();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(`🚨 FAILED 🚨\n\nReason: ${err.message}`);
+      alert(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`);
     }
   };
 
   // Convert real db clients and drivers to format needed for the dropdowns
   const activeClientsForFilter = useMemo(() => 
-    clients.map(c => ({ id: c.clientID || c.id, name: c.company || c.companyName || "Unknown" })), 
+    clients.map(c => ({ id: c.clientID ?? "", name: c.company || "Unknown" })), 
   [clients]);
 
   const activeCrewsForFilter = useMemo(() => 
-    drivers.map(d => ({ id: d.employeeID, name: d.employeeName })), 
+    drivers.map(d => ({ id: d.employeeID ?? "", name: d.employeeName ?? "Unknown" })), 
   [drivers]);
 
   // Apply Search inside Filter Modals
@@ -1611,7 +1633,7 @@ export default function AdminDashboardPage() {
 
   // Apply Filter Logic to Data
   const filteredBookingsData = useMemo(() => {
-    const result: { [key: string]: any[] } = {
+    const result: Record<string, DashboardBooking[]> = {
       "Pending Bookings": [],
       "In-Transit": [],
       "Completed": [],
@@ -1622,11 +1644,11 @@ export default function AdminDashboardPage() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     Object.keys(bookingsData).forEach(cat => {
-      result[cat] = bookingsData[cat].filter((b: any) => {
+      result[cat] = bookingsData[cat].filter((b) => {
         // 1. Client Filter
         if (dashboardFilters.clientIds.length > 0) {
-          const bookingClientId = b.rawOrder?.clientID || b.rawOrder?.client?.id || b.rawOrder?.client_id;
-          const matchById = dashboardFilters.clientIds.includes(bookingClientId);
+          const bookingClientId = b.rawOrder?.clientID;
+          const matchById = dashboardFilters.clientIds.includes(bookingClientId ?? "");
           const clientObj = activeClientsForFilter.find(c => dashboardFilters.clientIds.includes(c.id));
           const matchByName = clientObj && clientObj.name === b.client;
           
@@ -1635,9 +1657,11 @@ export default function AdminDashboardPage() {
 
         // 2. Crew Filter
         if (dashboardFilters.crewIds.length > 0) {
-          const dispatchRecord = Array.isArray(b.rawOrder?.DispatchOrder) ? b.rawOrder.DispatchOrder[0] : (b.rawOrder?.DispatchOrder || b.rawOrder?.dispatch_order);
+          const dispatchRecord = Array.isArray(b.rawOrder?.DispatchOrder)
+            ? b.rawOrder.DispatchOrder[0]
+            : b.rawOrder?.DispatchOrder;
           const driverId = dispatchRecord?.driverID;
-          const matchById = dashboardFilters.crewIds.includes(driverId);
+          const matchById = dashboardFilters.crewIds.includes(driverId ?? "");
           const driverObj = activeCrewsForFilter.find(c => dashboardFilters.crewIds.includes(c.id));
           const matchByName = driverObj && driverObj.name === b.driver;
 
@@ -1649,7 +1673,7 @@ export default function AdminDashboardPage() {
           const reqDateStr = b.rawOrder?.notes?.match(/Delivery Schedule:\s*(.*)/)?.[1] 
                           || b.rawOrder?.notes?.match(/Request Date:\s*(.*)/)?.[1] 
                           || b.rawOrder?.createdAt;
-          const bDate = new Date(reqDateStr);
+          const bDate = new Date(reqDateStr ?? "");
           if (isNaN(bDate.getTime())) return true;
           bDate.setHours(0,0,0,0);
 
