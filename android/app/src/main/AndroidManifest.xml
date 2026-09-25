@@ -7,6 +7,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!--
+        Android 13 and later will not show a notification from an app that has
+        not asked for this, and will not let it ask unless it is declared here.
+        Without it the phone still registers for push and the server still
+        sends successfully - the notification is simply dropped on arrival,
+        which is why nothing appeared on the lock screen.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -29,6 +38,15 @@
             </intent-filter>
 
         </activity>
+
+        <!--
+            Where a push lands if it arrives before the app has created its own
+            channel - a fresh install that has not been signed into yet. A
+            message naming a channel that does not exist is dropped.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="logisco" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
+import NotificationBell from "@/components/NotificationBell";
 
 interface SharedHeaderProps {
   isOpen: boolean;
@@ -47,13 +48,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
       </div>
 
       <div className="flex items-center space-x-3 sm:space-x-4 md:space-x-6 shrink-0">
-        <Link
-          href={`${basePath}/notifications`}
-          className="relative cursor-pointer hover:bg-gray-100 p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full transition flex items-center justify-center"
-          title="Notifications"
-        >
-          <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
-        </Link>
+        <NotificationBell basePath={basePath} />
 
         <Link
           href={`${basePath}/profile`}

@@ -19,7 +19,12 @@ export default function CrewNotificationsPage() {
   const { notifications, isLoading, error: notificationsError, markRead, markAllRead } =
     useNotifications();
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // What the bell in the header counts: events that arrived and have not
+  // been opened. A standing condition - a booking with no crew yet, a truck
+  // on maintenance - is listed below but is not "new", and counting it would
+  // leave a number on the bell that nothing could clear.
+  const unreadCount = notifications.filter((n) => n.isStored && !n.isRead).length;
+  const anyUnread = notifications.some((n) => !n.isRead);
 
   const handleMarkAsRead = (id: string | number) => {
     markRead(id);
@@ -83,7 +88,7 @@ export default function CrewNotificationsPage() {
           </p>
         </div>
 
-        {unreadCount > 0 && (
+        {anyUnread && (
           <button
             onClick={handleMarkAllAsRead}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"

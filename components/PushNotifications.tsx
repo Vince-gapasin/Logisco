@@ -55,7 +55,13 @@ export default function PushRegistration() {
         if (permission.receive === "prompt" || permission.receive === "prompt-with-rationale") {
           permission = await PushNotifications.requestPermissions();
         }
-        if (permission.receive !== "granted") return;
+        if (permission.receive !== "granted") {
+          // Worth saying out loud: everything else below still works, the
+          // phone registers, the server sends - and Android throws the
+          // notification away on arrival.
+          console.warn(`Notifications are turned off for this app (${permission.receive}); nothing will be shown.`);
+          return;
+        }
 
         // Android 8 and later drop a notification with no channel to land in.
         if (Capacitor.getPlatform() === "android") {

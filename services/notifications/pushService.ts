@@ -126,7 +126,22 @@ export async function sendPush(employeeIDs: string[], message: PushMessage): Pro
                 notificationID: message.notificationID,
                 link: message.link ?? "",
               },
-              android: { priority: "high", notification: { channel_id: "logisco" } },
+              android: {
+                priority: "high",
+                // A delivery is worth waking the screen for: heads-up while
+                // the phone is in use, and readable on the lock screen
+                // without unlocking it.
+                notification: {
+                  channel_id: "logisco",
+                  notification_priority: "PRIORITY_MAX",
+                  visibility: "PUBLIC",
+                  default_sound: true,
+                  default_vibrate_timings: true,
+                },
+                // Worth delivering late, but not a day late: a phone that has
+                // been off all night should not wake to yesterday's trips.
+                ttl: "43200s",
+              },
             },
           }),
         });
