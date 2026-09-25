@@ -4,8 +4,10 @@
 "use client";
 
 import UrlSearchSync from "@/components/UrlSearchSync";
+import { formatTime } from "@/app/lib/datetime";
 import React, { useState, useEffect, useCallback } from "react";
 import { usePolling } from "@/app/lib/usePolling";
+import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
@@ -204,7 +206,7 @@ interface CrewDashboardProps {
 }
 
 type ViewMode = "list" | "update-status";
-type TabFilter = "Active" | "Unconfirmed" | "Completed";
+type TabFilter = "Active" | "Assigned" | "Completed";
 
 const generateDynamicStops = (delivery: DeliveryRecord) => {
   const stops = [];
@@ -413,7 +415,7 @@ export default function CrewDashboardPage({
   const isAccepted = (status?: string) => isActive(status) || isCompleted(status);
 
   const getDisplayStatus = (delivery: DeliveryRecord) => {
-    if (isUnconfirmed(delivery.status)) return "Awaiting Confirmation";
+    if (isUnconfirmed(delivery.status)) return "Assigned";
     if (isAbortedTrip(delivery.status)) return "Foul Trip / Aborted";
     if (isSuccessfulFinish(delivery.status)) return "Delivery Concluded";
     
@@ -440,7 +442,7 @@ export default function CrewDashboardPage({
     if (match) {
       // Same order the tab filter checks in.
       setSelectedFilter(
-        isActive(match.status) ? "Active" : isCompleted(match.status) ? "Completed" : "Unconfirmed",
+        isActive(match.status) ? "Active" : isCompleted(match.status) ? "Completed" : "Assigned",
       );
     }
     setPendingUrlSearch(null);
@@ -449,7 +451,7 @@ export default function CrewDashboardPage({
   const filteredDeliveries = deliveryList
     .filter((delivery) => {
       if (selectedFilter === "Active" && !isActive(delivery.status)) return false;
-      if (selectedFilter === "Unconfirmed" && !isUnconfirmed(delivery.status)) return false;
+      if (selectedFilter === "Assigned" && !isUnconfirmed(delivery.status)) return false;
       if (selectedFilter === "Completed" && !isCompleted(delivery.status)) return false;
 
       const searchLower = searchTerm.toLowerCase();
@@ -546,6 +548,26 @@ export default function CrewDashboardPage({
     }
   };
 
+  // The road covered so far, drawn behind the pins the way the client's
+  // tracking page draws it. Refreshed while a delivery is open.
+  const [crewTrail, setCrewTrail] = useState<{ latitude: number; longitude: number }[]>([]);
+  const openDeliveryID = viewMode === "update-status" ? selectedDelivery?.id : undefined;
+
+  const loadTrail = useCallback(async () => {
+    if (!openDeliveryID) return;
+    try {
+      const res = await apiFetch<{ data: { latitude: number; longitude: number }[] }>(
+        `/api/crew/dispatches/location?dispatch_id=${openDeliveryID}`,
+        { cache: "no-store" },
+      );
+      setCrewTrail(res.data ?? []);
+    } catch (error) {
+      console.error("Could not load the route travelled:", error);
+    }
+  }, [openDeliveryID]);
+
+  usePolling(() => void loadTrail(), 30000, { enabled: Boolean(openDeliveryID) });
+
   // The driver plus any stop with real coordinates. Stops booked before
   // addresses were geocoded have none, and are simply not plotted.
   const crewMapPoints: MapPoint[] = [
@@ -568,7 +590,7 @@ export default function CrewDashboardPage({
       .map((pickup: any, index: number) => ({
         id: `pickup-${pickup.pickupID ?? index}`,
         label: pickup.warehouse || "Pickup point",
-        detail: pickup.pickupTime ? `Collect ${String(pickup.pickupTime).slice(0, 5)}` : undefined,
+        detail: pickup.pickupTime ? `Collect ${formatTime(String(pickup.pickupTime))}` : undefined,
         latitude: pickup.latitude as number,
         longitude: pickup.longitude as number,
         kind: "stop" as const,
@@ -579,7 +601,7 @@ export default function CrewDashboardPage({
       .map((stop: any, index: number) => ({
         id: `stop-${stop.branchID ?? index}`,
         label: stop.branch || "Delivery stop",
-        detail: stop.deliveryTime ? `Expected ${String(stop.deliveryTime).slice(0, 5)}` : undefined,
+        detail: stop.deliveryTime ? `Expected ${formatTime(String(stop.deliveryTime))}` : undefined,
         latitude: stop.latitude as number,
         longitude: stop.longitude as number,
         kind: "stop" as const,
@@ -1013,6 +1035,7 @@ export default function CrewDashboardPage({
               <div className="relative w-full h-80 sm:h-100 md:h-120">
                 <LiveRouteMap
                   points={crewMapPoints}
+                  trail={crewTrail}
                   heightClass="h-80 sm:h-100 md:h-120"
                   emptyMessage="Waiting for a GPS signal. Start the delivery to begin tracking."
                 />
@@ -1244,7 +1267,7 @@ export default function CrewDashboardPage({
             <div className="p-3 sm:p-4 px-4 sm:px-8 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2 w-full overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
                 <button onClick={() => setSelectedFilter("Active")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Truck className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Active ({activeCount})</span></button>
-                <button onClick={() => setSelectedFilter("Unconfirmed")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Unconfirmed" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}><Clock className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Unconfirmed ({unconfirmedCount})</span></button>
+                <button onClick={() => setSelectedFilter("Assigned")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}><Clock className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Assigned ({unconfirmedCount})</span></button>
                 <button onClick={() => setSelectedFilter("Completed")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Archive className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">History ({completedCount})</span></button>
               </div>
             </div>
@@ -1318,7 +1341,7 @@ export default function CrewDashboardPage({
                 {isAccepted(selectedDelivery.status) ? (
                   <span className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold shadow-sm whitespace-nowrap ${getStatusBadgeClass(selectedDelivery.status)}`}>{getDisplayStatus(selectedDelivery)}</span>
                 ) : (
-                  <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Awaiting Confirmation</span>
+                  <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Assigned - accept or decline</span>
                 )}
                 <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
               </div>

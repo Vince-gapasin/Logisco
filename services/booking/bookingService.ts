@@ -40,7 +40,8 @@ const BOOKING_COLUMNS = `
   clientID,
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
-  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID ),
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
   PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
   DispatchOrder (
     dispatchID,
@@ -123,13 +124,24 @@ async function withSignedProofs(orders: Order[]): Promise<Order[]> {
     const value = (order as any).DispatchOrder;
     return (Array.isArray(value) ? value : [value]).filter(Boolean);
   });
+  const stopProofs = orders.flatMap((order) =>
+    (((order as any).BranchStops as any[]) ?? []).flatMap((stop) =>
+      ((stop?.POD as any[]) ?? []).filter((pod) => pod?.proof),
+    ),
+  );
 
   const withProof = dispatches.filter((dispatch: any) => dispatch.pod_url);
-  if (withProof.length === 0) return orders;
+  if (withProof.length === 0 && stopProofs.length === 0) return orders;
 
-  const signed = await signPodUrls(withProof.map((dispatch: any) => dispatch.pod_url));
+  const signed = await signPodUrls([
+    ...withProof.map((dispatch: any) => dispatch.pod_url),
+    ...stopProofs.map((pod: any) => pod.proof),
+  ]);
   for (const dispatch of withProof) {
     dispatch.pod_url = signed.get(dispatch.pod_url) ?? null;
+  }
+  for (const pod of stopProofs) {
+    pod.proof = signed.get(pod.proof) ?? null;
   }
 
   return orders;
@@ -271,7 +283,8 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), BranchStops (*), PickupStops (*),
+        Client (*), OrderDetails (*), PickupStops (*),
+        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
           DispatchHelper ( helperID, status, Helper:Employee!helperID ( employeeName ) ) )`,

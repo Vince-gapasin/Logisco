@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { formatTime } from "@/app/lib/datetime";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -223,7 +224,7 @@ export default function CalendarPage() {
       }`}
     >
       <span className="block text-xs sm:text-[11px] font-semibold truncate">
-        {event.time} {event.clientName}
+        {formatTime(event.time)} {event.clientName}
       </span>
       {!compact && <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>}
     </button>

@@ -17,7 +17,8 @@ import {
   Search,
   FileText,
   ArrowLeft,
-  AlertTriangle,
+  AlertTriangle,
+
   CheckCircle2,
   Clock,
 } from "lucide-react";
@@ -84,7 +85,9 @@ export default function FoulTripFeedPage() {
         (orders ?? [])
           .map(mapOrderToBookingView)
           .map(toFeedBooking)
-          .map((booking) => attachIncident(booking, byOrder.get(booking.orderId))),
+          .map((booking) => attachIncident(booking, byOrder.get(booking.orderId)))
+          // Newest first: the one that just happened is the one being dealt with.
+          .sort((a, b) => String(b.incident?.reportedAt ?? "").localeCompare(String(a.incident?.reportedAt ?? ""))),
       );
       setSummary(foul.summary);
       setRecent(foul.recent);

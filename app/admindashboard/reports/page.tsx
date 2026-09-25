@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatDateTime, formatTime } from "@/app/lib/datetime";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -68,6 +69,21 @@ export interface ReportRecord {
 // VIEW BOOKING MODAL (READ-ONLY) - REUSED FROM DASHBOARD
 // ==========================================
 
+interface StopProofRow {
+  podID: string;
+  proof: string | null;
+  receiverName: string | null;
+  remarks: string | null;
+  deliveredAt: string | null;
+  source: string | null;
+  missingReason: string | null;
+  fileType: string | null;
+}
+interface StopWithProofs {
+  branchName?: string | null;
+  POD?: StopProofRow[];
+}
+
 function ViewOrderModal({
   isOpen,
   onClose,
@@ -127,7 +143,7 @@ function ViewOrderModal({
     pickupParts[0]?.trim() ||
     "N/A";
   const pickupTime = firstPickup?.expectedTime
-    ? String(firstPickup.expectedTime).slice(0, 5)
+    ? formatTime(String(firstPickup.expectedTime))
     : pickupParts[1]?.trim() || "N/A";
 
   const dispatchRecord = Array.isArray(raw.DispatchOrder)
@@ -432,6 +448,71 @@ function ViewOrderModal({
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Proofs of delivery: what the crew photographed at each stop,
+                or what a coordinator recorded from a partner. */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+                Proof of Delivery
+              </div>
+              {(() => {
+                const withProofs = (deliveries as StopWithProofs[]).filter((stop) => (stop.POD ?? []).length > 0);
+                const tripProof = dispatchRecord?.pod_url;
+
+                if (withProofs.length === 0 && !tripProof) {
+                  return <p className="text-xs text-slate-500">No proof of delivery has been recorded for this booking.</p>;
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {withProofs.map((stop) =>
+                      (stop.POD ?? []).map((pod) => (
+                        <div key={pod.podID} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-900">{stop.branchName || "Stop"}</p>
+                            <p className="text-xs text-slate-600">
+                              {pod.deliveredAt ? formatDateTime(pod.deliveredAt) : ""}
+                              {pod.receiverName && pod.receiverName !== "N/A" ? ` - received by ${pod.receiverName}` : ""}
+                              {pod.source === "coordinator" ? " (recorded by a coordinator)" : ""}
+                            </p>
+                            {pod.remarks && <p className="text-xs text-slate-500">{pod.remarks}</p>}
+                            {!pod.proof && pod.missingReason && (
+                              <p className="text-xs text-amber-800">No file: {pod.missingReason}</p>
+                            )}
+                          </div>
+                          {pod.proof &&
+                            (/\.pdf(\?|$)/i.test(pod.proof) ? (
+                              <a href={pod.proof} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">
+                                View PDF
+                              </a>
+                            ) : (
+                              <a href={pod.proof} target="_blank" rel="noreferrer" className="shrink-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={pod.proof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
+                              </a>
+                            ))}
+                        </div>
+                      )),
+                    )}
+
+                    {/* Older trips kept one proof against the trip rather than a stop. */}
+                    {tripProof && withProofs.length === 0 && (
+                      <a href={tripProof} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:underline">
+                        {/\.pdf(\?|$)/i.test(tripProof) ? (
+                          "View proof of delivery (PDF)"
+                        ) : (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={tripProof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
+                            View proof of delivery
+                          </>
+                        )}
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">

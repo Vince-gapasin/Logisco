@@ -4,6 +4,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle, Camera } from "lucide-react";
 
@@ -95,7 +96,7 @@ export default function DeliveryHistoryPage() {
             address: stop.address,
             contactPerson: stop.contactPerson,
             contactNumber: stop.contactNumber,
-            deliveryTime: stop.deliveryTime ? String(stop.deliveryTime).slice(0, 5) : "",
+            deliveryTime: formatTime(stop.deliveryTime),
             quantity: stop.quantity ?? "",
           })),
         })) as DeliveryHistoryRecord[];

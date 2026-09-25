@@ -1,3 +1,4 @@
+import { formatTime } from "@/app/lib/datetime";
 // Maps an Order row from /api/bookings into the shape the booking screens
 // render. Scheduling and priority are still stored inside Order.notes as
 // free text by the booking form, so they are parsed back out here in one
@@ -26,6 +27,18 @@ const ACCEPTED_ONWARDS: string[] = [
   DELIVERY_STATUS.returned,
 ];
 
+export interface StopProofView {
+  /** A signed link that expires, or null when the file could not be signed. */
+  url: string | null;
+  isPdf: boolean;
+  receiverName: string | null;
+  remarks: string | null;
+  deliveredAt: string | null;
+  /** Why there is none, when a partner never sent one. */
+  missingReason: string | null;
+  recordedBy: "crew" | "coordinator";
+}
+
 export interface BookingStopView {
   branchID: number | null;
   branchName: string;
@@ -41,6 +54,8 @@ export interface BookingStopView {
   completedAt: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** What was collected as proof at this stop, newest first. */
+  proofs: StopProofView[];
 }
 
 export interface BookingPickupView {
@@ -291,6 +306,17 @@ export function mapOrderToBookingView(order: any): BookingView {
         completedAt: stop.completedAt ?? null,
         latitude: Number(stop.deliveryLat) || null,
         longitude: Number(stop.deliverLong) || null,
+        proofs: ((stop.POD as any[]) ?? [])
+          .map((pod) => ({
+            url: (pod.proof as string | null) ?? null,
+            isPdf: pod.fileType === "application/pdf" || /\.pdf(\?|$)/i.test(String(pod.proof ?? "")),
+            receiverName: pod.receiverName && pod.receiverName !== "N/A" ? (pod.receiverName as string) : null,
+            remarks: (pod.remarks as string | null) ?? null,
+            deliveredAt: (pod.deliveredAt as string | null) ?? null,
+            missingReason: (pod.missingReason as string | null) ?? null,
+            recordedBy: pod.source === "coordinator" ? ("coordinator" as const) : ("crew" as const),
+          }))
+          .sort((a, b) => String(b.deliveredAt ?? "").localeCompare(String(a.deliveredAt ?? ""))),
       }))
       .sort((a, b) => a.sequence - b.sequence || (a.branchID ?? 0) - (b.branchID ?? 0)),
     pickups: pickupRows
@@ -569,5 +595,5 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
 }
 
 function formatStopTime(value: string | null): string {
-  return value ? value.slice(0, 5) : "";
+  return formatTime(value);
 }

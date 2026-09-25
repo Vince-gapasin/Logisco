@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
+import { getDispatchTrail } from "@/services/fleet/fleetTrackingService";
 
 // Location pings are only accepted while the trip is on the road; this also
 // stops a watcher that outlives its trip from recreating the map pin.
@@ -118,5 +119,33 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[Location API Error]:", error);
     return NextResponse.json({ message: "Failed to update location" }, { status: 500 });
+  }
+}
+
+/**
+ * The road this trip has covered, so the crew sees their own route drawn on
+ * the map the way the client's tracking page draws it. Only the crew on the
+ * trip may read it.
+ */
+export async function GET(request: Request) {
+  const { auth, response } = await authorize(request, CREW_ROLES);
+  if (response) return response;
+
+  const dispatchID = new URL(request.url).searchParams.get("dispatch_id");
+  if (!isUuid(dispatchID)) {
+    return NextResponse.json({ message: "Missing or invalid dispatch_id" }, { status: 400 });
+  }
+
+  const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
+  if (!assignment) {
+    return NextResponse.json({ message: "You are not assigned to this delivery." }, { status: 403 });
+  }
+
+  try {
+    return NextResponse.json({ data: await getDispatchTrail(dispatchID) });
+  } catch (error) {
+    console.error("[Location API] Trail unavailable:", error);
+    // A missing trail is not worth an error on the crew's screen.
+    return NextResponse.json({ data: [] });
   }
 }

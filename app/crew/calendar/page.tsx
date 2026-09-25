@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { formatTime } from "@/app/lib/datetime";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -231,7 +232,7 @@ export default function CrewCalendarPage() {
         }`}
       >
         <span className="block text-xs font-semibold truncate">
-          {delivery.startTime} {delivery.clientName}
+          {formatTime(delivery.startTime)} {delivery.clientName}
         </span>
       </button>
     );

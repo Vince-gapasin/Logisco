@@ -4,6 +4,7 @@
 // ==========================================
 "use client";
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
 import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, HELPER_STATUS } from "@/app/lib/enums";
 
@@ -254,7 +255,7 @@ function ViewOrderModal({
             address: p.pickupAddress || p.warehouseName || "N/A",
             contactPerson: p.contactPerson || cPerson,
             contactNum: p.contactNum || cNum,
-            expectedTime: p.expectedTime ? String(p.expectedTime).slice(0, 5) : "N/A",
+            expectedTime: p.expectedTime ? formatTime(String(p.expectedTime)) : "N/A",
             collected: /deliver|complete/i.test(p.stopStatus ?? ""),
           }))
       : [
