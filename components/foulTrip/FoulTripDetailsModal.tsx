@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import BookingHistory from "@/components/booking/BookingHistory";
 import { AlertTriangle, CheckCircle2, Clock, FileText, X } from "lucide-react";
 import RecoveryPanel from "@/components/foulTrip/RecoveryPanel";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
@@ -732,72 +733,8 @@ export default function FoulTripDetailsModal({
             />
           </div>
 
-          {/* 7. Remarks History */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              7. Remarks History
-            </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                    <th className="p-2.5 w-10 border-r border-slate-200 text-center">
-                      #
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[18%]">
-                      Date & Time
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[35%]">
-                      Details
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[17%]">
-                      Attachments
-                    </th>
-                    <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                      Staff
-                    </th>
-                    <th className="p-2.5 w-[15%]">Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {booking.remarks && booking.remarks.length > 0 ? (
-                    booking.remarks.map((r: any, idx: number) => (
-                      <tr
-                        key={idx}
-                        className="border-b border-slate-200 font-medium text-slate-700"
-                      >
-                        <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
-                          {idx + 1}
-                        </td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">
-                          {r.dateTime}
-                        </td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">
-                          {r.details}
-                        </td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">
-                          {r.attachments || "N/A"}
-                        </td>
-                        <td className="p-2 border-r border-slate-200 bg-slate-50">
-                          {r.staff}
-                        </td>
-                        <td className="p-2 bg-slate-50">{r.role}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="p-4 text-center text-slate-500 italic bg-slate-50"
-                      >
-                        No remarks found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* 7. What happened to this booking, newest first. */}
+          <BookingHistory orderID={booking.id} />
         </div>
 
         {/* FIXED FOOTER */}
