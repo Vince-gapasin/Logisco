@@ -21,7 +21,23 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 import { compressImage } from "@/app/lib/imageCompression";
 
 // Background Geolocation Setup
-const BackgroundGeolocation = registerPlugin<any>('BackgroundGeolocation');
+// The Capacitor community plugin, as much of it as this screen uses.
+interface BackgroundLocation {
+  latitude: number;
+  longitude: number;
+  speed?: number | null;
+  bearing?: number | null;
+}
+
+interface BackgroundGeolocationPlugin {
+  addWatcher(
+    options: Record<string, unknown>,
+    callback: (location: BackgroundLocation | null, error: unknown) => void,
+  ): Promise<string>;
+  removeWatcher(options: { id: string }): Promise<void>;
+}
+
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
 let activeTrackingId: string | null = null;
 
 // The tracking watchers live outside React; this lets the open screen show the
@@ -116,7 +132,7 @@ const startLiveTracking = async (dispatchId: string | number) => {
         stale: false,
         distanceFilter: 15, // Pings every 15 meters of movement
       },
-      async (location: any, error: any) => {
+      async (location: BackgroundLocation | null, error: unknown) => {
         if (error || !location) return;
 
         onPositionUpdate?.({
@@ -228,8 +244,22 @@ interface CrewDashboardProps {
 type ViewMode = "list" | "update-status";
 type TabFilter = "Active" | "Assigned" | "Completed";
 
-const generateDynamicStops = (delivery: DeliveryRecord) => {
-  const stops = [];
+export interface RouteStop {
+  title: string;
+  type: "base" | "pickup" | "delivery";
+  reqPod: boolean;
+  /** The pickup or delivery row behind it, when this step has one. */
+  data?: PickupRecord | DeliveryDestinationRecord;
+}
+
+// A step's own name, whichever kind of stop it is.
+function stopName(stop?: PickupRecord | DeliveryDestinationRecord): string {
+  if (!stop) return "";
+  return "warehouse" in stop ? stop.warehouse : stop.branch;
+}
+
+const generateDynamicStops = (delivery: DeliveryRecord): RouteStop[] => {
+  const stops: RouteStop[] = [];
   stops.push({ title: "Start Delivery", type: "base", reqPod: false });
 
   if (delivery.multiplePickups && delivery.multiplePickups.length > 0) {
@@ -353,7 +383,7 @@ export default function CrewDashboardPage({
   const [showRemarksSuccess, setShowRemarksSuccess] = useState<boolean>(false);
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
-  const [dynamicStops, setDynamicStops] = useState<any[]>([]);
+  const [dynamicStops, setDynamicStops] = useState<RouteStop[]>([]);
   const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -415,6 +445,8 @@ export default function CrewDashboardPage({
   usePolling(() => void fetchMyDispatches(), 30000);
 
   useEffect(() => {
+    // Back to page one whenever the list is filtered differently.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [selectedFilter, searchTerm]);
 
@@ -609,8 +641,8 @@ export default function CrewDashboardPage({
         ]
       : []),
     ...(selectedDelivery?.multiplePickups ?? [])
-      .filter((pickup: any) => pickup.latitude != null && pickup.longitude != null)
-      .map((pickup: any, index: number) => ({
+      .filter((pickup) => pickup.latitude != null && pickup.longitude != null)
+      .map((pickup, index) => ({
         id: `pickup-${pickup.pickupID ?? index}`,
         label: pickup.warehouse || "Pickup point",
         detail: pickup.pickupTime ? `Collect ${formatTime(String(pickup.pickupTime))}` : undefined,
@@ -620,8 +652,8 @@ export default function CrewDashboardPage({
         done: /deliver|complete/i.test(pickup.status ?? ""),
       })),
     ...(selectedDelivery?.multipleDeliveries ?? [])
-      .filter((stop: any) => stop.latitude != null && stop.longitude != null)
-      .map((stop: any, index: number) => ({
+      .filter((stop) => stop.latitude != null && stop.longitude != null)
+      .map((stop, index) => ({
         id: `stop-${stop.branchID ?? index}`,
         label: stop.branch || "Delivery stop",
         detail: stop.deliveryTime ? `Expected ${formatTime(String(stop.deliveryTime))}` : undefined,
@@ -677,8 +709,9 @@ export default function CrewDashboardPage({
       // Identifies the stop row being completed, so the server records the
       // progress against the itinerary instead of trusting this index.
       const currentStop = dynamicStops[currentStepIndex];
-      const currentStopBranchID = (currentStop?.data as any)?.branchID;
-      const currentStopPickupID = (currentStop?.data as any)?.pickupID;
+      const stopData = currentStop?.data;
+      const currentStopBranchID = stopData && "branchID" in stopData ? stopData.branchID : undefined;
+      const currentStopPickupID = stopData && "pickupID" in stopData ? stopData.pickupID : undefined;
       if (currentStop?.type === "pickup") {
         if (currentStopPickupID) formData.append("pickupID", String(currentStopPickupID));
       } else if (currentStopBranchID) {
@@ -716,8 +749,8 @@ export default function CrewDashboardPage({
         setRemarks("");
         setReceiverName(""); 
       }
-    } catch (error: any) {
-      alert(`Status update failed: ${error.message}`);
+    } catch (error) {
+      alert(`Status update failed: ${error instanceof Error ? error.message : error}`);
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -764,8 +797,8 @@ export default function CrewDashboardPage({
       setCurrentStepIndex(1); // Set directly to 1 (Heading to Pickup)
       setViewMode("update-status");
 
-    } catch (error: any) {
-      alert(`Failed to start route: ${error.message}`);
+    } catch (error) {
+      alert(`Failed to start route: ${error instanceof Error ? error.message : error}`);
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -862,8 +895,8 @@ export default function CrewDashboardPage({
         }
       }, 2000);
 
-    } catch (error: any) {
-      alert(`Error sending alert: ${error.message}`);
+    } catch (error) {
+      alert(`Error sending alert: ${error instanceof Error ? error.message : error}`);
     } finally {
       setIsSendingEmergency(false);
     }
@@ -905,8 +938,8 @@ export default function CrewDashboardPage({
         completeTripWorkflow();
       }, 2000);
       
-    } catch (error: any) {
-      alert(`Error saving report: ${error.message}`);
+    } catch (error) {
+      alert(`Error saving report: ${error instanceof Error ? error.message : error}`);
     }
   };
 
@@ -946,8 +979,8 @@ export default function CrewDashboardPage({
       setShowDetailsModal(false);
       setDeclineReason("");
       alert(`Assignment ${action}ed successfully.`);
-    } catch (error: any) {
-      alert(error.message);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : error);
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -1087,7 +1120,7 @@ export default function CrewDashboardPage({
                 
                 {dynamicStops[currentStepIndex]?.data ? (
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <div><p className="text-xs text-slate-500 font-medium">Location Name</p><p className="font-bold text-slate-900">{dynamicStops[currentStepIndex].data.warehouse || dynamicStops[currentStepIndex].data.branch}</p></div>
+                     <div><p className="text-xs text-slate-500 font-medium">Location Name</p><p className="font-bold text-slate-900">{stopName(dynamicStops[currentStepIndex].data)}</p></div>
                      <div><p className="text-xs text-slate-500 font-medium">Address</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.address}</p></div>
                      <div><p className="text-xs text-slate-500 font-medium">Contact Person</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.contactPerson} | {dynamicStops[currentStepIndex].data.contactNumber}</p></div>
                      <div><p className="text-xs text-slate-500 font-medium">Quantity/Load</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.quantity || selectedDelivery.quantity || 'N/A'}</p></div>

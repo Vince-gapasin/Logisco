@@ -3,6 +3,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Plus, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import type {
+  BranchRow,
+  ClientRow,
+  EmployeeRow,
+  SubContractorRow,
+  TruckRow,
+  WarehouseRow,
+} from "@/types/database";
 import {
   addressKey,
   findAddressClashes,
@@ -72,11 +80,11 @@ interface BookingFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   variant: BookingFormVariant;
-  clients?: any[];
-  trucks: any[];
-  drivers: any[];
-  helpers: any[];
-  subcontractors: any[];
+  clients?: ClientWithAddresses[];
+  trucks: Partial<TruckRow>[];
+  drivers: Partial<EmployeeRow>[];
+  helpers: Partial<EmployeeRow>[];
+  subcontractors: Partial<SubContractorRow>[];
   preSelectedClientID?: string;
   onSubmitSuccess: (data: BookingFormResult) => void;
 }
@@ -133,15 +141,22 @@ function initialForm() {
   };
 }
 
-const toTruck = (t: any): CrewTruck => ({
-  ...t,
-  truckID: t.truckID || t.id,
-  plateNumber: t.plateNumber || t.plate_number || "Unknown",
+// Straight across: the columns are called what they are called.
+// A client as the booking form needs it: the record plus the addresses it can
+// be collected from and delivered to.
+export interface ClientWithAddresses extends Partial<ClientRow> {
+  Warehouse?: Partial<WarehouseRow>[];
+  Branch?: Partial<BranchRow>[];
+}
+
+const toTruck = (t: Partial<TruckRow>): CrewTruck => ({
+  truckID: t.truckID ?? "",
+  plateNumber: t.plateNumber ?? "Unknown",
+  model: t.model ?? null,
 });
-const toPerson = (p: any): CrewPerson => ({
-  ...p,
-  employeeID: p.employeeID || p.id,
-  employeeName: p.employeeName || `${p.firstName || ""} ${p.lastName || ""}`.trim() || "Unknown",
+const toPerson = (p: Partial<EmployeeRow>): CrewPerson => ({
+  employeeID: p.employeeID ?? "",
+  employeeName: p.employeeName ?? "Unknown",
 });
 
 // Red border for a field with an error; the message is shown under it
@@ -184,8 +199,8 @@ function BookingForm({
           clientName: clientRecord.company ?? "",
           contactPerson: clientRecord.contactName ?? "",
           contactNumber: clientRecord.contact ?? "",
-          emailAddress: clientRecord.emailAdd || clientRecord.emailAddress || "",
-          businessAddress: clientRecord.businessAdd || clientRecord.businessAddress || "",
+          emailAddress: clientRecord.emailAdd ?? "",
+          businessAddress: clientRecord.businessAdd ?? "",
         }
       : {}),
   }));
@@ -232,7 +247,10 @@ function BookingForm({
     const date = formData.deliverySchedule;
     if (!date) return;
     let live = true;
-    apiFetch<any>(`/api/dispatch/available-resources?date=${date}`, { cache: "no-store" })
+    apiFetch<{ data?: { trucks?: Partial<TruckRow>[]; drivers?: Partial<EmployeeRow>[]; helpers?: Partial<EmployeeRow>[] } }>(
+      `/api/dispatch/available-resources?date=${date}`,
+      { cache: "no-store" },
+    )
       .then((res) => {
         if (!live) return;
         const next = {
@@ -269,8 +287,8 @@ function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.deliverySchedule]);
 
-  const registeredWarehouses: any[] = clientRecord?.Warehouse || clientRecord?.warehouses || [];
-  const registeredBranches: any[] = clientRecord?.Branch || clientRecord?.branches || [];
+  const registeredWarehouses: Partial<WarehouseRow>[] = clientRecord?.Warehouse ?? [];
+  const registeredBranches: Partial<BranchRow>[] = clientRecord?.Branch ?? [];
 
   // Addresses already in use, so a dropdown can grey them out: a warehouse
   // picked on another pickup row, or one whose address is a delivery's.
@@ -329,7 +347,7 @@ function BookingForm({
   };
 
   const handleWarehouseSelect = (index: number, selectedName: string) => {
-    const match = registeredWarehouses.find((w: any) => (w.whName || w.warehouseName) === selectedName);
+    const match = registeredWarehouses.find((w) => w.whName === selectedName);
     setPickupList((rows) =>
       rows.map((row, i) =>
         i === index
@@ -337,9 +355,9 @@ function BookingForm({
               ...row,
               warehouseID: match?.warehouseID ?? null,
               warehouseName: selectedName,
-              warehouseAddress: match ? match.warehouseLoc || match.warehouseAddress || "" : "",
-              contactPerson: match ? match.contactPerson || "" : "",
-              contactNumber: match ? match.contactNum || match.contactNumber || "" : "",
+              warehouseAddress: match?.warehouseLoc ?? "",
+              contactPerson: match?.contactPerson ?? "",
+              contactNumber: match?.contactNum ?? "",
             }
           : row,
       ),
@@ -348,16 +366,16 @@ function BookingForm({
   };
 
   const handleBranchSelect = (index: number, selectedName: string) => {
-    const match = registeredBranches.find((b: any) => b.branchName === selectedName);
+    const match = registeredBranches.find((b) => b.branchName === selectedName);
     setDeliveryList((rows) =>
       rows.map((row, i) =>
         i === index
           ? {
               ...row,
               branchName: selectedName,
-              deliveryAddress: match ? match.deliveryAddress || match.branchAddress || "" : "",
-              contactPerson: match ? match.contactPerson || "" : "",
-              contactNumber: match ? match.contactNumber || match.contactNum || "" : "",
+              deliveryAddress: match?.deliveryAddress ?? "",
+              contactPerson: match?.contactPerson ?? "",
+              contactNumber: match?.contactNumber ?? "",
             }
           : row,
       ),
@@ -427,7 +445,7 @@ function BookingForm({
       ...formData,
       subconPartner: isSubconMode ? formData.subconPartner : "",
       subconPartnerName: isSubconMode
-        ? (subcontractors.find((p) => (p.subConID || p.id) === formData.subconPartner)?.companyName ?? "")
+        ? (subcontractors.find((p) => p.subConID === formData.subconPartner)?.companyName ?? "")
         : "",
       partnerContact: isSubconMode ? (normalizePhone(formData.partnerContact) ?? "") : "",
       contactNumber: normalizePhone(formData.contactNumber) ?? formData.contactNumber,
@@ -457,8 +475,12 @@ function BookingForm({
   // By id: the trip is linked to the partner. A new partner is added under
   // Clients & Partners first.
   const partnerOptions = subcontractors
-    .filter((p) => p.isActive !== false && (p.subConID || p.id))
-    .map((p) => ({ value: String(p.subConID || p.id), label: p.companyName, detail: p.contactNumber || null }));
+    .filter((p) => p.isActive !== false && p.subConID)
+    .map((p) => ({
+      value: String(p.subConID),
+      label: p.companyName ?? "Partner",
+      detail: p.contactNumber || null,
+    }));
 
   // The partner's driver and plate are typed, the crew picker's are ids;
   // switching clears one for the other.
@@ -618,9 +640,9 @@ function BookingForm({
                               className={cellClass(Boolean(errors[`pickup_${idx}_warehouseName`]))}
                             >
                               <option value="">Select Warehouse</option>
-                              {registeredWarehouses.map((w: any, i: number) => {
-                                const name = w.whName || w.warehouseName;
-                                const key = usedAddresses.key(w.warehouseLoc || w.warehouseAddress || "");
+                              {registeredWarehouses.map((w, i) => {
+                                const name = w.whName;
+                                const key = usedAddresses.key(w.warehouseLoc ?? "");
                                 const inUse =
                                   name !== row.warehouseName &&
                                   (pickupList.some((p, j) => j !== idx && p.warehouseName === name) ||
@@ -737,8 +759,8 @@ function BookingForm({
                               className={cellClass(Boolean(errors[`delivery_${idx}_branchName`]))}
                             >
                               <option value="">Select Branch</option>
-                              {registeredBranches.map((b: any, i: number) => {
-                                const key = usedAddresses.key(b.deliveryAddress || b.branchAddress || "");
+                              {registeredBranches.map((b, i) => {
+                                const key = usedAddresses.key(b.deliveryAddress ?? "");
                                 const inUse =
                                   b.branchName !== row.branchName &&
                                   (deliveryList.some((d, j) => j !== idx && d.branchName === b.branchName) ||

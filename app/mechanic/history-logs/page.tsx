@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import type { TruckRow } from "@/types/database";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
@@ -79,7 +80,7 @@ const getStatusStyles = (status: string) => {
 interface LogMaintenanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (formData: any) => void;
+  onSubmitSuccess: (formData: Record<string, string>) => void;
   editData?: HistoryLogRecord | null;
   trucksOptions: TruckOption[];
   mechanicsOptions: EmployeeOption[];
@@ -112,6 +113,8 @@ function LogMaintenanceModal({
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Seeded from the log this was opened to edit.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -133,6 +136,7 @@ function LogMaintenanceModal({
       setFormData(initialFormState);
     }
   }, [editData, isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
@@ -209,7 +213,7 @@ function LogMaintenanceModal({
                   name="date"
                   max={today}
                   value={formData.date}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.date ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.date && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.date}</p>}
@@ -355,7 +359,7 @@ function LogMaintenanceModal({
                   rows={3}
                   placeholder="Describe the completed maintenance work and truck condition..."
                   value={formData.issue}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.issue && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.issue}</p>}
@@ -367,7 +371,7 @@ function LogMaintenanceModal({
                   rows={5}
                   placeholder="Any additional notes, future recommendations, or observations..."
                   value={formData.remarks}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
@@ -409,12 +413,12 @@ function LogMaintenanceModal({
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">Preliminary Notes (Before Maintenance)</div>
             <div className="grid grid-cols-1 gap-4">
               <div>
-                <label className="block text-xs font-medium text-black mb-1">Driver's Report / Observed Vehicle Issues</label>
-                <textarea name="driversReport" rows={2} value={formData.driversReport} onChange={handleInputChange as any} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
+                <label className="block text-xs font-medium text-black mb-1">Driver&apos;s Report / Observed Vehicle Issues</label>
+                <textarea name="driversReport" rows={2} value={formData.driversReport} onChange={handleInputChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">Remarks</label>
-                <textarea name="preliminaryRemarks" rows={2} value={formData.preliminaryRemarks} onChange={handleInputChange as any} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
+                <textarea name="preliminaryRemarks" rows={2} value={formData.preliminaryRemarks} onChange={handleInputChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken Before Maintenance</label>
@@ -434,11 +438,11 @@ function LogMaintenanceModal({
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-medium text-black mb-1">Additional Issue</label>
-                <textarea name="additionalIssue" rows={2} value={formData.additionalIssue} onChange={handleInputChange as any} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
+                <textarea name="additionalIssue" rows={2} value={formData.additionalIssue} onChange={handleInputChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">Additional Remarks</label>
-                <textarea name="progressRemarks" rows={2} value={formData.progressRemarks} onChange={handleInputChange as any} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
+                <textarea name="progressRemarks" rows={2} value={formData.progressRemarks} onChange={handleInputChange} className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken During Maintenance</label>
@@ -553,7 +557,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDeta
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">Preliminary Notes (Before Maintenance)</div>
             <div className="grid grid-cols-1 gap-4">
-              <div><label className="block text-xs font-medium text-black mb-1">Driver's Report / Observed Vehicle Issues</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">{log.driversReport || "No preliminary symptoms reported."}</div></div>
+              <div><label className="block text-xs font-medium text-black mb-1">Driver&apos;s Report / Observed Vehicle Issues</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">{log.driversReport || "No preliminary symptoms reported."}</div></div>
               <div><label className="block text-xs font-medium text-black mb-1">Remarks</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-16 whitespace-pre-wrap">{log.preliminaryRemarks || "No preliminary remarks."}</div></div>
               <div><label className="block text-xs font-medium text-black mb-2">Picture Taken Before Maintenance</label>
                 {log.preliminaryPhotoUrl ? (
@@ -611,6 +615,7 @@ export default function MechanicHistoryLogsPage() {
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCurrentUserId(String(parsedUser.id || parsedUser.employeeID));
       } catch (error) {
         console.error("Failed to parse user session");
@@ -628,7 +633,10 @@ export default function MechanicHistoryLogsPage() {
     fetchLogPhotos([logID])
       .then((photos) => {
         if (!active || Object.keys(photos).length === 0) return;
+        // Set from the response, not from the effect body.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLogsList((prev) => mergeLogPhotos(prev, photos));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedLog((prev) =>
           prev && prev.id === logID ? mergeLogPhotos([prev], photos)[0] : prev,
         );
@@ -657,11 +665,6 @@ export default function MechanicHistoryLogsPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  useEffect(() => {
-    fetchLogs();
-    fetchDropdownOptions();
-  }, []);
 
   const fetchLogs = async () => {
     setIsLoading(true);
@@ -693,11 +696,11 @@ export default function MechanicHistoryLogsPage() {
         const truckData = await truckRes.json();
         const trucks = Array.isArray(truckData) ? truckData : Array.isArray(truckData?.data) ? truckData.data : [];
         
-        const mappedTrucks = trucks.map((t: any) => ({
-          truckID: t.truckID || t.id,
-          plateNumber: t.plateNumber,
-          truckType: t.truckType,
-          status: t.truckStatus || t.status || "Available"
+        const mappedTrucks = (trucks as Partial<TruckRow>[]).map((t) => ({
+          truckID: t.truckID ?? "",
+          plateNumber: t.plateNumber ?? "",
+          truckType: t.truckType ?? "",
+          status: t.truckStatus || "Available"
         }));
         setTrucksOptions(mappedTrucks);
       } else {
@@ -722,10 +725,22 @@ export default function MechanicHistoryLogsPage() {
   };
 
   useEffect(() => {
+    // Back to page one whenever the search changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm]);
 
-  const handleModalSubmit = async (formData: any) => {
+  // The first load, from below the two functions it calls.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    void fetchLogs();
+    void fetchDropdownOptions();
+    // Once, when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleModalSubmit = async (formData: Record<string, string>) => {
     try {
       const selectedTruckObj = trucksOptions.find(t => String(t.truckID) === String(formData.truckID));
       const currentStatus = selectedTruckObj?.status || "Available";
