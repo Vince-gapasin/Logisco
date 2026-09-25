@@ -6,6 +6,13 @@
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})/;
 
+// Every time this system shows is a time in the Philippines, and half of them
+// are rendered by a server in UTC - the tracking email, the client's tracking
+// page, a booking's history. Left to the machine's own zone, a delivery made
+// at 1:05 PM reached the client's inbox as 5:05 AM. The zone is stated, so it
+// reads the same wherever it was rendered.
+const ZONE = "Asia/Manila";
+
 /**
  * "08:00", "08:00:00" or a full timestamp as "8:00 AM". Anything it cannot
  * read is handed back untouched, so a stray value never becomes "Invalid
@@ -26,7 +33,7 @@ export function formatTime(value: string | null | undefined): string {
 
   const stamp = new Date(value);
   if (Number.isNaN(stamp.getTime())) return value;
-  return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true });
+  return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: ZONE });
 }
 
 /** A date and time together: "22 Sep 2026, 8:00 AM". */
@@ -34,5 +41,5 @@ export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "";
   const stamp = new Date(value);
   if (Number.isNaN(stamp.getTime())) return value;
-  return stamp.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+  return stamp.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: ZONE });
 }

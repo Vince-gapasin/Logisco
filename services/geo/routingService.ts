@@ -3,6 +3,7 @@
 // for the tracking page to fail.
 
 import type { Coordinates } from "@/services/geo/geocodingService";
+import { formatTime } from "@/app/lib/datetime";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN;
 const DIRECTIONS_URL = "https://api.mapbox.com/directions/v5/mapbox/driving";
@@ -43,5 +44,7 @@ export async function getTravelEstimate(
 // "in 25 min" -> a wall-clock arrival label such as "3:45 PM".
 export function toArrivalLabel(minutes: number, now = new Date()): string {
   const arrival = new Date(now.getTime() + minutes * 60_000);
-  return arrival.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true });
+  // Through the shared formatter: this is worked out on a server in UTC and
+  // read by a crew member and a client, both of them in Manila.
+  return formatTime(arrival.toISOString());
 }

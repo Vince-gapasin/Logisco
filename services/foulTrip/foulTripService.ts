@@ -29,6 +29,7 @@ import {
 import { cancelBooking } from "@/services/booking/bookingService";
 import { signPodUrls } from "@/services/storage/podService";
 import { partnerColumns, partnerNote } from "@/services/subcon/partner";
+import { formatDateTime } from "@/app/lib/datetime";
 
 export const INCIDENT_STATUS = {
   open: "open",
@@ -511,7 +512,7 @@ export async function subcontract(incidentID: string, choice: SubcontractChoice,
   const note = partnerNote(
     partner.companyName,
     choice,
-    `Recovery for foul trip reported ${new Date(incident.reportedAt).toLocaleString("en-PH")}.`,
+    `Recovery for foul trip reported ${formatDateTime(incident.reportedAt)}.`,
   );
 
   const { data: dispatch, error: insertError } = await supabase

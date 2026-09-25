@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTime } from "@/app/lib/datetime";
+import { formatDateTime, formatTime } from "@/app/lib/datetime";
 
 describe("times as people read them", () => {
   it("turns a stored 24-hour time into a 12-hour one", () => {
@@ -16,8 +16,14 @@ describe("times as people read them", () => {
   });
 
   it("reads a full timestamp too", () => {
-    // Written with an offset so the result does not depend on the machine.
     expect(formatTime("2026-09-22T13:05:00+08:00")).toMatch(/1:05\s?PM/i);
+  });
+
+  it("shows Philippine time wherever it runs", () => {
+    // The same instant, written in UTC. A server rendering an email or the
+    // client's tracking page runs in UTC and must still say 1:05 PM.
+    expect(formatTime("2026-09-22T05:05:00Z")).toMatch(/1:05\s?PM/i);
+    expect(formatDateTime("2026-09-22T05:05:00Z")).toMatch(/1:05\s?PM/i);
   });
 
   it("hands back anything it cannot read, rather than showing Invalid Date", () => {
