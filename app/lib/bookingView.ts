@@ -167,11 +167,15 @@ export function toProgressStage(dispatchStatus: string | null): string {
     case "Completed":
     case "Delivered":
       return "Complete";
+    // A crew declined before the trip began: nothing went out and nothing
+    // came back, so the booking is waiting for a crew again.
+    case "Rejected":
+      return "Created";
+
     // The truck is back at base: the last stage of the tracker.
     case "Returned":
     case "Cancelled":
     case "Foul Trip":
-    case "Rejected":
       return "Returned";
     default:
       return "Created";

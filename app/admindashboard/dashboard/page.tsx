@@ -16,6 +16,7 @@ const ON_THE_ROAD_STATUSES: string[] = [
   DELIVERY_STATUS.arrived,
 ];
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BookingFormModal, { type BookingFormResult } from "@/components/booking/BookingFormModal";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
@@ -997,8 +998,10 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
                 const ds = b.dispatchStatus;
                 const drv = b.driver;
                 const hasDriver = drv && drv !== "Unassigned" && drv !== "N/A";
-                
-                if (!hasDriver) {
+
+                if (ds === "Rejected") {
+                  displayStatus = "Assign Now";
+                } else if (!hasDriver) {
                   displayStatus = "Assign Crew";
                 } else if (ds === "Accepted") {
                   displayStatus = "Waiting Crew Dispatch";
@@ -1083,6 +1086,7 @@ function FeedTable({ tabConfig, bookings, onViewOrder, isLoading }: any) {
 // ==========================================
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const [isLoading, setIsLoading] = useState(true);
@@ -1218,6 +1222,13 @@ export default function AdminDashboardPage() {
             dispatchRecord?.Driver?.employeeName ||
             (driverMatch ? driverMatch[1].trim() : "Unassigned");
 
+          // Naming the crew who declined as "the driver" reads as though they
+          // are still on it.
+          const driverLabel =
+            dispatchStatus === DELIVERY_STATUS.rejected
+              ? `Declined by ${driver}`
+              : driver;
+
           const helperMatch = o.notes?.match(/Helper 1:\s*(.*)/);
           const helper = isSubcon
             ? `Sub-con: ${partnerName}`
@@ -1260,8 +1271,12 @@ export default function AdminDashboardPage() {
           ).toLowerCase();
 
           if (dispatchRecord?.status) {
-            if (
-              dispatchStatus === DELIVERY_STATUS.rejected ||
+            if (dispatchStatus === DELIVERY_STATUS.rejected) {
+              // A crew declined. Nothing went wrong with the delivery - it
+              // simply needs assigning again, so it belongs with the bookings
+              // waiting for a crew rather than among the foul trips.
+              category = "Pending Bookings";
+            } else if (
               dispatchStatus === DELIVERY_STATUS.foulTrip ||
               dispatchStatus === DELIVERY_STATUS.cancelled
             ) {
@@ -1293,7 +1308,7 @@ export default function AdminDashboardPage() {
             orderId: o.orderCode || o.orderID,
             client: displayClient,
             product,
-            driver,
+            driver: driverLabel,
             helper,
             dateTime,
             driverConfirmed,
@@ -1312,6 +1327,10 @@ export default function AdminDashboardPage() {
       // Sort each category by highest update/creation date
       Object.keys(categorized).forEach((cat) => {
         categorized[cat].sort((a, b) => {
+          // A booking a crew has just declined needs a coordinator now, and
+          // the order row's own date does not move when that happens.
+          const declined = Number(b.dispatchStatus === "Rejected") - Number(a.dispatchStatus === "Rejected");
+          if (declined !== 0) return declined;
           return new Date(b.rawOrder.updatedAt || b.rawOrder.createdAt).getTime() - new Date(a.rawOrder.updatedAt || a.rawOrder.createdAt).getTime();
         });
       });
@@ -1403,6 +1422,12 @@ export default function AdminDashboardPage() {
   const [subconTripID, setSubconTripID] = useState<string | null>(null);
 
   const handleViewOrder = async (order: any) => {
+    // Declined: the coordinator needs the screen that can assign it, not a
+    // read-only view of what went wrong.
+    if (order.dispatchStatus === DELIVERY_STATUS.rejected) {
+      router.push("/admindashboard/calendar/unassigned-bookings");
+      return;
+    }
     if (order.isSubcon && order.dispatchID && order.statusCategory !== "Foul Trip") {
       setSubconTripID(order.dispatchID);
       return;
