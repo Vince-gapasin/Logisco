@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import type { EmployeeRow, TruckRow } from "@/types/database";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
@@ -39,6 +40,34 @@ export interface TruckRecord {
   status: string;
 }
 
+// What the maintenance endpoints hand back, before this screen flattens a log
+// and its three phases into one record.
+interface RawPhaseRow {
+  phase?: string | null;
+  issue?: string | null;
+  remarks?: string | null;
+  photoUrl?: string | null;
+}
+interface RawMechanicRow {
+  role?: string | null;
+  employeeID?: string | null;
+  Employee?: { employeeName?: string | null } | null;
+}
+interface RawMaintenanceLog {
+  id: string | number;
+  truckID?: string | number;
+  date?: string;
+  created_at?: string;
+  photoUrl?: string;
+  photo_url?: string;
+  statusBefore?: string;
+  statusAfter?: string;
+  Truck?: { plateNumber?: string; truckType?: string } | null;
+  LogMechanics?: RawMechanicRow[] | null;
+  LogNotes?: RawPhaseRow[] | null;
+  LogPhotos?: RawPhaseRow[] | null;
+}
+
 export interface HistoryLogRecord {
   id: string | number;
   truckID?: string | number;
@@ -61,6 +90,10 @@ export interface HistoryLogRecord {
   progressPhotoUrl?: string;
   statusBefore?: string;
   statusAfter?: string;
+  /** Whether a photo was recorded for that phase, even when its file is not loaded yet. */
+  hasPreliminaryPhoto?: boolean;
+  hasProgressPhoto?: boolean;
+  hasFinalPhoto?: boolean;
 }
 
 export interface TruckOption {
@@ -247,10 +280,16 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
 
   // 2. Calculate the local date only on the client
   useEffect(() => {
+    // Read on the client only: the server's today and the browser's can differ
+    // by a day, and a date input compared against the wrong one rejects a
+    // perfectly good date.
     const offset = new Date().getTimezoneOffset() * 60000;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToday(new Date(Date.now() - offset).toISOString().split("T")[0]);
   }, []);
 
+  // Seeded from the record this was opened with.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -267,6 +306,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
       setFormData(initialTruckState);
     }
   }, [editData, isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
@@ -398,7 +438,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   name="plateNumber"
                   placeholder="e.g., ABC-1234"
                   value={formData.plateNumber}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.plateNumber && (
@@ -474,7 +514,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   name="truckModel"
                   placeholder="e.g., Isuzu NPR / Fuso Canter"
                   value={formData.truckModel}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.truckModel && (
@@ -493,7 +533,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   name="capacity"
                   placeholder="e.g., 5 Tons or 5000 kg"
                   value={formData.capacity}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.capacity && (
@@ -512,7 +552,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   name="lastChecked"
                   max={today}
                   value={formData.lastChecked}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastChecked ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.lastChecked && (
@@ -542,7 +582,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
 interface LogMaintenanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (formData: any) => void;
+  onSubmitSuccess: (formData: Record<string, string>) => void;
   editData?: HistoryLogRecord | null;
   trucksOptions: TruckOption[];
   mechanicsOptions: EmployeeOption[];
@@ -554,7 +594,7 @@ interface LogMaintenanceModalProps {
 }
 
 function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID, isSaving }: LogMaintenanceModalProps) {
-  const initialFormState = {
+  const initialFormState: Record<string, string> = {
     date: "",
     truckID: "",
     primaryMechanicID: "",
@@ -585,7 +625,11 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
 
   // 2. Calculate the local date only on the client
   useEffect(() => {
+    // Read on the client only: the server's today and the browser's can differ
+    // by a day, and a date input compared against the wrong one rejects a
+    // perfectly good date.
     const offset = new Date().getTimezoneOffset() * 60000;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToday(new Date(Date.now() - offset).toISOString().split("T")[0]);
   }, []);
 
@@ -605,6 +649,8 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
   const activeFields = fieldMapping[formType] || fieldMapping.log;
 
   // 3. Add `today` and `loggedInMechanic` to the dependency array
+  // Seeded from the log this was opened to edit.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -637,6 +683,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
       });
     }
   }, [
+  /* eslint-enable react-hooks/set-state-in-effect */
     editData,
     isOpen,
     preselectedTruckId,
@@ -693,7 +740,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
       newErrors.primaryMechanicID = "Primary mechanic is required.";
 
     const issueValue = String(
-      (formData as any)[activeFields.issue] || "",
+      formData[activeFields.issue] || "",
     ).trim();
     if (!issueValue) {
       newErrors[activeFields.issue] =
@@ -762,7 +809,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   name="date"
                   max={today}
                   value={formData.date}
-                  onChange={handleInputChange as any}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.date ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.date && (
@@ -869,7 +916,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   <select
                     name="additionalMechanicID"
                     value={formData.additionalMechanicID || ""}
-                    onChange={handleInputChange as any}
+                    onChange={handleInputChange}
                     disabled={!formData.primaryMechanicID}
                     className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : "cursor-pointer"} ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                   >
@@ -923,8 +970,8 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                         ? "Describe maintenance progress, additional issues, or work in progress..."
                         : "Describe the completed maintenance work and truck condition..."
                   }
-                  value={(formData as any)[activeFields.issue]}
-                  onChange={handleInputChange as any}
+                  value={formData[activeFields.issue]}
+                  onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors[activeFields.issue] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors[activeFields.issue] && (
@@ -944,8 +991,8 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   name={activeFields.remarks}
                   rows={5}
                   placeholder="Any additional notes, future recommendations, or observations..."
-                  value={(formData as any)[activeFields.remarks]}
-                  onChange={handleInputChange as any}
+                  value={formData[activeFields.remarks]}
+                  onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
@@ -969,12 +1016,12 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />{" "}
-                  {(formData as any)[activeFields.photo]
+                  {formData[activeFields.photo]
                     ? "Change File"
                     : "Choose File"}
                 </button>
                 <span className="text-xs text-slate-500 truncate max-w-xs">
-                  {(formData as any)[activeFields.photo]
+                  {formData[activeFields.photo]
                     ? "Photo attached successfully"
                     : "No file chosen"}
                 </span>
@@ -986,13 +1033,13 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   className="hidden"
                 />
               </div>
-              {(formData as any)[activeFields.photo] && (
+              {formData[activeFields.photo] && (
                 <div className="mt-3 relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
                   <img
-                    src={(formData as any)[activeFields.photo]}
+                    src={formData[activeFields.photo]}
                     alt="Preview"
                     onClick={() =>
-                      setZoomedImage((formData as any)[activeFields.photo])
+                      setZoomedImage(formData[activeFields.photo])
                     }
                     className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   />
@@ -1062,13 +1109,13 @@ function LogDetailView({
     clickedIdx !== -1 ? sorted.slice(startIdx, endIdx + 1) : [log];
 
   const preliminaryLogs = cycleLogs.filter(
-    (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl || (l as any).hasPreliminaryPhoto,
+    (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl || l.hasPreliminaryPhoto,
   );
   const progressLogs = cycleLogs.filter(
-    (l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl || (l as any).hasProgressPhoto,
+    (l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl || l.hasProgressPhoto,
   );
   const finalLogs = cycleLogs.filter(
-    (l) => l.issue || l.remarks || l.photoUrl || (l as any).hasFinalPhoto,
+    (l) => l.issue || l.remarks || l.photoUrl || l.hasFinalPhoto,
   );
 
   const mechanicSourceLog =
@@ -1076,9 +1123,9 @@ function LogDetailView({
 
   // --- NEW: Strict Latest-Mechanic Access Control (Explicitly Newest-First) ---
   // Sort the logs by exact timestamp to guarantee index 0 is the most recent update
-  const newestFirstCycleLogs = [...cycleLogs].sort((a: any, b: any) => {
-    const timeA = new Date(a.created_at || a.createdAt || a.date).getTime();
-    const timeB = new Date(b.created_at || b.createdAt || b.date).getTime();
+  const newestFirstCycleLogs = [...cycleLogs].sort((a, b) => {
+    const timeA = new Date(a.created_at || a.date).getTime();
+    const timeB = new Date(b.created_at || b.date).getTime();
     return timeB - timeA;
   });
 
@@ -1256,7 +1303,7 @@ function LogDetailView({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-black mb-1">
-                          Issue to Fix / Driver's Report
+                          Issue to Fix / Driver&apos;s Report
                         </label>
                         <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
                           {pLog.driversReport || "N/A"}
@@ -1695,7 +1742,7 @@ function TruckDetailView({
 
   const progressUpdates = currentCycleLogs
     .filter((l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl)
-    .sort((a: any, b: any) => {
+    .sort((a, b) => {
       const timeA = new Date(a.created_at || a.date).getTime();
       const timeB = new Date(b.created_at || b.date).getTime();
       return timeB - timeA;
@@ -1926,7 +1973,7 @@ function TruckDetailView({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-black mb-1">
-                      Issue to Fix / Driver's Report
+                      Issue to Fix / Driver&apos;s Report
                     </label>
                     <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
                       {latestPreliminaryLog.driversReport || "N/A"}
@@ -2056,6 +2103,7 @@ export default function MechanicFleetStatusPage({
           parsedUser.role &&
           parsedUser.role.toLowerCase().includes("mechanic")
         ) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setCurrentUser({
             employeeID: String(parsedUser.id || parsedUser.employeeID),
             employeeName:
@@ -2118,6 +2166,8 @@ export default function MechanicFleetStatusPage({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   useEffect(() => {
+    // Back to page one whenever the list is filtered differently.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm, selectedFilter]);
 
@@ -2135,7 +2185,7 @@ export default function MechanicFleetStatusPage({
 
     const truckLogIDs = maintenanceLogs
       .filter((log) => log && String(log.truckID) === String(selectedHistoryRecord.truckID))
-      .filter((log: any) =>
+      .filter((log) =>
         (log.hasPreliminaryPhoto && !log.preliminaryPhotoUrl) ||
         (log.hasProgressPhoto && !log.progressPhotoUrl) ||
         (log.hasFinalPhoto && !log.photoUrl),
@@ -2168,12 +2218,6 @@ export default function MechanicFleetStatusPage({
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTrucks();
-    fetchLogs();
-    fetchMechanics();
-  }, []);
-
   const fetchTrucks = async () => {
     setIsLoading(true);
     try {
@@ -2187,14 +2231,14 @@ export default function MechanicFleetStatusPage({
         : Array.isArray(result?.data)
           ? result.data
           : [];
-      const mappedData: TruckRecord[] = payload.map((truck: any) => ({
-        id: truck.truckID || truck.id,
-        plateNumber: truck.plateNumber,
-        truckType: truck.truckType,
-        truckModel: truck.model || truck.truckModel,
-        capacity: String(truck.capacity),
-        lastChecked: truck.lastChecked,
-        status: truck.truckStatus || truck.status || "Available",
+      const mappedData: TruckRecord[] = (payload as Partial<TruckRow>[]).map((truck) => ({
+        id: truck.truckID ?? "",
+        plateNumber: truck.plateNumber ?? "",
+        truckType: truck.truckType ?? "",
+        truckModel: truck.model ?? "",
+        capacity: truck.capacity === null || truck.capacity === undefined ? "" : String(truck.capacity),
+        lastChecked: truck.lastChecked ?? "",
+        status: truck.truckStatus || "Available",
       }));
 
       // Forces highest ID (newest) to the top and resolves the TS (a, b) error
@@ -2226,78 +2270,17 @@ export default function MechanicFleetStatusPage({
             ? result.logs
             : [];
 
-      const mappedLogs = rawLogs.map((log: any) => {
-        const primaryMech = log.LogMechanics?.find(
-          (m: any) => m.role === "Primary",
-        );
-        const addMech = log.LogMechanics?.find(
-          (m: any) => m.role === "Additional",
-        );
-        const prelimNote = log.LogNotes?.find(
-          (n: any) => n.phase === "Preliminary",
-        );
-        const progNote = log.LogNotes?.find((n: any) => n.phase === "Progress");
-        const finalNote = log.LogNotes?.find((n: any) => n.phase === "Final");
+      // /api/historyLogsM returns a log already flattened - its mechanics,
+      // notes and photos folded into one record by the service. This screen
+      // used to fold them again, looking for LogMechanics, LogNotes and
+      // LogPhotos that the endpoint does not send, so every one of those
+      // lookups came back undefined and each field was carried by the
+      // fallback beside it.
+      const mappedLogs = rawLogs as HistoryLogRecord[];
 
-        const prelimPhoto = log.LogPhotos?.find(
-          (p: any) => p.phase === "Preliminary",
-        );
-        const progPhoto = log.LogPhotos?.find(
-          (p: any) => p.phase === "Progress",
-        );
-        const finalPhoto = log.LogPhotos?.find((p: any) => p.phase === "Final");
-
-        return {
-          id: log.id,
-          // Aggressively capture IDs and Plates regardless of database casing
-          truckID:
-            log.truckID ||
-            log.truck_id ||
-            log.truckId ||
-            log.Truck?.id ||
-            log.truck?.id,
-          plateNumber:
-            log.plateNumber ||
-            log.plate_number ||
-            log.Truck?.plateNumber ||
-            log.truck?.plateNumber ||
-            "N/A",
-          truckType:
-            log.truckType ||
-            log.truck_type ||
-            log.Truck?.truckType ||
-            log.truck?.truckType ||
-            "N/A",
-          date: log.date || log.created_at,
-          createdAt: log.created_at || log.createdAt || log.date,
-          statusBefore: log.statusBefore || log.status_before || "N/A",
-          statusAfter: log.statusAfter || log.status_after || "N/A",
-          primaryMechanicID: primaryMech?.employeeID || log.primaryMechanicID,
-          mechanicName: primaryMech?.Employee?.employeeName || log.mechanicName,
-          additionalMechanicID: addMech?.employeeID || log.additionalMechanicID,
-          additionalMechanic:
-            addMech?.Employee?.employeeName || log.additionalMechanic,
-          driversReport: prelimNote?.issue || log.driversReport,
-          preliminaryRemarks: prelimNote?.remarks || log.preliminaryRemarks,
-          additionalIssue: progNote?.issue || log.additionalIssue,
-          progressRemarks: progNote?.remarks || log.progressRemarks,
-          issue: finalNote?.issue || log.issue,
-          remarks: finalNote?.remarks || log.remarks,
-          preliminaryPhotoUrl:
-            prelimPhoto?.photoUrl ||
-            log.preliminaryPhotoUrl ||
-            log.preliminary_photo_url,
-          progressPhotoUrl:
-            progPhoto?.photoUrl ||
-            log.progressPhotoUrl ||
-            log.progress_photo_url,
-          photoUrl: finalPhoto?.photoUrl || log.photoUrl || log.photo_url,
-        };
-      });
-
-      const sortedAllLogs = [...mappedLogs].reverse().sort((a: any, b: any) => {
-        const timeA = new Date(a.createdAt).getTime();
-        const timeB = new Date(b.createdAt).getTime();
+      const sortedAllLogs = [...mappedLogs].reverse().sort((a, b) => {
+        const timeA = new Date(a.created_at || a.date).getTime();
+        const timeB = new Date(b.created_at || b.date).getTime();
         const diff = timeB - timeA;
         return diff !== 0 && !isNaN(diff) ? diff : 0;
       });
@@ -2324,12 +2307,12 @@ export default function MechanicFleetStatusPage({
       const result = await response.json();
       const employees = result.data || [];
       
-      const mappedMechanics: EmployeeOption[] = employees
-        .filter((emp: any) => emp.role && emp.role.toLowerCase().includes("mechanic"))
-        .map((emp: any) => ({
-          employeeID: emp.id || emp.employeeID || emp.employeeid, 
-          employeeName: emp.employeeName || emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-          role: emp.role
+      const mappedMechanics: EmployeeOption[] = (employees as Partial<EmployeeRow>[])
+        .filter((emp) => emp.role?.toLowerCase().includes("mechanic"))
+        .map((emp) => ({
+          employeeID: emp.employeeID ?? "",
+          employeeName: emp.employeeName ?? "",
+          role: emp.role ?? "",
         }));
 
       setMechanicsOptions(mappedMechanics);
@@ -2338,6 +2321,18 @@ export default function MechanicFleetStatusPage({
       setMechanicsOptions([]); 
     }
   };
+
+  // The first load, from below the three functions it calls rather than above
+  // them. Each sets state from a response, not during the effect itself.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    void fetchTrucks();
+    void fetchLogs();
+    void fetchMechanics();
+    // Once, when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const executeStatusUpdate = async (
     truckRecord: TruckRecord,
@@ -2512,7 +2507,7 @@ export default function MechanicFleetStatusPage({
     }
   };
 
-  const handleMaintenanceLogSubmit = async (formData: any) => {
+  const handleMaintenanceLogSubmit = async (formData: Record<string, string>) => {
     if (isSavingLog) return; // Prevent double submission
     setIsSavingLog(true);
     try {
@@ -2999,7 +2994,7 @@ export default function MechanicFleetStatusPage({
               Confirm Status Change
             </h3>
             <p className="text-sm text-slate-600 mb-6">
-              Are you sure you want to change this truck's status to{" "}
+              Are you sure you want to change this truck&apos;s status to{" "}
               <span className="font-semibold text-slate-900">
                 {pendingStatusTarget}
               </span>
