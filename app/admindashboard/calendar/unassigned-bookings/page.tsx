@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
+import { changedBookingFields } from "@/app/lib/bookingEdits";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
@@ -191,6 +192,30 @@ function AssignBookingModal({
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  /**
+   * Writes back what was changed about the booking - its day, its urgency,
+   * what is on it - before anyone is assigned to carry it. First, and
+   * separately: a crew assigned against a schedule that failed to save would
+   * be going out on the wrong day.
+   */
+  const saveBookingEdits = async () => {
+    const edits = changedBookingFields(
+      {
+        scheduledDate: booking.scheduledDate,
+        priorityLevel: booking.priorityLevel,
+        product: booking.product,
+        notes: booking.plainNotes ?? booking.notes ?? "",
+      },
+      formData,
+    );
+    if (!edits) return;
+
+    await apiFetch(`/api/bookings/${booking.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "update", ...edits }),
+    });
+  };
+
   const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError("");
@@ -224,6 +249,7 @@ function AssignBookingModal({
       }
       setIsSubmitting(true);
       try {
+        await saveBookingEdits();
         await apiFetch("/api/subcon-trips", {
           method: "POST",
           body: JSON.stringify({
@@ -247,6 +273,7 @@ function AssignBookingModal({
 
     setIsSubmitting(true);
     try {
+      await saveBookingEdits();
       await apiFetch(`/api/dispatch/${booking.id}/assign`, {
         method: "POST",
         body: JSON.stringify({
@@ -362,8 +389,8 @@ function AssignBookingModal({
                   type="text"
                   name="contactPerson"
                   value={formData.contactPerson}
-                  onChange={handleChange}
-                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  readOnly
+                  className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none"
                 />
               </div>
               <div>
@@ -374,8 +401,8 @@ function AssignBookingModal({
                   type="text"
                   name="contactNumber"
                   value={formData.contactNumber}
-                  onChange={handleChange}
-                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  readOnly
+                  className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none"
                 />
               </div>
               <div>
@@ -387,8 +414,8 @@ function AssignBookingModal({
                   name="emailAddress"
                   placeholder="N/A"
                   value={formData.emailAddress}
-                  onChange={handleChange}
-                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  readOnly
+                  className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none"
                 />
               </div>
               <div>
@@ -400,8 +427,8 @@ function AssignBookingModal({
                   name="businessAddress"
                   placeholder="N/A"
                   value={formData.businessAddress}
-                  onChange={handleChange}
-                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
+                  readOnly
+                  className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none"
                 />
               </div>
             </div>

@@ -75,3 +75,28 @@ export const createOrderSchema = z.object({
   // Optional so older clients that still only send the notes line keep working.
   pickups: z.array(pickupStopSchema).optional().default([]),
 });
+// ==========================================
+// EDITING A BOOKING AFTER IT IS MADE
+// ==========================================
+// Only what belongs to the booking itself. A client's contact details and
+// addresses belong to the client record and are edited under Clients &
+// Partners, so changing one booking never quietly rewrites another.
+
+export const PRIORITY_LEVELS = ["Standard", "Urgent", "High Priority"] as const;
+
+export const updateOrderSchema = z
+  .object({
+    deliverySchedule: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-09-30")
+      .optional(),
+    priorityLevel: z.enum(PRIORITY_LEVELS).optional(),
+    product: z.string().trim().min(1, "Product cannot be empty").max(200).optional(),
+    notes: z.string().trim().max(2000, "Keep the notes under 2000 characters").optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "Nothing to change.",
+  });
+
+export type UpdateOrderDto = z.infer<typeof updateOrderSchema>;

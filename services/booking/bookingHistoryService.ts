@@ -46,6 +46,23 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
       };
     case "Order/CANCEL":
       return { title: "Booking cancelled", detail: text(data.reason) || "No reason given." };
+    case "Order/UPDATE": {
+      // Only what actually moved, and what it moved from.
+      const fields: Record<string, string> = {
+        deliverySchedule: "Schedule",
+        priorityLevel: "Priority",
+        product: "Product",
+        notes: "Notes",
+      };
+      const changes = Object.entries(fields)
+        .filter(([key]) => text(data[key]) !== text(before[key]))
+        .map(([key, label]) => `${label}: ${text(before[key]) || "empty"} to ${text(data[key]) || "empty"}`);
+
+      return {
+        title: "Booking edited",
+        detail: changes.length > 0 ? changes.join("; ") : "No visible change.",
+      };
+    }
 
     case "DispatchOrder/ASSIGN":
       return { title: "Crew and truck assigned", detail: "Waiting for the crew to accept." };

@@ -4,6 +4,8 @@ import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, STOP_STATUS } from "@/app/
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import { signPodUrls } from "@/services/storage/podService";
 import type { Order, CreateOrderDto } from "@/types/booking";
+import type { UpdateOrderDto } from "@/app/schemas/booking/booking.schema";
+import { readNote, readNotesBody, setNote, setNotesBody } from "@/app/lib/bookingNotes";
 
 // ==========================================
 // HELPERS
@@ -348,6 +350,102 @@ export async function cancelBooking(orderID: string, reason: string) {
   if (orderError) throw new Error(`Failed to cancel booking: ${orderError.message}`);
 
   return { orderID, cancelledDispatches: dispatches.length };
+}
+
+/**
+ * Changes what a booking says about itself: when it is for, how urgent it is,
+ * what is being carried and any instructions with it.
+ *
+ * The screens that assign a crew have always shown these as editable fields,
+ * and nothing saved them - there was no endpoint that could. Everything here
+ * belongs to the booking. A client's contact details and addresses belong to
+ * the client record, and are edited under Clients & Partners, so one booking
+ * can never quietly rewrite another's.
+ *
+ * Returns what changed, so the caller can record it and tell whoever is
+ * affected - a crew who accepted a trip needs to know the day moved.
+ */
+export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
+  const { data: order, error } = await supabase
+    .from("Order")
+    .select("orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status )")
+    .eq("orderID", orderID)
+    .maybeSingle();
+
+  if (error) throw new Error(`Supabase Order Error: ${error.message}`);
+  if (!order) throw new Error("Booking not found");
+  if (order.isActive === false) throw new Error("This booking was cancelled and can no longer be edited.");
+
+  const dispatches = ((order.DispatchOrder as any[]) ?? []).filter(Boolean);
+  const live = dispatches.find(
+    (dispatch) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip, DELIVERY_STATUS.cancelled].includes(dispatch.status),
+  );
+
+  // Once a truck has left, the booking is a record of what is happening, not
+  // a plan to change: a schedule edited from the office would never reach the
+  // crew already driving it.
+  if (live && ![DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned, DELIVERY_STATUS.accepted].includes(live.status)) {
+    throw new Error(
+      FINISHED_DELIVERY_STATUSES.includes(live.status)
+        ? "This delivery is finished and can no longer be edited."
+        : "This delivery is already on the road. Report a foul trip to change it.",
+    );
+  }
+
+  const items = ((order.OrderDetails as any[]) ?? []).filter(Boolean);
+  const before = {
+    deliverySchedule: readNote(order.notes ?? "", "Delivery Schedule"),
+    priorityLevel: readNote(order.notes ?? "", "Priority"),
+    product: items.map((item) => item.productName).filter(Boolean).join(", "),
+    notes: readNotesBody(order.notes ?? ""),
+  };
+
+  let notes = order.notes ?? "";
+  if (dto.deliverySchedule !== undefined) notes = setNote(notes, "Delivery Schedule", dto.deliverySchedule);
+  if (dto.priorityLevel !== undefined) notes = setNote(notes, "Priority", dto.priorityLevel);
+  if (dto.notes !== undefined) notes = setNotesBody(notes, dto.notes);
+
+  if (notes !== order.notes) {
+    const { error: notesError } = await supabase.from("Order").update({ notes }).eq("orderID", orderID);
+    if (notesError) throw new Error(`Failed to save this booking: ${notesError.message}`);
+  }
+
+  // The product is shown as one line, and several items are joined into it.
+  // Writing that line back would have to guess which item each word came
+  // from, so a booking with more than one is left to the booking itself.
+  if (dto.product !== undefined && dto.product !== before.product) {
+    if (items.length !== 1) {
+      throw new Error(
+        items.length === 0
+          ? "This booking has no items to rename."
+          : "This booking carries several items; they cannot be renamed as one line.",
+      );
+    }
+    const { error: itemError } = await supabase
+      .from("OrderDetails")
+      .update({ productName: dto.product })
+      .eq("itemID", items[0].itemID);
+    if (itemError) throw new Error(`Failed to save the product: ${itemError.message}`);
+  }
+
+  const after = {
+    deliverySchedule: dto.deliverySchedule ?? before.deliverySchedule,
+    priorityLevel: dto.priorityLevel ?? before.priorityLevel,
+    product: dto.product ?? before.product,
+    notes: dto.notes ?? before.notes,
+  };
+
+  const changed = (Object.keys(after) as (keyof typeof after)[]).filter((field) => after[field] !== before[field]);
+
+  return {
+    orderCode: (order.orderCode as string) ?? null,
+    dispatchID: (live?.dispatchID as string) ?? null,
+    before,
+    after,
+    changed,
+    /** The day moved, which is the one change a crew already on it must hear about. */
+    rescheduled: changed.includes("deliverySchedule"),
+  };
 }
 
 export async function createBooking(dto: CreateOrderDto) {

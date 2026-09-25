@@ -9,6 +9,7 @@ import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { changedBookingFields } from "@/app/lib/bookingEdits";
 import {
   isPendingBooking,
   mapOrderToBookingView,
@@ -26,6 +27,7 @@ import {
   FileText,
   ArrowLeft,
   CalendarDays,
+  Info,
   X,
   Clock,
   Trash2,
@@ -247,6 +249,30 @@ function BookingDetailsModal({
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  /**
+   * Writes back what was changed about the booking - its day, its urgency,
+   * what is on it - before anyone is assigned to carry it. First, and
+   * separately: a crew assigned against a schedule that failed to save would
+   * be going out on the wrong day.
+   */
+  const saveBookingEdits = async () => {
+    const edits = changedBookingFields(
+      {
+        scheduledDate: booking.scheduledDate,
+        priorityLevel: booking.priorityLevel,
+        product: booking.product,
+        notes: booking.notes,
+      },
+      formData,
+    );
+    if (!edits) return;
+
+    await apiFetch(`/api/bookings/${booking.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "update", ...edits }),
+    });
+  };
+
   const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isEditable || isSubmitting) return;
@@ -282,6 +308,7 @@ function BookingDetailsModal({
       }
       setIsSubmitting(true);
       try {
+        await saveBookingEdits();
         await apiFetch("/api/subcon-trips", {
           method: "POST",
           body: JSON.stringify({
@@ -305,6 +332,7 @@ function BookingDetailsModal({
 
     setIsSubmitting(true);
     try {
+      await saveBookingEdits();
       const body = JSON.stringify({
         truckID: formData.truckPlate,
         driverID: formData.driver,
@@ -429,8 +457,7 @@ function BookingDetailsModal({
                   type="text"
                   name="contactPerson"
                   value={formData.contactPerson}
-                  onChange={handleChange}
-                  readOnly={!isEditable}
+                  readOnly
                   className={inputClass}
                 />
               </div>
@@ -442,8 +469,7 @@ function BookingDetailsModal({
                   type="text"
                   name="contactNumber"
                   value={formData.contactNumber}
-                  onChange={handleChange}
-                  readOnly={!isEditable}
+                  readOnly
                   className={inputClass}
                 />
               </div>
@@ -456,8 +482,7 @@ function BookingDetailsModal({
                   name="emailAddress"
                   placeholder="N/A"
                   value={formData.emailAddress}
-                  onChange={handleChange}
-                  readOnly={!isEditable}
+                  readOnly
                   className={inputClass}
                 />
               </div>
@@ -470,13 +495,20 @@ function BookingDetailsModal({
                   name="businessAddress"
                   placeholder="N/A"
                   value={formData.businessAddress}
-                  onChange={handleChange}
-                  readOnly={!isEditable}
+                  readOnly
                   className={inputClass}
                 />
               </div>
             </div>
           </div>
+
+          {isEditable && (
+            <p className="flex items-start gap-2 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              A client&apos;s contact details belong to their record. To change them, edit the client under Clients
+              &amp; Partners.
+            </p>
+          )}
 
           {/* 2-3. Pickups and deliveries, as booked */}
           <BookingStopsReadOnly pickups={pickupList} deliveries={deliveryList} showStatus={!isEditable} />
