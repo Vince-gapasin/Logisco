@@ -1177,7 +1177,8 @@ function EmployeeDetailView({
   const accountActivated = Boolean(employee.activation_completed_at);
   const activationCooldownMs = 15 * 60 * 1000;
 
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  // Read lazily: calling the clock during render makes the render impure.
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
     if (!employee.activation_sent_at || accountActivated) {

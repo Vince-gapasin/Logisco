@@ -5,7 +5,7 @@ import BookingHistory from "@/components/booking/BookingHistory";
 import { AlertTriangle, CheckCircle2, Clock, FileText, X } from "lucide-react";
 import RecoveryPanel from "@/components/foulTrip/RecoveryPanel";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
-import type { FeedBooking } from "@/app/lib/bookingView";
+import type { FeedBooking, FeedStopRow } from "@/app/lib/bookingView";
 
 // The foul-trip details and recovery screen. Shared by the Foul Trip feed and
 // the dashboard's Foul Trip list, so a booking opens the same way from both.
@@ -135,7 +135,7 @@ interface BookingDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onProceedSuccess: (message: string) => void;
-  booking: any;
+  booking: FoulTripRow | null;
 }
 
 export default function FoulTripDetailsModal({
@@ -147,10 +147,14 @@ export default function FoulTripDetailsModal({
   const currentDate = new Date().toISOString().split("T")[0];
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
-  const [formData, setFormData] = useState<any>({});
-  const [pickupList, setPickupList] = useState<any[]>([]);
-  const [deliveryList, setDeliveryList] = useState<any[]>([]);
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  // Kept beside the form rather than inside it: everything else there is text.
+  const [foulDetails, setFoulDetails] = useState<FeedBooking["foulDetails"]>(null);
+  const [pickupList, setPickupList] = useState<FeedStopRow[]>([]);
+  const [deliveryList, setDeliveryList] = useState<FeedStopRow[]>([]);
 
+  // Seeded from the booking this was opened with.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen && booking) {
       setFormData({
@@ -167,11 +171,13 @@ export default function FoulTripDetailsModal({
         truckPlate:
           booking.truckPlate === "Not Assigned" ? "" : booking.truckPlate,
         driver: booking.driver === "Not Assigned" ? "" : booking.driver,
-        helper1: booking.helper1 === "Not Assigned" ? "" : booking.helper1,
-        helper2: booking.helper2 === "Not Assigned" ? "" : booking.helper2,
+        // From the crew list. helper1 and helper2 are not fields on a feed
+        // booking, so both boxes read "Not Assigned" on every foul trip.
+        helper1: booking.crews?.find((member) => member.role === "Helper #1")?.name ?? "",
+        helper2: booking.crews?.find((member) => member.role === "Helper #2")?.name ?? "",
         notes: booking.notes || "",
-        foulDetails: booking.foulDetails || {},
       });
+      setFoulDetails(booking.foulDetails);
 
       setPickupList(
         booking.pickupList?.length
@@ -186,6 +192,7 @@ export default function FoulTripDetailsModal({
       );
     }
   }, [isOpen, booking, currentDate]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
 
   if (!isOpen || !booking) return null;
@@ -294,7 +301,7 @@ export default function FoulTripDetailsModal({
                 <input
                   type="text"
                   readOnly
-                  value={formData.foulDetails?.reason || ""}
+                  value={foulDetails?.reason || ""}
                   className="w-full bg-white border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-red-600 focus:outline-none"
                 />
               </div>
@@ -305,7 +312,7 @@ export default function FoulTripDetailsModal({
                 <input
                   type="text"
                   readOnly
-                  value={formData.foulDetails?.reportedAt || ""}
+                  value={foulDetails?.reportedAt || ""}
                   className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none"
                 />
               </div>
@@ -316,7 +323,7 @@ export default function FoulTripDetailsModal({
                 <input
                   type="text"
                   readOnly
-                  value={formData.foulDetails?.reportedBy || ""}
+                  value={foulDetails?.reportedBy || ""}
                   className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none"
                 />
               </div>
@@ -324,15 +331,15 @@ export default function FoulTripDetailsModal({
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Attachment
                 </label>
-                {formData.foulDetails?.attachment ? (
+                {foulDetails?.attachment ? (
                   <a
-                    href={formData.foulDetails.attachment}
+                    href={foulDetails.attachment}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full flex items-center gap-3 bg-white border border-slate-200 rounded-md p-2 hover:bg-slate-50"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={formData.foulDetails.attachment} alt="Photo from the crew" className="w-12 h-12 rounded object-cover shrink-0" />
+                    <img src={foulDetails.attachment} alt="Photo from the crew" className="w-12 h-12 rounded object-cover shrink-0" />
                     <span className="text-xs font-bold text-blue-600 hover:underline">View photo full size</span>
                   </a>
                 ) : (
@@ -353,7 +360,7 @@ export default function FoulTripDetailsModal({
               <textarea
                 readOnly
                 rows={3}
-                value={formData.foulDetails?.description || ""}
+                value={foulDetails?.description || ""}
                 className="w-full resize-y rounded-md px-3 py-2 text-xs bg-slate-50 border border-slate-200 font-medium text-slate-700 focus:outline-none cursor-default"
               />
             </div>

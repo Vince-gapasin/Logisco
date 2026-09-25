@@ -104,6 +104,8 @@ export default function BookingAssignModal({
   // selectable when only one of the three is being changed.
   const crew = useAssignableCrew(formData.deliverySchedule, isOpen && Boolean(booking), booking ?? undefined);
 
+  // Seeded from the booking this was opened with.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!isOpen || !booking) return;
 
@@ -144,6 +146,7 @@ export default function BookingAssignModal({
     }, 100);
     return () => clearTimeout(scrollTimer);
   }, [isOpen, booking]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen || !booking) return null;
 

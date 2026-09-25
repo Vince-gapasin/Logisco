@@ -1,6 +1,7 @@
 // File: app/crew/calendar/page.tsx
 "use client";
 
+import type { CrewDispatchRecord } from "@/types/crew";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { useRouter } from "next/navigation";
@@ -55,13 +56,13 @@ function addDays(date: Date, days: number): Date {
 }
 
 // The crew API returns each dispatch with its schedule and stop times.
-function toDeliveryEvent(record: any): DeliveryEvent | null {
+function toDeliveryEvent(record: CrewDispatchRecord): DeliveryEvent | null {
   if (!record?.scheduledDate) return null;
 
   const parsed = new Date(record.scheduledDate);
   if (Number.isNaN(parsed.getTime())) return null;
 
-  const firstStopTime: string | undefined = record.multipleDeliveries?.[0]?.deliveryTime;
+  const firstStopTime = record.multipleDeliveries?.[0]?.deliveryTime ?? undefined;
   const status = String(record.status ?? "").toLowerCase();
 
   return {
@@ -90,7 +91,7 @@ export default function CrewCalendarPage() {
 
   const loadDeliveries = useCallback(async () => {
     try {
-      const records = await apiFetch<any[]>("/api/crew/dispatches");
+      const records = await apiFetch<CrewDispatchRecord[]>("/api/crew/dispatches");
       setDeliveries((records ?? []).map(toDeliveryEvent).filter(Boolean) as DeliveryEvent[]);
       setLoadError("");
     } catch (error) {
@@ -101,6 +102,8 @@ export default function CrewCalendarPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadDeliveries();
   }, [loadDeliveries]);
 

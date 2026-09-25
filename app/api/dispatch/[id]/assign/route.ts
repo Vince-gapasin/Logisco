@@ -45,8 +45,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({ message: "Crew and Truck successfully assigned.", data: dispatch }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 400 });
   }
 }
 
@@ -105,7 +105,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json({ message: "Crew and truck updated. Confirmation has been reset.", data: dispatch }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 400 });
   }
 }

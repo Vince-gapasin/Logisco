@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import type { CrewDispatchRecord } from "@/types/crew";
 import React, { useCallback, useEffect, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -77,7 +78,7 @@ export default function DeliveryHistoryPage() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const records = await apiFetch<any[]>("/api/crew/dispatches");
+      const records = await apiFetch<CrewDispatchRecord[]>("/api/crew/dispatches");
       const completed = (records ?? [])
         .filter((record) => String(record.status ?? "").toLowerCase() === "completed")
         .map((record) => ({
@@ -91,7 +92,7 @@ export default function DeliveryHistoryPage() {
               })}${record.timeWindow ? ` • ${record.timeWindow}` : ""}`
             : "Date not recorded",
           scheduledDate: record.scheduledDate || "Not scheduled",
-          multipleDeliveries: (record.multipleDeliveries ?? []).map((stop: any) => ({
+          multipleDeliveries: (record.multipleDeliveries ?? []).map((stop) => ({
             branch: stop.branch,
             address: stop.address,
             contactPerson: stop.contactPerson,
@@ -111,6 +112,8 @@ export default function DeliveryHistoryPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHistory();
   }, [loadHistory]);
 

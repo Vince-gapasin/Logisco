@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
-import { DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
+import type {
+  BranchStopsRow,
+  ClientRow,
+  DispatchOrderRow,
+  OrderRow,
+  PickupStopsRow,
+  TruckRow,
+} from "@/types/database";
+import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
 
 // Stops are read through the Order: older dispatches were created before
@@ -49,6 +57,24 @@ function buildTimeWindow(stops: { expectedTime?: string | null }[]): string {
     : `${label(times[0])} - ${label(times[times.length - 1])}`;
 }
 
+// The trips this route reads, with the order and stops embedded. Columns come
+// from types/database.ts; the relations arrive as the select asked for them.
+type CrewStop = Partial<BranchStopsRow> & { POD?: unknown };
+type CrewPickup = Partial<PickupStopsRow>;
+
+interface CrewOrder extends Partial<OrderRow> {
+  Client?: Partial<ClientRow> | Partial<ClientRow>[] | null;
+  BranchStops?: CrewStop[] | null;
+  PickupStops?: CrewPickup[] | null;
+}
+
+interface CrewDispatch extends Partial<DispatchOrderRow> {
+  Order?: CrewOrder | CrewOrder[] | null;
+  Truck?: Partial<TruckRow> | Partial<TruckRow>[] | null;
+  /** Set here, not in the database: this trip reached the crew as a helper's. */
+  _helperStatus?: string | null;
+}
+
 export async function GET(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
   if (response) return response;
@@ -74,7 +100,7 @@ export async function GET(request: Request) {
 
     if (helperErr) throw new Error(`Helper assignment query failed: ${helperErr.message}`);
 
-    let helperDispatches: any[] = [];
+    let helperDispatches: CrewDispatch[] = [];
     if (helperAssignments && helperAssignments.length > 0) {
       const { data: hData, error: hDataErr } = await supabase
         .from("DispatchOrder")
@@ -90,7 +116,7 @@ export async function GET(request: Request) {
       }));
     }
 
-    const allRawDispatches: any[] = [...(driverDispatches || []), ...helperDispatches];
+    const allRawDispatches = [...((driverDispatches ?? []) as CrewDispatch[]), ...helperDispatches];
 
     // The crew screens render the proof of delivery but the column was never
     // selected, so the photo was always blank. It is a storage path now, and
@@ -104,19 +130,19 @@ export async function GET(request: Request) {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
       const client = Array.isArray(order.Client) ? order.Client[0] : (order.Client || {});
       const truck = Array.isArray(dispatch.Truck) ? dispatch.Truck[0] : (dispatch.Truck || {});
-      const orderStops: any[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
+      const orderStops: CrewStop[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
 
       // Prefer stops explicitly linked to this dispatch (an order can be split
       // across trucks); fall back to every stop on the order.
       const linkedStops = orderStops.filter((stop) => stop.dispatchID === dispatch.dispatchID);
       const stops = (linkedStops.length > 0 ? linkedStops : orderStops).sort(
-        (a, b) => (a.sequence ?? a.branchID) - (b.sequence ?? b.branchID),
+        (a, b) => (a.sequence ?? a.branchID ?? 0) - (b.sequence ?? b.branchID ?? 0),
       );
 
-      const orderPickups: any[] = Array.isArray(order.PickupStops) ? order.PickupStops : [];
+      const orderPickups: CrewPickup[] = Array.isArray(order.PickupStops) ? order.PickupStops : [];
       const linkedPickups = orderPickups.filter((p) => p.dispatchID === dispatch.dispatchID);
       const pickups = (linkedPickups.length > 0 ? linkedPickups : orderPickups).sort(
-        (a, b) => (a.sequence ?? a.pickupID) - (b.sequence ?? b.pickupID),
+        (a, b) => (a.sequence ?? a.pickupID ?? 0) - (b.sequence ?? b.pickupID ?? 0),
       );
 
       let displayStatus: string;
@@ -125,15 +151,15 @@ export async function GET(request: Request) {
         // trip is still awaiting their confirmation.
         displayStatus =
           dispatch._helperStatus === HELPER_STATUS.accepted
-            ? ([DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned].includes(dispatch.status)
+            ? (AWAITING_CREW_STATUSES.includes(dispatch.status ?? "")
                 ? DELIVERY_STATUS.accepted
-                : dispatch.status)
+                : (dispatch.status ?? ""))
             : "Awaiting Confirmation";
       } else {
         displayStatus =
           dispatch.status === DELIVERY_STATUS.pending
             ? "Awaiting Confirmation"
-            : dispatch.status;
+            : (dispatch.status ?? "");
       }
 
       return {
@@ -145,7 +171,7 @@ export async function GET(request: Request) {
         dateTime: "See Stops",
         status: displayStatus,
         current_step: dispatch.current_step ?? 0,
-        scheduledDate: readScheduledDate(order.notes),
+        scheduledDate: readScheduledDate(order.notes ?? null),
         timeWindow: buildTimeWindow(stops),
         pickupTime: pickups[0]?.expectedTime ? String(pickups[0].expectedTime).slice(0, 5) : "TBD",
         deliveryTime: "TBD",

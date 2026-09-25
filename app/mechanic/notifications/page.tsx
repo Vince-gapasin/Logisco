@@ -152,7 +152,7 @@ export default function MechanicNotificationsPage() {
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               <Bell className="w-8 h-8 text-slate-300" />
             </div>
-            <p className="text-slate-900 font-medium">You're all caught up!</p>
+            <p className="text-slate-900 font-medium">You&apos;re all caught up!</p>
             <p className="text-slate-500 text-sm mt-1">
               No new notifications or alerts at this time.
             </p>

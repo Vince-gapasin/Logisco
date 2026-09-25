@@ -19,6 +19,7 @@ import {
   isAwaitingCrewConfirmation,
   mapOrderToBookingView,
   type BookingView,
+  type OrderWithRelations,
 } from "@/app/lib/bookingView";
 
 // One hour row is h-16 (64px); events are positioned against that.
@@ -109,7 +110,7 @@ export default function CalendarPage() {
 
   const loadBookings = useCallback(async () => {
     try {
-      const orders = await apiFetch<any[]>("/api/bookings");
+      const orders = await apiFetch<OrderWithRelations[]>("/api/bookings");
       setBookings((orders ?? []).map(mapOrderToBookingView));
       setLoadError("");
     } catch (error) {
@@ -120,6 +121,8 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBookings();
   }, [loadBookings]);
 

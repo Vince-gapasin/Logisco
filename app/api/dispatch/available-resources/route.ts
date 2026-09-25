@@ -23,10 +23,10 @@ export async function GET(request: Request) {
     const resources = await getAvailableResources(targetDate);
 
     return NextResponse.json({ data: resources }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("GET available-resources error:", error);
     return NextResponse.json(
-      { message: error.message || "Failed to fetch available resources" },
+      { message: error instanceof Error ? error.message : "Failed to fetch available resources" },
       { status: 500 }
     );
   }

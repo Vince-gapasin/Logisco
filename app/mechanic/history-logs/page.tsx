@@ -607,6 +607,7 @@ export default function MechanicHistoryLogsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [logsList, setLogsList] = useState<HistoryLogRecord[]>([]);
   const [selectedLog, setSelectedLog] = useState<HistoryLogRecord | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
 
@@ -649,7 +650,6 @@ export default function MechanicHistoryLogsPage() {
   }, [selectedLog]);
   const [editingLog, setEditingLog] = useState<HistoryLogRecord | null>(null);
 
-  const [logsList, setLogsList] = useState<HistoryLogRecord[]>([]);
   const [trucksOptions, setTrucksOptions] = useState<TruckOption[]>([]);
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);

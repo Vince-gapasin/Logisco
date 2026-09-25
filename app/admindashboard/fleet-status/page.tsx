@@ -21,6 +21,8 @@ import {
 
 import type {
   Truck as ApiTruck,
+  TruckStatus,
+  TruckType,
   CreateTruckDto,
   UpdateTruckDto,
 } from "@/types/truck";
@@ -75,7 +77,7 @@ interface TruckModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmitSuccess: (
-    formData: any,
+    formData: Record<string, string>,
     editData?: TruckRecord | null,
   ) => Promise<void>;
   editData?: TruckRecord | null;
@@ -100,6 +102,8 @@ function TruckModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Seeded from the truck this was opened to edit.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editData) {
       setFormData({
@@ -115,6 +119,7 @@ function TruckModal({
     }
     setErrors({});
   }, [editData, isOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
@@ -486,6 +491,8 @@ export default function FleetStatusPage() {
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
   useEffect(() => {
+    // Back to page one whenever the search changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm]);
 
@@ -493,7 +500,7 @@ export default function FleetStatusPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const response = await apiFetch<any>("/api/fleet-status");
+      const response = await apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>("/api/fleet-status");
       // Safety fix: handle array natively or wrapped in .data
       const trucksArray = Array.isArray(response) ? response : (response.data || []);
       setTruckList(trucksArray.map(mapApiTruck));
@@ -506,13 +513,15 @@ export default function FleetStatusPage() {
   }, []);
 
   useEffect(() => {
+    // The rows land in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTrucks();
   }, [fetchTrucks]);
 
   const handleRowClick = async (id: string) => {
     try {
       setErrorMessage("");
-      const response = await apiFetch<any>(`/api/fleet-status/${id}`);
+      const response = await apiFetch<{ data?: ApiTruck } & ApiTruck>(`/api/fleet-status/${id}`);
       // Safety fix: handle object natively or wrapped in .data
       const truckData = response.data || response;
       setSelectedTruck(mapApiTruck(truckData));
@@ -522,7 +531,7 @@ export default function FleetStatusPage() {
   };
 
   const handleModalSubmit = async (
-    formData: any,
+    formData: Record<string, string>,
     editData?: TruckRecord | null,
   ) => {
     try {
@@ -532,14 +541,14 @@ export default function FleetStatusPage() {
       if (editData) {
         const payload: UpdateTruckDto = {
           plateNumber: formData.plateNumber,
-          truckType: formData.truckType,
+          truckType: formData.truckType as TruckType,
           model: formData.truckModel,
-          capacity: formData.capacity,
+          capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
-          truckStatus: formData.status,
+          truckStatus: formData.status as TruckStatus,
         };
 
-        await apiFetch<any>(`/api/fleet-status/${editData.id}`, {
+        await apiFetch<unknown>(`/api/fleet-status/${editData.id}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
@@ -549,14 +558,14 @@ export default function FleetStatusPage() {
       } else {
         const payload: CreateTruckDto = {
           plateNumber: formData.plateNumber,
-          truckType: formData.truckType,
+          truckType: formData.truckType as TruckType,
           model: formData.truckModel,
-          capacity: formData.capacity,
+          capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
           truckStatus: "Available",
         };
 
-        await apiFetch<any>("/api/fleet-status", {
+        await apiFetch<unknown>("/api/fleet-status", {
           method: "POST",
           body: JSON.stringify(payload),
         });

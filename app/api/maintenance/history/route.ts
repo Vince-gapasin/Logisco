@@ -11,8 +11,8 @@ export async function GET(request: Request) {
     if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     const logs = await getHistoryLogs();
     return NextResponse.json(logs, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Something went wrong" }, { status: 500 });
   }
 }
 
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const newLog = await createHistoryLog(body);
     return NextResponse.json(newLog, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Something went wrong" }, { status: 500 });
   }
 }

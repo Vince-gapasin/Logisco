@@ -46,7 +46,7 @@ async function main() {
   let missingAddress = 0;
   let notGeocoded = 0;
 
-  for (const stop of pending as any[]) {
+  for (const stop of pending as { branchID: number; branchName: string; Order?: { clientID?: string } | { clientID?: string }[] }[]) {
     const order = Array.isArray(stop.Order) ? stop.Order[0] : stop.Order;
     const key = `${order?.clientID}::${String(stop.branchName).toLowerCase()}`;
     const address = addressByKey.get(key);

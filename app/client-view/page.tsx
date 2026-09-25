@@ -117,6 +117,8 @@ function ClientTrackerView() {
   }, [token]);
 
   useEffect(() => {
+    // The delivery lands in a network callback, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTracking();
   }, [loadTracking]);
 

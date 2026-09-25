@@ -49,6 +49,8 @@ export default function SharedProfile() {
       sessionStorage.getItem("logisco_user_session");
 
     if (sessionData) {
+  // Who is signed in, read out of the stored session.
+  /* eslint-disable react-hooks/set-state-in-effect */
       try {
         const parsed = JSON.parse(sessionData);
         setUserInfo({
@@ -63,6 +65,7 @@ export default function SharedProfile() {
       }
     }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Handle Email Update Submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -120,8 +123,8 @@ export default function SharedProfile() {
       setNewEmail("");
       setConfirmEmail("");
       setEmailPassword("");
-    } catch (err: any) {
-      setEmailError(err.message);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : "Could not change the email.");
     } finally {
       setIsSubmittingEmail(false);
     }
@@ -160,8 +163,8 @@ export default function SharedProfile() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
-      setPasswordError(err.message);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Could not change the password.");
     } finally {
       setIsSubmittingPassword(false);
     }

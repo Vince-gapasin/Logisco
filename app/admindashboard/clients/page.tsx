@@ -7,6 +7,12 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import type {
+  BranchRow,
+  ClientRow,
+  SubContractorRow,
+  WarehouseRow,
+} from "@/types/database";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
 import {
   UserPlus,
@@ -69,12 +75,18 @@ export interface PartnerRecord {
 
 export type UnifiedRecord = ClientRecord | PartnerRecord;
 
+// A client with the addresses it can be collected from and delivered to.
+interface ClientWithAddresses extends Partial<ClientRow> {
+  Warehouse?: Partial<WarehouseRow>[];
+  Branch?: Partial<BranchRow>[];
+}
+
 interface ClientsResponse {
-  data: any[];
+  data: ClientWithAddresses[];
 }
 
 interface PartnersResponse {
-  data: any[];
+  data: Partial<SubContractorRow>[];
 }
 
 // ==========================================
@@ -1651,49 +1663,42 @@ export default function ClientsPage() {
     try {
       const clientRes = await apiFetch<ClientsResponse>("/api/clients");
       const mappedClients: ClientRecord[] = clientRes.data
-        .filter((c: any) => c.contractType !== "On-Call")
-        .map((c: any) => ({
-          id: c.clientID,
-          name: c.company,
-          status: c.status,
-          contactPerson: c.contactName,
-          contactNumber: c.contact,
-          emailAddress: c.emailAdd,
-          businessAddress: c.businessAdd,
-          pickupAddresses: (
-            c.Warehouse ||
-            c.warehouse ||
-            c.warehouses ||
-            []
-          ).map((w: any) => ({
-            warehouseID: w.warehouseID,
+        .filter((c) => c.contractType !== "On-Call")
+        .map((c) => ({
+          id: c.clientID ?? "",
+          name: c.company ?? "",
+          status: c.status ?? "",
+          contactPerson: c.contactName ?? "",
+          contactNumber: c.contact ?? "",
+          emailAddress: c.emailAdd ?? "",
+          businessAddress: c.businessAdd ?? "",
+          pickupAddresses: (c.Warehouse ?? []).map((w) => ({
+            warehouseID: w.warehouseID ?? "",
             warehouseName: w.whName || "",
             warehouseAddress: w.warehouseLoc || "",
             contactPerson: w.contactPerson || "",
-            contactNumber: w.contactNum || w.contactNumber || "",
+            contactNumber: w.contactNum || "",
           })),
-          deliveryAddresses: (c.Branch || c.branch || c.branches || []).map(
-            (b: any) => ({
-              branchID: b.branchID,
-              branchName: b.branchName || "",
-              deliveryAddress: b.deliveryAddress || "",
-              contactPerson: b.contactPerson || "",
-              contactNumber: b.contactNumber || b.contactNum || "",
-            }),
-          ),
+          deliveryAddresses: (c.Branch ?? []).map((b) => ({
+            branchID: b.branchID ?? "",
+            branchName: b.branchName || "",
+            deliveryAddress: b.deliveryAddress || "",
+            contactPerson: b.contactPerson || "",
+            contactNumber: b.contactNumber || "",
+          })),
         }));
 
       // SECURE FIX: Now pulls securely from our new Next.js Subcontractors route!
       const partnerRes = await apiFetch<PartnersResponse>(
         "/api/subcontractors",
       );
-      const mappedPartners: PartnerRecord[] = partnerRes.data.map((p: any) => ({
-        id: p.subConID || p.id,
-        name: p.companyName,
+      const mappedPartners: PartnerRecord[] = partnerRes.data.map((p) => ({
+        id: p.subConID ?? "",
+        name: p.companyName ?? "",
         status: p.isActive !== false ? "Active" : "Inactive",
         contractType: p.contractType || "On-Call",
-        contactPerson: p.contactName || p.contactPerson,
-        contactNumber: p.contactNumber,
+        contactPerson: p.contactName ?? "",
+        contactNumber: p.contactNumber ?? "",
         emailAddress: p.emailAddress || "",
         businessAddress: p.businessAddress || "",
       }));
@@ -1716,7 +1721,7 @@ export default function ClientsPage() {
     item.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const checkNoChanges = (original: any, updated: any) => {
+  const checkNoChanges = (original: UnifiedRecord, updated: UnifiedRecord) => {
     return JSON.stringify(original) === JSON.stringify(updated);
   };
 
@@ -1768,9 +1773,9 @@ export default function ClientsPage() {
       setEditingRecord(null);
       await fetchClientsAndPartners();
       if (editingRecord) setSelectedRecord(newRecord);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to save client to Database:", error);
-      setToastMessage(error.message || "Error saving record.");
+      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
     }
   };
 
@@ -1809,9 +1814,9 @@ export default function ClientsPage() {
       setEditingRecord(null);
       await fetchClientsAndPartners();
       if (editingRecord) setSelectedRecord(newRecord);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to save partner to Database:", error);
-      setToastMessage(error.message || "Error saving record.");
+      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
     }
   };
 
@@ -1823,9 +1828,9 @@ export default function ClientsPage() {
       setSelectedRecord(null);
       setToastMessage("Deleted successfully.");
       await fetchClientsAndPartners();
-    } catch (error: any) {
+    } catch (error) {
       console.error(`Failed to delete ${activeTab} from Database:`, error);
-      setToastMessage(error.message || "Error deleting record.");
+      setToastMessage(error instanceof Error ? error.message : "Error deleting record.");
     }
   };
 

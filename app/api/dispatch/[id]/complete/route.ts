@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
 
     return NextResponse.json(result, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message || "Internal Server Error" }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 400 });
   }
 }

@@ -23,6 +23,8 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
     if (sessionData) {
       try {
         const user = JSON.parse(sessionData);
+        // Whose initials to draw, read out of the stored session.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setAvatarSeed(user.employeeName || user.contactName || user.name || "User");
       } catch (error) {
         console.error("Failed to parse user session", error);

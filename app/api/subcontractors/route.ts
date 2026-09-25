@@ -12,8 +12,8 @@ export async function GET(request: Request) {
     
     const subcontractors = await getAllSubcontractors();
     return NextResponse.json({ data: subcontractors }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Something went wrong" }, { status: 500 });
   }
 }
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const newSubcon = await createSubcontractor(body);
     
     return NextResponse.json({ message: "Subcontractor added successfully", data: newSubcon }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Something went wrong" }, { status: 500 });
   }
 }
