@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# eslint's machine-readable output, written by CI to count errors
+eslint.json

@@ -57,9 +57,29 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Reported, not enforced: the existing code has a backlog of `any` and
-      # react-hooks findings, and failing every build on them would mean
-      # nothing else in this workflow ever runs.
+      # Enforced now. The backlog this was waived for is gone: the one error
+      # left is in the forecasting screen, which someone else is still
+      # building, so it is allowed by number rather than by name - a second
+      # one fails the build.
+      #
+      # Warnings are still only reported. There are around fifty, mostly
+      # unused variables and <img> tags, and none of them are wrong enough to
+      # stop a deploy.
       - name: Lint
-        run: npm run lint
-        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm run lint -- -f json --output-file eslint.json || true
+
+          errors=$(node -e "
+            const files = require('./eslint.json');
+            let total = 0;
+            for (const file of files) total += file.errorCount;
+            console.log(total);
+          ")
+
+          echo "eslint errors: $errors (allowed: 1)"
+          if [ "$errors" -gt 1 ]; then
+            echo "::error::$errors lint errors; the build allows 1 (the forecasting screen)."
+            npm run lint || true
+            exit 1
+          fi
