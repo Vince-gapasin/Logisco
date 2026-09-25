@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Truck, User, MapPin, Clock, Package } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
+import { formatDateTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
@@ -22,7 +23,8 @@ const REFRESH_INTERVAL_MS = 30_000;
 interface TrackingStep {
   title: string;
   detail: string;
-  stage: "completed" | "current" | "upcoming";
+  stage: "completed" | "current" | "upcoming" | "problem";
+  at?: string | null;
 }
 
 interface TrackingStop {
@@ -340,7 +342,9 @@ function ClientTrackerView() {
                 {data.steps.map((step, index) => (
                   <div key={index} className="flex items-start gap-3.5 relative z-10">
                     <div className="mt-0.5 shrink-0">
-                      {step.stage === "completed" ? (
+                      {step.stage === "problem" ? (
+                        <div className="w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white shadow-xs"></div>
+                      ) : step.stage === "completed" ? (
                         <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white shadow-xs flex items-center justify-center"></div>
                       ) : step.stage === "current" ? (
                         <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border-4 border-blue-100 shadow-xs"></div>
@@ -352,7 +356,11 @@ function ClientTrackerView() {
                     <div className="flex flex-col text-sm">
                       <span
                         className={`text-sm font-medium ${
-                          step.stage === "current" ? "text-blue-700 font-semibold" : "text-slate-900"
+                          step.stage === "problem"
+                            ? "text-red-700 font-semibold"
+                            : step.stage === "current"
+                              ? "text-blue-700 font-semibold"
+                              : "text-slate-900"
                         }`}
                       >
                         {step.title}
@@ -363,6 +371,7 @@ function ClientTrackerView() {
                         }`}
                       >
                         {step.detail}
+                        {step.at ? ` · ${formatDateTime(step.at)}` : ""}
                       </span>
                     </div>
                   </div>

@@ -77,6 +77,8 @@ export interface IncidentRow {
   longitude: number | null;
   dispatchStatusBefore: string | null;
   cargoLoaded: boolean;
+  /** False when the delivery carried on: an issue, not a foul trip. */
+  blocking: boolean;
   status: IncidentStatus;
   severity: "minor" | "major" | null;
   mechanicID: string | null;
@@ -160,12 +162,13 @@ export async function listIncidents(scope: "open" | "recent"): Promise<IncidentV
   let query = supabase.from("FoulTripIncident").select(INCIDENT_COLUMNS);
 
   if (scope === "open") {
-    query = query.in("status", OPEN_STATUSES).order("reportedAt", { ascending: false });
+    query = query.eq("blocking", true).in("status", OPEN_STATUSES).order("reportedAt", { ascending: false });
   } else {
     // Resolved in the last 30 days. Historical closures from the migration
     // are not news and are left out.
     const since = new Date(Date.now() - 30 * 864e5).toISOString();
     query = query
+      .eq("blocking", true)
       .in("status", [INCIDENT_STATUS.resolved, INCIDENT_STATUS.closed])
       .neq("resolution", RESOLUTION.historical)
       .gte("resolvedAt", since)
@@ -293,6 +296,22 @@ export async function getSummary(): Promise<FoulTripSummary> {
 
 // --------------------------------------------------------------- recording
 
+/** Issues reported without stopping the delivery, newest first. */
+export async function listIssues(scope: "open" | "recent"): Promise<IncidentView[]> {
+  let query = supabase.from("FoulTripIncident").select(INCIDENT_COLUMNS).eq("blocking", false);
+
+  if (scope === "open") {
+    query = query.in("status", OPEN_STATUSES);
+  } else {
+    const since = new Date(Date.now() - 30 * 864e5).toISOString();
+    query = query.not("status", "in", `("${INCIDENT_STATUS.open}","${INCIDENT_STATUS.mechanicAssigned}")`).gte("reportedAt", since);
+  }
+
+  const { data, error } = await query.order("reportedAt", { ascending: false }).limit(50);
+  if (error) throw new Error(`Failed to load reported issues: ${error.message}`);
+  return toViews((data ?? []) as Record<string, unknown>[]);
+}
+
 export interface NewIncident {
   dispatchID: string;
   orderID: string;
@@ -305,6 +324,8 @@ export interface NewIncident {
   longitude: number | null;
   dispatchStatusBefore: string;
   cargoLoaded: boolean;
+  /** Leave unset for a foul trip; false when the delivery carried on. */
+  blocking?: boolean;
 }
 
 // Always a new row. A trip repaired on site carries on under the same

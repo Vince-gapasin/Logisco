@@ -14,12 +14,14 @@ const LINK_LIFETIME_AFTER_COMPLETION_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETED_STOP = /complete|delivered/i;
 const FAILED_STOP = /foul|fail|cancel/i;
 
-export type TrackingStage = "completed" | "current" | "upcoming";
+export type TrackingStage = "completed" | "current" | "upcoming" | "problem";
 
 export interface TrackingStep {
   title: string;
   detail: string;
   stage: TrackingStage;
+  /** When it happened, for the entries that know. */
+  at?: string | null;
 }
 
 export interface TrackingStop {
@@ -85,6 +87,7 @@ function buildSteps(
   dispatchStatus: string | null,
   stops: TrackingStop[],
   isCompleted: boolean,
+  problems: ReportedProblem[] = [],
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   const accepted = ["Accepted", "In Transit", "Completed"].includes(dispatchStatus ?? "");
@@ -134,6 +137,19 @@ function buildSteps(
     });
   }
 
+  // What the crew reported. One that stopped the trip is the reason it is
+  // interrupted; one they carried on through is worth saying so plainly.
+  for (const problem of [...problems].reverse()) {
+    steps.push({
+      title: problem.blocking ? `Trip interrupted: ${problem.issueType}` : `Reported: ${problem.issueType}`,
+      detail: problem.blocking
+        ? "Our coordinator is arranging what happens next."
+        : "The delivery is carrying on.",
+      stage: "problem",
+      at: problem.reportedAt,
+    });
+  }
+
   steps.push({
     title: isFoulTrip ? "Trip interrupted" : "Delivery completed",
     detail: isFoulTrip
@@ -145,6 +161,36 @@ function buildSteps(
   });
 
   return steps;
+}
+
+interface ReportedProblem {
+  issueType: string;
+  reportedAt: string;
+  blocking: boolean;
+}
+
+/**
+ * What went wrong on this delivery, as the customer may see it: the kind of
+ * problem and when, never the crew's notes, the location or the photograph.
+ */
+async function reportedProblems(orderID: string): Promise<ReportedProblem[]> {
+  const { data, error } = await supabase
+    .from("FoulTripIncident")
+    .select("issueType, reportedAt, blocking, status")
+    .eq("orderID", orderID)
+    .order("reportedAt", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("[Tracking] Could not read what was reported:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    issueType: (row.issueType as string) ?? "A problem",
+    reportedAt: row.reportedAt as string,
+    blocking: row.blocking !== false,
+  }));
 }
 
 export async function getTrackingByToken(
@@ -266,6 +312,7 @@ export async function getTrackingByToken(
   else if (dispatch?.status) deliveryStatus = "Crew assigned";
 
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
+  const problems = await reportedProblems(order.orderID);
 
   return {
     found: true,
@@ -284,6 +331,6 @@ export async function getTrackingByToken(
     currentLocation,
     trail,
     stops,
-    steps: buildSteps(dispatch?.status ?? null, stops, isCompleted || failedStops),
+    steps: buildSteps(dispatch?.status ?? null, stops, isCompleted || failedStops, problems),
   };
 }

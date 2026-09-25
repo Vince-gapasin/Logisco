@@ -167,6 +167,26 @@ export interface DeliveryDestinationRecord {
   longitude?: number | null;
 }
 
+// Why a delivery stopped, and what happened when it did not. The office
+// reads these to decide what to do, so they are chosen rather than typed.
+const STOPPING_REASONS = [
+  "Broken Truck",
+  "Accident",
+  "Medical Emergency",
+  "Severe Traffic/Roadblock",
+  "Other",
+];
+
+const CONTINUING_REASONS = [
+  "Wrong product collected",
+  "Missing items",
+  "Damaged goods",
+  "Receiver not available",
+  "Cannot access the delivery point",
+  "Heavy traffic - running late",
+  "Other",
+];
+
 export interface DeliveryRecord {
   id: string | number;
   clientName: string;
@@ -315,6 +335,9 @@ export default function CrewDashboardPage({
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState<boolean>(false);
 
   const [showEmergencyModal, setShowEmergencyModal] = useState<boolean>(false);
+  // Can the delivery carry on? A truck that will not start stops the trip; a
+  // wrong product collected does not, and the crew sorts it out on the way.
+  const [canContinue, setCanContinue] = useState(false);
   const [emergencyReason, setEmergencyReason] = useState<string>("Broken Truck");
   // The report's own photo. The form used to send selectedFile - the proof of
   // delivery picked for the current stop - and had no photo field of its own.
@@ -798,6 +821,7 @@ export default function CrewDashboardPage({
       formData.append("dispatchID", String(selectedDelivery.id));
       formData.append("issueType", emergencyReason);
       formData.append("details", emergencyMessage.trim());
+      formData.append("canContinue", canContinue ? "yes" : "no");
       if (position) {
         formData.append("latitude", String(position.latitude));
         formData.append("longitude", String(position.longitude));
@@ -816,19 +840,26 @@ export default function CrewDashboardPage({
       }
 
       setEmergencySubmitted(true);
-      void stopLiveTracking();
 
-      setDeliveryList((prev) =>
-        prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: "Foul Trip", localUpdatedAt: Date.now() } : d)
-      );
+      // A stopped trip ends here: tracking stops, the delivery becomes a foul
+      // trip and the crew goes back to their list. A delivery that carries on
+      // keeps its GPS, its status and the screen the crew was working in.
+      if (!canContinue) {
+        void stopLiveTracking();
+        setDeliveryList((prev) =>
+          prev.map((d) => (d.id === selectedDelivery.id ? { ...d, status: "Foul Trip", localUpdatedAt: Date.now() } : d)),
+        );
+      }
 
       setTimeout(() => {
         setEmergencySubmitted(false);
         setShowEmergencyModal(false);
         setEmergencyMessage("");
         clearEmergencyPhoto();
-        setViewMode("list");
-        setSelectedDelivery(null);
+        if (!canContinue) {
+          setViewMode("list");
+          setSelectedDelivery(null);
+        }
       }, 2000);
 
     } catch (error: any) {
@@ -1620,18 +1651,45 @@ export default function CrewDashboardPage({
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
             <h3 className="text-lg font-bold text-red-600 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" /> Report Emergency
+              <AlertTriangle className="w-5 h-5" /> {canContinue ? "Report an Issue" : "Report Emergency"}
             </h3>
-            <p className="text-sm text-slate-600 mb-4">This will immediately notify dispatch and halt the delivery timeline.</p>
+            <p className="text-sm text-slate-600 mb-4">Dispatch is told either way. Whether the delivery stops depends on your answer below.</p>
             <div className="space-y-4 mb-6">
+              <fieldset>
+                <legend className="block text-xs font-semibold text-slate-700 mb-1">Can you carry on with this delivery?</legend>
+                <div className="grid grid-cols-1 gap-2">
+                  {([
+                    [false, "No - the trip has to stop", "Dispatch will arrange a replacement. The truck and crew are freed."],
+                    [true, "Yes - I can continue", "The delivery stays active. Dispatch is told what happened."],
+                  ] as const).map(([value, title, hint]) => (
+                    <label
+                      key={title}
+                      className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${canContinue === value ? "border-red-500 bg-red-50/40" : "border-slate-200"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="canContinue"
+                        checked={canContinue === value}
+                        onChange={() => {
+                          setCanContinue(value);
+                          setEmergencyReason((value ? CONTINUING_REASONS : STOPPING_REASONS)[0]);
+                        }}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-slate-800">{title}</span>
+                        <span className="block text-xs text-slate-500">{hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Issue Type</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">What happened?</label>
                 <select value={emergencyReason} onChange={(e) => setEmergencyReason(e.target.value)} className="w-full border border-slate-300 rounded-xl p-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600">
-                  <option>Broken Truck</option>
-                  <option>Accident</option>
-                  <option>Medical Emergency</option>
-                  <option>Severe Traffic/Roadblock</option>
-                  <option>Other</option>
+                  {(canContinue ? CONTINUING_REASONS : STOPPING_REASONS).map((reason) => (
+                    <option key={reason}>{reason}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -1663,7 +1721,15 @@ export default function CrewDashboardPage({
             <div className="flex items-center gap-3">
               <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
               <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
-                {emergencySubmitted ? "Alert Sent!" : isSendingEmergency ? "Sending..." : "Send Alert"}
+                {emergencySubmitted
+                  ? canContinue
+                    ? "Reported - carry on"
+                    : "Alert Sent!"
+                  : isSendingEmergency
+                    ? "Sending..."
+                    : canContinue
+                      ? "Report Issue"
+                      : "Send Alert"}
               </button>
             </div>
           </div>

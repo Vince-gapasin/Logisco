@@ -155,6 +155,7 @@ async function getOpenFoulTripBookings(limit: number, columns: string): Promise<
   const { data: incidents, error } = await supabase
     .from("FoulTripIncident")
     .select("orderID")
+    .eq("blocking", true)
     .in("status", ["open", "mechanic_assigned"])
     .order("reportedAt", { ascending: false })
     .limit(limit);

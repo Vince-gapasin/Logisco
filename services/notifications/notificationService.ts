@@ -243,6 +243,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
   const { data: incidents, error: incidentError } = await supabase
     .from("FoulTripIncident")
     .select("incidentID, dispatchID, status, issueType, reportedAt, Order ( orderCode, Client ( company ) )")
+    .eq("blocking", true)
     .in("status", ["open", "mechanic_assigned"])
     .order("reportedAt", { ascending: false })
     .limit(50);

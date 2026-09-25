@@ -16,6 +16,11 @@ import {
 // Emergencies after which the truck must be inspected before its next trip.
 const TRUCK_DAMAGE_ISSUES = ["Broken Truck", "Accident"];
 
+// Two kinds of report come through here. A foul trip stops the delivery: the
+// trip is marked, and its truck and crew are freed for other work. An issue
+// is something the crew can carry on through - the wrong product collected, a
+// receiver missing - and only needs recording and telling the office about.
+
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 function coordinate(value: FormDataEntryValue | null, limit: number): number | null {
@@ -33,6 +38,8 @@ export async function POST(request: Request) {
     const issueType = ((formData.get("issueType") as string | null) || "").trim();
     const details = ((formData.get("details") as string | null) || "").trim();
     const photo = formData.get("emergencyImage");
+    // Absent means a foul trip: that is what every existing client sends.
+    const blocking = formData.get("canContinue") !== "yes";
     let latitude = coordinate(formData.get("latitude"), 90);
     let longitude = coordinate(formData.get("longitude"), 180);
 
@@ -79,20 +86,26 @@ export async function POST(request: Request) {
       longitude = lastFix?.longitude ?? null;
     }
 
-    // 1. Mark the dispatch, conditional on the status just read so two crew
-    // members reporting at once cannot both write.
-    const emergencyNote = `EMERGENCY [${issueType}] reported by ${auth.employee.employeeName}: ${details || "No details provided"}`;
-    const dispatchNote = current.dispatchNote ? `${current.dispatchNote}\n${emergencyNote}` : emergencyNote;
+    // 1. Note it on the trip. A foul trip also changes its status, on the
+    // status just read, so two crew members reporting at once cannot both
+    // write; an issue leaves the delivery exactly as it was.
+    const label = blocking ? "EMERGENCY" : "ISSUE";
+    const reportNote = `${label} [${issueType}] reported by ${auth.employee.employeeName}: ${details || "No details provided"}`;
+    const dispatchNote = current.dispatchNote ? `${current.dispatchNote}\n${reportNote}` : reportNote;
+
+    const update = blocking
+      ? { status: DELIVERY_STATUS.foulTrip, dispatchNote }
+      : { dispatchNote };
 
     const { data: marked, error: updateErr } = await supabase
       .from("DispatchOrder")
-      .update({ status: DELIVERY_STATUS.foulTrip, dispatchNote })
+      .update(update)
       .eq("dispatchID", dispatchID)
       .eq("status", current.status)
       .select("dispatchID")
       .maybeSingle();
 
-    if (updateErr) throw new Error(`Failed to mark foul trip: ${updateErr.message}`);
+    if (updateErr) throw new Error(`Failed to record the report: ${updateErr.message}`);
     if (!marked) {
       return NextResponse.json({ message: "This trip was updated by someone else. Please refresh." }, { status: 409 });
     }
@@ -125,6 +138,7 @@ export async function POST(request: Request) {
         longitude,
         dispatchStatusBefore: current.status,
         cargoLoaded: Boolean(current.pickupCompletedAt),
+        blocking,
       });
     } catch (error) {
       console.error("[Emergency API] Incident not recorded:", error);
@@ -134,44 +148,55 @@ export async function POST(request: Request) {
     const { error: reportErr } = await supabase.from("Reports").insert({
       dispatchID,
       status: DELIVERY_STATUS.foulTrip,
-      finalRemarks: `EMERGENCY ALERT\nType: ${issueType}\nReported by: ${auth.employee.employeeName}\nDetails: ${details || "None provided"}`,
+      finalRemarks: `${blocking ? "EMERGENCY ALERT" : "ISSUE REPORTED"}\nType: ${issueType}\nReported by: ${auth.employee.employeeName}\nDetails: ${details || "None provided"}`,
     });
     if (reportErr) console.error("[Emergency API] Report insert failed:", reportErr.message);
 
-    // 5. Free the crew; send a damaged truck to maintenance.
-    const truckStatus = TRUCK_DAMAGE_ISSUES.includes(issueType)
-      ? TRUCK_STATUS.onMaintenance
-      : TRUCK_STATUS.available;
-    await releaseDispatchResources(dispatchID, truckStatus);
+    // 5. A stopped trip frees its crew, and a damaged truck goes to
+    // maintenance. A delivery still under way keeps both.
+    if (blocking) {
+      const truckStatus = TRUCK_DAMAGE_ISSUES.includes(issueType)
+        ? TRUCK_STATUS.onMaintenance
+        : TRUCK_STATUS.available;
+      await releaseDispatchResources(dispatchID, truckStatus);
+    }
 
     await recordAudit({
       table: "DispatchOrder",
       recordID: dispatchID,
-      action: "EMERGENCY",
+      action: blocking ? "EMERGENCY" : "ISSUE",
       actor: auditActor(auth),
       before: { status: current.status },
       after: {
-        status: DELIVERY_STATUS.foulTrip,
+        status: blocking ? DELIVERY_STATUS.foulTrip : current.status,
+        blocking,
         issueType,
         details: details || null,
-        truckStatus,
         photo: Boolean(photoPath),
         located: latitude !== null && longitude !== null,
       },
     });
 
     await notify({
-      event: "FOUL_TRIP_REPORTED",
-      title: `Foul trip: ${issueType}`,
-      body: `${auth.employee.employeeName} reported ${issueType.toLowerCase()} on ${(await tripLabel(dispatchID)) ?? "a delivery"}.${details ? ` ${details}` : ""} It needs recovery.`,
-      severity: "urgent",
+      event: blocking ? "FOUL_TRIP_REPORTED" : "DELIVERY_ISSUE_REPORTED",
+      title: blocking ? `Foul trip: ${issueType}` : `Issue on a delivery: ${issueType}`,
+      body: `${auth.employee.employeeName} reported ${issueType.toLowerCase()} on ${(await tripLabel(dispatchID)) ?? "a delivery"}.${details ? ` ${details}` : ""} ${blocking ? "It needs recovery." : "The delivery is carrying on."}`,
+      severity: blocking ? "urgent" : "action",
       roles: OFFICE,
       entity: { table: "DispatchOrder", id: dispatchID },
       link: "/admindashboard/feeds/foul-trip",
       actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
     });
 
-    return NextResponse.json({ message: "Emergency alert broadcasted successfully" }, { status: 200 });
+    return NextResponse.json(
+      {
+        message: blocking
+          ? "Emergency alert broadcasted successfully"
+          : "Issue reported. Carry on with the delivery.",
+        blocking,
+      },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("[Emergency API] CRITICAL ERROR:", error);
     return NextResponse.json({ message: "Failed to broadcast emergency" }, { status: 500 });

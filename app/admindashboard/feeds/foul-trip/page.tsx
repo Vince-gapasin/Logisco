@@ -65,6 +65,10 @@ export default function FoulTripFeedPage() {
   const [bookings, setBookings] = useState<FoulTripRow[]>([]);
   const [summary, setSummary] = useState<FoulTripSummary | null>(null);
   const [recent, setRecent] = useState<IncidentView[]>([]);
+  // Reported while the delivery carried on: nothing to recover, but the
+  // office should know and can close them off.
+  const [issues, setIssues] = useState<IncidentView[]>([]);
+  const [closing, setClosing] = useState<string | null>(null);
   const [partnerTripID, setPartnerTripID] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -75,7 +79,7 @@ export default function FoulTripFeedPage() {
       // the 60-second GET cache still showing what was just resolved.
       const [orders, foul] = await Promise.all([
         apiFetch<any[]>("/api/bookings?stage=foul-trip", { cache: "no-store" }),
-        apiFetch<{ open: IncidentView[]; recent: IncidentView[]; summary: FoulTripSummary }>(
+        apiFetch<{ open: IncidentView[]; recent: IncidentView[]; summary: FoulTripSummary; issues: IncidentView[] }>(
           "/api/foul-trips",
           { cache: "no-store" },
         ),
@@ -91,6 +95,7 @@ export default function FoulTripFeedPage() {
       );
       setSummary(foul.summary);
       setRecent(foul.recent);
+      setIssues(foul.issues ?? []);
       setLoadError("");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Failed to load bookings.");
@@ -152,6 +157,21 @@ export default function FoulTripFeedPage() {
     setTimeout(() => {
       setShowSuccessToast(false);
     }, 3000);
+  };
+
+  const closeIssue = async (incident: IncidentView) => {
+    setClosing(incident.incidentID);
+    try {
+      await apiFetch(`/api/foul-trips/${incident.incidentID}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "close", notes: "Sorted out during the delivery." }),
+      });
+      handleProceedSuccess(`${incident.orderCode ?? "The issue"} closed.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not close it.");
+    } finally {
+      setClosing(null);
+    }
   };
 
   return (
@@ -421,6 +441,41 @@ export default function FoulTripFeedPage() {
           </div>
         </div>
       </div>
+
+      {issues.length > 0 && (
+        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-amber-100 bg-amber-50/60">
+            <h2 className="text-base font-bold text-slate-900">Issues on deliveries still running</h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              The crew reported these and carried on. Nothing to recover - close one once it is sorted.
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {issues.map((issue) => (
+              <li key={issue.incidentID} className="px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {issue.orderCode ?? "Booking"}
+                    <span className="font-normal text-slate-500"> · {issue.clientName ?? "Client"} · {issue.issueType}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {issue.details ? `${issue.details} · ` : ""}
+                    reported by {issue.reporterName ?? "the crew"} · {new Date(issue.reportedAt).toLocaleString("en-PH")}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => closeIssue(issue)}
+                  disabled={closing === issue.incidentID}
+                  className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                >
+                  {closing === issue.incidentID ? "Saving…" : "Close"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {recent.length > 0 && (
         <div className="mt-6 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
