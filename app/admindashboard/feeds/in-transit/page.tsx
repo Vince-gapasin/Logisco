@@ -7,6 +7,12 @@ import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
+import {
+  AssignedCrew,
+  BookingNotes,
+  BookingSchedule,
+  ClientInformation,
+} from "@/components/booking/BookingReadOnly";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import {
   isInTransit,
@@ -181,11 +187,9 @@ function BookingDetailsModal({
   if (!isOpen || !booking) return null;
 
   // In Transit bookings are generally read-only in this modal context
+  // This screen never edits: a trip already on the road is changed from the
+  // crew's app, not from here.
   const isEditable = false;
-
-  const inputClass = isEditable
-    ? "w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-    : "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
 
   const tableInputClass = isEditable
     ? "w-full bg-transparent border border-slate-200 rounded px-1.5 py-1"
@@ -260,69 +264,7 @@ function BookingDetailsModal({
             </div>
           </div>
 
-          {/* 1. Client Information */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              1. Client Information
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.clientName}
-                  className="w-full bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-700"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Person
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.contactPerson}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Contact Number
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.contactNumber}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  readOnly
-                  value={formData.emailAddress}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-black mb-1">
-                  Business Address
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.businessAddress}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          </div>
+          <ClientInformation fields={formData} />
 
           {/* 2. Pickup Address */}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
@@ -527,115 +469,11 @@ function BookingDetailsModal({
             </div>
           </div>
 
-          {/* 4. Booking Details & Schedule */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              4. Booking Details & Schedule
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              <div className="sm:col-span-4 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Delivery Schedule
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={booking.displayDate}
-                  className={inputClass}
-                />
-              </div>
-              <div className="sm:col-span-5 md:col-span-6">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Product To Deliver
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.product}
-                  className={inputClass}
-                />
-              </div>
-              <div className="sm:col-span-3 md:col-span-3">
-                <label className="block text-xs font-medium text-black mb-1">
-                  Priority Level
-                </label>
-                <input
-                  readOnly
-                  value={formData.priorityLevel}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          </div>
+          <BookingSchedule fields={formData} scheduledFor={booking.displayDate} />
 
-          {/* 5. Assigned Crew / Vehicle */}
-          <div
-            ref={crewSectionRef}
-            className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs scroll-mt-4"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
-              <span className="font-semibold text-black text-sm tracking-wide">
-                5. Assigned Delivery Crews & Vehicle
-              </span>
-            </div>
+          <AssignedCrew fields={formData} sectionRef={crewSectionRef} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                  Truck Plate No.
-                </label>
-                <input
-                  readOnly
-                  value={formData.truckPlate || "Not Assigned"}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                  Driver
-                </label>
-                <input
-                  readOnly
-                  value={formData.driver || "Not Assigned"}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                  Helper #1
-                </label>
-                <input
-                  readOnly
-                  value={formData.helper1 || "Not Assigned"}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                  Helper #2
-                </label>
-                <input
-                  readOnly
-                  value={formData.helper2 || "Not Assigned"}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 6. Notes / Instructions */}
-          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-              6. Notes / Instructions
-            </div>
-            <textarea
-              name="notes"
-              rows={3}
-              readOnly
-              value={formData.notes}
-              className={`w-full resize-y rounded-md px-3 py-2 text-xs bg-slate-50 border border-slate-200 font-medium text-slate-700 focus:outline-none cursor-default`}
-            />
-          </div>
+          <BookingNotes notes={formData.notes} />
 
           {/* 7. What happened to this booking, newest first. */}
           <BookingHistory orderID={booking.id} />
