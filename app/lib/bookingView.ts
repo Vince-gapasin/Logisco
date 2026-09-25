@@ -1,4 +1,16 @@
 import { formatTime } from "@/app/lib/datetime";
+import type {
+  BranchStopsRow,
+  ClientRow,
+  DispatchHelperRow,
+  DispatchOrderRow,
+  FoulTripIncidentRow,
+  OrderDetailsRow,
+  OrderRow,
+  PickupStopsRow,
+  PODRow,
+  TruckRow,
+} from "@/types/database";
 // Maps an Order row from /api/bookings into the shape the booking screens
 // render. Scheduling and priority are still stored inside Order.notes as
 // free text by the booking form, so they are parsed back out here in one
@@ -122,6 +134,12 @@ export interface BookingView {
   plainNotes: string;
 }
 
+/** A relation as a list, whether it arrived as one, as a single row, or not at all. */
+function asRows<T>(value: T | T[] | null | undefined): T[] {
+  if (Array.isArray(value)) return value.filter(Boolean) as T[];
+  return value ? [value] : [];
+}
+
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -171,29 +189,67 @@ export function toProgressStage(dispatchStatus: string | null): string {
   }
 }
 
-export function mapOrderToBookingView(order: any): BookingView {
-  const client = firstRelated<any>(order.Client);
-  const items: any[] = Array.isArray(order.OrderDetails) ? order.OrderDetails : [];
-  const stops: any[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
-  const pickupRows: any[] = Array.isArray(order.PickupStops) ? order.PickupStops : [];
+// ==========================================
+// WHAT A BOOKING QUERY RETURNS
+// ==========================================
+// An order with whatever was embedded alongside it. Every field is optional
+// because each screen selects a different set - the reports list asks for a
+// summary, a booking's own page asks for everything - and a relation arrives
+// as an array, a single object or nothing at all depending on the query.
+//
+// The column names come from types/database.ts, which is generated from the
+// database. They used to be typed as `any`, and one of them had been wrong
+// for long enough to break a query written against it.
 
-  const dispatches: any[] = (Array.isArray(order.DispatchOrder)
-    ? order.DispatchOrder
-    : [order.DispatchOrder]
-  ).filter(Boolean);
+type Related<T> = T | T[] | null;
+
+export interface EmployeeName {
+  employeeName?: string | null;
+}
+
+export interface DispatchWithCrew extends Partial<DispatchOrderRow> {
+  Driver?: Related<EmployeeName>;
+  Truck?: Related<Partial<TruckRow>>;
+  SubContractor?: Related<{ companyName?: string | null }>;
+  DispatchHelper?: Related<Partial<DispatchHelperRow> & { Helper?: Related<EmployeeName> }>;
+}
+
+export interface StopWithProof extends Partial<BranchStopsRow> {
+  POD?: Related<Partial<PODRow>>;
+}
+
+export interface OrderWithRelations extends Partial<OrderRow> {
+  Client?: Related<Partial<ClientRow>>;
+  OrderDetails?: Related<Partial<OrderDetailsRow>>;
+  BranchStops?: Related<StopWithProof>;
+  PickupStops?: Related<Partial<PickupStopsRow>>;
+  DispatchOrder?: Related<DispatchWithCrew>;
+  FoulTripIncident?: Related<Partial<FoulTripIncidentRow>>;
+}
+
+// A trip that is over one way or another, so not the one a booking is on.
+const CLOSED_DISPATCH_STATUSES: string[] = [DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip];
+
+export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
+  const client = firstRelated(order.Client);
+  const items = asRows(order.OrderDetails);
+  const stops = asRows(order.BranchStops);
+  const pickupRows = asRows(order.PickupStops);
+
+  const dispatches = asRows(order.DispatchOrder);
 
   // The latest dispatch is the live one; earlier ones were rejected.
   const liveDispatch =
     dispatches.find(
-      (d) => ![DELIVERY_STATUS.rejected, DELIVERY_STATUS.foulTrip].includes(d.status),
+      (d) => !CLOSED_DISPATCH_STATUSES.includes(d.status ?? ""),
     ) ??
     dispatches[dispatches.length - 1] ??
     null;
 
   // A driver's acceptance lives on the dispatch itself; each helper carries
   // their own status on their DispatchHelper row.
-  const driver = firstRelated<any>(liveDispatch?.Driver);
-  const truck = firstRelated<any>(liveDispatch?.Truck);
+  const driver = firstRelated(liveDispatch?.Driver);
+  const truck = firstRelated(liveDispatch?.Truck);
   const partner = firstRelated<{ companyName?: string | null }>(liveDispatch?.SubContractor);
   const partnerFromNote = /Subcontractor:\s*([^\n]*)/.exec(liveDispatch?.dispatchNote || "")?.[1]?.trim() || "";
   const isSubcon = Boolean(liveDispatch && (liveDispatch.subConID || (!liveDispatch.truckID && partnerFromNote)));
@@ -201,7 +257,7 @@ export function mapOrderToBookingView(order: any): BookingView {
   const driverStatus = (() => {
     if (!liveDispatch) return HELPER_STATUS.pending;
     // Anything from the crew accepting onwards means they accepted.
-    if (!ACCEPTED_ONWARDS.includes(liveDispatch.status)) {
+    if (!ACCEPTED_ONWARDS.includes(liveDispatch.status ?? "")) {
       return liveDispatch.status === DELIVERY_STATUS.rejected
         ? HELPER_STATUS.declined
         : HELPER_STATUS.pending;
@@ -220,11 +276,11 @@ export function mapOrderToBookingView(order: any): BookingView {
       reason: liveDispatch.rejectionreason || "",
     });
 
-    const helpers: any[] = Array.isArray(liveDispatch.DispatchHelper) ? liveDispatch.DispatchHelper : [];
+    const helpers = asRows(liveDispatch.DispatchHelper);
     helpers.forEach((helper, index) => {
       crews.push({
         role: `Helper #${index + 1}`,
-        name: firstRelated<any>(helper.Helper)?.employeeName || "Unassigned",
+        name: firstRelated(helper.Helper)?.employeeName || "Unassigned",
         status: helper.status || "Pending",
         employeeID: helper.helperID ?? null,
         reason: helper.declinereason || "",
@@ -266,8 +322,8 @@ export function mapOrderToBookingView(order: any): BookingView {
   }
 
   return {
-    id: order.orderID,
-    orderId: order.orderCode || order.orderID,
+    id: order.orderID ?? "",
+    orderId: order.orderCode || order.orderID || "",
     clientID: order.clientID ?? null,
     clientName: client?.company || "Walk-in / On-Call",
     contactPerson: client?.contactName || "",
@@ -299,7 +355,7 @@ export function mapOrderToBookingView(order: any): BookingView {
         completedAt: stop.completedAt ?? null,
         latitude: Number(stop.deliveryLat) || null,
         longitude: Number(stop.deliverLong) || null,
-        proofs: ((stop.POD as any[]) ?? [])
+        proofs: asRows(stop.POD)
           .map((pod) => ({
             url: (pod.proof as string | null) ?? null,
             isPdf: pod.fileType === "application/pdf" || /\.pdf(\?|$)/i.test(String(pod.proof ?? "")),
