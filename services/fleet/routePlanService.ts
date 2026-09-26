@@ -10,7 +10,7 @@
 
 import { supabase } from "@/app/lib/supabase";
 import { isStopDelivered } from "@/app/lib/enums";
-import { getRouteGeometry, type PlannedRoute } from "@/services/geo/routingService";
+import { getRouteGeometry, type PlannedRoute, type RoutePath } from "@/services/geo/routingService";
 import type { Coordinates } from "@/services/geo/geocodingService";
 
 interface PickupRow {
@@ -24,6 +24,8 @@ interface PickupRow {
 export interface RouteWaypoint extends Coordinates {
   label: string;
   kind: "truck" | "pickup" | "delivery";
+  /** Which delivery stop this is, so a screen can say when the truck reaches it. */
+  branchID?: number;
 }
 
 export interface DispatchRoute extends PlannedRoute {
@@ -31,14 +33,15 @@ export interface DispatchRoute extends PlannedRoute {
   waypoints: RouteWaypoint[];
 }
 
-// A planned route only moves when the stops change or the truck does. Holding
-// it briefly keeps a polled tracking page from asking Mapbox the same question
-// every few seconds, per viewer.
-const CACHE_TTL_MS = 3 * 60 * 1000;
+// A backstop, not the mechanism. What actually keeps a route current is the
+// truck leaving it, and a stop being finished clearing it outright - this is
+// only here so that nothing can go stale indefinitely if both of those miss.
+const CACHE_TTL_MS = 15 * 60 * 1000;
 
-// Far enough that the road ahead is genuinely different, rather than the truck
-// having crept forward at a red light.
-const RECOMPUTE_DISTANCE_M = 250;
+// How far off the drawn route the truck has to be before the route is wrong.
+// Wide enough to absorb GPS scatter and a dual carriageway drawn as one line;
+// narrow enough that a wrong turn shows within a block or two.
+const OFF_ROUTE_M = 150;
 
 interface CacheEntry {
   route: DispatchRoute;
@@ -48,11 +51,53 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-/** Rough metres between two positions. Good enough to decide "has it moved?". */
-function metresBetween(a: Coordinates, b: Coordinates): number {
-  const latMetres = (a.latitude - b.latitude) * 111_320;
-  const lonMetres = (a.longitude - b.longitude) * 111_320 * Math.cos((a.latitude * Math.PI) / 180);
-  return Math.sqrt(latMetres * latMetres + lonMetres * lonMetres);
+const METRES_PER_DEGREE = 111_320;
+
+/**
+ * Metres from a point to the nearest part of a line.
+ *
+ * Over a few kilometres at these latitudes, treating degrees as a flat grid is
+ * accurate to well within the tolerance this is compared against, and it
+ * avoids doing trigonometry a thousand times per request.
+ *
+ * Returns Infinity for a line with nothing in it: no line to be near.
+ */
+export function metresFromPath(point: Coordinates, path: RoutePath): number {
+  if (path.length === 0) return Infinity;
+
+  const scale = Math.cos((point.latitude * Math.PI) / 180) * METRES_PER_DEGREE;
+  const px = point.longitude * scale;
+  const py = point.latitude * METRES_PER_DEGREE;
+
+  let closest = Infinity;
+
+  for (let i = 0; i < path.length; i++) {
+    const ax = path[i][0] * scale;
+    const ay = path[i][1] * METRES_PER_DEGREE;
+
+    // The last point is a point, not the start of a segment.
+    if (i === path.length - 1) {
+      closest = Math.min(closest, Math.hypot(px - ax, py - ay));
+      break;
+    }
+
+    const bx = path[i + 1][0] * scale;
+    const by = path[i + 1][1] * METRES_PER_DEGREE;
+
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+
+    // How far along this segment the nearest point lies, clamped to its ends
+    // so that a truck past the end of a segment measures to the end, not to
+    // an imaginary continuation of it.
+    const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared));
+
+    closest = Math.min(closest, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+    if (closest === 0) break;
+  }
+
+  return closest;
 }
 
 function usable(value: unknown): value is number {
@@ -87,7 +132,7 @@ export async function getRemainingWaypoints(dispatchID: string): Promise<RouteWa
       : Promise.resolve({ data: [] as PickupRow[] }),
     supabase
       .from("BranchStops")
-      .select("branchName, deliveryLat, deliverLong, sequence, stopStatus")
+      .select("branchID, branchName, deliveryLat, deliverLong, sequence, stopStatus")
       .eq("dispatchID", dispatchID)
       .order("sequence", { ascending: true }),
   ]);
@@ -115,6 +160,7 @@ export async function getRemainingWaypoints(dispatchID: string): Promise<RouteWa
       longitude: stop.deliverLong,
       label: stop.branchName || "Stop",
       kind: "delivery",
+      branchID: stop.branchID ?? undefined,
     });
   }
 
@@ -143,10 +189,15 @@ export async function getDispatchRoute(dispatchID: string): Promise<DispatchRout
 
   const cached = cache.get(dispatchID);
   if (cached && Date.now() - cached.storedAt < CACHE_TTL_MS) {
-    const stale =
-      Boolean(from) !== Boolean(cached.from) ||
-      (from && cached.from && metresBetween(from, cached.from) > RECOMPUTE_DISTANCE_M);
-    if (!stale) return cached.route;
+    // A truck driving along the route it was given needs no new route, however
+    // far along it has got. This used to ask how far the truck had moved since
+    // the route was drawn, which a truck obeying the route does constantly:
+    // 250 m is twenty-two seconds at 40 km/h, so the line was redrawn - to
+    // something all but identical - on nearly every poll of every viewer.
+    const offRoute = from ? metresFromPath(from, cached.route.path) > OFF_ROUTE_M : false;
+    const startedReporting = Boolean(from) !== Boolean(cached.from);
+
+    if (!offRoute && !startedReporting) return cached.route;
   }
 
   const remaining = await getRemainingWaypoints(dispatchID);

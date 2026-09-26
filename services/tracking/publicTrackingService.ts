@@ -2,9 +2,9 @@ import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { formatDateTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
-import { getDispatchRoute } from "@/services/fleet/routePlanService";
+import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
 import { maskEmail, maskPhone } from "@/app/lib/mask";
-import { getTravelEstimate, toArrivalLabel } from "@/services/geo/routingService";
+import { toArrivalLabel } from "@/services/geo/routingService";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
 // capability URL - anyone holding it can read this - so the payload is limited
@@ -251,6 +251,27 @@ interface TrackedStop {
   POD?: { receiverName: string | null; deliveredAt: string | null }[] | null;
 }
 
+/**
+ * Minutes of driving from where the truck is to one particular stop, by adding
+ * up the legs of the planned route until that stop is reached.
+ *
+ * Null when the route does not visit it - a stop with no coordinates is left
+ * out of the route entirely, and an ETA for a stop nobody is driving to would
+ * be an invention.
+ */
+export function legsUpTo(route: DispatchRoute, branchID: number): number | null {
+  // The first waypoint is the truck itself; the legs run between waypoints, so
+  // leg i ends at waypoint i + 1.
+  const target = route.waypoints.findIndex((point) => point.branchID === branchID);
+  if (target < 1) return null;
+
+  let minutes = 0;
+  for (let leg = 0; leg < target; leg++) {
+    minutes += route.legMinutes[leg] ?? 0;
+  }
+  return minutes > 0 ? minutes : null;
+}
+
 export async function getTrackingByToken(
   token: string,
 ): Promise<TrackingPayload | { found: false } | { found: true; isExpired: true }> {
@@ -334,22 +355,26 @@ export async function getTrackingByToken(
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
   const estimatedArrival = isCompleted ? null : formatExpectedTime(nextStop?.expectedTime ?? null);
 
-  // Real driving time from where the truck is now to the next stop. Needs both
-  // a live position and a geocoded stop, so it is skipped when either is absent.
+  // Driving time to this client's stop, read off the route already worked out
+  // above rather than asked for separately.
+  //
+  // It used to be its own Directions request - a straight truck-to-stop
+  // estimate, made on every poll of every viewer, thirty seconds apart. That
+  // was both the larger half of the bill and the less accurate answer: it
+  // ignored everything the truck had to do on the way, so a delivery with two
+  // drops ahead of it announced a time it could not make. Summing the legs up
+  // to the stop counts them.
   let liveEta: TrackingPayload["liveEta"] = null;
-  if (
-    dispatch?.status === DELIVERY_STATUS.inTransit &&
-    currentLocation &&
-    nextStop?.latitude != null &&
-    nextStop?.longitude != null
-  ) {
-    const estimate = await getTravelEstimate(
-      { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
-      { latitude: nextStop.latitude, longitude: nextStop.longitude },
-    );
+  if (dispatch?.status === DELIVERY_STATUS.inTransit && planned && nextStop?.branchID != null) {
+    const legsToStop = legsUpTo(planned, nextStop.branchID);
 
-    if (estimate) {
-      liveEta = { ...estimate, arrivalTime: toArrivalLabel(estimate.minutes) };
+    if (legsToStop !== null) {
+      const minutes = Math.max(1, legsToStop);
+      liveEta = {
+        minutes,
+        distanceKm: planned.distanceKm,
+        arrivalTime: toArrivalLabel(minutes),
+      };
     }
   }
 

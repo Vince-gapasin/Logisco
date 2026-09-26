@@ -14,7 +14,7 @@ vi.mock("@/app/lib/supabase", () => ({ supabase: db.client }));
 // to be there before the import rather than in a beforeEach.
 process.env.NEXT_PUBLIC_MAPBOX_TOKEN = "test-token";
 
-const { getRemainingWaypoints, getDispatchRoute, forgetDispatchRoute } = await import(
+const { getRemainingWaypoints, getDispatchRoute, forgetDispatchRoute, metresFromPath } = await import(
   "@/services/fleet/routePlanService"
 );
 
@@ -158,7 +158,56 @@ describe("the route itself", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("asks Mapbox once and serves the rest from memory", async () => {
+  it("draws a new route when the driver has left the one they were given", async () => {
+    mockDirections();
+    const stop = { branchID: 1, branchName: "Stop", deliveryLat: 13.941, deliverLong: 121.1618, sequence: 1, stopStatus: "Pending" };
+
+    // Drawn while the truck sits at the start of the route.
+    db.queue(
+      { data: { latitude: 14.6108, longitude: 121.0229 } },
+      { data: { orderID: ORDER } },
+      { data: [] },
+      { data: [stop] },
+    );
+    await getDispatchRoute(TRIP);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // Now a kilometre east of every point on it: a wrong turn.
+    db.queue(
+      { data: { latitude: 14.6108, longitude: 121.0329 } },
+      { data: { orderID: ORDER } },
+      { data: [] },
+      { data: [stop] },
+    );
+    const rerouted = await getDispatchRoute(TRIP);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(rerouted?.waypoints[0]).toMatchObject({ kind: "truck", longitude: 121.0329 });
+  });
+
+  it("keeps the route while the truck is driving along it", async () => {
+    mockDirections();
+    const stop = { branchID: 1, branchName: "Stop", deliveryLat: 13.941, deliverLong: 121.1618, sequence: 1, stopStatus: "Pending" };
+
+    db.queue(
+      { data: { latitude: 14.6108, longitude: 121.0229 } },
+      { data: { orderID: ORDER } },
+      { data: [] },
+      { data: [stop] },
+    );
+    await getDispatchRoute(TRIP);
+
+    // Forty kilometres further on, and still on the line. Under the old rule -
+    // "has it moved 250 m?" - this was a fresh Mapbox request, which is what
+    // made a driver who followed the route the expensive one.
+    db.queue({ data: { latitude: 14.2, longitude: 121.1 } });
+    await getDispatchRoute(TRIP);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+
+    it("asks Mapbox once and serves the rest from memory", async () => {
     mockDirections();
     const queueOnce = () => {
       db.queue(
@@ -175,5 +224,53 @@ describe("the route itself", () => {
     await getDispatchRoute(TRIP);
 
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("how far the truck is from the route", () => {
+  // A straight kilometre of road running east along latitude 14.6.
+  const road: [number, number][] = [
+    [121.0, 14.6],
+    [121.01, 14.6],
+  ];
+
+  it("is nothing when the truck is on the line", () => {
+    expect(metresFromPath({ latitude: 14.6, longitude: 121.005 }, road)).toBeLessThan(1);
+  });
+
+  it("measures across to the line, not along it", () => {
+    // A tenth of a degree of latitude north: about 111 m.
+    const north = metresFromPath({ latitude: 14.601, longitude: 121.005 }, road);
+    expect(north).toBeGreaterThan(100);
+    expect(north).toBeLessThan(120);
+  });
+
+  it("measures to the end of the road, not past it", () => {
+    // Beyond the eastern end. The nearest point is that end, not an imaginary
+    // continuation of the road - which is what a clamped segment gives.
+    const beyond = metresFromPath({ latitude: 14.6, longitude: 121.02 }, road);
+    expect(beyond).toBeGreaterThan(1000);
+    expect(beyond).toBeLessThan(1150);
+  });
+
+  it("finds the nearest part of a road that bends", () => {
+    const bend: [number, number][] = [
+      [121.0, 14.6],
+      [121.01, 14.6],
+      [121.01, 14.61],
+    ];
+    // Beside the second leg, a little to the east of it.
+    expect(metresFromPath({ latitude: 14.605, longitude: 121.011 }, bend)).toBeLessThan(120);
+  });
+
+  it("is infinitely far from a road with nothing in it", () => {
+    expect(metresFromPath({ latitude: 14.6, longitude: 121.0 }, [])).toBe(Infinity);
+  });
+
+  it("agrees with a known distance", () => {
+    // One thousandth of a degree of latitude is 111.3 m anywhere on earth.
+    const metres = metresFromPath({ latitude: 14.601, longitude: 121.0 }, [[121.0, 14.6]]);
+    expect(metres).toBeGreaterThan(110);
+    expect(metres).toBeLessThan(113);
   });
 });

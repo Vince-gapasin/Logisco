@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { POD_BUCKET, signPodUrl } from "@/services/storage/podService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
+import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
@@ -242,6 +243,12 @@ export async function POST(request: Request) {
         .eq("pickupID", pickupID);
       if (pickupErr) console.error("[Status API] Pickup status update failed:", pickupErr.message);
     }
+
+    // A finished stop is one the truck is no longer driving to, so the route
+    // held for this trip is out of date the moment it is recorded. Clearing it
+    // here is exact; waiting for it to time out would leave the map pointing
+    // at somewhere the truck has already been.
+    forgetDispatchRoute(dispatchID);
 
     await recordAudit({
       table: "DispatchOrder",
