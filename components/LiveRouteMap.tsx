@@ -139,7 +139,7 @@ export default function LiveRouteMap({
   }
 
   return (
-    <div className={`${heightClass} w-full overflow-hidden`}>
+    <div className={`${heightClass} relative w-full overflow-hidden`}>
       <Map
         ref={mapRef}
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -150,29 +150,40 @@ export default function LiveRouteMap({
       >
         <NavigationControl position="top-right" showCompass={false} />
 
-        {plannedRoute.length > 1 && (
-          <Source id="route-planned" type="geojson" data={plannedGeoJson}>
-            <Layer
-              id="route-planned-line"
-              type="line"
-              layout={{ "line-cap": "round", "line-join": "round" }}
-              paint={{
-                "line-color": "#64748b",
-                "line-width": 4,
-                "line-opacity": 0.65,
-                "line-dasharray": [2, 2],
-              }}
-            />
-          </Source>
-        )}
-
+        {/*
+          Where it has been, underneath and muted. It is raw GPS - it wanders
+          off the road between fixes - and it is the less useful of the two to
+          anyone looking at the map right now.
+        */}
         {trail.length > 1 && (
           <Source id="route-trail" type="geojson" data={trailGeoJson}>
             <Layer
               id="route-trail-line"
               type="line"
               layout={{ "line-cap": "round", "line-join": "round" }}
-              paint={{ "line-color": "#2563eb", "line-width": 4, "line-opacity": 0.7 }}
+              paint={{ "line-color": "#94a3b8", "line-width": 3, "line-opacity": 0.85 }}
+            />
+          </Source>
+        )}
+
+        {/*
+          Where it is going, on top and in blue - the way a driver already
+          reads a map, and what a coordinator is checking the truck against.
+          A casing underneath keeps it legible over dark roads and parks.
+        */}
+        {plannedRoute.length > 1 && (
+          <Source id="route-planned" type="geojson" data={plannedGeoJson}>
+            <Layer
+              id="route-planned-casing"
+              type="line"
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{ "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.9 }}
+            />
+            <Layer
+              id="route-planned-line"
+              type="line"
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{ "line-color": "#2563eb", "line-width": 5, "line-opacity": 0.95 }}
             />
           </Source>
         )}
@@ -226,6 +237,25 @@ export default function LiveRouteMap({
           </Popup>
         )}
       </Map>
+
+      {(plannedRoute.length > 1 || trail.length > 1) && (
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-white/95 px-3 py-2 shadow-sm ring-1 ring-slate-200">
+          <ul className="space-y-1.5">
+            {plannedRoute.length > 1 && (
+              <li className="flex items-center gap-2">
+                <span className="h-1 w-6 rounded-full bg-blue-600" />
+                <span className="text-xs font-medium text-slate-700">Route ahead</span>
+              </li>
+            )}
+            {trail.length > 1 && (
+              <li className="flex items-center gap-2">
+                <span className="h-1 w-6 rounded-full bg-slate-400" />
+                <span className="text-xs font-medium text-slate-700">Already travelled</span>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
