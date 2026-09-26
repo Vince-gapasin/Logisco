@@ -425,7 +425,8 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                   <span className={`font-semibold ${component.scored ? "text-slate-900" : "text-slate-400"}`}>
                     {component.rate === null ? "No data" : percent(component.rate)}
                   </span>
-                  {component.scored && (
+                  {/* Pointless, and faintly absurd, next to a withheld rating. */}
+                  {component.scored && rating !== null && (
                     <span className="text-xs text-slate-400">{percent(component.weight)} of the rating</span>
                   )}
                 </span>

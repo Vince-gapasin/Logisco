@@ -468,7 +468,12 @@ export async function getEmployeePerformance(
     notComparable: company.notComparable,
   });
 
-  const extras = await gatherReported(trips);
+  // Late stops are only worth listing when lateness is actually being counted.
+  // With the seeded expectedTime values every delivered stop reads as late, and
+  // offering a coordinator sixty-nine delays to excuse one at a time would make
+  // a real tool look broken.
+  const countingLateness = !company.notComparable.includes("punctuality");
+  const extras = await gatherReported(trips, countingLateness);
 
   return {
     ...empty,
@@ -617,7 +622,7 @@ async function readFeedback(dispatchIDs: string[]): Promise<FeedbackRow[]> {
 }
 
 /** The things that are shown but never scored, plus what clients wrote. */
-async function gatherReported(trips: Trip[]) {
+async function gatherReported(trips: Trip[], countingLateness: boolean) {
   const codeOf = new Map(trips.map((trip) => [trip.dispatchID, trip.orderCode]));
   const acceptedIDs = trips.filter((trip) => trip.accepted).map((trip) => trip.dispatchID);
   const allIDs = trips.map((trip) => trip.dispatchID);
@@ -664,7 +669,7 @@ async function gatherReported(trips: Trip[]) {
   });
 
   // Late and not put aside: the stops a coordinator might still excuse.
-  const lateStops: LateStop[] = delivered
+  const lateStops: LateStop[] = (countingLateness ? delivered : [])
     .map((stop) => {
       if (excuses.has(stop.branchID)) return null;
 

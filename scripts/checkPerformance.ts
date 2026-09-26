@@ -165,7 +165,12 @@ async function main() {
 
     for (const component of assessed?.components ?? []) {
       const rate = component.rate === null ? "  n/a" : `${Math.round(component.rate * 100)}%`.padStart(5);
-      const weight = component.scored ? `${Math.round(component.weight * 100)}% of rating` : "not scored";
+      const weight =
+        !component.scored
+          ? "not scored"
+          : assessed?.rating === null
+            ? "counted, but no rating given"
+            : `${Math.round(component.weight * 100)}% of rating`;
       console.log(
         `    ${component.label.padEnd(26)} ${rate}  (${component.numerator}/${component.denominator})  ${weight}`,
       );
@@ -180,6 +185,34 @@ async function main() {
   } catch (error) {
     console.log(`  FAILED: ${error instanceof Error ? error.message : error}`);
     console.log("  (expected until the migration in supabase/migrations is applied)");
+  }
+
+  // A helper is a different path through the service: their answer to a trip
+  // lives on DispatchHelper, not on the dispatch.
+  const helperRows = await selectAll<{ helperID: string | null }>((from, to) =>
+    supabase.from("DispatchHelper").select("helperID").not("helperID", "is", null).range(from, to),
+  );
+  const perHelper = new Map<string, number>();
+  for (const row of helperRows) {
+    if (row.helperID) perHelper.set(row.helperID, (perHelper.get(row.helperID) ?? 0) + 1);
+  }
+  const [busiestHelper] = [...perHelper.entries()].sort((a, b) => b[1] - a[1]);
+
+  if (!busiestHelper) return;
+
+  console.log("");
+  console.log("THE SERVICE, ON A HELPER");
+  try {
+    const record = await getEmployeePerformance(busiestHelper[0], { windowDays: null });
+    console.log(`  ${record.employeeName} (${record.role}) - ${busiestHelper[1]} assignments`);
+    console.log(`  rating: ${record.performance?.rating ?? "withheld"}`);
+    for (const component of record.performance?.components ?? []) {
+      const rate = component.rate === null ? " n/a" : `${Math.round(component.rate * 100)}%`;
+      console.log(`    ${component.label.padEnd(26)} ${rate.padStart(5)}  (${component.numerator}/${component.denominator})${component.scored ? "" : "  not scored"}`);
+    }
+    console.log(`  declines ${record.reported.declines.length}, breakdowns ${record.reported.breakdowns.length}`);
+  } catch (error) {
+    console.log(`  FAILED: ${error instanceof Error ? error.message : error}`);
   }
 }
 
