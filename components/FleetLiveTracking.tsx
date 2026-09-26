@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Search, FileText, Radio, Copy, Check } from "lucide-react";
+import { AlertTriangle, Search, FileText, Radio, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
 import type { MapPoint } from "@/components/LiveRouteMap";
@@ -52,6 +52,30 @@ export default function FleetLiveTracking() {
   // Whose route to draw. Every truck at once would be a tangle of lines and a
   // Mapbox request per truck on every refresh, so it is one at a time: pick a
   // truck to see the road it is meant to be taking.
+  // Trucks that have gone quiet. Fifteen minutes notifies nobody - most
+  // quarter-hour stops are a queue at a gate - but whoever is watching the
+  // board should be able to see it.
+  const [quiet, setQuiet] = useState<Record<string, { silentFor: number; threshold: number | null }>>({});
+
+  const checkForQuietTrucks = useCallback(async () => {
+    try {
+      const res = await apiFetch<{
+        data: { trips: { dispatchID: string; silentFor: number; threshold: number | null; reason: string }[] };
+      }>("/api/fleet/stall-check", { cache: "no-store" });
+
+      const byDispatch: Record<string, { silentFor: number; threshold: number | null }> = {};
+      for (const trip of res.data.trips) {
+        if (trip.reason === "at a stop" || trip.silentFor < 15) continue;
+        byDispatch[trip.dispatchID] = { silentFor: trip.silentFor, threshold: trip.threshold };
+      }
+      setQuiet(byDispatch);
+    } catch (error) {
+      console.error("Could not check for stalled trucks:", error);
+    }
+  }, []);
+
+  usePolling(() => void checkForQuietTrucks(), REFRESH_INTERVAL_MS);
+
   const [routeFor, setRouteFor] = useState<string>("");
   const [plannedRoute, setPlannedRoute] = useState<[number, number][]>([]);
 
@@ -209,6 +233,7 @@ export default function FleetLiveTracking() {
               {currentRecords.length > 0 ? (
                 currentRecords.map((record) => {
                   const hasFix = record.latitude !== null && record.longitude !== null;
+                  const silence = quiet[record.dispatchID];
                   return (
                     <tr
                       key={record.dispatchID}
@@ -265,6 +290,20 @@ export default function FleetLiveTracking() {
                         <span className="block text-xs text-slate-400 mt-0.5">
                           {formatLastSeen(record.lastUpdated, loadedAt)}
                         </span>
+                        {silence && (
+                          <span
+                            className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs sm:text-[11px] font-semibold ${
+                              (silence.threshold ?? 0) >= 45
+                                ? "bg-red-100 text-red-700"
+                                : (silence.threshold ?? 0) >= 30
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Quiet {silence.silentFor} min
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

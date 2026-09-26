@@ -1,0 +1,65 @@
+name: Watch for stalled trucks
+
+# Asks the deployment whether any truck on the road has gone quiet.
+#
+# The schedule lives here rather than in vercel.json because Vercel's cron runs
+# once a day on the Hobby plan, which is no use for a fifteen-minute check.
+# This repository is public, so scheduled workflows cost nothing.
+#
+# It is a backstop, not the only path: the fleet board runs the same check
+# while somebody is watching it, which is faster than any schedule. This covers
+# the nights and weekends when nobody is.
+#
+# Two things to know about GitHub's schedules. They are best-effort - a run can
+# be late by ten or twenty minutes when GitHub is busy - and they stop
+# altogether after sixty days without a commit, which needs a push or a manual
+# run to wake up.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+# A late run and a new run doing the same work helps nobody.
+concurrency:
+  group: stall-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ask the deployment
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://logisco-system.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::No CRON_SECRET secret, so the scheduled check cannot authenticate. Add it in Settings > Secrets > Actions, with the same value as the deployment's."
+            exit 0
+          fi
+
+          response=$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/fleet/stall-check")
+
+          status=$(printf '%s' "$response" | tail -n 1)
+          body=$(printf '%s' "$response" | sed '$d')
+
+          echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::The stall check answered $status"
+            exit 1
+          fi
+
+          raised=$(printf '%s' "$body" | node -e "
+            let s = '';
+            process.stdin.on('data', (d) => (s += d)).on('end', () => {
+              try { console.log(JSON.parse(s).data.raised ?? 0); } catch { console.log(0); }
+            });
+          ")
+
+          echo "trucks newly reported as quiet: $raised" >> "$GITHUB_STEP_SUMMARY"
