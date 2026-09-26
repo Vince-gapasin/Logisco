@@ -53,49 +53,108 @@ function mentionsPlace(address: string, place: string): boolean {
   return normalizePlace(address).includes(normalizedPlace);
 }
 
-export async function geocodeAddress(address: string): Promise<Coordinates | null> {
-  const query = address?.trim();
-  if (!query || !MAPBOX_TOKEN) return null;
+// Administrative areas: a town, a district, a barangay. Asking for these and
+// nothing else is how an address that names only a city gets the city, rather
+// than whichever road Mapbox liked the look of.
+const PLACE_TYPES = "place,locality,district,neighborhood";
 
+interface GeocodeMatch {
+  latitude: number;
+  longitude: number;
+  label: string;
+  /** What Mapbox matched: "street", "address", "place" and so on. */
+  featureType: string;
+  /** The town it sits in, when it named one. */
+  place?: string;
+  /** The street or place's own name. */
+  name?: string;
+}
+
+async function askMapbox(query: string, types?: string): Promise<GeocodeMatch | null> {
   const url =
     `${GEOCODE_URL}?q=${encodeURIComponent(query)}` +
     `&country=ph&limit=1` +
     `&proximity=${PROXIMITY_LONGITUDE},${PROXIMITY_LATITUDE}` +
+    (types ? `&types=${types}` : "") +
     `&access_token=${MAPBOX_TOKEN}`;
 
+  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  if (!response.ok) {
+    console.error(`Geocoding failed for "${query}": HTTP ${response.status}`);
+    return null;
+  }
+
+  const result = await response.json();
+  const feature = result?.features?.[0];
+  const coordinates = feature?.geometry?.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+
+  const [longitude, latitude] = coordinates;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    latitude,
+    longitude,
+    label: feature?.properties?.full_address ?? feature?.properties?.name ?? query,
+    featureType: feature?.properties?.feature_type ?? "",
+    place: feature?.properties?.context?.place?.name,
+    name: feature?.properties?.name,
+  };
+}
+
+/**
+ * Why a match is refused.
+ *
+ * Two ways a confident answer is the wrong place:
+ *
+ * The town is not the one asked for. "Bonifacio Global City, Taguig City"
+ * resolved to a street called Bonifacio in Manila.
+ *
+ * Or the answer is more precise than the question. Every bare "<somewhere>
+ * City, Metro Manila" matched a slip road called Skyway Bangkal in Makati -
+ * refused for the other cities because the town was wrong, and accepted for
+ * Makati, where it put a hundred and fifty pickups on a motorway ramp a mile
+ * and a half from the city. A street is only believable when the address asked
+ * for that street by name.
+ */
+function whyRefused(query: string, match: GeocodeMatch): string | null {
+  if (match.place && !mentionsPlace(query, match.place)) {
+    return `matched ${match.label}, which is in ${match.place}`;
+  }
+
+  const isPrecise = match.featureType === "street" || match.featureType === "address";
+  if (isPrecise && match.name && !mentionsPlace(query, match.name)) {
+    return `matched ${match.label}, a ${match.featureType} the address does not name`;
+  }
+
+  return null;
+}
+
+export async function geocodeAddress(address: string): Promise<Coordinates | null> {
+  const query = address?.trim();
+  if (!query || !MAPBOX_TOKEN) return null;
+
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    if (!response.ok) {
-      console.error(`Geocoding failed for "${query}": HTTP ${response.status}`);
+    const precise = await askMapbox(query);
+    if (precise) {
+      const refused = whyRefused(query, precise);
+      if (!refused) {
+        return { latitude: precise.latitude, longitude: precise.longitude, matchedAddress: precise.label };
+      }
+
+      // Ask again for the town itself. An address that names only a city has
+      // no street to find, and the centre of the right city beats a road in
+      // the wrong one.
+      const place = await askMapbox(query, PLACE_TYPES);
+      if (place && !whyRefused(query, place)) {
+        return { latitude: place.latitude, longitude: place.longitude, matchedAddress: place.label };
+      }
+
+      console.warn(`Geocoding rejected for "${query}": ${refused}`);
       return null;
     }
 
-    const result = await response.json();
-    const feature = result?.features?.[0];
-    const coordinates = feature?.geometry?.coordinates;
-
-    if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
-
-    const [longitude, latitude] = coordinates;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-
-    // Vague addresses match confidently but wrongly: "Bonifacio Global City,
-    // Taguig City" resolves to a street called Bonifacio in Manila. If the town
-    // Mapbox matched is not named in the address we asked for, the result is a
-    // different place and is refused. A missing pin beats a pin 10 km away.
-    const matchedPlace: string | undefined = feature?.properties?.context?.place?.name;
-    if (matchedPlace && !mentionsPlace(query, matchedPlace)) {
-      console.warn(
-        `Geocoding rejected for "${query}": matched ${feature?.properties?.full_address ?? matchedPlace}`,
-      );
-      return null;
-    }
-
-    return {
-      latitude,
-      longitude,
-      matchedAddress: feature?.properties?.full_address ?? feature?.properties?.name,
-    };
+    return null;
   } catch (error) {
     console.error(`Geocoding error for "${query}":`, error);
     return null;
