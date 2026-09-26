@@ -49,6 +49,31 @@ export default function FleetLiveTracking() {
   const [loadedAt, setLoadedAt] = useState(0);
   const [copiedToken, setCopiedToken] = useState("");
 
+  // Whose route to draw. Every truck at once would be a tangle of lines and a
+  // Mapbox request per truck on every refresh, so it is one at a time: pick a
+  // truck to see the road it is meant to be taking.
+  const [routeFor, setRouteFor] = useState<string>("");
+  const [plannedRoute, setPlannedRoute] = useState<[number, number][]>([]);
+
+  const loadPlannedRoute = useCallback(async () => {
+    if (!routeFor) {
+      setPlannedRoute([]);
+      return;
+    }
+    try {
+      const res = await apiFetch<{ data: { path: [number, number][] } | null }>(
+        `/api/dispatch/${routeFor}/route`,
+        { cache: "no-store" },
+      );
+      setPlannedRoute(res.data?.path ?? []);
+    } catch (error) {
+      console.error("Could not load the route ahead:", error);
+      setPlannedRoute([]);
+    }
+  }, [routeFor]);
+
+  usePolling(() => void loadPlannedRoute(), 120000, { enabled: Boolean(routeFor) });
+
   // Customer-facing tracking link for an order.
   const copyTrackingLink = async (token: string) => {
     const link = `${window.location.origin}/client-view?token=${token}`;
@@ -153,11 +178,16 @@ export default function FleetLiveTracking() {
             <span className="text-sm font-semibold text-slate-900">Live Map</span>
           </div>
           <span className="text-xs text-slate-500">
-            {mapPoints.length} of {filteredList.length} trucks reporting GPS
+            {routeFor
+              ? plannedRoute.length > 1
+                ? "Showing one truck's planned route"
+                : "That truck has no route left to draw"
+              : `${mapPoints.length} of ${filteredList.length} trucks reporting GPS`}
           </span>
         </div>
         <LiveRouteMap
           points={mapPoints}
+          plannedRoute={plannedRoute}
           emptyMessage="No truck has reported a GPS position yet. Positions appear here once a driver starts a delivery in the crew app."
         />
       </div>
@@ -188,7 +218,16 @@ export default function FleetLiveTracking() {
                         {record.orderId}
                       </td>
                       <td className="py-4 px-4 sm:px-6 text-sm text-slate-600">
-                        {record.truck}
+                        <span className="block">{record.truck}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
+                          }
+                          className="mt-0.5 text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          {routeFor === record.dispatchID ? "Hide route" : "Show route"}
+                        </button>
                       </td>
                       <td className="py-4 px-4 sm:px-6 text-sm text-slate-600">
                         {record.client}

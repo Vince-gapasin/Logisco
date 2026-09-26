@@ -33,6 +33,12 @@ interface LiveRouteMapProps {
   points: MapPoint[];
   /** Route already driven, oldest point first. */
   trail?: TrailPointInput[];
+  /**
+   * The road still to be driven, as [longitude, latitude] pairs. Drawn under
+   * the trail and dashed, so the two are never mistaken for each other: one
+   * is where the truck has been, the other is where it is going.
+   */
+  plannedRoute?: [number, number][];
   heightClass?: string;
   /** Shown when there is nothing to plot yet. */
   emptyMessage?: string;
@@ -54,6 +60,7 @@ function Placeholder({ message }: { message: string }) {
 export default function LiveRouteMap({
   points,
   trail = [],
+  plannedRoute = [],
   heightClass = "h-96",
   emptyMessage = "No GPS positions to show yet.",
 }: LiveRouteMapProps) {
@@ -63,6 +70,16 @@ export default function LiveRouteMap({
   // Refit only when the set of plotted points changes, so the map does not
   // jump away from wherever the user has panned on every refresh.
   const pointKey = points.map((p) => p.id).sort().join("|");
+
+  const plannedGeoJson = useMemo(
+    () =>
+      ({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: plannedRoute },
+      }) as const,
+    [plannedRoute],
+  );
 
   // GeoJSON for the driven route; two points are the minimum for a line.
   const trailGeoJson = useMemo(
@@ -132,6 +149,22 @@ export default function LiveRouteMap({
         attributionControl={false}
       >
         <NavigationControl position="top-right" showCompass={false} />
+
+        {plannedRoute.length > 1 && (
+          <Source id="route-planned" type="geojson" data={plannedGeoJson}>
+            <Layer
+              id="route-planned-line"
+              type="line"
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{
+                "line-color": "#64748b",
+                "line-width": 4,
+                "line-opacity": 0.65,
+                "line-dasharray": [2, 2],
+              }}
+            />
+          </Source>
+        )}
 
         {trail.length > 1 && (
           <Source id="route-trail" type="geojson" data={trailGeoJson}>

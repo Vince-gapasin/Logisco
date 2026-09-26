@@ -623,6 +623,26 @@ export default function CrewDashboardPage({
 
   usePolling(() => void loadTrail(), 30000, { enabled: Boolean(openDeliveryID) });
 
+  // The road still ahead, drawn dashed under the trail. Polled far more slowly
+  // than the position: it only changes when a stop is done or the truck has
+  // gone a few hundred metres, and the server holds it for a few minutes.
+  const [plannedRoute, setPlannedRoute] = useState<[number, number][]>([]);
+
+  const loadPlannedRoute = useCallback(async () => {
+    if (!openDeliveryID) return;
+    try {
+      const res = await apiFetch<{ data: { path: [number, number][] } | null }>(
+        `/api/dispatch/${openDeliveryID}/route`,
+        { cache: "no-store" },
+      );
+      setPlannedRoute(res.data?.path ?? []);
+    } catch (error) {
+      console.error("Could not load the route ahead:", error);
+    }
+  }, [openDeliveryID]);
+
+  usePolling(() => void loadPlannedRoute(), 120000, { enabled: Boolean(openDeliveryID) });
+
   // The driver plus any stop with real coordinates. Stops booked before
   // addresses were geocoded have none, and are simply not plotted.
   const crewMapPoints: MapPoint[] = [
@@ -1100,6 +1120,7 @@ export default function CrewDashboardPage({
                 <LiveRouteMap
                   points={crewMapPoints}
                   trail={crewTrail}
+                  plannedRoute={plannedRoute}
                   heightClass="h-80 sm:h-100 md:h-120"
                   emptyMessage="Waiting for a GPS signal. Start the delivery to begin tracking."
                 />

@@ -56,6 +56,7 @@ interface TrackingData {
   driverContact: string | null;
   currentLocation: { latitude: number; longitude: number; updatedAt: string | null } | null;
   trail: { latitude: number; longitude: number }[];
+  plannedRoute: [number, number][];
   stops: TrackingStop[];
   steps: TrackingStep[];
 }
@@ -258,6 +259,7 @@ function ClientTrackerView() {
             <LiveRouteMap
               points={mapPoints}
               trail={data.trail ?? []}
+              plannedRoute={data.plannedRoute ?? []}
               heightClass="h-65 sm:h-87.5 md:h-100"
               emptyMessage={
                 data.isCompleted

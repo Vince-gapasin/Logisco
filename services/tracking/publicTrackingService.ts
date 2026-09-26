@@ -2,6 +2,7 @@ import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { formatDateTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
+import { getDispatchRoute } from "@/services/fleet/routePlanService";
 import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { getTravelEstimate, toArrivalLabel } from "@/services/geo/routingService";
 
@@ -60,6 +61,12 @@ export interface TrackingPayload {
   driverContact: string | null;
   currentLocation: { latitude: number; longitude: number; updatedAt: string | null } | null;
   trail: TrailPoint[];
+  /**
+   * The road still to be driven, as [longitude, latitude] pairs. Safe to show
+   * here: a trip carries one booking, so every stop on this route is this
+   * client's own branch.
+   */
+  plannedRoute: [number, number][];
   stops: TrackingStop[];
   steps: TrackingStep[];
 }
@@ -301,6 +308,7 @@ export async function getTrackingByToken(
 
   // The route driven so far, for drawing the line on the map.
   const trail = dispatch?.dispatchID ? await getDispatchTrail(dispatch.dispatchID) : [];
+  const planned = dispatch?.dispatchID ? await getDispatchRoute(dispatch.dispatchID) : null;
 
   let currentLocation: TrackingPayload["currentLocation"] = null;
   if (dispatch?.dispatchID && !isCompleted) {
@@ -392,6 +400,7 @@ export async function getTrackingByToken(
     driverContact: driver?.contact ?? null,
     currentLocation,
     trail,
+    plannedRoute: planned?.path ?? [],
     stops,
     steps: buildSteps(dispatch?.status ?? null, stops, isCompleted || failedStops, problems),
   };
