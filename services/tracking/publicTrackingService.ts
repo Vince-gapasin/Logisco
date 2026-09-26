@@ -19,12 +19,69 @@ const FAILED_STOP = /foul|fail|cancel/i;
 
 export type TrackingStage = "completed" | "current" | "upcoming" | "problem";
 
+/** What a step is about, so a screen can mark it without reading its title. */
+export type TrackingStepKind =
+  | "booked"
+  | "assigned"
+  | "confirmed"
+  | "departed"
+  | "stop"
+  | "completed"
+  | "problem";
+
 export interface TrackingStep {
   title: string;
   detail: string;
   stage: TrackingStage;
+  kind: TrackingStepKind;
   /** When it happened, for the entries that know. */
   at?: string | null;
+}
+
+// Which audit entry records each step of a delivery. The trail has kept these
+// times all along; this page was written before it did, and said so in a
+// comment that has outlived its truth.
+const STEP_AUDIT_ACTIONS: Record<string, TrackingStepKind> = {
+  CREATE: "booked",
+  ASSIGN: "assigned",
+  REASSIGN: "assigned",
+  CREW_ACCEPT: "confirmed",
+  TRIP_PROGRESS: "departed",
+  TRIP_COMPLETE: "completed",
+};
+
+/**
+ * When each step of this delivery happened, from the audit trail.
+ *
+ * Only the times are taken. The trail's own descriptions name staff and carry
+ * internal reasons, and this page is a public link.
+ *
+ * The earliest entry wins for each step: a trip re-assigned twice was assigned
+ * when it was first assigned.
+ */
+async function getStepTimes(orderID: string, dispatchIDs: string[]): Promise<Map<TrackingStepKind, string>> {
+  const recordIDs = [orderID, ...dispatchIDs].filter(Boolean);
+  const times = new Map<TrackingStepKind, string>();
+  if (recordIDs.length === 0) return times;
+
+  const { data, error } = await supabase
+    .from("AuditTrail")
+    .select("action, timestamp")
+    .in("recordID", recordIDs)
+    .order("timestamp", { ascending: true });
+
+  if (error) {
+    console.error("Could not read the delivery's history:", error.message);
+    return times;
+  }
+
+  for (const row of data ?? []) {
+    const kind = STEP_AUDIT_ACTIONS[row.action as string];
+    if (!kind || !row.timestamp) continue;
+    if (!times.has(kind)) times.set(kind, row.timestamp as string);
+  }
+
+  return times;
 }
 
 export interface TrackingStop {
@@ -100,11 +157,27 @@ function isStopDone(status: string | null): boolean {
 
 // The customer-facing progress list. Timestamps per status change are not
 // stored, so each step is described by its stage rather than a clock time.
+/** The later of two times, ignoring the ones that are not there. */
+function latestOf(...times: (string | null | undefined)[]): string | null {
+  const known = times.filter((time): time is string => Boolean(time));
+  if (known.length === 0) return null;
+  return known.reduce((latest, time) => (new Date(time) > new Date(latest) ? time : latest));
+}
+
+/** When the last stop on this delivery was signed for. */
+function lastDeliveredAt(stops: TrackingStop[]): string | null {
+  return latestOf(...stops.map((stop) => stop.deliveredAt));
+}
+
+export { buildSteps as buildTrackingSteps };
+
 function buildSteps(
   dispatchStatus: string | null,
   stops: TrackingStop[],
   isCompleted: boolean,
   problems: ReportedProblem[] = [],
+  times: Map<TrackingStepKind, string> = new Map(),
+  minutesToNextStop: number | null = null,
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   const accepted = ["Accepted", "In Transit", "Completed"].includes(dispatchStatus ?? "");
@@ -112,21 +185,33 @@ function buildSteps(
   const isFoulTrip = dispatchStatus === "Foul Trip";
 
   const steps: TrackingStep[] = [
-    { title: "Booking confirmed", detail: "Your delivery has been booked.", stage: "completed" },
+    {
+      title: "Booking confirmed",
+      detail: "Your delivery has been booked.",
+      stage: "completed",
+      kind: "booked",
+      at: times.get("booked") ?? null,
+    },
     {
       title: "Crew and truck assigned",
       detail: hasDispatch ? "A driver and truck are assigned to this delivery." : "Waiting for a truck to be assigned.",
       stage: hasDispatch ? "completed" : "current",
+      kind: "assigned",
+      at: hasDispatch ? (times.get("assigned") ?? null) : null,
     },
     {
       title: "Driver confirmed",
       detail: accepted ? "The driver accepted this trip." : "Waiting for the driver to confirm.",
       stage: accepted ? "completed" : hasDispatch ? "current" : "upcoming",
+      kind: "confirmed",
+      at: accepted ? (times.get("confirmed") ?? null) : null,
     },
     {
       title: "On the road",
       detail: inTransit ? "The truck has departed and is on its way." : "The trip has not started yet.",
       stage: inTransit ? "completed" : accepted ? "current" : "upcoming",
+      kind: "departed",
+      at: inTransit ? (times.get("departed") ?? null) : null,
     },
   ];
 
@@ -143,22 +228,26 @@ function buildSteps(
     }
 
     const expected = formatExpectedTime(stop.expectedTime);
-    const delivered = stop.deliveredAt
-      ? [`Delivered ${formatDateTime(stop.deliveredAt)}`, stop.receivedBy ? `received by ${stop.receivedBy}` : null]
-          .filter(Boolean)
-          .join(", ")
-      : null;
+    const delivered = stop.receivedBy ? `Delivered, received by ${stop.receivedBy}` : "Delivered";
+
+    // Only the stop being driven to can say how far away it is; the ones after
+    // it depend on how long this one takes.
+    const away =
+      stage === "current" && minutesToNextStop !== null ? ` About ${minutesToNextStop} min away.` : "";
 
     steps.push({
       title: `Delivery to ${stop.branchName}`,
       detail: done
-        ? `${delivered ?? "Delivered"}.`
+        ? `${delivered}.`
         : stage === "current" && expected
-          ? `On the way. Expected by ${expected}.`
-          : expected
-            ? `Expected by ${expected}.`
-            : "Scheduled.",
+          ? `On the way. Expected by ${expected}.${away}`
+          : stage === "current"
+            ? `On the way.${away}`
+            : expected
+              ? `Expected by ${expected}.`
+              : "Scheduled.",
       stage,
+      kind: "stop",
       at: stop.deliveredAt ?? null,
     });
   }
@@ -172,6 +261,7 @@ function buildSteps(
         ? "Our coordinator is arranging what happens next."
         : "The delivery is carrying on.",
       stage: "problem",
+      kind: "problem",
       at: problem.reportedAt,
     });
   }
@@ -187,6 +277,8 @@ function buildSteps(
           ? "All stops have been delivered."
           : "Pending completion of all stops.",
       stage: isCompleted || isFoulTrip ? "completed" : "upcoming",
+      kind: isFoulTrip ? "problem" : "completed",
+      at: isCompleted ? latestOf(times.get("completed"), lastDeliveredAt(stops)) : null,
     });
   }
 
@@ -329,6 +421,12 @@ export async function getTrackingByToken(
 
   // The route driven so far, for drawing the line on the map.
   const trail = dispatch?.dispatchID ? await getDispatchTrail(dispatch.dispatchID) : [];
+
+  // When each step of this delivery actually happened.
+  const stepTimes = await getStepTimes(
+    order.orderID as string,
+    dispatches.map((trip) => trip.dispatchID).filter((id): id is string => Boolean(id)),
+  );
   const planned = dispatch?.dispatchID ? await getDispatchRoute(dispatch.dispatchID) : null;
 
   let currentLocation: TrackingPayload["currentLocation"] = null;
@@ -427,6 +525,13 @@ export async function getTrackingByToken(
     trail,
     plannedRoute: planned?.path ?? [],
     stops,
-    steps: buildSteps(dispatch?.status ?? null, stops, isCompleted || failedStops, problems),
+    steps: buildSteps(
+      dispatch?.status ?? null,
+      stops,
+      isCompleted || failedStops,
+      problems,
+      stepTimes,
+      liveEta?.minutes ?? null,
+    ),
   };
 }

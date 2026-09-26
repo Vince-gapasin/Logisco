@@ -52,3 +52,94 @@ describe("how long until a delivery reaches one client", () => {
     expect(legsUpTo({ ...route, legMinutes: [] }, 2)).toBeNull();
   });
 });
+
+describe("the order a delivery's history reads in", () => {
+  it("never shows a later step happening earlier than the one above it", async () => {
+    const { buildTrackingSteps } = await import("@/services/tracking/publicTrackingService");
+
+    const steps = buildTrackingSteps(
+      "Completed",
+      [
+        {
+          branchID: 1,
+          branchName: "Corporate Office",
+          expectedTime: null,
+          status: "Delivered",
+          latitude: null,
+          longitude: null,
+          arrivedAt: null,
+          // Signed for in the evening.
+          deliveredAt: "2026-09-25T11:01:00.000Z",
+          receivedBy: "Panday",
+        },
+      ],
+      true,
+      [],
+      // The trip was marked complete in the morning, hours before the proof
+      // was uploaded against the stop.
+      new Map([["completed", "2026-09-25T03:01:00.000Z"]]),
+      null,
+    );
+
+    const times = steps.filter((s) => s.at).map((s) => new Date(s.at as string).getTime());
+    const ascending = times.every((time, i) => i === 0 || time >= times[i - 1]);
+    expect(ascending).toBe(true);
+  });
+
+  it("does not repeat the time inside the text beside it", async () => {
+    const { buildTrackingSteps } = await import("@/services/tracking/publicTrackingService");
+
+    const steps = buildTrackingSteps(
+      "Completed",
+      [
+        {
+          branchID: 1,
+          branchName: "Corporate Office",
+          expectedTime: null,
+          status: "Delivered",
+          latitude: null,
+          longitude: null,
+          arrivedAt: null,
+          deliveredAt: "2026-09-25T11:01:00.000Z",
+          receivedBy: "Panday",
+        },
+      ],
+      true,
+      [],
+      new Map(),
+      null,
+    );
+
+    const stop = steps.find((s) => s.kind === "stop");
+    expect(stop?.detail).toBe("Delivered, received by Panday.");
+    expect(stop?.detail).not.toMatch(/2026|AM|PM/);
+    expect(stop?.at).toBe("2026-09-25T11:01:00.000Z");
+  });
+
+  it("says how far away the stop being driven to is", async () => {
+    const { buildTrackingSteps } = await import("@/services/tracking/publicTrackingService");
+
+    const steps = buildTrackingSteps(
+      "In Transit",
+      [
+        {
+          branchID: 1,
+          branchName: "Corporate Office",
+          expectedTime: "14:30",
+          status: "Pending",
+          latitude: 14.6,
+          longitude: 121.0,
+          arrivedAt: null,
+          deliveredAt: null,
+          receivedBy: null,
+        },
+      ],
+      false,
+      [],
+      new Map(),
+      25,
+    );
+
+    expect(steps.find((s) => s.kind === "stop")?.detail).toContain("About 25 min away");
+  });
+});

@@ -8,7 +8,19 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Truck, User, MapPin, Clock, Package } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ClipboardCheck,
+  Clock,
+  Flag,
+  MapPin,
+  Navigation,
+  Package,
+  Truck,
+  User,
+  UserCheck,
+} from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
@@ -20,12 +32,51 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
+type TrackingStage = "completed" | "current" | "upcoming" | "problem";
+type TrackingStepKind =
+  | "booked"
+  | "assigned"
+  | "confirmed"
+  | "departed"
+  | "stop"
+  | "completed"
+  | "problem";
+
 interface TrackingStep {
   title: string;
   detail: string;
-  stage: "completed" | "current" | "upcoming" | "problem";
+  stage: TrackingStage;
+  kind: TrackingStepKind;
   at?: string | null;
 }
+
+// What each step is about, so the line can be read without reading it.
+const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
+  booked: ClipboardCheck,
+  assigned: Truck,
+  confirmed: UserCheck,
+  departed: Navigation,
+  stop: MapPin,
+  completed: Flag,
+  problem: AlertTriangle,
+};
+
+// Done, happening, still to come, gone wrong - told apart by shape as much as
+// by colour. A hollow ring reads as "not yet" even in greyscale, and about one
+// man in twelve cannot rely on the colour alone.
+const STAGE_MARKS: Record<TrackingStage, string> = {
+  completed: "bg-emerald-500 text-white ring-2 ring-white",
+  current: "bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse",
+  upcoming: "bg-white text-slate-300 ring-2 ring-slate-200",
+  problem: "bg-red-600 text-white ring-2 ring-white",
+};
+
+const STAGE_TITLES: Record<TrackingStage, string> = {
+  completed: "text-slate-900",
+  current: "text-blue-700 font-semibold",
+  upcoming: "text-slate-400",
+  problem: "text-red-700 font-semibold",
+};
 
 interface TrackingStop {
   branchID: number;
@@ -410,45 +461,40 @@ function ClientTrackerView() {
               )}
 
               <div className="flex flex-col pl-2.5 pt-1 space-y-4 relative">
-                <div className="absolute left-4.25 top-3 bottom-3 w-0.5 bg-slate-200 z-0"></div>
+                <div className="absolute left-5.5 top-4 bottom-4 w-0.5 bg-slate-200 z-0"></div>
 
-                {data.steps.map((step, index) => (
-                  <div key={index} className="flex items-start gap-3.5 relative z-10">
-                    <div className="mt-0.5 shrink-0">
-                      {step.stage === "problem" ? (
-                        <div className="w-3.5 h-3.5 rounded-full bg-red-600 border-2 border-white shadow-xs"></div>
-                      ) : step.stage === "completed" ? (
-                        <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white shadow-xs flex items-center justify-center"></div>
-                      ) : step.stage === "current" ? (
-                        <div className="w-3.5 h-3.5 rounded-full bg-blue-600 border-4 border-blue-100 shadow-xs"></div>
-                      ) : (
-                        <div className="w-3.5 h-3.5 rounded-full bg-slate-300 border-2 border-white"></div>
-                      )}
-                    </div>
+                {data.steps.map((step, index) => {
+                  // A finished step is ticked; the rest show what they are.
+                  const Icon = step.stage === "completed" ? Check : STEP_ICONS[step.kind];
 
-                    <div className="flex flex-col text-sm">
-                      <span
-                        className={`text-sm font-medium ${
-                          step.stage === "problem"
-                            ? "text-red-700 font-semibold"
-                            : step.stage === "current"
-                              ? "text-blue-700 font-semibold"
-                              : "text-slate-900"
-                        }`}
-                      >
-                        {step.title}
-                      </span>
-                      <span
-                        className={`text-xs text-slate-600 mt-0.5 ${
-                          step.stage === "current" ? "font-semibold text-slate-900" : ""
-                        }`}
-                      >
-                        {step.detail}
-                        {step.at ? ` · ${formatDateTime(step.at)}` : ""}
-                      </span>
+                  return (
+                    <div key={index} className="flex items-start gap-3.5 relative z-10">
+                      <div className="mt-0.5 shrink-0">
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded-full shadow-xs ${STAGE_MARKS[step.stage]}`}
+                        >
+                          <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col text-sm pt-0.5">
+                        <span className={`text-sm font-medium ${STAGE_TITLES[step.stage]}`}>{step.title}</span>
+                        <span
+                          className={`text-xs mt-0.5 ${
+                            step.stage === "current" ? "font-semibold text-slate-900" : "text-slate-600"
+                          }`}
+                        >
+                          {step.detail}
+                        </span>
+                        {step.at && (
+                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-400">
+                            {formatDateTime(step.at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
