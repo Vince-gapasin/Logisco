@@ -24,6 +24,7 @@ import {
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
+import DeliveryFeedbackCard, { type FeedbackInvitation } from "@/components/DeliveryFeedbackCard";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
@@ -110,6 +111,7 @@ interface TrackingData {
   plannedRoute: [number, number][];
   stops: TrackingStop[];
   steps: TrackingStep[];
+  feedback: FeedbackInvitation;
 }
 
 type LoadState = "loading" | "ready" | "expired" | "missing" | "error";
@@ -332,6 +334,15 @@ function ClientTrackerView() {
               </p>
             )}
           </div>
+
+          {/* Asked only once the delivery is finished, and only once. */}
+          {data.feedback?.invited && (
+            <DeliveryFeedbackCard
+              token={token}
+              invitation={data.feedback}
+              onSaved={() => void loadTracking()}
+            />
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Booking Details Card */}

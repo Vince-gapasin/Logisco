@@ -30,6 +30,7 @@ import { cancelBooking } from "@/services/booking/bookingService";
 import { signPodUrls } from "@/services/storage/podService";
 import { partnerColumns, partnerNote } from "@/services/subcon/partner";
 import { formatDateTime } from "@/app/lib/datetime";
+import { selectAll } from "@/app/lib/selectAll";
 
 export const INCIDENT_STATUS = {
   open: "open",
@@ -213,21 +214,6 @@ function requireOpen(incident: IncidentRow) {
 }
 
 // ---------------------------------------------------------------- summary
-
-// PostgREST caps a response at 1,000 rows. The trip history is already past
-// that, and a failure rate computed from the first thousand trips would be
-// quietly wrong.
-async function selectAll<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await build(from, from + 999);
-    if (error) throw new Error(error.message);
-    rows.push(...((data ?? []) as T[]));
-    if ((data ?? []).length < 1000) return rows;
-  }
-}
 
 export interface FoulTripSummary {
   open: number;

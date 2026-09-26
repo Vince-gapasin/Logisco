@@ -33,6 +33,7 @@ import {
   Paperclip,
   HeartPulse,
 } from "lucide-react";
+import PerformancePanel from "@/components/employee/PerformancePanel";
 
 // ==========================================
 // TYPES
@@ -1150,7 +1151,7 @@ interface EmployeeDetailViewProps {
   onToggleStatus: (employee: EmployeeRecord) => Promise<void>;
 }
 
-type EmployeeDetailTab = "overview" | "health" | "attachments";
+type EmployeeDetailTab = "overview" | "health" | "attachments" | "performance";
 
 function EmployeeDetailView({
   employee,
@@ -1173,6 +1174,9 @@ function EmployeeDetailView({
 
   const isAdmin = currentRole.toLowerCase() === "admin";
   const canEdit = isAdmin;
+
+  // Drivers and helpers run deliveries, so a delivery record describes them.
+  const showsPerformance = ["driver", "helper"].includes((employee.role ?? "").toLowerCase());
 
   const accountActivated = Boolean(employee.activation_completed_at);
   const activationCooldownMs = 15 * 60 * 1000;
@@ -1434,6 +1438,9 @@ function EmployeeDetailView({
               ["overview", "Overview"],
               ["health", "Health Info"],
               ["attachments", "Attachments"],
+              // Only the crew who run deliveries: there is nothing honest to
+              // show for an admin or a coordinator.
+              ...(showsPerformance ? ([["performance", "Performance"]] as const) : []),
             ] as const
           ).map(([tab, label]) => (
             <button
@@ -1600,6 +1607,10 @@ function EmployeeDetailView({
                 appear here when attachment storage is connected.
               </p>
             </div>
+          )}
+
+          {activeTab === "performance" && showsPerformance && (
+            <PerformancePanel employeeID={employee.id} />
           )}
         </div>
       </div>

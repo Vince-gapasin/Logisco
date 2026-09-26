@@ -5,6 +5,7 @@ import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackin
 import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
 import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { toArrivalLabel } from "@/services/geo/routingService";
+import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedback/deliveryFeedbackService";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
 // capability URL - anyone holding it can read this - so the payload is limited
@@ -126,6 +127,11 @@ export interface TrackingPayload {
   plannedRoute: [number, number][];
   stops: TrackingStop[];
   steps: TrackingStep[];
+  /**
+   * Whether to ask this client how it went, and what they have already said.
+   * Only once the delivery is finished.
+   */
+  feedback: FeedbackInvitation;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -504,6 +510,7 @@ export async function getTrackingByToken(
 
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
   const problems = await reportedProblems(order.orderID);
+  const feedback = await getFeedbackInvitation(dispatch?.dispatchID ?? null, dispatch?.status ?? null);
 
   return {
     found: true,
@@ -525,6 +532,7 @@ export async function getTrackingByToken(
     trail,
     plannedRoute: planned?.path ?? [],
     stops,
+    feedback,
     steps: buildSteps(
       dispatch?.status ?? null,
       stops,
