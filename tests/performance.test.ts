@@ -176,6 +176,23 @@ describe("what is not the crew's fault", () => {
     expect(completion.denominator).toBe(11);
   });
 
+  it("does not count a refusal the company wanted to hear about", () => {
+    // An unsafe truck, a crew not fit to drive, the wrong licence. Counting
+    // these would teach a driver to take the brakeless truck rather than lose a
+    // star, which is the opposite of what the figure is for.
+    const facts = {
+      ...spotless,
+      tripsAccepted: 11,
+      tripsCompleted: 11,
+      tripsDeclined: 1,
+      tripsDeclinedForCause: 1,
+    };
+    const completion = componentOf(facts, "completion");
+
+    expect(completion.denominator).toBe(11);
+    expect(completion.rate).toBe(1);
+  });
+
   it("counts a trip turned down against finishing the work", () => {
     const facts = { ...spotless, tripsAccepted: 11, tripsCompleted: 11, tripsDeclined: 1 };
     const completion = componentOf(facts, "completion");

@@ -21,6 +21,7 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 import { compressImage } from "@/app/lib/imageCompression";
 import { markPing } from "@/app/lib/trackingPulse";
 import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
+import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, type DeclineCode } from "@/app/lib/enums";
 
 // Background Geolocation Setup
 // The Capacitor community plugin, as much of it as this screen uses.
@@ -391,6 +392,10 @@ export default function CrewDashboardPage({
 
   const [showDeclineConfirmModal, setShowDeclineConfirmModal] = useState<boolean>(false);
   const [declineReason, setDeclineReason] = useState<string>("");
+  // A code as well as the typed words: "brakes", "brakes are gone" and
+  // "unsafe" are one reason typed three ways, and no fair figure can be worked
+  // out from free text. Three of the codes are not counted against the crew.
+  const [declineCode, setDeclineCode] = useState<DeclineCode | "">("");
   const [isSubmittingResponse, setIsSubmittingResponse] = useState<boolean>(false);
 
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryRecord | null>(null);
@@ -1013,6 +1018,10 @@ export default function CrewDashboardPage({
 
   const handleDispatchResponse = async (action: "accept" | "decline") => {
     if (!selectedDelivery) return;
+    if (action === "decline" && !declineCode) {
+      alert("Please choose what the reason is.");
+      return;
+    }
     if (action === "decline" && !declineReason.trim()) {
       alert("Please provide a reason for declining.");
       return;
@@ -1032,7 +1041,8 @@ export default function CrewDashboardPage({
         body: JSON.stringify({
           dispatchID: selectedDelivery.id, 
           action,
-          reason: action === "decline" ? declineReason : undefined
+          reason: action === "decline" ? declineReason : undefined,
+          code: action === "decline" ? declineCode || undefined : undefined
         }),
       });
 
@@ -1741,10 +1751,30 @@ export default function CrewDashboardPage({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
             <p className="text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">What is the reason?</label>
+            <select
+              value={declineCode}
+              onChange={(e) => setDeclineCode(e.target.value as DeclineCode | "")}
+              className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 mb-1.5 focus:outline-none focus:ring-2 focus:ring-red-600"
+              required
+            >
+              <option value="">Choose one...</option>
+              {(Object.keys(DECLINE_CODES) as DeclineCode[]).map((code) => (
+                <option key={code} value={code}>
+                  {DECLINE_CODES[code]}
+                </option>
+              ))}
+            </select>
+            {declineCode && DECLINE_CODES_NOT_COUNTED.includes(declineCode as DeclineCode) && (
+              <p className="text-xs text-emerald-700 mb-3">
+                This will not be counted against your record.
+              </p>
+            )}
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 mt-3">In your own words</label>
             <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required></textarea>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim()} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
+              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); setDeclineCode(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim() || !declineCode} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
                 {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
               </button>
             </div>

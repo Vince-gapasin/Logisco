@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
-import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
+import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS, isDeclineCode } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
@@ -37,6 +37,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "A reason is required to decline" }, { status: 400 });
   }
 
+  // The typed reason stays required and unchanged. The code is what a fair
+  // figure can be computed from - "brakes", "brakes are gone" and "unsafe" are
+  // one reason typed three ways - and it is optional so an older app build keeps
+  // working, its declines simply counting the way they always did.
+  const code = isDeclineCode((body as { code?: unknown }).code) ? (body as { code: string }).code : null;
+
   try {
     const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
     if (!assignment) {
@@ -56,7 +62,7 @@ export async function POST(request: Request) {
       const updateData =
         action === "accept"
           ? { status: DELIVERY_STATUS.accepted }
-          : { status: DELIVERY_STATUS.rejected, rejectionreason: reason };
+          : { status: DELIVERY_STATUS.rejected, rejectionreason: reason, declineCode: code };
 
       const { error: updateErr } = await supabase
         .from("DispatchOrder")
@@ -106,7 +112,7 @@ export async function POST(request: Request) {
     const updateData =
       action === "accept"
         ? { status: HELPER_STATUS.accepted }
-        : { status: HELPER_STATUS.declined, declinereason: reason };
+        : { status: HELPER_STATUS.declined, declinereason: reason, declineCode: code };
 
     const { error: updateErr } = await supabase
       .from("DispatchHelper")

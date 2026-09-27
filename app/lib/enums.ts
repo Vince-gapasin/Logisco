@@ -248,3 +248,37 @@ export function crewHasConfirmed(
   const rows = helpers ?? [];
   return rows.length === 0 || haveHelpersAccepted(rows);
 }
+
+// ==========================================
+// DECLINE REASON CODES
+// ==========================================
+// Why a trip was turned down, as a code rather than typed words. See
+// supabase/migrations/20260927030000_decline_reason_codes.sql.
+//
+// Declining lowers the crew's completion figure, and it should - a trip nobody
+// would take still had to go out. But the three reasons below that the company
+// actively wants reported are left out of it, because a driver who refuses a
+// truck with no brakes is doing their job, and a figure that punished them for it
+// would teach them to take the truck.
+
+export const DECLINE_CODES = {
+  unsafe_truck: "The truck was not safe to drive",
+  unwell: "I am not fit to drive",
+  licence_mismatch: "Wrong licence class for this load",
+  already_committed: "Already committed to another trip",
+  personal: "Personal reason",
+  other: "Other",
+} as const;
+
+export type DeclineCode = keyof typeof DECLINE_CODES;
+
+export function isDeclineCode(value: unknown): value is DeclineCode {
+  return typeof value === "string" && value in DECLINE_CODES;
+}
+
+/** The reasons that are not counted against the crew. */
+export const DECLINE_CODES_NOT_COUNTED: DeclineCode[] = ["unsafe_truck", "unwell", "licence_mismatch"];
+
+export function isDeclineForCause(code: unknown): boolean {
+  return isDeclineCode(code) && DECLINE_CODES_NOT_COUNTED.includes(code);
+}

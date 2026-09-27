@@ -49,8 +49,20 @@ export interface PerformanceFacts {
    * one who could not be bothered - so every decline is listed with the reason
    * beside the number. The reason is the point; the number on its own is not
    * enough to act on.
+   *
+   * The three reasons the company actively wants reported - an unsafe truck, a
+   * crew not fit to drive, the wrong licence - are counted separately and left
+   * out. See tripsDeclinedForCause.
    */
   tripsDeclined: number;
+  /**
+   * Declines the company asked for: an unsafe truck, a crew not fit to drive, the
+   * wrong licence for the load.
+   *
+   * Taken out of the completion figure, because refusing a truck with no brakes
+   * is the crew doing their job. Counting it would teach them to take the truck.
+   */
+  tripsDeclinedForCause: number;
   /**
    * Accepted and seen through to the end.
    *
@@ -100,6 +112,7 @@ export const EMPTY_FACTS: PerformanceFacts = {
   tripsHandedOver: 0,
   tripsAccepted: 0,
   tripsDeclined: 0,
+  tripsDeclinedForCause: 0,
   tripsCompleted: 0,
   tripsSetAside: 0,
   answerMinutes: [],
@@ -472,7 +485,10 @@ export function assessPerformance(
   // Everything offered that has since reached an outcome: taken and settled,
   // plus turned down. A breakdown is lifted back out - the trip ended, but not
   // by anyone here.
-  const tripsJudged = Math.max(0, facts.tripsAccepted + facts.tripsDeclined - facts.tripsSetAside);
+  const tripsJudged = Math.max(
+    0,
+    facts.tripsAccepted + facts.tripsDeclined - facts.tripsDeclinedForCause - facts.tripsSetAside,
+  );
   const stopsJudged = Math.max(0, facts.stopsJudged - facts.stopsExcused);
   const answered = facts.answerMinutes.filter((m) => Number.isFinite(m) && m >= 0).length;
   const median = medianAnswerMinutes(facts.answerMinutes);

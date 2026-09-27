@@ -22,6 +22,7 @@ import {
   HELPER_STATUS,
   hasDriverAccepted,
   isDeliveryTerminal,
+  isDeclineForCause,
   isStopDelivered,
   type DeliveryStatus,
 } from "@/app/lib/enums";
@@ -74,6 +75,10 @@ export interface DeclineNote {
   orderCode: string | null;
   reason: string | null;
   at: string | null;
+  /** The coded reason, when the crew app recorded one. */
+  code: string | null;
+  /** Whether this one was left out of the completion figure. */
+  forCause: boolean;
 }
 
 export interface BreakdownNote {
@@ -154,6 +159,7 @@ interface DispatchRow {
   status: string;
   completedAt: string | null;
   rejectionreason: string | null;
+  declineCode: string | null;
   Order: Embed<{ orderCode: string | null; createdAt: string | null; notes: string | null; deliverySchedule: string | null }>;
 }
 
@@ -169,6 +175,7 @@ interface Trip {
   accepted: boolean;
   declined: boolean;
   declineReason: string | null;
+  declineCode: string | null;
   declinedAt: string | null;
 }
 
@@ -190,7 +197,7 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
   // The booking notes carry "Delivery Schedule", the only place a delivery DATE
   // is recorded - BranchStops.expectedTime is a time of day with no date.
   const columns =
-    "dispatchID, orderID, status, completedAt, rejectionreason, Order ( orderCode, createdAt, notes, deliverySchedule )";
+    "dispatchID, orderID, status, completedAt, rejectionreason, declineCode, Order ( orderCode, createdAt, notes, deliverySchedule )";
 
   if (role === EMPLOYEE_ROLE.driver) {
     const rows = await selectAll<DispatchRow>((from, to) =>
@@ -208,16 +215,22 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
       accepted: hasDriverAccepted(row.status),
       declined: row.status === DELIVERY_STATUS.rejected,
       declineReason: row.rejectionreason,
+      declineCode: row.declineCode ?? null,
       declinedAt: row.status === DELIVERY_STATUS.rejected ? (row.completedAt ?? null) : null,
     }));
   }
 
   // A helper's answer lives on their own row, not on the dispatch.
-  const assignments = await selectAll<{ dispatchID: string | null; status: string | null; declinereason: string | null }>(
+  const assignments = await selectAll<{
+    dispatchID: string | null;
+    status: string | null;
+    declinereason: string | null;
+    declineCode: string | null;
+  }>(
     (from, to) =>
       supabase
         .from("DispatchHelper")
-        .select("dispatchID, status, declinereason")
+        .select("dispatchID, status, declinereason, declineCode")
         .eq("helperID", employeeID)
         .range(from, to),
   );
@@ -241,6 +254,7 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
       accepted: answer?.status === HELPER_STATUS.accepted,
       declined: answer?.status === HELPER_STATUS.declined,
       declineReason: answer?.declinereason ?? null,
+      declineCode: answer?.declineCode ?? null,
       declinedAt: null,
     };
   });
@@ -634,6 +648,7 @@ async function gatherFacts(trips: Trip[], role: string): Promise<PerformanceFact
     tripsHandedOver: role === EMPLOYEE_ROLE.driver ? await countHandedOver(trips.map((t) => t.dispatchID)) : 0,
     tripsAccepted: accepted.filter((trip) => isDeliveryTerminal(trip.status)).length,
     tripsDeclined: trips.filter((trip) => trip.declined).length,
+    tripsDeclinedForCause: trips.filter((trip) => trip.declined && isDeclineForCause(trip.declineCode)).length,
     tripsCompleted: accepted.filter((trip) =>
       FINISHED_DELIVERY_STATUSES.includes(trip.status as DeliveryStatus),
     ).length,
@@ -808,7 +823,13 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
       stallAlerts: stalls.length,
       declines: trips
         .filter((trip) => trip.declined)
-        .map((trip) => ({ orderCode: trip.orderCode, reason: trip.declineReason, at: trip.declinedAt })),
+        .map((trip) => ({
+          orderCode: trip.orderCode,
+          reason: trip.declineReason,
+          at: trip.declinedAt,
+          code: trip.declineCode,
+          forCause: isDeclineForCause(trip.declineCode),
+        })),
       excusedStops,
     },
     comments: feedback

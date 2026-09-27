@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { authFetch } from "@/app/lib/apiClient";
 import { formatDateTime } from "@/app/lib/datetime";
+import { DECLINE_CODES, type DeclineCode } from "@/app/lib/enums";
 
 interface ScoreComponent {
   key: string;
@@ -73,7 +74,7 @@ interface PerformanceData {
     }[];
     breakdowns: { orderCode: string | null; issueType: string; reportedAt: string }[];
     stallAlerts: number;
-    declines: { orderCode: string | null; reason: string | null; at: string | null }[];
+    declines: { orderCode: string | null; reason: string | null; at: string | null; code: string | null; forCause: boolean }[];
     excusedStops: {
       branchName: string;
       reason: string;
@@ -555,14 +556,24 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                   <ThumbsDown className="w-3.5 h-3.5" /> Trips turned down ({reported.declines.length})
                 </div>
                 <p className="text-xs text-slate-400 mb-1.5">
-                  These do lower the first figure above. Read the reasons before acting on it.
+                  A decline lowers the trips figure above, except where the reason is one the company wants
+                  reported - an unsafe truck, a crew not fit to drive, the wrong licence. Those are marked and
+                  left out of it.
                 </p>
                 <ul className="space-y-1">
                   {reported.declines.map((decline, index) => (
                     <li key={`${decline.orderCode}-${index}`} className="text-xs text-slate-600">
                       <span className="font-medium text-slate-800">{decline.orderCode ?? "Trip"}</span>
                       {" - "}
-                      {decline.reason?.trim() || <span className="italic text-slate-400">no reason given</span>}
+                      {decline.code ? DECLINE_CODES[decline.code as DeclineCode] : null}
+                      {decline.code && decline.reason?.trim() ? ": " : null}
+                      {decline.reason?.trim() ||
+                        (decline.code ? null : <span className="italic text-slate-400">no reason given</span>)}
+                      {decline.forCause && (
+                        <span className="ml-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          not counted
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
