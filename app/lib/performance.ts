@@ -148,6 +148,16 @@ export interface Performance {
   components: ScoreComponent[];
   /** One to five, or null when there is too little to say. */
   rating: number | null;
+  /**
+   * How wide the rating's true value plausibly is, one to five.
+   *
+   * A single figure to one decimal place claims a precision a short record does
+   * not have: twelve stops and two hundred stops both produced "4.6". The range
+   * makes thin evidence visible without a footnote, and two people whose ranges
+   * overlap are not meaningfully apart - which is the honest answer to most
+   * comparisons anybody will want to make with this screen.
+   */
+  ratingRange: { low: number; high: number } | null;
   /** Why there is no rating, when there is none. */
   withheld: string | null;
   /** The share of the intended rating that rests on something measured. */
@@ -300,6 +310,30 @@ const LABELS: Record<ComponentKey, { label: string; basis: string }> = {
 const PH_OFFSET = "+08:00";
 
 const percentOf = (share: number) => `${Math.round(share * 100)}%`;
+
+/** 95%, as a normal deviate. */
+const Z = 1.96;
+
+/**
+ * A Wilson score interval for a proportion.
+ *
+ * Wilson rather than the textbook normal interval because it behaves at the
+ * edges: eleven successes out of eleven gives a range that stops short of
+ * certainty, where the normal interval collapses to a point and claims it.
+ */
+function wilson(successes: number, trials: number): { low: number; high: number } {
+  if (trials <= 0) return { low: 0, high: 1 };
+
+  const p = Math.min(1, Math.max(0, successes / trials));
+  const denominator = 1 + (Z * Z) / trials;
+  const centre = p + (Z * Z) / (2 * trials);
+  const spread = Z * Math.sqrt((p * (1 - p)) / trials + (Z * Z) / (4 * trials * trials));
+
+  return {
+    low: Math.max(0, (centre - spread) / denominator),
+    high: Math.min(1, (centre + spread) / denominator),
+  };
+}
 
 /** A rate between 0 and 1, or null when there is no denominator. */
 function rateOf(numerator: number, denominator: number): number | null {
@@ -555,6 +589,7 @@ export function assessPerformance(
     facts,
     components,
     rating: null,
+    ratingRange: null,
     withheld: reason,
     coverage: availableWeight,
   });
@@ -595,9 +630,41 @@ export function assessPerformance(
 
   // One to five, because that is how people read a rating. A flawless record is
   // five; nothing right at all is one.
-  const rating = Math.round((1 + weighted * 4) * 10) / 10;
+  const toRating = (share: number) => Math.round((1 + Math.min(1, Math.max(0, share)) * 4) * 10) / 10;
+  const rating = toRating(weighted);
 
-  return { facts, components, rating, withheld: null, coverage: availableWeight };
+  // The same weighted sum, taken at each component's plausible extremes.
+  //
+  // It treats the components as independent, which they are not entirely - a bad
+  // week tends to be bad in several ways at once - so the range is a little wider
+  // than a full treatment would give. Wider is the safe direction for a number
+  // people are judged by. Responsiveness has no interval because it comes from a
+  // median rather than a proportion, so it contributes its point value.
+  let low = 0;
+  let high = 0;
+  for (const component of decided) {
+    if (!component.scored) continue;
+
+    const weight = WEIGHTS[component.key] / availableWeight;
+    if (component.key === "responsiveness" || component.denominator <= 0) {
+      low += (component.rate ?? 0) * weight;
+      high += (component.rate ?? 0) * weight;
+      continue;
+    }
+
+    const bounds = wilson(component.numerator, component.denominator);
+    low += bounds.low * weight;
+    high += bounds.high * weight;
+  }
+
+  return {
+    facts,
+    components,
+    rating,
+    ratingRange: { low: toRating(low), high: toRating(high) },
+    withheld: null,
+    coverage: availableWeight,
+  };
 }
 
 /**

@@ -6,13 +6,13 @@
 // not by how often this runs.
 
 import { supabase } from "@/app/lib/supabase";
-import { DELIVERY_STATUS } from "@/app/lib/enums";
 import {
   assessStall,
   crewHelpAlert,
   crewHelpDedupeKey,
   isCheckInState,
   leftOpenAlert,
+  WATCHED_STATUSES,
   leftOpenDedupeKey,
   stallAlert,
   stallDedupeKey,
@@ -62,7 +62,7 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
   const { data: dispatches, error } = await supabase
     .from("DispatchOrder")
     .select("dispatchID, status, Order ( orderCode ), Truck ( plateNumber )")
-    .eq("status", DELIVERY_STATUS.inTransit);
+    .in("status", WATCHED_STATUSES);
 
   if (error) throw new Error(`Could not read the trips on the road: ${error.message}`);
   if (!dispatches || dispatches.length === 0) return [];

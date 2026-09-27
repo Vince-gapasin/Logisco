@@ -467,3 +467,51 @@ describe("the workings are visible", () => {
     expect(componentOf(facts, "punctuality").detail).toContain("8 of their stops had no scheduled date");
   });
 });
+
+describe("how sure the number is", () => {
+  it("gives a wider range to a short record than a long one", () => {
+    const short = assessPerformance(spotless, { companyAverage: 1 }).ratingRange!;
+
+    const long = assessPerformance(
+      {
+        ...spotless,
+        tripsAssigned: 400,
+        tripsHandedOver: 400,
+        tripsAccepted: 400,
+        tripsCompleted: 400,
+        answerMinutes: Array(400).fill(5),
+        stopsCompleted: 400,
+        stopsJudged: 400,
+        stopsOnTime: 400,
+        proofsUploaded: 400,
+        feedbackResponses: 400,
+        feedbackGoodCondition: 400,
+        feedbackCourteous: 400,
+      },
+      { companyAverage: 1 },
+    ).ratingRange!;
+
+    expect(short.high - short.low).toBeGreaterThan(long.high - long.low);
+  });
+
+  it("does not claim certainty from a flawless short record", () => {
+    // Twelve out of twelve is not proof of perfection, and the textbook normal
+    // interval would have collapsed to a point and said it was.
+    const range = assessPerformance(spotless, { companyAverage: 1 }).ratingRange!;
+    expect(range.low).toBeLessThan(5);
+  });
+
+  it("keeps the range inside one and five, and around the rating", () => {
+    const facts = { ...spotless, stopsOnTime: 8, proofsUploaded: 7, feedbackGoodCondition: 9 };
+    const assessed = assessPerformance(facts);
+
+    expect(assessed.ratingRange!.low).toBeGreaterThanOrEqual(1);
+    expect(assessed.ratingRange!.high).toBeLessThanOrEqual(5);
+    expect(assessed.ratingRange!.low).toBeLessThanOrEqual(assessed.rating!);
+    expect(assessed.ratingRange!.high).toBeGreaterThanOrEqual(assessed.rating!);
+  });
+
+  it("has no range when there is no rating", () => {
+    expect(assessPerformance({ ...EMPTY_FACTS, tripsCompleted: 2 }).ratingRange).toBeNull();
+  });
+});

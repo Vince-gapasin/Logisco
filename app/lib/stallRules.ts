@@ -64,6 +64,21 @@ export const AT_STOP_METRES = 200;
 export const CONTACT_LOST_MIN = 10;
 
 /**
+ * The statuses worth watching.
+ *
+ * It used to be In Transit alone, so a trip that sat in In Warehouse for four
+ * hours was invisible - and a loading problem is exactly the sort of thing the
+ * office wants to hear about. Both of the added statuses normally sit at one of
+ * the trip's own stops, which the at-stop rule already leaves alone, so what this
+ * actually catches is a truck that is loading or arriving somewhere it has no
+ * business being.
+ *
+ * Accepted and Start Delivery are left out on purpose: nothing has set off yet,
+ * so there is no movement to be missing.
+ */
+export const WATCHED_STATUSES = ["In Transit", "In Warehouse", "Arrived"] as const;
+
+/**
  * What a crew can say when asked why they have gone quiet.
  *
  * Two of them are not excuses at all - they are the crew telling us something is
@@ -222,7 +237,7 @@ export function assessStall({
     reason,
   });
 
-  if (status !== "In Transit") return quiet("not on the road");
+  if (!(WATCHED_STATUSES as readonly string[]).includes(status)) return quiet("not on the road");
   if (!lastReportedAt) return quiet("never reported");
 
   const reportedAt = new Date(lastReportedAt).getTime();

@@ -160,7 +160,10 @@ async function main() {
     const assessed = record.performance;
 
     console.log(`  ${record.employeeName} (${record.role}) - ${record.window.label}`);
-    console.log(`  rating: ${assessed?.rating ?? "withheld"}`);
+    console.log(
+      `  rating: ${assessed?.rating ?? "withheld"}` +
+        (assessed?.ratingRange ? ` (between ${assessed.ratingRange.low} and ${assessed.ratingRange.high})` : ""),
+    );
     if (assessed?.withheld) console.log(`  because: ${assessed.withheld}`);
 
     for (const component of assessed?.components ?? []) {

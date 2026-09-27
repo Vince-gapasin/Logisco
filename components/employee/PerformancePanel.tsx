@@ -47,6 +47,7 @@ interface PerformanceData {
   window: { days: number | null; label: string; widenedBecause: string | null };
   performance: {
     rating: number | null;
+    ratingRange: { low: number; high: number } | null;
     withheld: string | null;
     coverage: number;
     components: ScoreComponent[];
@@ -79,6 +80,7 @@ interface PerformanceData {
       notes: string | null;
       minutesLate: number | null;
       excusedAt: string;
+      excusedBy: string | null;
     }[];
   };
   comments: {
@@ -335,7 +337,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
     );
   }
 
-  const { rating, withheld, components, facts } = data.performance;
+  const { rating, ratingRange, withheld, components, facts } = data.performance;
   const tone = rating === null ? null : ratingTone(rating);
   const { reported, comments } = data;
   const nothingReported =
@@ -370,6 +372,15 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                 {data.role} · {data.window.label}
               </div>
               {withheld && <p className="text-xs font-medium text-amber-700 mt-1.5">{withheld}</p>}
+              {rating !== null && ratingRange && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Somewhere between{" "}
+                  <span className="font-semibold text-slate-700">
+                    {ratingRange.low.toFixed(1)} and {ratingRange.high.toFixed(1)}
+                  </span>{" "}
+                  on this much evidence.
+                </p>
+              )}
               {rating !== null && (
                 <p className="text-xs text-slate-500 mt-1">
                   Based on {percent(data.performance!.coverage)} of the intended measures
@@ -423,7 +434,11 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
       <Section
         title="How this number was reached"
         icon={ShieldCheck}
-        note="Every figure is shown with the counts behind it and the share of the rating it carries. A figure that did not count says why."
+        note={
+          data.role.toLowerCase() === "helper"
+            ? "Every figure is shown with the counts behind it and the share of the rating it carries. Note that arriving on time, proof of delivery and the clients' verdict all belong to the trip, so a helper shares them with whoever drove."
+            : "Every figure is shown with the counts behind it and the share of the rating it carries. A figure that did not count says why."
+        }
       >
         <div className="space-y-4">
           {components.map((component) => (
@@ -567,6 +582,9 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                       {excused.reason.replace(/_/g, " ")}
                       {excused.minutesLate !== null && excused.minutesLate > 0 && (
                         <span className="text-slate-400"> · {Math.round(excused.minutesLate)} min late</span>
+                      )}
+                      {excused.excusedBy && (
+                        <span className="text-slate-400"> · granted by {excused.excusedBy}</span>
                       )}
                       {excused.notes && <span className="block text-slate-500">{excused.notes}</span>}
                     </li>

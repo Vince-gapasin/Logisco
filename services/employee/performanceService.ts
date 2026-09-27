@@ -88,6 +88,8 @@ export interface ExcusedNote {
   notes: string | null;
   minutesLate: number | null;
   excusedAt: string;
+  /** Who granted it. Named because this is the one button that flatters a figure. */
+  excusedBy: string | null;
 }
 
 export interface LateStop {
@@ -676,7 +678,7 @@ async function readExcuses(branchIDs: number[]) {
   const rows = await selectAllIn<ExcuseRow, number>(branchIDs, (chunk, from, to) =>
     supabase
       .from("StopDelayExcuse")
-      .select("branchID, reason, notes, excusedAt")
+      .select("branchID, reason, notes, excusedAt, Employee ( employeeName )")
       .in("branchID", chunk)
       .range(from, to),
   );
@@ -689,6 +691,7 @@ interface ExcuseRow {
   reason: string;
   notes: string | null;
   excusedAt: string;
+  Employee: Embed<{ employeeName: string | null }>;
 }
 
 /** How many of these stops carry proof of delivery. */
@@ -771,6 +774,7 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
       notes: excuse.notes,
       minutesLate: stop ? minutesLate(dueAtOf(stop), stop.completedAt) : null,
       excusedAt: excuse.excusedAt,
+      excusedBy: first(excuse.Employee)?.employeeName ?? null,
     };
   });
 
