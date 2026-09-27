@@ -67,10 +67,21 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
   if (error) throw new Error(`Could not read the trips on the road: ${error.message}`);
   if (!dispatches || dispatches.length === 0) return [];
 
-  const { data: locations } = await supabase
+  const { data: locations, error: locationError } = await supabase
     .from("FleetLocations")
     .select("dispatch_id, latitude, longitude, updated_at, moved_at")
     .in("dispatch_id", dispatches.map((trip) => trip.dispatchID));
+
+  // Checked, because this read was unchecked and the consequence was ugly:
+  // without its error, a failure here left every truck looking as though it had
+  // never reported, so nothing was ever stalled and the check announced that it
+  // had found no problems. A watchdog that goes blind must say so, loudly.
+  if (locationError) {
+    throw new Error(
+      `Could not read where the trucks are: ${locationError.message}. ` +
+        `If this names moved_at, apply supabase/migrations/20260927020000_fleet_moved_at.sql.`,
+    );
+  }
 
   const positionOf = new Map((locations ?? []).map((row) => [row.dispatch_id, row]));
 
