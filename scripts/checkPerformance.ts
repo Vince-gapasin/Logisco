@@ -111,7 +111,7 @@ async function main() {
   const thin = signalsNotWorthScoring({
     stopsCompleted: stopsDone,
     proofsUploaded: provenStops,
-    tripsAssigned: dispatches,
+    tripsHandedOver: assigned.size,
     answered: accepted.size,
     stopsJudged: lateness.length,
     stopsOnTime: onTime,

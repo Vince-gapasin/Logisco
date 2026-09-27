@@ -25,11 +25,14 @@ import {
   isStopDelivered,
   type DeliveryStatus,
 } from "@/app/lib/enums";
+import { readNote } from "@/app/lib/bookingNotes";
 import {
   assessPerformance,
   EMPTY_FACTS,
   MIN_TRIPS_FOR_RATING,
+  expectedAt,
   minutesLate,
+  COMPANY_WINDOW_DAYS,
   ON_TIME_GRACE_MIN,
   signalsNotWorthScoring,
   wasOnTime,
@@ -149,7 +152,7 @@ interface DispatchRow {
   status: string;
   completedAt: string | null;
   rejectionreason: string | null;
-  Order: Embed<{ orderCode: string | null; createdAt: string | null }>;
+  Order: Embed<{ orderCode: string | null; createdAt: string | null; notes: string | null }>;
 }
 
 /** One trip this person was on, with their own answer to it. */
@@ -157,6 +160,8 @@ interface Trip {
   dispatchID: string;
   status: string;
   orderCode: string | null;
+  /** The date the booking asked for, as "YYYY-MM-DD", when it recorded one. */
+  scheduledDate: string | null;
   /** When this trip counts as having happened, for the window. */
   at: number;
   accepted: boolean;
@@ -180,7 +185,10 @@ async function readEmployee(employeeID: string) {
 
 /** Every trip this person has ever been crew on, whatever the window. */
 async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
-  const columns = "dispatchID, orderID, status, completedAt, rejectionreason, Order ( orderCode, createdAt )";
+  // The booking notes carry "Delivery Schedule", the only place a delivery DATE
+  // is recorded - BranchStops.expectedTime is a time of day with no date.
+  const columns =
+    "dispatchID, orderID, status, completedAt, rejectionreason, Order ( orderCode, createdAt, notes )";
 
   if (role === EMPLOYEE_ROLE.driver) {
     const rows = await selectAll<DispatchRow>((from, to) =>
@@ -191,6 +199,7 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
       dispatchID: row.dispatchID,
       status: row.status,
       orderCode: first(row.Order)?.orderCode ?? null,
+      scheduledDate: scheduleDateOf(row),
       at: tripTime(row),
       // The dispatch status is the driver's own answer: a trip on the road was
       // accepted to get there.
@@ -225,6 +234,7 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
       dispatchID: row.dispatchID,
       status: row.status,
       orderCode: first(row.Order)?.orderCode ?? null,
+      scheduledDate: scheduleDateOf(row),
       at: tripTime(row),
       accepted: answer?.status === HELPER_STATUS.accepted,
       declined: answer?.status === HELPER_STATUS.declined,
@@ -232,6 +242,20 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
       declinedAt: null,
     };
   });
+}
+
+/**
+ * The delivery date the booking asked for.
+ *
+ * Kept as text in the notes blob under "Delivery Schedule", which is where the
+ * calendar reads it from too. Only 24 of 2,065 bookings carry one, because the
+ * rest are seeded - so most stops have no date and cannot be judged for
+ * punctuality at all, which is the honest position rather than inventing one
+ * from the completion time.
+ */
+function scheduleDateOf(row: DispatchRow): string | null {
+  const raw = readNote(first(row.Order)?.notes ?? "", "Delivery Schedule").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
 }
 
 /**
@@ -369,32 +393,69 @@ export function forgetCompanyFigures(): void {
  * towards this average rather than towards an invented number.
  */
 async function computeCompany(): Promise<CompanyFigures> {
-  const countOf = (table: string) => supabase.from(table).select("*", { count: "exact", head: true });
+  // A trailing window, not all time. The gates ask "is this how the company
+  // works?", which is a question about now; asked of the whole history it was
+  // answered by 1,700 seeded rows and could essentially never change.
+  const since = new Date(Date.now() - COMPANY_WINDOW_DAYS * 864e5).toISOString();
 
-  const [proofs, trips, accepts, feedback, stops] = await Promise.all([
-    countOf("POD"),
-    countOf("DispatchOrder"),
-    countOf("AuditTrail").eq("action", ACCEPTED_ACTION),
-    supabase.from("DeliveryFeedback").select("goodCondition, courteous"),
-    selectAll<{ expectedTime: string | null; completedAt: string | null; stopStatus: string | null }>(
-      (from, to) =>
-        supabase
-          .from("BranchStops")
-          .select("expectedTime, completedAt, stopStatus")
-          .not("completedAt", "is", null)
-          .range(from, to),
+  const [stops, proofs, handedOver, accepts, feedback] = await Promise.all([
+    // Stops finished in the window, with their booking's schedule date so the
+    // on-time share is measured against a real moment.
+    selectAll<{
+      branchID: number;
+      expectedTime: string | null;
+      completedAt: string | null;
+      stopStatus: string | null;
+      Order: Embed<{ notes: string | null }>;
+    }>((from, to) =>
+      supabase
+        .from("BranchStops")
+        .select("branchID, expectedTime, completedAt, stopStatus, Order ( notes )")
+        .not("completedAt", "is", null)
+        .gte("completedAt", since)
+        .range(from, to),
     ),
+    selectAll<{ branchID: number | null }>((from, to) =>
+      supabase.from("POD").select("branchID").gte("deliveredAt", since).range(from, to),
+    ),
+    // Trips whose hand-over moment was recorded. The denominator used to be
+    // every dispatch in the table, including ones never assigned to anybody,
+    // which put answer-time coverage at 0.9% when the true figure was 70%.
+    selectAll<{ recordID: string }>((from, to) =>
+      supabase
+        .from("AuditTrail")
+        .select("recordID")
+        .in("action", ASSIGNED_ACTIONS)
+        .gte("timestamp", since)
+        .range(from, to),
+    ),
+    selectAll<{ recordID: string }>((from, to) =>
+      supabase
+        .from("AuditTrail")
+        .select("recordID")
+        .eq("action", ACCEPTED_ACTION)
+        .gte("timestamp", since)
+        .range(from, to),
+    ),
+    supabase.from("DeliveryFeedback").select("goodCondition, courteous").gte("submittedAt", since),
   ]);
 
   const delivered = stops.filter((stop) => isStopDelivered(stop.stopStatus));
+
   let stopsJudged = 0;
   let stopsOnTime = 0;
   for (const stop of delivered) {
-    const madeIt = wasOnTime(stop.expectedTime, stop.completedAt);
+    const scheduled = readNote(first(stop.Order)?.notes ?? "", "Delivery Schedule").trim();
+    const madeIt = wasOnTime(expectedAt(scheduled, stop.expectedTime), stop.completedAt);
     if (madeIt === null) continue;
     stopsJudged++;
     if (madeIt) stopsOnTime++;
   }
+
+  const provenStops = new Set(
+    proofs.map((row) => row.branchID).filter((id): id is number => id !== null),
+  );
+  const deliveredIDs = new Set(delivered.map((stop) => stop.branchID));
 
   // Apply the migration before deploying this: without DeliveryFeedback and
   // StopDelayExcuse every read here fails, loudly and on purpose. A screen that
@@ -418,9 +479,9 @@ async function computeCompany(): Promise<CompanyFigures> {
     feedbackResponses: answers.length,
     notComparable: signalsNotWorthScoring({
       stopsCompleted: delivered.length,
-      proofsUploaded: proofs.count ?? 0,
-      tripsAssigned: trips.count ?? 0,
-      answered: accepts.count ?? 0,
+      proofsUploaded: [...provenStops].filter((id) => deliveredIDs.has(id)).length,
+      tripsHandedOver: new Set(handedOver.map((row) => row.recordID)).size,
+      answered: new Set(accepts.map((row) => row.recordID)).size,
       stopsJudged,
       stopsOnTime,
     }),
@@ -517,37 +578,52 @@ function chooseWindow(trips: Trip[], days: number | null): PerformanceWindow {
 
 async function gatherFacts(trips: Trip[], role: string): Promise<PerformanceFacts> {
   const settled = trips.filter((trip) => isDeliveryTerminal(trip.status));
-  const acceptedIDs = trips.filter((trip) => trip.accepted).map((trip) => trip.dispatchID);
+  const accepted = trips.filter((trip) => trip.accepted);
+  const acceptedIDs = accepted.map((trip) => trip.dispatchID);
+
+  // The booking's schedule date, per trip, so a stop can be compared against a
+  // real moment rather than a date copied from its own completion.
+  const scheduleOf = new Map(accepted.map((trip) => [trip.dispatchID, trip.scheduledDate]));
 
   const stops = await readStops(acceptedIDs);
   const delivered = stops.filter((stop) => isStopDelivered(stop.stopStatus) && stop.completedAt);
   const excused = await readExcuses(delivered.map((stop) => stop.branchID));
 
+  let judged = 0;
   let onTime = 0;
-  let setAsideStops = 0;
+  let excusedStops = 0;
+
   for (const stop of delivered) {
+    const dueAt = expectedAt(stop.dispatchID ? scheduleOf.get(stop.dispatchID) : null, stop.expectedTime);
+    const madeIt = wasOnTime(dueAt, stop.completedAt);
+
+    // No scheduled date means nobody can say whether this was late. It is left
+    // out of the punctuality figure entirely and counted nowhere, rather than
+    // being judged against a date taken from when the crew happened to finish.
+    if (madeIt === null) continue;
+
+    judged++;
     if (excused.has(stop.branchID)) {
-      setAsideStops++;
+      excusedStops++;
       continue;
     }
-
-    const madeIt = wasOnTime(stop.expectedTime, stop.completedAt);
-    // Nothing to compare against is not the same as late. Left out of both
-    // sides rather than counted as a miss.
-    if (madeIt === null) setAsideStops++;
-    else if (madeIt) onTime++;
+    if (madeIt) onTime++;
   }
 
   const proofs = await readProofCount(delivered.map((stop) => stop.branchID));
   const feedback = await readFeedback(acceptedIDs);
+  const answerMinutes = role === EMPLOYEE_ROLE.driver ? await readAnswerMinutes(acceptedIDs) : [];
 
   return {
     ...EMPTY_FACTS,
     tripsAssigned: trips.length,
-    tripsAccepted: trips.filter((trip) => trip.accepted && isDeliveryTerminal(trip.status)).length,
+    // Only trips whose hand-over was actually recorded can be judged on how
+    // quickly they were answered.
+    tripsHandedOver: role === EMPLOYEE_ROLE.driver ? await countHandedOver(trips.map((t) => t.dispatchID)) : 0,
+    tripsAccepted: accepted.filter((trip) => isDeliveryTerminal(trip.status)).length,
     tripsDeclined: trips.filter((trip) => trip.declined).length,
-    tripsCompleted: trips.filter(
-      (trip) => trip.accepted && FINISHED_DELIVERY_STATUSES.includes(trip.status as DeliveryStatus),
+    tripsCompleted: accepted.filter((trip) =>
+      FINISHED_DELIVERY_STATUSES.includes(trip.status as DeliveryStatus),
     ).length,
     tripsSetAside: settled.filter(
       (trip) =>
@@ -555,16 +631,33 @@ async function gatherFacts(trips: Trip[], role: string): Promise<PerformanceFact
         (trip.status === DELIVERY_STATUS.foulTrip || trip.status === DELIVERY_STATUS.cancelled),
     ).length,
     // A helper's acceptance carries no timestamp, so there is nothing to time.
-    answerMinutes: role === EMPLOYEE_ROLE.driver ? await readAnswerMinutes(acceptedIDs) : [],
+    answerMinutes,
     stopsCompleted: delivered.length,
+    stopsJudged: judged,
     stopsOnTime: onTime,
-    stopsExcused: setAsideStops,
+    stopsExcused: excusedStops,
     proofsUploaded: proofs,
     foulTrips: trips.filter((trip) => trip.status === DELIVERY_STATUS.foulTrip).length,
     feedbackResponses: feedback.length,
     feedbackGoodCondition: feedback.filter((row) => row.goodCondition).length,
     feedbackCourteous: feedback.filter((row) => row.courteous).length,
   };
+}
+
+/** How many of these trips have a recorded moment of being handed over. */
+async function countHandedOver(dispatchIDs: string[]): Promise<number> {
+  if (dispatchIDs.length === 0) return 0;
+
+  const rows = await selectAllIn<{ recordID: string }, string>(dispatchIDs, (chunk, from, to) =>
+    supabase
+      .from("AuditTrail")
+      .select("recordID")
+      .in("recordID", chunk)
+      .in("action", ASSIGNED_ACTIONS)
+      .range(from, to),
+  );
+
+  return new Set(rows.map((row) => row.recordID)).size;
 }
 
 async function readExcuses(branchIDs: number[]) {
@@ -624,6 +717,9 @@ async function readFeedback(dispatchIDs: string[]): Promise<FeedbackRow[]> {
 /** The things that are shown but never scored, plus what clients wrote. */
 async function gatherReported(trips: Trip[], countingLateness: boolean) {
   const codeOf = new Map(trips.map((trip) => [trip.dispatchID, trip.orderCode]));
+  const scheduleOf = new Map(trips.map((trip) => [trip.dispatchID, trip.scheduledDate]));
+  const dueAtOf = (stop: StopRow) =>
+    expectedAt(stop.dispatchID ? scheduleOf.get(stop.dispatchID) : null, stop.expectedTime);
   const acceptedIDs = trips.filter((trip) => trip.accepted).map((trip) => trip.dispatchID);
   const allIDs = trips.map((trip) => trip.dispatchID);
 
@@ -663,7 +759,7 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
       branchName: stop?.branchName ?? "Stop",
       reason: excuse.reason,
       notes: excuse.notes,
-      minutesLate: stop ? minutesLateOf(stop) : null,
+      minutesLate: stop ? minutesLate(dueAtOf(stop), stop.completedAt) : null,
       excusedAt: excuse.excusedAt,
     };
   });
@@ -673,7 +769,7 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
     .map((stop) => {
       if (excuses.has(stop.branchID)) return null;
 
-      const late = minutesLate(stop.expectedTime, stop.completedAt);
+      const late = minutesLate(dueAtOf(stop), stop.completedAt);
       if (late === null || late <= ON_TIME_GRACE_MIN) return null;
 
       return {
@@ -713,6 +809,3 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
   };
 }
 
-function minutesLateOf(stop: StopRow): number | null {
-  return minutesLate(stop.expectedTime, stop.completedAt);
-}

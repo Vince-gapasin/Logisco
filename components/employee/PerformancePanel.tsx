@@ -37,6 +37,7 @@ interface ScoreComponent {
   weight: number;
   numerator: number;
   denominator: number;
+  detail: string | null;
   why: string | null;
 }
 
@@ -47,6 +48,7 @@ interface PerformanceData {
   performance: {
     rating: number | null;
     withheld: string | null;
+    coverage: number;
     components: ScoreComponent[];
     facts: {
       tripsAssigned: number;
@@ -54,6 +56,7 @@ interface PerformanceData {
       tripsDeclined: number;
       tripsCompleted: number;
       stopsCompleted: number;
+      stopsJudged: number;
       feedbackResponses: number;
     };
   } | null;
@@ -367,6 +370,12 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                 {data.role} · {data.window.label}
               </div>
               {withheld && <p className="text-xs font-medium text-amber-700 mt-1.5">{withheld}</p>}
+              {rating !== null && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Based on {percent(data.performance!.coverage)} of the intended measures
+                  {data.performance!.coverage < 1 ? " - the rest are not counted, and say why below" : ""}.
+                </p>
+              )}
             </div>
           </div>
 
@@ -441,6 +450,9 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                   <span>
                     {component.numerator} of {component.denominator} {component.basis}
                   </span>
+                )}
+                {component.detail && (
+                  <span className="block mt-0.5 text-slate-400">{component.detail}</span>
                 )}
                 {component.why && (
                   <span className={component.denominator > 0 ? "block mt-0.5 text-slate-400" : "text-slate-400"}>

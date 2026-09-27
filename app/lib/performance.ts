@@ -4,7 +4,7 @@
 // on their own. Somebody's standing at work is decided here; it should be
 // possible to check the arithmetic without a login.
 //
-// Three principles run through it.
+// Four principles run through it.
 //
 // Only what a person controls is scored. Whether a truck broke down, whether a
 // client kept them waiting, whether a phone lost signal - all recorded, none of
@@ -16,16 +16,28 @@
 // evidence the weight moves to what there is evidence for, and the screen says
 // how many answers the number rests on.
 //
-// And nobody is marked down for a habit the company has not adopted. Proof of
-// delivery sits on a fraction of past stops, so measuring it today would say
-// more about when the feature shipped than about who uses it. A component whose
-// company-wide coverage is too thin to compare people fairly is shown as a fact
-// and left out of the score until it is worth scoring.
+// Nobody is marked down for a habit the company has not adopted. A component
+// whose company-wide coverage is too thin to compare people fairly is shown as a
+// fact and left out of the score until it is worth scoring.
+//
+// And a thin record is not a good one. A driver with two fast answers out of
+// eighty trips does not score 100% on responsiveness; below a minimum number of
+// observations a component is reported and not counted, which is the rule client
+// feedback has always followed and the others now follow too.
 
 export interface PerformanceFacts {
   // ---- What this person did ----
   /** Trips put in front of them. */
   tripsAssigned: number;
+  /**
+   * Trips where the moment of handing over was actually recorded.
+   *
+   * The denominator for responsiveness. It used to be every dispatch in the
+   * table, including ones never assigned to anybody, which made company-wide
+   * coverage read 0.9% when measured against trips that had genuinely been
+   * handed over it was 70%.
+   */
+  tripsHandedOver: number;
   /** Trips they took, and which have since reached an outcome. */
   tripsAccepted: number;
   /**
@@ -48,9 +60,6 @@ export interface PerformanceFacts {
    * So for a driver this figure moves on declines alone, and reads 100% for
    * anybody who has never turned a trip down. For a helper it does more work,
    * because their own acceptance is recorded separately from the trip's fate.
-   *
-   * Catching abandonment properly needs the re-assignment trail, which has 27
-   * entries in total at the time of writing. It is not usable yet.
    */
   tripsCompleted: number;
   /**
@@ -67,6 +76,8 @@ export interface PerformanceFacts {
   answerMinutes: number[];
 
   stopsCompleted: number;
+  /** Stops with a real scheduled time to compare against. */
+  stopsJudged: number;
   stopsOnTime: number;
   /** Late, but a coordinator recorded a reason it was not the crew's doing. */
   stopsExcused: number;
@@ -86,12 +97,14 @@ export interface PerformanceFacts {
 
 export const EMPTY_FACTS: PerformanceFacts = {
   tripsAssigned: 0,
+  tripsHandedOver: 0,
   tripsAccepted: 0,
   tripsDeclined: 0,
   tripsCompleted: 0,
   tripsSetAside: 0,
   answerMinutes: [],
   stopsCompleted: 0,
+  stopsJudged: 0,
   stopsOnTime: 0,
   stopsExcused: 0,
   proofsUploaded: 0,
@@ -118,6 +131,14 @@ export interface ScoreComponent {
   /** The counts behind the rate, so nobody has to trust the percentage. */
   numerator: number;
   denominator: number;
+  /**
+   * How the rate was arrived at, where the counts do not show it.
+   *
+   * Responsiveness is a transformed median, so "5 of 50" explains its coverage
+   * and not its percentage. Anything whose arithmetic is not visible in the
+   * counts says it here instead.
+   */
+  detail: string | null;
   /** Why it did not count, when it did not. */
   why: string | null;
 }
@@ -129,6 +150,8 @@ export interface Performance {
   rating: number | null;
   /** Why there is no rating, when there is none. */
   withheld: string | null;
+  /** The share of the intended rating that rests on something measured. */
+  coverage: number;
 }
 
 export interface PerformanceContext {
@@ -159,6 +182,22 @@ export const ANSWER_NO_MARKS_MIN = 120;
 /** Below this many client answers, their opinion is reported but not scored. */
 export const MIN_FEEDBACK_RESPONSES = 5;
 
+/**
+ * Below this many observations, any other component is reported but not scored.
+ *
+ * Client feedback has always had such a rule; nothing else did, so five quick
+ * answers out of fifty trips scored a flawless 100% on a component carrying a
+ * fifth of the rating. This is that rule, applied evenly.
+ *
+ * A minimum was chosen over shrinking every rate towards the company average.
+ * Shrinkage is the more elegant mechanism and it is what client feedback uses,
+ * but doing it for all five components needs a company-wide rate for each, which
+ * means five more figures to compute and five more constants to defend - and
+ * "not enough of your own record yet" is a sentence a driver can check, while
+ * "your figure was pulled 40% towards the company mean" is not.
+ */
+export const MIN_OBSERVATIONS = 10;
+
 /** Below this many finished trips, no overall rating is given at all. */
 export const MIN_TRIPS_FOR_RATING = 5;
 
@@ -184,43 +223,88 @@ export const MIN_COMPANY_COVERAGE = 0.5;
  *
  * This is not a standard to live up to; it is a check that the yardstick is
  * real. If almost nothing the company has ever delivered counts as on time, the
- * asked-for times are not a yardstick - and in this database they demonstrably
- * are not. 1,735 of 1,746 historical stops carry an expectedTime set to exactly
- * 120 minutes before their own completion time, sub-second digits included:
- * seeded data, derived from the answer. Judged against it every driver who has
- * ever worked here is late on every stop, equally, which distinguishes nobody.
+ * asked-for times are not a yardstick.
  *
  * Real bookings with real asked-for times switch this back on by themselves.
  */
 export const MIN_COMPANY_ON_TIME = 0.2;
 
 /**
+ * How much of the company's own work a coverage judgement needs before it means
+ * anything.
+ *
+ * Without this, three stops with two proofs read as 67% coverage and switched
+ * proof-of-delivery scoring on for everybody. A judgement about the company's
+ * habits needs to be made from enough of the company's work to be a habit.
+ */
+export const MIN_COMPANY_SAMPLE = 50;
+
+/**
+ * How recent the company's work must be for a coverage judgement to use it.
+ *
+ * The gates ask "is this the company's habit?", which is a question about now.
+ * Asking it of all time answers a different question and is dominated by dead
+ * data: measured over the whole history, proof-of-delivery needed about 1,730
+ * consecutive new proofed stops to switch on, so a company at 100% compliance
+ * from tomorrow would wait years. A trailing window answers the question asked.
+ */
+export const COMPANY_WINDOW_DAYS = 90;
+
+/**
+ * How many components must carry the rating before one number is shown.
+ *
+ * Two, because one measure is not a composite. This is the part of the old rule
+ * that was doing real work; the weight floor below is the part that was set
+ * without checking it could ever be met.
+ */
+export const MIN_SCORED_COMPONENTS = 2;
+
+/**
  * How much of the rating must rest on something measured before a single number
  * is shown at all.
  *
- * Redistributing weight is right when one measure is missing. It is not right
- * when four of five are: what comes out is one figure wearing a composite's
- * clothes, and 4.9 out of 5 reads as a verdict on the whole job rather than on
- * the only part anybody counted. Below this, the facts are shown and the number
- * is withheld.
+ * It was 0.5, which no achievable combination could reach: with proof, answer
+ * times and slots all ungated, the most that remained was completion plus client
+ * feedback, and 0.30 + 0.15 is 0.45. Five hundred perfect client answers still
+ * produced no rating. Forty per cent is clear of that, and completion plus
+ * feedback - the two that will realistically arrive first - now opens the gate.
  */
-export const MIN_SCORED_WEIGHT = 0.5;
+export const MIN_SCORED_WEIGHT = 0.4;
 
+/**
+ * What each measure is worth.
+ *
+ * Re-weighted once the data was actually measured. The first set was written
+ * before anybody had looked: completion carried 30% while being tautological for
+ * drivers - it moves only on declines - and the client's verdict carried 15%
+ * while being the one genuinely new signal that will accumulate. The weights now
+ * follow what the measures are worth rather than the order they were thought of.
+ */
 export const WEIGHTS: Record<ComponentKey, number> = {
-  completion: 0.3,
-  responsiveness: 0.2,
-  evidence: 0.2,
-  conduct: 0.15,
-  punctuality: 0.15,
+  conduct: 0.3,
+  completion: 0.2,
+  punctuality: 0.2,
+  evidence: 0.15,
+  responsiveness: 0.15,
 };
 
 const LABELS: Record<ComponentKey, { label: string; basis: string }> = {
   completion: { label: "Trips taken and finished", basis: "of the trips offered that reached an outcome" },
-  responsiveness: { label: "Answered promptly", basis: "how quickly assignments were answered" },
+  responsiveness: { label: "Answered promptly", basis: "assignments with a recorded answer time" },
   evidence: { label: "Proof uploaded", basis: "of the stops they delivered" },
   conduct: { label: "Clients' verdict", basis: "of what clients who answered said" },
-  punctuality: { label: "Arrived on time", basis: "of stops, excluding delays the office excused" },
+  punctuality: { label: "Arrived on time", basis: "of stops with a scheduled time, excluding excused delays" },
 };
+
+/** Manila, which has no daylight saving, so the offset is fixed. */
+const PH_OFFSET = "+08:00";
+
+const percentOf = (share: number) => `${Math.round(share * 100)}%`;
+
+/** A rate between 0 and 1, or null when there is no denominator. */
+function rateOf(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? Math.min(1, Math.max(0, numerator / denominator)) : null;
+}
 
 /**
  * How late a stop may be and still count as on time.
@@ -231,83 +315,70 @@ const LABELS: Record<ComponentKey, { label: string; basis: string }> = {
  */
 export const ON_TIME_GRACE_MIN = 30;
 
-/** "14:30" or "14:30:00" as minutes since midnight. */
-function clockMinutes(time: string | null | undefined): number | null {
-  const parts = /^(\d{1,2}):(\d{2})/.exec((time ?? "").trim());
-  if (!parts) return null;
+/**
+ * The moment a stop was actually due.
+ *
+ * BranchStops.expectedTime is a time of day with no date. The date lives in the
+ * booking's notes blob as "Delivery Schedule", which is where the calendar reads
+ * it from. Both are needed; with only the time there is no way to know which day
+ * was meant.
+ *
+ * Returns null when the date is missing, and null is the honest answer. The
+ * previous version took the date from the completion timestamp, which is
+ * circular - you cannot be a day late if the day is copied from when you
+ * finished - and it silently reported a punctuality figure for 1,736 stops that
+ * had no scheduled date at all.
+ */
+export function expectedAt(
+  scheduledDate: string | null | undefined,
+  expectedTime: string | null | undefined,
+): string | null {
+  if (!scheduledDate || !expectedTime) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate.trim())) return null;
 
-  const hours = Number(parts[1]);
-  const minutes = Number(parts[2]);
+  const clock = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(expectedTime.trim());
+  if (!clock) return null;
+
+  const hours = Number(clock[1]);
+  const minutes = Number(clock[2]);
   if (hours > 23 || minutes > 59) return null;
 
-  return hours * 60 + minutes;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const stamp = `${scheduledDate.trim()}T${pad(hours)}:${pad(minutes)}:${clock[3] ?? "00"}${PH_OFFSET}`;
+
+  return Number.isNaN(Date.parse(stamp)) ? null : stamp;
 }
 
 /**
- * The time of day a timestamp fell on, in the Philippines.
+ * Minutes past the moment it was due, negative when early. Null when either end
+ * is unknown, which means "cannot say" rather than "on time".
  *
- * BranchStops.expectedTime is a time of day with no date; completedAt is an
- * instant, stored in UTC and worked out on a server that runs in UTC. Comparing
- * the two without naming the zone puts every delivery eight hours early, which
- * would have made half the fleet look like it beat every slot it ever missed.
- */
-function zonedMinutes(timestamp: string | null | undefined): number | null {
-  if (!timestamp) return null;
-
-  const at = new Date(timestamp);
-  if (Number.isNaN(at.getTime())) return null;
-
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Manila",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(at);
-
-  const hours = Number(parts.find((part) => part.type === "hour")?.value);
-  const minutes = Number(parts.find((part) => part.type === "minute")?.value);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-
-  return hours * 60 + minutes;
-}
-
-/**
- * Minutes past the asked-for time, negative when early. Null when either end is
- * unknown, which means "cannot say" rather than "on time".
+ * Two instants subtracted, with no zone arithmetic and no wrap-around guessing.
+ * The version this replaces compared a time of day against a timestamp and had
+ * to guess which side of midnight the answer fell on; its guess turned any stop
+ * more than twelve hours late into one that was early, and therefore on time.
  */
 export function minutesLate(
-  expectedTime: string | null | undefined,
+  dueAt: string | null | undefined,
   completedAt: string | null | undefined,
 ): number | null {
-  const expected = clockMinutes(expectedTime);
-  const actual = zonedMinutes(completedAt);
-  if (expected === null || actual === null) return null;
+  if (!dueAt || !completedAt) return null;
 
-  let late = actual - expected;
-  // A stop asked for at 11 PM and delivered at half past midnight is half an
-  // hour late, not twenty-three hours early. Whichever side of midnight the
-  // clock fell on, the nearer reading is the true one.
-  if (late < -720) late += 1440;
-  if (late > 720) late -= 1440;
+  const due = Date.parse(dueAt);
+  const done = Date.parse(completedAt);
+  if (Number.isNaN(due) || Number.isNaN(done)) return null;
 
-  return late;
+  return Math.round((done - due) / 60_000);
 }
 
 /** Whether a stop made its slot. Null when there is nothing to compare. */
 export function wasOnTime(
-  expectedTime: string | null | undefined,
+  dueAt: string | null | undefined,
   completedAt: string | null | undefined,
   graceMin = ON_TIME_GRACE_MIN,
 ): boolean | null {
-  const late = minutesLate(expectedTime, completedAt);
+  const late = minutesLate(dueAt, completedAt);
   return late === null ? null : late <= graceMin;
-}
-
-const percentOf = (share: number) => `${Math.round(share * 100)}%`;
-
-/** A rate between 0 and 1, or null when there is no denominator. */
-function rateOf(numerator: number, denominator: number): number | null {
-  return denominator > 0 ? Math.min(1, Math.max(0, numerator / denominator)) : null;
 }
 
 /**
@@ -368,22 +439,37 @@ export function assessPerformance(
   // plus turned down. A breakdown is lifted back out - the trip ended, but not
   // by anyone here.
   const tripsJudged = Math.max(0, facts.tripsAccepted + facts.tripsDeclined - facts.tripsSetAside);
-  const stopsJudged = Math.max(0, facts.stopsCompleted - facts.stopsExcused);
+  const stopsJudged = Math.max(0, facts.stopsJudged - facts.stopsExcused);
+  const answered = facts.answerMinutes.filter((m) => Number.isFinite(m) && m >= 0).length;
+  const median = medianAnswerMinutes(facts.answerMinutes);
 
-  const raw: Omit<ScoreComponent, "weight" | "scored" | "why">[] = [
+  // What the minimum is counted against differs by component. For most it is
+  // the denominator, but responsiveness is judged on a median of the answers it
+  // actually has - fifty trips handed over with five answered is five
+  // observations, not fifty.
+  const raw: (Omit<ScoreComponent, "weight" | "scored" | "why"> & { observations: number })[] = [
     {
       key: "completion",
       ...LABELS.completion,
       rate: rateOf(facts.tripsCompleted, tripsJudged),
       numerator: facts.tripsCompleted,
       denominator: tripsJudged,
+      detail: null,
+      observations: tripsJudged,
     },
     {
       key: "responsiveness",
       ...LABELS.responsiveness,
       rate: responsivenessRate(facts.answerMinutes),
-      numerator: facts.answerMinutes.length,
-      denominator: facts.tripsAssigned,
+      numerator: answered,
+      denominator: facts.tripsHandedOver,
+      observations: answered,
+      // The counts show coverage; the percentage comes from the median.
+      detail:
+        median === null
+          ? null
+          : `median ${Math.round(median)} min to answer, across ${answered} assignment${answered === 1 ? "" : "s"}` +
+            ` (${ANSWER_FULL_MARKS_MIN} min or less counts in full, ${ANSWER_NO_MARKS_MIN} min or more counts for nothing)`,
     },
     {
       key: "evidence",
@@ -391,6 +477,8 @@ export function assessPerformance(
       rate: rateOf(facts.proofsUploaded, facts.stopsCompleted),
       numerator: facts.proofsUploaded,
       denominator: facts.stopsCompleted,
+      detail: null,
+      observations: facts.stopsCompleted,
     },
     {
       key: "conduct",
@@ -398,6 +486,12 @@ export function assessPerformance(
       rate: conductRate(facts, companyAverage),
       numerator: facts.feedbackGoodCondition + facts.feedbackCourteous,
       denominator: facts.feedbackResponses * 2,
+      observations: facts.feedbackResponses,
+      detail:
+        facts.feedbackResponses >= MIN_FEEDBACK_RESPONSES
+          ? `${facts.feedbackResponses} client answers, held towards the company average of ` +
+            `${percentOf(companyAverage)} while the record is short`
+          : null,
     },
     {
       key: "punctuality",
@@ -405,64 +499,93 @@ export function assessPerformance(
       rate: rateOf(facts.stopsOnTime, stopsJudged),
       numerator: facts.stopsOnTime,
       denominator: stopsJudged,
+      observations: stopsJudged,
+      detail:
+        facts.stopsCompleted > facts.stopsJudged
+          ? `${facts.stopsCompleted - facts.stopsJudged} of their stops had no scheduled date recorded, so ` +
+            `cannot be judged either way`
+          : null,
     },
   ];
+
+  /** Client feedback has its own, lower bar; everything else shares one. */
+  const enoughOf = (component: (typeof raw)[number]): boolean =>
+    component.key === "conduct"
+      ? component.observations >= MIN_FEEDBACK_RESPONSES
+      : component.observations >= MIN_OBSERVATIONS;
 
   const why = (component: (typeof raw)[number]): string | null => {
     if (notComparable.has(component.key)) {
       return "The company does not record this consistently enough yet to compare people on it.";
     }
-    if (component.rate !== null) return null;
-    if (component.key === "conduct") {
+    if (component.rate === null) {
+      if (component.key !== "conduct") return "Nothing recorded yet.";
+      // conductRate returns null below the minimum as well as at zero, so the
+      // two have to be told apart here or four answers read as none.
       return facts.feedbackResponses === 0
         ? "No client has answered yet."
         : `Only ${facts.feedbackResponses} client answers - ${MIN_FEEDBACK_RESPONSES} needed before this counts.`;
     }
-    return "Nothing recorded yet.";
+    if (!enoughOf(component)) {
+      return component.key === "conduct"
+        ? `Only ${facts.feedbackResponses} client answers - ${MIN_FEEDBACK_RESPONSES} needed before this counts.`
+        : `Only ${component.observations} to go on - ${MIN_OBSERVATIONS} needed before this counts.`;
+    }
+    return null;
   };
 
-  // A component with nothing behind it hands its weight to the ones that have
-  // something, rather than counting as a zero nobody earned.
+  // A component with nothing behind it, or too little behind it, hands its
+  // weight to the ones that have enough, rather than counting as a zero nobody
+  // earned or a hundred nobody proved.
   const decided = raw.map((component) => ({
     ...component,
-    scored: component.rate !== null && !notComparable.has(component.key),
+    scored: component.rate !== null && enoughOf(component) && !notComparable.has(component.key),
     why: why(component),
   }));
 
-  const availableWeight = decided
-    .filter((component) => component.scored)
-    .reduce((total, component) => total + WEIGHTS[component.key], 0);
+  const scored = decided.filter((component) => component.scored);
+  const availableWeight = scored.reduce((total, component) => total + WEIGHTS[component.key], 0);
 
-  const components: ScoreComponent[] = decided.map((component) => ({
+  const components: ScoreComponent[] = decided.map(({ observations: _observations, ...component }) => ({
     ...component,
     weight: component.scored && availableWeight > 0 ? WEIGHTS[component.key] / availableWeight : 0,
   }));
 
+  const withheldAs = (reason: string): Performance => ({
+    facts,
+    components,
+    rating: null,
+    withheld: reason,
+    coverage: availableWeight,
+  });
+
+  // Too new, or plenty offered and none finished - which are not the same thing
+  // and used to be reported in the same words.
   if (facts.tripsCompleted < MIN_TRIPS_FOR_RATING) {
+    const offered = facts.tripsAssigned;
     const trips = facts.tripsCompleted === 1 ? "trip" : "trips";
-    return {
-      facts,
-      components,
-      rating: null,
-      withheld: `Too new to rate - ${facts.tripsCompleted} finished ${trips}, ${MIN_TRIPS_FOR_RATING} needed.`,
-    };
+
+    if (offered >= MIN_TRIPS_FOR_RATING * 2) {
+      return withheldAs(
+        `${facts.tripsCompleted} finished ${trips} out of ${offered} offered. Not too new to judge - ` +
+          `too little finished to judge on. The figures below are what is known.`,
+      );
+    }
+
+    return withheldAs(`Too new to rate - ${facts.tripsCompleted} finished ${trips}, ${MIN_TRIPS_FOR_RATING} needed.`);
   }
 
   if (availableWeight === 0) {
-    return { facts, components, rating: null, withheld: "Nothing recorded that can be scored yet." };
+    return withheldAs("Nothing recorded that can be scored yet.");
   }
 
-  if (availableWeight < MIN_SCORED_WEIGHT) {
-    const measured = components.filter((component) => component.scored).map((component) => component.label);
-    return {
-      facts,
-      components,
-      rating: null,
-      withheld:
-        `Too little is measured yet to put one number on it - only ${measured.join(" and ")} ` +
+  if (scored.length < MIN_SCORED_COMPONENTS || availableWeight < MIN_SCORED_WEIGHT) {
+    const measured = scored.map((component) => component.label);
+    return withheldAs(
+      `Too little is measured yet to put one number on it - only ${measured.join(" and ")} ` +
         `${measured.length === 1 ? "counts" : "count"}, ${percentOf(availableWeight)} of the whole. ` +
         `The figures below are what is known.`,
-    };
+    );
   }
 
   const weighted = components.reduce(
@@ -474,38 +597,55 @@ export function assessPerformance(
   // five; nothing right at all is one.
   const rating = Math.round((1 + weighted * 4) * 10) / 10;
 
-  return { facts, components, rating, withheld: null };
+  return { facts, components, rating, withheld: null, coverage: availableWeight };
 }
 
 /**
  * Which signals the company records too rarely to rank people on.
  *
- * Fed the same totals across everybody's work, so the answer is one judgement
- * about the company's habits rather than a per-person excuse.
+ * Fed the company's own totals over a recent window, so the answer is one
+ * judgement about how the company works now rather than a per-person excuse or a
+ * verdict on its whole history.
+ *
+ * A note on what this cannot do. Because it is a threshold shared by everybody,
+ * crossing it moves every employee's rating at once - somebody who uploads no
+ * proof loses when the company starts uploading it, without their own work
+ * changing. Removing that step entirely needs the previous period's decision to
+ * be remembered, which needs somewhere to remember it; until then the window is
+ * deliberately long and company-wide, so it moves slowly rather than flapping.
  */
 export function signalsNotWorthScoring(company: {
   stopsCompleted: number;
   proofsUploaded: number;
-  tripsAssigned: number;
+  /** Trips whose hand-over moment was recorded, not every trip in the table. */
+  tripsHandedOver: number;
   answered: number;
-  /** Stops with a slot to compare against, company-wide. */
+  /** Stops with a real scheduled time to compare against. */
   stopsJudged: number;
   /** How many of those made it. */
   stopsOnTime: number;
 }): ComponentKey[] {
   const thin: ComponentKey[] = [];
 
-  const proofCoverage = rateOf(company.proofsUploaded, company.stopsCompleted);
-  if (proofCoverage === null || proofCoverage < MIN_COMPANY_COVERAGE) thin.push("evidence");
+  const tooFew = (denominator: number) => denominator < MIN_COMPANY_SAMPLE;
 
-  const answerCoverage = rateOf(company.answered, company.tripsAssigned);
-  if (answerCoverage === null || answerCoverage < MIN_COMPANY_COVERAGE) thin.push("responsiveness");
+  const proofCoverage = rateOf(company.proofsUploaded, company.stopsCompleted);
+  if (tooFew(company.stopsCompleted) || proofCoverage === null || proofCoverage < MIN_COMPANY_COVERAGE) {
+    thin.push("evidence");
+  }
+
+  const answerCoverage = rateOf(company.answered, company.tripsHandedOver);
+  if (tooFew(company.tripsHandedOver) || answerCoverage === null || answerCoverage < MIN_COMPANY_COVERAGE) {
+    thin.push("responsiveness");
+  }
 
   // Not "is the company punctual" but "are the asked-for times a real
   // yardstick". A fleet that missed every slot it ever had is indistinguishable
   // from a schedule that was never real.
   const onTimeShare = rateOf(company.stopsOnTime, company.stopsJudged);
-  if (onTimeShare === null || onTimeShare < MIN_COMPANY_ON_TIME) thin.push("punctuality");
+  if (tooFew(company.stopsJudged) || onTimeShare === null || onTimeShare < MIN_COMPANY_ON_TIME) {
+    thin.push("punctuality");
+  }
 
   return thin;
 }
