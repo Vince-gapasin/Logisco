@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { AlertTriangle, Search, FileText, Radio, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
+import { describeSilence } from "@/app/lib/stallRules";
 import type { MapPoint } from "@/components/LiveRouteMap";
 
 // Mapbox is heavy and browser-only: keep it out of every other page's bundle.
@@ -55,7 +56,7 @@ export default function FleetLiveTracking() {
   // Trucks that have gone quiet. Fifteen minutes notifies nobody - most
   // quarter-hour stops are a queue at a gate - but whoever is watching the
   // board should be able to see it.
-  const [quiet, setQuiet] = useState<Record<string, { silentFor: number; threshold: number | null }>>({});
+  const [quiet, setQuiet] = useState<Record<string, { silentFor: number; threshold: number | null; reason: string }>>({});
 
   const checkForQuietTrucks = useCallback(async () => {
     try {
@@ -63,10 +64,10 @@ export default function FleetLiveTracking() {
         data: { trips: { dispatchID: string; silentFor: number; threshold: number | null; reason: string }[] };
       }>("/api/fleet/stall-check", { cache: "no-store" });
 
-      const byDispatch: Record<string, { silentFor: number; threshold: number | null }> = {};
+      const byDispatch: Record<string, { silentFor: number; threshold: number | null; reason: string }> = {};
       for (const trip of res.data.trips) {
         if (trip.reason === "at a stop" || trip.silentFor < 15) continue;
-        byDispatch[trip.dispatchID] = { silentFor: trip.silentFor, threshold: trip.threshold };
+        byDispatch[trip.dispatchID] = { silentFor: trip.silentFor, threshold: trip.threshold, reason: trip.reason };
       }
       setQuiet(byDispatch);
     } catch (error) {
@@ -293,15 +294,23 @@ export default function FleetLiveTracking() {
                         {silence && (
                           <span
                             className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs sm:text-[11px] font-semibold ${
-                              (silence.threshold ?? 0) >= 45
-                                ? "bg-red-100 text-red-700"
-                                : (silence.threshold ?? 0) >= 30
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-slate-100 text-slate-600"
+                              // A trip nobody closed is a tidying job, not an
+                              // alarm, so it gets its own quiet styling rather
+                              // than the grey that used to make the stalest
+                              // trip on the board look like the calmest.
+                              silence.reason === "left open"
+                                ? "bg-slate-200 text-slate-700"
+                                : (silence.threshold ?? 0) >= 45
+                                  ? "bg-red-100 text-red-700"
+                                  : (silence.threshold ?? 0) >= 30
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-100 text-slate-600"
                             }`}
                           >
                             <AlertTriangle className="h-3 w-3" />
-                            Quiet {silence.silentFor} min
+                            {silence.reason === "left open"
+                              ? `Left open - ${describeSilence(silence.silentFor)}`
+                              : `Quiet ${describeSilence(silence.silentFor)}`}
                           </span>
                         )}
                       </td>

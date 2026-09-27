@@ -41,7 +41,9 @@ jobs:
             exit 0
           fi
 
-          response=$(curl -sS -w '\n%{http_code}' \
+          # POST, not GET: the GET is the board's read-only view and notifies
+          # nobody. This method is the only one that tells anyone.
+          response=$(curl -sS -X POST -H "Content-Length: 0" -w '\n%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/fleet/stall-check")
 

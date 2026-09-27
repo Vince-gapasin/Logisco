@@ -9,13 +9,15 @@ import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import {
   assessStall,
+  leftOpenAlert,
+  leftOpenDedupeKey,
   stallAlert,
   stallDedupeKey,
   type StallThreshold,
   type StallVerdict,
 } from "@/app/lib/stallRules";
 import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
-import { getRemainingWaypoints } from "@/services/fleet/routePlanService";
+import { getAllWaypoints } from "@/services/fleet/routePlanService";
 
 const METRES_PER_DEGREE = 111_320;
 
@@ -83,7 +85,7 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
 }
 
 /**
- * How far this truck is from the nearest stop it still has to make.
+ * How far this truck is from the nearest stop on its itinerary.
  *
  * Null when either end is unknown, which the rules treat as "cannot vouch for
  * it" rather than "it is fine" - a stop with no coordinates should not be able
@@ -92,10 +94,12 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
 async function metresToNearestStop(trip: LiveTrip): Promise<number | null> {
   if (!trip.position) return null;
 
-  const remaining = await getRemainingWaypoints(trip.dispatchID);
-  if (remaining.length === 0) return null;
+  // Every stop, not only the ones still to come: parked where they have just
+  // delivered is still parked at one of their own stops.
+  const stops = await getAllWaypoints(trip.dispatchID);
+  if (stops.length === 0) return null;
 
-  return Math.min(...remaining.map((stop) => metresBetween(trip.position!, stop)));
+  return Math.min(...stops.map((stop) => metresBetween(trip.position!, stop)));
 }
 
 /**
@@ -103,8 +107,18 @@ async function metresToNearestStop(trip: LiveTrip): Promise<number | null> {
  *
  * Returns what it found either way, so a screen can colour a trip amber at
  * fifteen minutes without anybody being notified about it.
+ *
+ * Notifying is optional because this is reached two ways. The fleet board polls
+ * it every thirty seconds from every open tab, and a GET that sends push
+ * notifications as a side effect is a surprise nobody needs - it also made the
+ * timing of an alert depend on who happened to have a browser open. The board
+ * reads; the schedule tells people.
  */
-export async function checkForStalledTrips(now = new Date()): Promise<StalledTrip[]> {
+export async function checkForStalledTrips(
+  now = new Date(),
+  options: { notify?: boolean } = {},
+): Promise<StalledTrip[]> {
+  const telling = options.notify ?? true;
   const trips = await tripsOnTheRoad();
   const found: StalledTrip[] = [];
 
@@ -116,6 +130,14 @@ export async function checkForStalledTrips(now = new Date()): Promise<StalledTri
       now,
     });
 
+    // A day of silence is a trip nobody closed. Said once a day, calmly, rather
+    // than escalated as an emergency for ever.
+    if (verdict.reason === "left open") {
+      const raised = telling ? await raiseLeftOpen(trip, verdict.silentFor, now) : false;
+      found.push({ ...trip, verdict, raised });
+      continue;
+    }
+
     if (!verdict.stalled || !verdict.threshold || !trip.lastReportedAt) {
       if (verdict.silentFor > 0) {
         found.push({ ...trip, verdict, raised: false });
@@ -123,11 +145,17 @@ export async function checkForStalledTrips(now = new Date()): Promise<StalledTri
       continue;
     }
 
-    const raised = await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt);
+    const raised = telling
+      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt)
+      : false;
     found.push({ ...trip, verdict, raised });
   }
 
   return found;
+}
+
+async function labelFor(trip: LiveTrip): Promise<string> {
+  return (await tripLabel(trip.dispatchID)) ?? trip.orderCode ?? trip.truck ?? "A delivery";
 }
 
 async function raiseStall(
@@ -136,21 +164,57 @@ async function raiseStall(
   silentFor: number,
   lastReportedAt: string,
 ): Promise<boolean> {
-  const label = (await tripLabel(trip.dispatchID)) ?? trip.orderCode ?? trip.truck ?? "A delivery";
-  const alert = stallAlert(threshold, label, silentFor);
+  const alert = stallAlert(threshold, await labelFor(trip), silentFor);
+  const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
+  let told = 0;
 
   // Fifteen minutes is for the board, not for anybody's phone.
-  if (!alert.notifyOffice && !alert.askCrew) return false;
+  if (alert.notifyOffice) {
+    told += await notify({
+      event: "TRUCK_STALLED",
+      title: alert.office.title,
+      body: alert.office.body,
+      severity: alert.severity,
+      roles: OFFICE,
+      dedupeKey: stallDedupeKey(trip.dispatchID, threshold, lastReportedAt, "office"),
+      entity,
+      link: "/admindashboard/fleet-tracking",
+    });
+  }
+
+  // Told separately, in their own words, and pointed at a page they are allowed
+  // to open: the office link is under /admindashboard, which the crew portal
+  // refuses them.
+  if (alert.crew) {
+    const crew = await crewOf(trip.dispatchID);
+    if (crew.length > 0) {
+      told += await notify({
+        event: "TRUCK_STALLED",
+        title: alert.crew.title,
+        body: alert.crew.body,
+        severity: alert.severity,
+        employeeIDs: crew,
+        dedupeKey: stallDedupeKey(trip.dispatchID, threshold, lastReportedAt, "crew"),
+        entity,
+        link: "/crew/dashboard",
+      });
+    }
+  }
+
+  return told > 0;
+}
+
+/** The tidying reminder for a trip that was never closed. */
+async function raiseLeftOpen(trip: LiveTrip, silentFor: number, now: Date): Promise<boolean> {
+  const alert = leftOpenAlert(await labelFor(trip), silentFor);
 
   const told = await notify({
-    event: "TRUCK_STALLED",
+    event: "TRIP_LEFT_OPEN",
     title: alert.title,
     body: alert.body,
-    severity: alert.severity,
-    roles: alert.notifyOffice ? OFFICE : [],
-    // The crew are asked whether all is well; they can clear it by moving.
-    employeeIDs: alert.askCrew ? await crewOf(trip.dispatchID) : [],
-    dedupeKey: stallDedupeKey(trip.dispatchID, threshold, lastReportedAt),
+    severity: "action",
+    roles: OFFICE,
+    dedupeKey: leftOpenDedupeKey(trip.dispatchID, now),
     entity: { table: "DispatchOrder", id: trip.dispatchID },
     link: "/admindashboard/fleet-tracking",
   });
