@@ -55,6 +55,60 @@ export const LEFT_OPEN_AFTER_MIN = 24 * 60;
  */
 export const AT_STOP_METRES = 200;
 
+/**
+ * What a crew can say when asked why they have gone quiet.
+ *
+ * Two of them are not excuses at all - they are the crew telling us something is
+ * wrong, which should make the alarm louder rather than quieter.
+ */
+export const CHECK_IN_STATES = [
+  "on_break",
+  "traffic",
+  "waiting",
+  "loading",
+  "vehicle_problem",
+  "need_help",
+] as const;
+
+export type CheckInState = (typeof CHECK_IN_STATES)[number];
+
+export function isCheckInState(value: unknown): value is CheckInState {
+  return typeof value === "string" && (CHECK_IN_STATES as readonly string[]).includes(value);
+}
+
+/**
+ * How long each answer buys before the silence is raised again.
+ *
+ * A break gets ninety minutes because Article 85 of the Labor Code requires at
+ * least sixty uninterrupted minutes for a meal, and a driver who has to justify
+ * their lunch twice is a driver who stops answering. The rest get an hour, which
+ * is long enough to clear a gate or a jam.
+ *
+ * Nothing buys silence for good. "I am in traffic" ninety minutes ago is not an
+ * answer about now, and a trip that has genuinely gone wrong after a legitimate
+ * stop must still be able to raise itself.
+ */
+export const CHECK_IN_QUIETENS_MIN: Record<CheckInState, number> = {
+  on_break: 90,
+  traffic: 60,
+  waiting: 60,
+  loading: 60,
+  // Not excuses. These bring the alarm forward rather than putting it off.
+  vehicle_problem: 0,
+  need_help: 0,
+};
+
+/** The two answers that are a call for help, not an explanation. */
+export function isCallForHelp(state: CheckInState): boolean {
+  return CHECK_IN_QUIETENS_MIN[state] === 0;
+}
+
+/** What the crew said, and when. */
+export interface CrewCheckIn {
+  state: CheckInState;
+  at: string;
+}
+
 export interface StallInput {
   /** When the truck last reported a position. Null: it never has. */
   lastReportedAt: string | null;
@@ -62,6 +116,8 @@ export interface StallInput {
   status: string;
   /** Metres to the nearest stop on this trip, done or not, when both are known. */
   metresToNearestStop: number | null;
+  /** The crew's most recent answer about this trip, if they have given one. */
+  checkIn?: CrewCheckIn | null;
   now?: Date;
 }
 
@@ -78,7 +134,9 @@ export interface StallVerdict {
     | "never reported"
     | "at a stop"
     | "reporting"
-    | "left open";
+    | "left open"
+    | "crew answered"
+    | "crew asked for help";
 }
 
 /**
@@ -112,6 +170,7 @@ export function assessStall({
   lastReportedAt,
   status,
   metresToNearestStop,
+  checkIn = null,
   now = new Date(),
 }: StallInput): StallVerdict {
   const quiet = (reason: StallVerdict["reason"], silentFor = 0): StallVerdict => ({
@@ -141,6 +200,36 @@ export function assessStall({
   if (silentFor >= LEFT_OPEN_AFTER_MIN) return quiet("left open", silentFor);
 
   const passed = [...STALL_THRESHOLDS_MIN].reverse().find((minutes) => silentFor >= minutes) ?? null;
+
+  // What the crew told us, if they told us anything since they went quiet.
+  //
+  // Only an answer newer than the last position counts. One from before the
+  // truck last moved was about an earlier silence, and letting it speak for this
+  // one would hand a driver a way to pre-authorise the rest of the day.
+  const answeredAt = checkIn ? new Date(checkIn.at).getTime() : Number.NaN;
+  const answered =
+    checkIn && Number.isFinite(answeredAt) && answeredAt >= reportedAt
+      ? { state: checkIn.state, minutesAgo: Math.max(0, Math.floor((now.getTime() - answeredAt) / 60_000)) }
+      : null;
+
+  if (answered) {
+    // "The truck has a problem" and "I need help" are not excuses. They go
+    // straight to the top rung, whatever the clock says - the crew know
+    // something the clock does not.
+    if (isCallForHelp(answered.state)) {
+      return {
+        stalled: true,
+        silentFor,
+        threshold: STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1],
+        reason: "crew asked for help",
+      };
+    }
+
+    if (answered.minutesAgo < CHECK_IN_QUIETENS_MIN[answered.state]) {
+      return quiet("crew answered", silentFor);
+    }
+  }
+
   if (!passed) return quiet("reporting", silentFor);
 
   return { stalled: true, silentFor, threshold: passed, reason: "on the road" };
@@ -261,6 +350,33 @@ export function stallAlert(threshold: StallThreshold, tripLabel: string, silentF
   };
 }
 
+/** How each answer reads on a screen. */
+export const CHECK_IN_LABELS: Record<CheckInState, string> = {
+  on_break: "On a break",
+  traffic: "Stuck in traffic",
+  waiting: "Waiting to be received",
+  loading: "Loading or unloading",
+  vehicle_problem: "Truck has a problem",
+  need_help: "Needs help",
+};
+
+/**
+ * The crew have told us something is wrong.
+ *
+ * Louder than any rung the clock would have reached, and it names who said it,
+ * because this is the one case where somebody on the truck has actually spoken.
+ */
+export function crewHelpAlert(tripLabel: string, state: CheckInState, silentFor: number): StallMessage {
+  const urgent = state === "need_help";
+
+  return {
+    title: urgent ? "Crew have asked for help" : "Crew report a problem with the truck",
+    body:
+      `${tripLabel}: the crew reported "${CHECK_IN_LABELS[state]}" after ${describeSilence(silentFor)} ` +
+      `without a position. ${urgent ? "Call them now." : "Call them, and arrange a mechanic or a replacement truck."}`,
+  };
+}
+
 /**
  * A trip still on the road a day later, which is almost always one that
  * finished without anybody closing it.
@@ -292,6 +408,11 @@ export function stallDedupeKey(
   audience: "office" | "crew" = "office",
 ): string {
   return `stalled:${dispatchID}:${threshold}:${lastReportedAt}:${audience}`;
+}
+
+/** One key per trip per answer, so every new cry for help is heard. */
+export function crewHelpDedupeKey(dispatchID: string, checkInAt: string): string {
+  return `crew-help:${dispatchID}:${checkInAt}`;
 }
 
 /**

@@ -37,6 +37,7 @@ function summarise(trips: StalledTrip[]) {
       silentFor: trip.verdict.silentFor,
       threshold: trip.verdict.threshold,
       reason: trip.verdict.reason,
+      checkIn: trip.checkIn,
       raised: trip.raised,
     })),
   };

@@ -19,6 +19,8 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   loading: () => <div className="h-80 sm:h-100 md:h-120 w-full animate-pulse bg-slate-100" />,
 });
 import { compressImage } from "@/app/lib/imageCompression";
+import { markPing } from "@/app/lib/trackingPulse";
+import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
 
 // Background Geolocation Setup
 // The Capacitor community plugin, as much of it as this screen uses.
@@ -68,6 +70,12 @@ async function postLocation(
       },
       body: JSON.stringify({ dispatch_id: dispatchId, ...fix }),
     });
+
+    // The app is the only thing that knows it is still in touch with the
+    // server. The check-in prompt reads this to decide whether the silence the
+    // office is seeing is real.
+    if (response.ok) markPing();
+
     return response.status !== 409;
   } catch {
     // Offline: drop this fix, the next one will update the pin.
@@ -1103,7 +1111,11 @@ export default function CrewDashboardPage({
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
-            
+
+            {/* Shows itself only once this device has stopped getting positions
+                through, which is the only moment the question makes sense. */}
+            <StallCheckInPrompt dispatchID={selectedDelivery.id} />
+
             {/* DYNAMIC MAP SECTION */}
             <div className="bg-[#e0f2fe] rounded-2xl border border-slate-300 overflow-hidden shadow-sm flex flex-col">
               <div className="bg-white px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10 relative">

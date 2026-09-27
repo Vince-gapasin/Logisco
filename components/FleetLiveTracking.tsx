@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { AlertTriangle, Search, FileText, Radio, Copy, Check } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
-import { describeSilence } from "@/app/lib/stallRules";
+import { describeSilence, CHECK_IN_LABELS, type CheckInState } from "@/app/lib/stallRules";
 import type { MapPoint } from "@/components/LiveRouteMap";
 
 // Mapbox is heavy and browser-only: keep it out of every other page's bundle.
@@ -56,18 +56,36 @@ export default function FleetLiveTracking() {
   // Trucks that have gone quiet. Fifteen minutes notifies nobody - most
   // quarter-hour stops are a queue at a gate - but whoever is watching the
   // board should be able to see it.
-  const [quiet, setQuiet] = useState<Record<string, { silentFor: number; threshold: number | null; reason: string }>>({});
+  const [quiet, setQuiet] = useState<
+    Record<string, { silentFor: number; threshold: number | null; reason: string; checkIn: { state: CheckInState; at: string } | null }>
+  >({});
 
   const checkForQuietTrucks = useCallback(async () => {
     try {
       const res = await apiFetch<{
-        data: { trips: { dispatchID: string; silentFor: number; threshold: number | null; reason: string }[] };
+        data: {
+          trips: {
+            dispatchID: string;
+            silentFor: number;
+            threshold: number | null;
+            reason: string;
+            checkIn: { state: CheckInState; at: string } | null;
+          }[];
+        };
       }>("/api/fleet/stall-check", { cache: "no-store" });
 
-      const byDispatch: Record<string, { silentFor: number; threshold: number | null; reason: string }> = {};
+      const byDispatch: Record<
+        string,
+        { silentFor: number; threshold: number | null; reason: string; checkIn: { state: CheckInState; at: string } | null }
+      > = {};
       for (const trip of res.data.trips) {
         if (trip.reason === "at a stop" || trip.silentFor < 15) continue;
-        byDispatch[trip.dispatchID] = { silentFor: trip.silentFor, threshold: trip.threshold, reason: trip.reason };
+        byDispatch[trip.dispatchID] = {
+          silentFor: trip.silentFor,
+          threshold: trip.threshold,
+          reason: trip.reason,
+          checkIn: trip.checkIn ?? null,
+        };
       }
       setQuiet(byDispatch);
     } catch (error) {
@@ -311,6 +329,17 @@ export default function FleetLiveTracking() {
                             {silence.reason === "left open"
                               ? `Left open - ${describeSilence(silence.silentFor)}`
                               : `Quiet ${describeSilence(silence.silentFor)}`}
+                          </span>
+                        )}
+                        {/* What the crew said, so nobody rings a driver who has
+                            already told us they are on their break. */}
+                        {silence?.checkIn && (
+                          <span
+                            className={`mt-1 block text-xs ${
+                              silence.reason === "crew asked for help" ? "font-semibold text-red-700" : "text-slate-500"
+                            }`}
+                          >
+                            Crew: {CHECK_IN_LABELS[silence.checkIn.state]}
                           </span>
                         )}
                       </td>

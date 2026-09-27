@@ -9,10 +9,14 @@ import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import {
   assessStall,
+  crewHelpAlert,
+  crewHelpDedupeKey,
+  isCheckInState,
   leftOpenAlert,
   leftOpenDedupeKey,
   stallAlert,
   stallDedupeKey,
+  type CrewCheckIn,
   type StallThreshold,
   type StallVerdict,
 } from "@/app/lib/stallRules";
@@ -35,6 +39,8 @@ export interface StalledTrip {
   orderCode: string | null;
   truck: string | null;
   verdict: StallVerdict;
+  /** What the crew last said about this silence, when they have said anything. */
+  checkIn: CrewCheckIn | null;
   /** Whether anything was said about it this time round. */
   raised: boolean;
 }
@@ -103,6 +109,42 @@ async function metresToNearestStop(trip: LiveTrip): Promise<number | null> {
 }
 
 /**
+ * The crew's most recent answer for each of these trips.
+ *
+ * One query for all of them, newest first, keeping the first seen per trip.
+ * Older answers are kept in the table on purpose - a sequence reading "traffic,
+ * traffic, vehicle problem" says more than whichever came last - but only the
+ * newest can speak for the silence happening now.
+ */
+async function latestCheckIns(dispatchIDs: string[]): Promise<Map<string, CrewCheckIn>> {
+  const newest = new Map<string, CrewCheckIn>();
+  if (dispatchIDs.length === 0) return newest;
+
+  const { data, error } = await supabase
+    .from("StallCheckIn")
+    .select("dispatchID, state, createdAt")
+    .in("dispatchID", dispatchIDs)
+    .order("createdAt", { ascending: false });
+
+  if (error) {
+    // Before the migration is applied there is nothing to read, and a stall
+    // check that refused to run without it would be worse than one that runs
+    // exactly as it did before.
+    console.warn("Could not read crew check-ins:", error.message);
+    return newest;
+  }
+
+  for (const row of data ?? []) {
+    const dispatchID = row.dispatchID as string;
+    if (newest.has(dispatchID)) continue;
+    if (!isCheckInState(row.state) || !row.createdAt) continue;
+    newest.set(dispatchID, { state: row.state, at: row.createdAt as string });
+  }
+
+  return newest;
+}
+
+/**
  * Looks at every trip on the road and says something about the quiet ones.
  *
  * Returns what it found either way, so a screen can colour a trip amber at
@@ -120,27 +162,38 @@ export async function checkForStalledTrips(
 ): Promise<StalledTrip[]> {
   const telling = options.notify ?? true;
   const trips = await tripsOnTheRoad();
+  const answers = await latestCheckIns(trips.map((trip) => trip.dispatchID));
   const found: StalledTrip[] = [];
 
   for (const trip of trips) {
+    const checkIn = answers.get(trip.dispatchID) ?? null;
     const verdict = assessStall({
       lastReportedAt: trip.lastReportedAt,
       status: trip.status,
       metresToNearestStop: await metresToNearestStop(trip),
+      checkIn,
       now,
     });
+
+    // The crew have said something is wrong. Nothing about the clock matters
+    // now; somebody on the truck has told us.
+    if (verdict.reason === "crew asked for help" && checkIn) {
+      const raised = telling ? await raiseCrewHelp(trip, checkIn, verdict.silentFor) : false;
+      found.push({ ...trip, verdict, checkIn, raised });
+      continue;
+    }
 
     // A day of silence is a trip nobody closed. Said once a day, calmly, rather
     // than escalated as an emergency for ever.
     if (verdict.reason === "left open") {
       const raised = telling ? await raiseLeftOpen(trip, verdict.silentFor, now) : false;
-      found.push({ ...trip, verdict, raised });
+      found.push({ ...trip, verdict, checkIn, raised });
       continue;
     }
 
     if (!verdict.stalled || !verdict.threshold || !trip.lastReportedAt) {
       if (verdict.silentFor > 0) {
-        found.push({ ...trip, verdict, raised: false });
+        found.push({ ...trip, verdict, checkIn, raised: false });
       }
       continue;
     }
@@ -148,10 +201,28 @@ export async function checkForStalledTrips(
     const raised = telling
       ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt)
       : false;
-    found.push({ ...trip, verdict, raised });
+    found.push({ ...trip, verdict, checkIn, raised });
   }
 
   return found;
+}
+
+/** The crew have reported trouble. Straight to the office, once per answer. */
+async function raiseCrewHelp(trip: LiveTrip, checkIn: CrewCheckIn, silentFor: number): Promise<boolean> {
+  const alert = crewHelpAlert(await labelFor(trip), checkIn.state, silentFor);
+
+  const told = await notify({
+    event: "TRUCK_STALLED",
+    title: alert.title,
+    body: alert.body,
+    severity: "urgent",
+    roles: OFFICE,
+    dedupeKey: crewHelpDedupeKey(trip.dispatchID, checkIn.at),
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    link: "/admindashboard/fleet-tracking",
+  });
+
+  return told > 0;
 }
 
 async function labelFor(trip: LiveTrip): Promise<string> {

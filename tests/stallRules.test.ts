@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   assessStall,
+  CHECK_IN_QUIETENS_MIN,
+  crewHelpAlert,
+  crewHelpDedupeKey,
+  isCallForHelp,
+  isCheckInState,
   describeSilence,
   leftOpenAlert,
   leftOpenDedupeKey,
@@ -10,6 +15,7 @@ import {
   AT_STOP_METRES,
   LEFT_OPEN_AFTER_MIN,
   STALL_THRESHOLDS_MIN,
+  type CheckInState,
 } from "@/app/lib/stallRules";
 
 const NOW = new Date("2026-09-26T10:00:00.000Z");
@@ -223,5 +229,99 @@ describe("saying a thing once", () => {
   it("does not let the office's notification silence the crew's", () => {
     const reported = minutesAgo(40);
     expect(stallDedupeKey("d1", 30, reported, "office")).not.toBe(stallDedupeKey("d1", 30, reported, "crew"));
+  });
+});
+
+describe("when the crew answer", () => {
+  const answered = (minutes: number, state: CheckInState, answeredMinutesAgo: number) =>
+    assessStall({
+      lastReportedAt: minutesAgo(minutes),
+      status: "In Transit",
+      metresToNearestStop: 5_000,
+      checkIn: { state, at: minutesAgo(answeredMinutesAgo) },
+      now: NOW,
+    });
+
+  it("stops chasing a truck whose crew said what is happening", () => {
+    const verdict = answered(50, "traffic", 5);
+    expect(verdict.stalled).toBe(false);
+    expect(verdict.reason).toBe("crew answered");
+    // It still says how long, so the board can show it without alarm.
+    expect(verdict.silentFor).toBe(50);
+  });
+
+  it("gives a meal break longer than the law requires for one", () => {
+    // Article 85 of the Labor Code: at least sixty uninterrupted minutes. The
+    // app reports only on movement, so without this every lawful lunch break
+    // raised the urgent alert - every working day, on every truck.
+    expect(CHECK_IN_QUIETENS_MIN.on_break).toBeGreaterThan(60);
+    expect(answered(75, "on_break", 70).stalled).toBe(false);
+    expect(answered(75, "on_break", 70).reason).toBe("crew answered");
+  });
+
+  it("starts asking again once the answer has gone stale", () => {
+    // "I am in traffic" an hour ago is not an answer about now.
+    expect(answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic - 1).reason).toBe("crew answered");
+    expect(answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic + 1).stalled).toBe(true);
+  });
+
+  it("ignores an answer given before the truck last moved", () => {
+    // Otherwise a driver could tap "on a break" in the morning and buy silence
+    // for every stop after it.
+    const verdict = assessStall({
+      lastReportedAt: minutesAgo(40),
+      status: "In Transit",
+      metresToNearestStop: 5_000,
+      checkIn: { state: "on_break", at: minutesAgo(90) },
+      now: NOW,
+    });
+    expect(verdict.stalled).toBe(true);
+    expect(verdict.reason).toBe("on the road");
+  });
+
+  it("treats a report of trouble as worse than silence, not better", () => {
+    for (const state of ["vehicle_problem", "need_help"] as const) {
+      expect(isCallForHelp(state)).toBe(true);
+
+      // Only twenty minutes quiet - below every rung - but the crew have spoken.
+      const verdict = answered(20, state, 1);
+      expect(verdict.stalled).toBe(true);
+      expect(verdict.reason).toBe("crew asked for help");
+      expect(verdict.threshold).toBe(STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1]);
+    }
+  });
+
+  it("does not let a cry for help go stale the way an excuse does", () => {
+    expect(answered(300, "need_help", 240).reason).toBe("crew asked for help");
+  });
+
+  it("still leaves a truck at one of its own stops alone", () => {
+    const verdict = assessStall({
+      lastReportedAt: minutesAgo(50),
+      status: "In Transit",
+      metresToNearestStop: AT_STOP_METRES - 1,
+      checkIn: { state: "loading", at: minutesAgo(5) },
+      now: NOW,
+    });
+    expect(verdict.reason).toBe("at a stop");
+  });
+
+  it("says who asked and what they said", () => {
+    const alert = crewHelpAlert("ORD-1 (Acme)", "need_help", 20);
+    expect(alert.title).toMatch(/asked for help/i);
+    expect(alert.body).toMatch(/call them now/i);
+
+    const truck = crewHelpAlert("ORD-1 (Acme)", "vehicle_problem", 20);
+    expect(truck.body).toMatch(/mechanic|replacement/i);
+  });
+
+  it("is heard afresh every time they answer", () => {
+    expect(crewHelpDedupeKey("d1", minutesAgo(10))).not.toBe(crewHelpDedupeKey("d1", minutesAgo(5)));
+  });
+
+  it("refuses an answer it does not recognise", () => {
+    expect(isCheckInState("on_break")).toBe(true);
+    expect(isCheckInState("having a nap")).toBe(false);
+    expect(isCheckInState(null)).toBe(false);
   });
 });
