@@ -44,6 +44,31 @@ async function recordTrailPoint(point: {
   console.error("[Location API] Failed to record trail point:", error.message);
 }
 
+/**
+ * How far the truck must be from its last position to count as having moved.
+ *
+ * Above the jitter a stationary phone produces - which is routinely five to
+ * twenty metres - and below anything that could be called progress. Set too low,
+ * a parked truck would report movement all afternoon and never be flagged; set
+ * too high, a truck crawling in traffic would look stopped.
+ */
+const MOVED_METRES = 30;
+const METRES_PER_DEGREE = 111_320;
+
+function hasMoved(
+  previous: { latitude?: number | null; longitude?: number | null } | null,
+  latitude: number,
+  longitude: number,
+): boolean {
+  // Nothing to compare against: the first position of a trip is movement.
+  if (!previous || previous.latitude == null || previous.longitude == null) return true;
+
+  const north = (latitude - previous.latitude) * METRES_PER_DEGREE;
+  const east = (longitude - previous.longitude) * METRES_PER_DEGREE * Math.cos((latitude * Math.PI) / 180);
+
+  return Math.hypot(north, east) >= MOVED_METRES;
+}
+
 function toFiniteNumber(value: unknown): number | null {
   if (value === undefined || value === null || value === "") return null;
   const number = Number(value);
@@ -88,6 +113,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // Did the truck actually move, or is this the app saying it is still alive?
+    //
+    // Decided here, from the distance to the position already stored, rather
+    // than trusted from the request: an app that could declare its own pings to
+    // be movement could silence the stall alert by heartbeating.
+    const { data: previous } = await supabase
+      .from("FleetLocations")
+      .select("latitude, longitude, moved_at")
+      .eq("dispatch_id", dispatchID)
+      .maybeSingle();
+
+    const now = new Date().toISOString();
+    const movedAt = hasMoved(previous, latitude, longitude) ? now : ((previous?.moved_at as string) ?? now);
+
     // Upsert the latest coordinate (one row per active dispatch). The driver
     // is identified from the session, not from the request body.
     const { error: upsertErr } = await supabase.from("FleetLocations").upsert(
@@ -98,7 +137,10 @@ export async function POST(request: Request) {
         longitude,
         speed: toFiniteNumber(body.speed),
         heading: toFiniteNumber(body.heading),
-        updated_at: new Date().toISOString(),
+        // The last time the app spoke at all.
+        updated_at: now,
+        // The last time it had something new to say.
+        moved_at: movedAt,
       },
       { onConflict: "dispatch_id" },
     );

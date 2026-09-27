@@ -56,6 +56,14 @@ export const LEFT_OPEN_AFTER_MIN = 24 * 60;
 export const AT_STOP_METRES = 200;
 
 /**
+ * How long without a word from the app before contact counts as lost.
+ *
+ * The heartbeat is every few minutes, so this is several heartbeats' grace - a
+ * phone briefly out of signal on a mountain road has not been lost.
+ */
+export const CONTACT_LOST_MIN = 10;
+
+/**
  * What a crew can say when asked why they have gone quiet.
  *
  * Two of them are not excuses at all - they are the crew telling us something is
@@ -110,8 +118,17 @@ export interface CrewCheckIn {
 }
 
 export interface StallInput {
-  /** When the truck last reported a position. Null: it never has. */
+  /** When the truck last actually moved (FleetLocations.moved_at). */
   lastReportedAt: string | null;
+  /**
+   * When the app last spoke at all (FleetLocations.updated_at), which a
+   * heartbeat refreshes whether or not the truck moved.
+   *
+   * Omitted, or equal to lastReportedAt, means there are no heartbeats to go on
+   * - which is the case for any app build before them - and the cause of a
+   * silence then honestly reads as unknown.
+   */
+  lastContactAt?: string | null;
   /** The trip's status. Only a trip on the road can stall. */
   status: string;
   /** Metres to the nearest stop on this trip, done or not, when both are known. */
@@ -121,8 +138,20 @@ export interface StallInput {
   now?: Date;
 }
 
+/**
+ * What the silence most likely is.
+ *
+ * "stopped" is only claimed when the app is still talking to us while the truck
+ * has not moved, which is the one case we can be sure about.
+ */
+export type StallCause = "stopped" | "out of contact" | "unknown";
+
 export interface StallVerdict {
   stalled: boolean;
+  /** Whether the truck stopped, the phone did, or we cannot tell. */
+  cause: StallCause;
+  /** Minutes since the app last spoke at all, when that is known. */
+  outOfContactFor: number;
   /** Whole minutes since the last position, when there is one. */
   silentFor: number;
   /** The highest threshold passed, or null when none has been. */
@@ -168,13 +197,26 @@ export function describeSilence(minutes: number): string {
  */
 export function assessStall({
   lastReportedAt,
+  lastContactAt = null,
   status,
   metresToNearestStop,
   checkIn = null,
   now = new Date(),
 }: StallInput): StallVerdict {
+  const minutesSince = (moment: string | null): number | null => {
+    if (!moment) return null;
+    const at = new Date(moment).getTime();
+    if (Number.isNaN(at)) return null;
+    // A clock ahead of ours would otherwise read as fresh forever.
+    return Math.max(0, Math.floor((now.getTime() - at) / 60_000));
+  };
+
+  const contactSilence = minutesSince(lastContactAt);
+
   const quiet = (reason: StallVerdict["reason"], silentFor = 0): StallVerdict => ({
     stalled: false,
+    cause: "unknown",
+    outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: null,
     reason,
@@ -201,6 +243,23 @@ export function assessStall({
 
   const passed = [...STALL_THRESHOLDS_MIN].reverse().find((minutes) => silentFor >= minutes) ?? null;
 
+  // Why it has gone quiet, as far as anybody can tell.
+  //
+  // Only one case is certain: the app is still talking to us and the truck has
+  // not moved. Without heartbeats the two timestamps move together, so there is
+  // nothing to compare and the cause stays unknown - which is the honest reading
+  // for any app build that does not send them.
+  // Contact must be genuinely fresher than movement for there to be anything to
+  // compare. When the two timestamps march together there were no heartbeats,
+  // and "the app has gone silent" is then the same statement as "the truck has
+  // not moved" - true of both, evidence of neither.
+  const heartbeats = contactSilence !== null && contactSilence < silentFor;
+  const cause: StallCause = !heartbeats
+    ? "unknown"
+    : contactSilence < CONTACT_LOST_MIN
+      ? "stopped"
+      : "out of contact";
+
   // What the crew told us, if they told us anything since they went quiet.
   //
   // Only an answer newer than the last position counts. One from before the
@@ -219,6 +278,8 @@ export function assessStall({
     if (isCallForHelp(answered.state)) {
       return {
         stalled: true,
+        cause,
+        outOfContactFor: contactSilence ?? silentFor,
         silentFor,
         threshold: STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1],
         reason: "crew asked for help",
@@ -232,7 +293,14 @@ export function assessStall({
 
   if (!passed) return quiet("reporting", silentFor);
 
-  return { stalled: true, silentFor, threshold: passed, reason: "on the road" };
+  return {
+    stalled: true,
+    cause,
+    outOfContactFor: contactSilence ?? silentFor,
+    silentFor,
+    threshold: passed,
+    reason: "on the road",
+  };
 }
 
 export interface StallMessage {
@@ -257,8 +325,28 @@ export interface StallAlert {
   crew: StallMessage | null;
 }
 
-/** Both things it could be, said in one breath. */
-function bothCauses(label: string, silentFor: number): string {
+/**
+ * What the silence is, in the office's words.
+ *
+ * With heartbeats there is usually something definite to say. Without them - any
+ * app build before they existed - the honest answer is that the two causes look
+ * identical, and the wording says so rather than guessing.
+ */
+function describeCause(label: string, silentFor: number, cause: StallCause = "unknown"): string {
+  if (cause === "stopped") {
+    return (
+      `${label} has not moved for ${describeSilence(silentFor)}. ` +
+      `The app is still reporting, so the truck itself has stopped.`
+    );
+  }
+
+  if (cause === "out of contact") {
+    return (
+      `${label} has not reported for ${describeSilence(silentFor)} and the app has gone silent too. ` +
+      `The phone may be off, out of signal or out of battery - the truck may be fine.`
+    );
+  }
+
   return (
     `${label} has not reported its position for ${describeSilence(silentFor)}. ` +
     `Either the truck has stopped or the app has lost contact - the two look the same from here.`
@@ -284,8 +372,13 @@ function askTheCrew(silentFor: number): StallMessage {
  * day is one nobody reads by Friday. It colours the trip on the board, where
  * somebody watching will see it, and goes no further.
  */
-export function stallAlert(threshold: StallThreshold, tripLabel: string, silentFor: number): StallAlert {
-  const quiet = bothCauses(tripLabel, silentFor);
+export function stallAlert(
+  threshold: StallThreshold,
+  tripLabel: string,
+  silentFor: number,
+  cause: StallCause = "unknown",
+): StallAlert {
+  const quiet = describeCause(tripLabel, silentFor, cause);
   const forHowLong = describeSilence(silentFor);
 
   if (threshold === 15) {
@@ -316,8 +409,10 @@ export function stallAlert(threshold: StallThreshold, tripLabel: string, silentF
       office: {
         title: `Silent for ${forHowLong}`,
         body:
-          `${quiet} Call the driver. If you cannot reach them, treat it as a possible breakdown; ` +
-          `if you reach them and all is well, the app may need restarting.`,
+          cause === "stopped"
+            ? `${quiet} Call the driver and find out why they are stopped.`
+            : `${quiet} Call the driver. If you cannot reach them, treat it as a possible breakdown; ` +
+              `if you reach them and all is well, the app may need restarting.`,
       },
       crew: askTheCrew(silentFor),
     };

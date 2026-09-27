@@ -52,6 +52,39 @@ let onPositionUpdate: ((fix: PositionFix) => void) | null = null;
 const WEB_PING_INTERVAL_MS = 10_000;
 let lastWebPingAt = 0;
 
+// ---------------------------------------------------------------- heartbeat
+//
+// The watchers above only fire when the truck moves, so a stopped truck and a
+// dead phone have always sent the same thing: nothing. This re-sends the last
+// known position on a timer whether or not anything has changed, which lets the
+// office tell the two apart - the server records the last contact and the last
+// actual movement separately, and decides for itself which a ping was.
+//
+// Every three minutes. Often enough that ten minutes of silence means something,
+// rare enough to be nothing on a data plan: one small request, twenty times an
+// hour, only while a trip is open.
+const HEARTBEAT_MS = 3 * 60_000;
+
+let heartbeat: ReturnType<typeof setInterval> | null = null;
+let lastFix: { latitude: number; longitude: number; speed?: number | null; heading?: number | null } | null = null;
+
+function startHeartbeat(dispatchId: string | number) {
+  stopHeartbeat();
+
+  heartbeat = setInterval(() => {
+    // Nothing to re-send until the first real fix has arrived.
+    if (!lastFix) return;
+    void postLocation(dispatchId, lastFix);
+  }, HEARTBEAT_MS);
+}
+
+function stopHeartbeat() {
+  if (heartbeat !== null) {
+    clearInterval(heartbeat);
+    heartbeat = null;
+  }
+}
+
 // Sends one GPS fix. The token is read per ping so tracking survives token
 // refreshes. Returns false once the server reports the trip is closed.
 async function postLocation(
@@ -60,6 +93,8 @@ async function postLocation(
 ): Promise<boolean> {
   const token = getAccessToken();
   if (!token) return true;
+
+  lastFix = fix;
 
   try {
     const response = await fetch("/api/crew/dispatches/location", {
@@ -84,6 +119,8 @@ async function postLocation(
 }
 
 async function stopLiveTracking() {
+  stopHeartbeat();
+
   if (activeTrackingId) {
     if (Capacitor.getPlatform() === 'web') {
       navigator.geolocation.clearWatch(parseInt(activeTrackingId));
@@ -128,6 +165,7 @@ const startLiveTracking = async (dispatchId: string | number) => {
       );
 
       activeTrackingId = watchId.toString();
+      startHeartbeat(dispatchId);
       return;
     }
 
@@ -157,6 +195,8 @@ const startLiveTracking = async (dispatchId: string | number) => {
         if (!stillOpen) void stopLiveTracking();
       }
     );
+
+    startHeartbeat(dispatchId);
   } catch (err) {
     console.warn("Tracking initialization failed:", err);
   }

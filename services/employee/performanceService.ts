@@ -152,7 +152,7 @@ interface DispatchRow {
   status: string;
   completedAt: string | null;
   rejectionreason: string | null;
-  Order: Embed<{ orderCode: string | null; createdAt: string | null; notes: string | null }>;
+  Order: Embed<{ orderCode: string | null; createdAt: string | null; notes: string | null; deliverySchedule: string | null }>;
 }
 
 /** One trip this person was on, with their own answer to it. */
@@ -188,7 +188,7 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
   // The booking notes carry "Delivery Schedule", the only place a delivery DATE
   // is recorded - BranchStops.expectedTime is a time of day with no date.
   const columns =
-    "dispatchID, orderID, status, completedAt, rejectionreason, Order ( orderCode, createdAt, notes )";
+    "dispatchID, orderID, status, completedAt, rejectionreason, Order ( orderCode, createdAt, notes, deliverySchedule )";
 
   if (role === EMPLOYEE_ROLE.driver) {
     const rows = await selectAll<DispatchRow>((from, to) =>
@@ -254,8 +254,15 @@ async function readTrips(employeeID: string, role: string): Promise<Trip[]> {
  * from the completion time.
  */
 function scheduleDateOf(row: DispatchRow): string | null {
-  const raw = readNote(first(row.Order)?.notes ?? "", "Delivery Schedule").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+  const order = first(row.Order);
+
+  // The column first, the note as a fallback for anything booked before the
+  // column existed and never edited since.
+  const column = (order?.deliverySchedule ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(column)) return column.slice(0, 10);
+
+  const note = readNote(order?.notes ?? "", "Delivery Schedule").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(note) ? note : null;
 }
 
 /**
@@ -406,11 +413,11 @@ async function computeCompany(): Promise<CompanyFigures> {
       expectedTime: string | null;
       completedAt: string | null;
       stopStatus: string | null;
-      Order: Embed<{ notes: string | null }>;
+      Order: Embed<{ notes: string | null; deliverySchedule: string | null }>;
     }>((from, to) =>
       supabase
         .from("BranchStops")
-        .select("branchID, expectedTime, completedAt, stopStatus, Order ( notes )")
+        .select("branchID, expectedTime, completedAt, stopStatus, Order ( notes, deliverySchedule )")
         .not("completedAt", "is", null)
         .gte("completedAt", since)
         .range(from, to),
@@ -445,7 +452,10 @@ async function computeCompany(): Promise<CompanyFigures> {
   let stopsJudged = 0;
   let stopsOnTime = 0;
   for (const stop of delivered) {
-    const scheduled = readNote(first(stop.Order)?.notes ?? "", "Delivery Schedule").trim();
+    const order = first(stop.Order);
+    const scheduled =
+      (order?.deliverySchedule ?? "").trim().slice(0, 10) ||
+      readNote(order?.notes ?? "", "Delivery Schedule").trim();
     const madeIt = wasOnTime(expectedAt(scheduled, stop.expectedTime), stop.completedAt);
     if (madeIt === null) continue;
     stopsJudged++;

@@ -17,6 +17,7 @@ import {
   stallAlert,
   stallDedupeKey,
   type CrewCheckIn,
+  type StallCause,
   type StallThreshold,
   type StallVerdict,
 } from "@/app/lib/stallRules";
@@ -51,6 +52,8 @@ interface LiveTrip {
   orderCode: string | null;
   truck: string | null;
   lastReportedAt: string | null;
+  /** When the app last spoke at all, heartbeat or movement. */
+  lastContactAt: string | null;
   position: { latitude: number; longitude: number } | null;
 }
 
@@ -66,7 +69,7 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
 
   const { data: locations } = await supabase
     .from("FleetLocations")
-    .select("dispatch_id, latitude, longitude, updated_at")
+    .select("dispatch_id, latitude, longitude, updated_at, moved_at")
     .in("dispatch_id", dispatches.map((trip) => trip.dispatchID));
 
   const positionOf = new Map((locations ?? []).map((row) => [row.dispatch_id, row]));
@@ -81,7 +84,11 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
       status: trip.status as string,
       orderCode: (order as { orderCode?: string } | null)?.orderCode ?? null,
       truck: (truck as { plateNumber?: string } | null)?.plateNumber ?? null,
-      lastReportedAt: (seen?.updated_at as string) ?? null,
+      // Movement is what the ladder counts; contact is how the cause is judged.
+      // Before the app sends heartbeats the two are the same, and moved_at is
+      // null on rows written by an older deployment.
+      lastReportedAt: (seen?.moved_at as string) ?? (seen?.updated_at as string) ?? null,
+      lastContactAt: (seen?.updated_at as string) ?? null,
       position:
         seen && Number(seen.latitude) && Number(seen.longitude)
           ? { latitude: seen.latitude as number, longitude: seen.longitude as number }
@@ -169,6 +176,7 @@ export async function checkForStalledTrips(
     const checkIn = answers.get(trip.dispatchID) ?? null;
     const verdict = assessStall({
       lastReportedAt: trip.lastReportedAt,
+      lastContactAt: trip.lastContactAt,
       status: trip.status,
       metresToNearestStop: await metresToNearestStop(trip),
       checkIn,
@@ -199,7 +207,7 @@ export async function checkForStalledTrips(
     }
 
     const raised = telling
-      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt)
+      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause)
       : false;
     found.push({ ...trip, verdict, checkIn, raised });
   }
@@ -234,8 +242,9 @@ async function raiseStall(
   threshold: StallThreshold,
   silentFor: number,
   lastReportedAt: string,
+  cause: StallCause,
 ): Promise<boolean> {
-  const alert = stallAlert(threshold, await labelFor(trip), silentFor);
+  const alert = stallAlert(threshold, await labelFor(trip), silentFor, cause);
   const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
   let told = 0;
 

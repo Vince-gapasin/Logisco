@@ -440,8 +440,16 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   if (dto.priorityLevel !== undefined) notes = setNote(notes, "Priority", dto.priorityLevel);
   if (dto.notes !== undefined) notes = setNotesBody(notes, dto.notes);
 
-  if (notes !== order.notes) {
-    const { error: notesError } = await supabase.from("Order").update({ notes }).eq("orderID", orderID);
+  // The date goes to the column as well as the note. The note is what six
+  // screens still read; the column is what punctuality is decided on, and a
+  // scheduling fact deciding somebody's performance should not live one stray
+  // newline away from vanishing.
+  const changes: Record<string, unknown> = {};
+  if (notes !== order.notes) changes.notes = notes;
+  if (dto.deliverySchedule !== undefined) changes.deliverySchedule = dto.deliverySchedule || null;
+
+  if (Object.keys(changes).length > 0) {
+    const { error: notesError } = await supabase.from("Order").update(changes).eq("orderID", orderID);
     if (notesError) throw new Error(`Failed to save this booking: ${notesError.message}`);
   }
 
@@ -483,6 +491,17 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   };
 }
 
+/**
+ * The delivery date out of a notes blob, as a date the column will accept.
+ *
+ * Null for anything that is not a plain YYYY-MM-DD, rather than a guess: a
+ * wrong date here would silently decide that a stop was late.
+ */
+function scheduleDateIn(notes: string | null | undefined): string | null {
+  const raw = readNote(notes ?? "", "Delivery Schedule").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
 export async function createBooking(dto: CreateOrderDto) {
   // 1. Generate Unique Identifiers
   const orderCode = generateOrderCode();
@@ -497,6 +516,9 @@ export async function createBooking(dto: CreateOrderDto) {
         orderCode,
         orderLinkToken,
         notes: dto.notes || "",
+        // Lifted out of the blob the booking form builds, so the column is
+        // populated from the first save rather than only when somebody edits.
+        deliverySchedule: scheduleDateIn(dto.notes),
         isActive: true,
       },
     ])

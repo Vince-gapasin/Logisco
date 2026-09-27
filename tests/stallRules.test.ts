@@ -13,6 +13,7 @@ import {
   stallAlert,
   stallDedupeKey,
   AT_STOP_METRES,
+  CONTACT_LOST_MIN,
   LEFT_OPEN_AFTER_MIN,
   STALL_THRESHOLDS_MIN,
   type CheckInState,
@@ -323,5 +324,71 @@ describe("when the crew answer", () => {
     expect(isCheckInState("on_break")).toBe(true);
     expect(isCheckInState("having a nap")).toBe(false);
     expect(isCheckInState(null)).toBe(false);
+  });
+});
+
+describe("telling a stopped truck from a dead phone", () => {
+  const quiet = (movedMinutesAgo: number, contactMinutesAgo: number | null) =>
+    assessStall({
+      lastReportedAt: minutesAgo(movedMinutesAgo),
+      lastContactAt: contactMinutesAgo === null ? null : minutesAgo(contactMinutesAgo),
+      status: "In Transit",
+      metresToNearestStop: 5_000,
+      now: NOW,
+    });
+
+  it("is certain when the app is still talking and the truck is not moving", () => {
+    // The one case that can be known. The heartbeat arrived a minute ago; the
+    // truck has not moved for fifty.
+    const verdict = quiet(50, 1);
+    expect(verdict.stalled).toBe(true);
+    expect(verdict.cause).toBe("stopped");
+    expect(verdict.silentFor).toBe(50);
+    expect(verdict.outOfContactFor).toBe(1);
+  });
+
+  it("says contact is lost when heartbeats were arriving and then stopped", () => {
+    // Not moving for two hours, and the heartbeat itself died half an hour ago.
+    expect(quiet(120, 30).cause).toBe("out of contact");
+  });
+
+  it("admits it cannot tell when there are no heartbeats to compare", () => {
+    // Any app build before heartbeats: the two timestamps move together, so
+    // below the contact grace there is nothing to go on.
+    expect(quiet(20, null).cause).toBe("unknown");
+    expect(quiet(20, 20).cause).toBe("unknown");
+    // Even a long silence stays unknown without heartbeats: "the app is quiet"
+    // and "the truck is still" are the same sentence when only one clock moves.
+    expect(quiet(50, 50).cause).toBe("unknown");
+  });
+
+  it("gives a phone briefly out of signal some grace", () => {
+    expect(quiet(50, CONTACT_LOST_MIN - 1).cause).toBe("stopped");
+    expect(quiet(50, CONTACT_LOST_MIN + 1).cause).toBe("out of contact");
+  });
+
+  it("counts the ladder on movement, not on contact", () => {
+    // Heartbeating every three minutes must not hide a truck that has not moved
+    // for an hour - which is exactly what a heartbeat would do if the ladder
+    // watched contact instead.
+    const verdict = quiet(60, 1);
+    expect(verdict.threshold).toBe(45);
+    expect(verdict.stalled).toBe(true);
+  });
+
+  it("does not send the office looking for a breakdown when a phone is the likely trouble", () => {
+    const stopped = stallAlert(45, "ORD-1 (Acme)", 46, "stopped");
+    expect(stopped.office.body).toMatch(/the truck itself has stopped/i);
+    expect(stopped.office.body).toMatch(/find out why they are stopped/i);
+    expect(stopped.office.body).not.toMatch(/app may need restarting/i);
+
+    const lost = stallAlert(45, "ORD-1 (Acme)", 46, "out of contact");
+    expect(lost.office.body).toMatch(/phone may be off|out of signal|out of battery/i);
+    expect(lost.office.body).toMatch(/the truck may be fine/i);
+  });
+
+  it("keeps the old both-causes wording when the cause is unknown", () => {
+    const unknown = stallAlert(45, "ORD-1 (Acme)", 46);
+    expect(unknown.office.body).toMatch(/the two look the same from here/i);
   });
 });
