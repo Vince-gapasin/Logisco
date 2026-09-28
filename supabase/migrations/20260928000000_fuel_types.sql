@@ -60,18 +60,24 @@ COMMENT ON TABLE "FuelType" IS
 -- which is a different question and produced two wrong answers. Kerosene is
 -- monitored because it is a household cooking and lighting fuel, not a motor
 -- fuel at all, and offering it here only invites somebody to pick it by mistake.
--- Electric is a real vehicle fuel but barely a real truck fuel here yet.
+-- Electric and CNG are real vehicle fuels but barely real truck fuels in this
+-- country: a handful of pilot fleets, and next to no refuelling infrastructure
+-- for CNG outside them.
 --
--- Leaving them out costs nothing, because the entire point of this being a table
--- is that putting one back is a row rather than a release. The unit column still
--- allows kWh and kg for exactly that reason.
+-- What is left is every fuel a Philippine truck realistically runs on, all of it
+-- priced per litre.
+--
+-- Leaving the others out costs nothing, because the entire point of this being a
+-- table rather than a CHECK constraint is that putting one back is a row rather
+-- than a release. The unit column still allows kWh and kg for exactly that day -
+-- it is what lets this system follow a fleet that electrifies, instead of
+-- needing a migration when the first van arrives.
 INSERT INTO "FuelType" ("name", "unit", "sortOrder") VALUES
   ('Diesel',           'litre', 10),
   ('Gasoline RON 91',  'litre', 20),
   ('Gasoline RON 95',  'litre', 30),
   ('Gasoline RON 97',  'litre', 40),
-  ('Auto-LPG',         'litre', 50),
-  ('CNG',              'kg',    60)
+  ('Auto-LPG',         'litre', 50)
 ON CONFLICT ("name") DO NOTHING;
 
 -- ----------------------------------------------------------------------------
