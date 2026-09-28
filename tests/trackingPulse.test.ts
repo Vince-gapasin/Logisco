@@ -154,3 +154,81 @@ describe("with no window at all", () => {
     expect(pulse.minutesSincePing()).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The movement clock
+// ---------------------------------------------------------------------------
+// The one the check-in prompt reads. It exists because the contact clock could
+// not answer the question: the heartbeat posts every three minutes whether or
+// not the truck has moved, so contact never lapses on a working app and the
+// prompt - which waited on it - could not appear at all.
+
+describe("how long the truck has been standing still", () => {
+  beforeEach(() => {
+    (globalThis as { window?: unknown }).window = fakeWindow();
+  });
+
+  it("says nothing before the first position of a trip has landed", async () => {
+    const pulse = await restart();
+    // Not "still for 0 minutes": that is a claim, and there is nothing to claim
+    // from yet.
+    expect(pulse.minutesSinceMove()).toBeNull();
+  });
+
+  it("counts from the time the server gave, not the time of the call", async () => {
+    const pulse = await restart();
+    const movedAt = Date.now() - 22 * 60_000;
+    pulse.markMovement(movedAt);
+    expect(pulse.minutesSinceMove()).toBe(22);
+  });
+
+  it("does not move when a heartbeat repeats the same position", async () => {
+    const pulse = await restart();
+    const movedAt = Date.now() - 40 * 60_000;
+
+    // Four heartbeats, each handing back the same unchanged movedAt, which is
+    // what the server does for a parked truck.
+    pulse.markMovement(movedAt);
+    pulse.markPing();
+    pulse.markMovement(movedAt);
+    pulse.markPing();
+
+    // Contact is fresh; the truck has still been still for forty minutes. The
+    // two clocks disagreeing is the whole point.
+    expect(pulse.minutesSincePing()).toBe(0);
+    expect(pulse.minutesSinceMove()).toBe(40);
+  });
+
+  it("restarts the count when the truck actually moves", async () => {
+    const pulse = await restart();
+    pulse.markMovement(Date.now() - 40 * 60_000);
+    pulse.markMovement(Date.now() - 1 * 60_000);
+    expect(pulse.minutesSinceMove()).toBe(1);
+  });
+
+  it("survives the app being killed and reopened", async () => {
+    (globalThis as { window?: unknown }).window = fakeWindow();
+    const before = await restart();
+    before.markMovement(Date.now() - 25 * 60_000);
+
+    const after = await restart();
+    expect(after.minutesSinceMove()).toBe(25);
+  });
+
+  it("refuses a timestamp that is not one", async () => {
+    const pulse = await restart();
+    pulse.markMovement(Number.NaN);
+    expect(pulse.minutesSinceMove()).toBeNull();
+    pulse.markMovement(0);
+    expect(pulse.minutesSinceMove()).toBeNull();
+  });
+
+  it("forgets both clocks on request", async () => {
+    const pulse = await restart();
+    pulse.markPing();
+    pulse.markMovement(Date.now() - 5 * 60_000);
+    pulse.forgetPings();
+    expect(pulse.minutesSincePing()).toBeNull();
+    expect(pulse.minutesSinceMove()).toBeNull();
+  });
+});

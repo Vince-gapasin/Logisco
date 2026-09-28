@@ -5,11 +5,21 @@
 // The office has always been told at thirty minutes that "the crew have been
 // asked to get in touch". This is the first thing that lets them answer.
 //
-// It appears only when this device has actually stopped getting positions
-// through, because that is the only moment the question makes sense. It is not a
-// modal, it cannot be the thing between a driver and their job, and it is
-// dismissable - a driver who ignores it is not punished for it, they simply get
-// a phone call from the office instead, which is the old behaviour.
+// It appears when the truck has stopped moving, which is the moment the question
+// makes sense. It is not a modal, it cannot be the thing between a driver and
+// their job, and it is dismissable - a driver who ignores it is not punished for
+// it, they simply get a phone call from the office instead, which is the old
+// behaviour.
+//
+// It used to watch the contact clock instead, and so never appeared. markPing
+// fires on every successful post and the heartbeat posts every three minutes
+// whether or not the truck has moved, so on a working app the contact clock
+// never reached fifteen. A driver who started a delivery and sat at the depot
+// was asked nothing, the office was told nothing - the at-stop rule suppresses
+// that case on purpose - and the customer heard nothing at all.
+//
+// Watching movement fixes all three at once: the driver is asked, and their
+// answer is what the customer sees on the tracking page.
 //
 // The reason it matters more than it looks: Article 85 of the Labor Code
 // requires at least sixty uninterrupted minutes for a meal, and the app reports
@@ -21,8 +31,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, Coffee, Clock, PackageOpen, TrafficCone, Wrench, X } from "lucide-react";
 import { authFetch } from "@/app/lib/apiClient";
-import { minutesSincePing } from "@/app/lib/trackingPulse";
-import { CHECK_IN_LABELS, STALL_THRESHOLDS_MIN, type CheckInState } from "@/app/lib/stallRules";
+import { minutesSinceMove, minutesSincePing } from "@/app/lib/trackingPulse";
+import {
+  CHECK_IN_LABELS,
+  CONTACT_LOST_MIN,
+  STALL_THRESHOLDS_MIN,
+  type CheckInState,
+} from "@/app/lib/stallRules";
 
 /** The first rung: below this, nobody is asking anything. */
 const ASK_AFTER_MIN = STALL_THRESHOLDS_MIN[0];
@@ -37,7 +52,11 @@ const OPTIONS: { state: CheckInState; icon: typeof Coffee; tone: string }[] = [
 ];
 
 export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string | number }) {
-  const [silentFor, setSilentFor] = useState<number | null>(null);
+  const [stillFor, setStillFor] = useState<number | null>(null);
+  // Whether the movement figure can be trusted. If this phone has not reached
+  // the server for a while, the last thing it heard is all it knows - the truck
+  // may have been moving the whole time.
+  const [outOfTouch, setOutOfTouch] = useState(false);
   const [sending, setSending] = useState<CheckInState | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +65,11 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
   // Checked on a timer rather than on every render: the answer changes once a
   // minute at most, and reading a clock during render makes the render impure.
   useEffect(() => {
-    const read = () => setSilentFor(minutesSincePing());
+    const read = () => {
+      setStillFor(minutesSinceMove());
+      const sincePing = minutesSincePing();
+      setOutOfTouch(sincePing !== null && sincePing >= CONTACT_LOST_MIN);
+    };
     read();
 
     const timer = setInterval(read, 30_000);
@@ -81,9 +104,9 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
     [dispatchID],
   );
 
-  // Nothing to ask about: either this device has never reported, or it is
-  // reporting normally, which means the truck is moving.
-  if (dismissed || silentFor === null || silentFor < ASK_AFTER_MIN) return null;
+  // Nothing to ask about: either no position has landed yet for this trip, so
+  // there is no baseline to measure from, or the truck is moving.
+  if (dismissed || stillFor === null || stillFor < ASK_AFTER_MIN) return null;
 
   if (sent) {
     return (
@@ -98,10 +121,12 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
     <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Are you alright?</p>
+          <p className="text-sm font-semibold text-slate-900">Still here?</p>
           <p className="text-xs text-slate-600 mt-0.5">
-            We have not had your position for {silentFor} minutes. One tap and the office will stop
-            chasing it.
+            {outOfTouch
+              ? "We have lost signal from this phone, so the office cannot see where you are."
+              : `The truck has not moved for ${stillFor} minutes.`}{" "}
+            One tap tells the office why - and the customer sees the reason on their tracking page.
           </p>
         </div>
         <button

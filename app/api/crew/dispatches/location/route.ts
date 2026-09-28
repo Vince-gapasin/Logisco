@@ -157,7 +157,15 @@ export async function POST(request: Request) {
       heading: toFiniteNumber(body.heading),
     });
 
-    return NextResponse.json({ success: true });
+    // Handed back so the app knows when this truck last actually moved.
+    //
+    // It cannot work that out for itself: the heartbeat re-sends the same fix
+    // every few minutes, so from the app's side a parked truck and a driving one
+    // look identical - both are "a post that succeeded". The server is the one
+    // that compares coordinates, and it stays the one that decides. This is only
+    // telling the app what was decided, which is what the check-in prompt needs
+    // to know whether to ask why they are not moving.
+    return NextResponse.json({ success: true, movedAt });
   } catch (error) {
     console.error("[Location API Error]:", error);
     return NextResponse.json({ message: "Failed to update location" }, { status: 500 });

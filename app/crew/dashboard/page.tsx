@@ -21,7 +21,7 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   loading: () => <div className="h-80 sm:h-100 md:h-120 w-full animate-pulse bg-slate-100" />,
 });
 import { compressImage } from "@/app/lib/imageCompression";
-import { markPing } from "@/app/lib/trackingPulse";
+import { markPing, markMovement } from "@/app/lib/trackingPulse";
 import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
 import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, type DeclineCode } from "@/app/lib/enums";
 
@@ -112,7 +112,18 @@ async function postLocation(
     // The app is the only thing that knows it is still in touch with the
     // server. The check-in prompt reads this to decide whether the silence the
     // office is seeing is real.
-    if (response.ok) markPing();
+    if (response.ok) {
+      markPing();
+
+      // And when the truck was last somewhere else. The server works that out by
+      // comparing coordinates - the app cannot, because a parked heartbeat and a
+      // driving one are both just a post that succeeded - and hands the answer
+      // back. Without it the prompt waits on a clock the heartbeat keeps
+      // resetting, and never asks anything.
+      const body = (await response.json().catch(() => null)) as { movedAt?: string } | null;
+      const movedAt = body?.movedAt ? Date.parse(body.movedAt) : NaN;
+      if (Number.isFinite(movedAt)) markMovement(movedAt);
+    }
 
     return response.status !== 409;
   } catch {
