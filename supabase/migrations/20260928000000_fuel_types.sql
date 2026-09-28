@@ -54,17 +54,24 @@ ALTER TABLE "FuelType" ENABLE ROW LEVEL SECURITY;
 COMMENT ON TABLE "FuelType" IS
   'The fuels a truck can burn, and the unit each is priced in. Editable: a new company adds its own without a migration.';
 
--- Seeded with what the DOE publishes weekly, plus the two that are not liquids.
--- A company that needs none of these can deactivate them and add its own.
+-- Seeded with the fuels a truck in this country can actually run on.
+--
+-- The first draft of this list was taken from what the DOE publishes weekly,
+-- which is a different question and produced two wrong answers. Kerosene is
+-- monitored because it is a household cooking and lighting fuel, not a motor
+-- fuel at all, and offering it here only invites somebody to pick it by mistake.
+-- Electric is a real vehicle fuel but barely a real truck fuel here yet.
+--
+-- Leaving them out costs nothing, because the entire point of this being a table
+-- is that putting one back is a row rather than a release. The unit column still
+-- allows kWh and kg for exactly that reason.
 INSERT INTO "FuelType" ("name", "unit", "sortOrder") VALUES
   ('Diesel',           'litre', 10),
   ('Gasoline RON 91',  'litre', 20),
   ('Gasoline RON 95',  'litre', 30),
   ('Gasoline RON 97',  'litre', 40),
   ('Auto-LPG',         'litre', 50),
-  ('Kerosene',         'litre', 60),
-  ('CNG',              'kg',    70),
-  ('Electric',         'kWh',   80)
+  ('CNG',              'kg',    60)
 ON CONFLICT ("name") DO NOTHING;
 
 -- ----------------------------------------------------------------------------
