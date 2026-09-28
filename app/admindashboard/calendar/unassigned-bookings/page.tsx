@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
 import BookingAssignModal from "@/components/booking/BookingAssignModal";
 import { useToast } from "@/components/Toast";
+import ListLoadError from "@/components/ListLoadError";
 import {
   isAwaitingAssignment,
   mapOrderToBookingView,
@@ -107,6 +108,12 @@ export default function UnassignedBookingsPage() {
     void loadBookings();
   }, [loadBookings]);
 
+  // Try again, with the skeleton back while it runs.
+  const retryLoad = useCallback(() => {
+    setIsLoading(true);
+    void loadBookings();
+  }, [loadBookings]);
+
   // ==========================================
   // FILTERING
   // ==========================================
@@ -185,10 +192,8 @@ export default function UnassignedBookingsPage() {
         </div>
       </div>
 
-      {loadError && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
-          {loadError}
-        </div>
+      {loadError && paginatedBookings.length > 0 && (
+        <ListLoadError message={loadError} onRetry={retryLoad} compact />
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -233,6 +238,12 @@ export default function UnassignedBookingsPage() {
             <tbody role="rowgroup" className="block md:table-row-group">
               {isLoading ? (
                 <TableSkeleton rows={5} columns={5} stacked />
+              ) : loadError ? (
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center">
+                    <ListLoadError message={loadError} onRetry={retryLoad} />
+                  </td>
+                </tr>
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr role="row"

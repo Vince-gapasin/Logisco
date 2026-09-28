@@ -25,6 +25,7 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
+import ListLoadError from "@/components/ListLoadError";
 import {
   Search,
   FileText,
@@ -276,6 +277,12 @@ export default function CompletedFeedPage() {
     void loadBookings();
   }, [loadBookings]);
 
+  // Try again, with the skeleton back while it runs.
+  const retryLoad = useCallback(() => {
+    setIsLoading(true);
+    void loadBookings();
+  }, [loadBookings]);
+
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -337,10 +344,8 @@ export default function CompletedFeedPage() {
         </div>
       </div>
 
-      {loadError && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
-          {loadError}
-        </div>
+      {loadError && paginatedBookings.length > 0 && (
+        <ListLoadError message={loadError} onRetry={retryLoad} compact />
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -393,6 +398,12 @@ export default function CompletedFeedPage() {
             <tbody role="rowgroup" className="block md:table-row-group">
               {isLoading ? (
                 <TableSkeleton rows={5} columns={6} stacked />
+              ) : loadError ? (
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
+                    <ListLoadError message={loadError} onRetry={retryLoad} />
+                  </td>
+                </tr>
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr role="row"
