@@ -54,6 +54,9 @@ export interface TruckRecord {
   capacity: string;
   lastChecked: string;
   status: string;
+  fuelTypeID: string;
+  /** Resolved name, so a list does not have to look up 36 ids. */
+  fuelTypeName: string;
 }
 
 function mapApiTruck(truck: ApiTruck): TruckRecord {
@@ -66,6 +69,11 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
     capacity: truck.capacity ? String(truck.capacity) : "",
     lastChecked: truck.lastChecked ? truck.lastChecked.split("T")[0] : "",
     status: truck.truckStatus || "Available",
+    fuelTypeID: truck.fuelTypeID || "",
+    // Blank on purpose when nothing is recorded: the screens say "Not recorded"
+    // rather than assuming diesel, because a default here quietly becomes a
+    // fuel-costing assumption nobody goes back and checks.
+    fuelTypeName: truck.fuelType?.name || "",
   };
 }
 
@@ -96,9 +104,11 @@ function TruckModal({
     capacity: "",
     lastChecked: "",
     status: "Available",
+    fuelTypeID: "",
   };
 
   const [formData, setFormData] = useState(initialTruckState);
+  const [fuelTypes, setFuelTypes] = useState<{ fuelTypeID: string; name: string; unit: string }[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -113,6 +123,7 @@ function TruckModal({
         capacity: editData.capacity,
         lastChecked: editData.lastChecked,
         status: editData.status,
+        fuelTypeID: editData.fuelTypeID,
       });
     } else {
       setFormData(initialTruckState);
@@ -120,6 +131,17 @@ function TruckModal({
     setErrors({});
   }, [editData, isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // The fuels this form may offer. Only the active ones come back, so a retired
+  // fuel is never offered again while the trucks already on it keep their name.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    void apiFetch<{ data: { fuelTypeID: string; name: string; unit: string }[] }>("/api/fuel-types")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      .then((result) => setFuelTypes(result.data ?? []))
+      .catch(() => setFuelTypes([]));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -242,6 +264,28 @@ function TruckModal({
                     {errors.truckType}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Fuel Type
+                </label>
+                <select
+                  name="fuelTypeID"
+                  value={formData.fuelTypeID}
+                  onChange={handleInputChange}
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
+                >
+                  <option value="">Not recorded</option>
+                  {fuelTypes.map((fuel) => (
+                    <option key={fuel.fuelTypeID} value={fuel.fuelTypeID}>
+                      {fuel.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-slate-400 text-[11px] mt-1">
+                  Used to price this truck&apos;s fuel. Leave as Not recorded rather than guessing.
+                </p>
               </div>
 
               <div>
@@ -406,6 +450,13 @@ function TruckDetailView({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                   {truck.status}
                 </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    truck.fuelTypeName ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {truck.fuelTypeName || "Fuel not recorded"}
+                </span>
               </div>
             </div>
           </div>
@@ -546,6 +597,7 @@ export default function FleetStatusPage() {
           capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
           truckStatus: formData.status as TruckStatus,
+          fuelTypeID: formData.fuelTypeID || null,
         };
 
         await apiFetch<unknown>(`/api/fleet-status/${editData.id}`, {
@@ -563,6 +615,7 @@ export default function FleetStatusPage() {
           capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
           truckStatus: "Available",
+          fuelTypeID: formData.fuelTypeID || null,
         };
 
         await apiFetch<unknown>("/api/fleet-status", {
@@ -719,6 +772,9 @@ export default function FleetStatusPage() {
                       {truck.plateNumber}{" "}
                       <span className="text-xs text-slate-500 font-normal">
                         ({truck.truckType})
+                        {truck.fuelTypeName && (
+                          <span className="ml-1.5 text-slate-400">· {truck.fuelTypeName}</span>
+                        )}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6">

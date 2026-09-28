@@ -44,6 +44,11 @@ export const createTruckSchema = z.object({
   ),
   
   subconID: z.string().uuid("Invalid Subcontractor ID").nullable().optional(),
+
+  // What the truck burns. Optional, and null means nobody has recorded it - the
+  // screens say "Not recorded" rather than assuming diesel, because a default
+  // here quietly becomes a fuel-costing assumption nobody re-checks.
+  fuelTypeID: z.string().uuid("Invalid fuel type").nullable().optional(),
 });
 
 export const updateTruckSchema = createTruckSchema.partial();

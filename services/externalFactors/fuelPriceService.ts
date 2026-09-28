@@ -1,6 +1,29 @@
 import { extractText, getDocumentProxy } from "unpdf";
 import { supabase } from "@/app/lib/supabase";
 
+/**
+ * The id of a fuel by name, for rows this service writes.
+ *
+ * The upsert still conflicts on the old text column - changing a conflict target
+ * in the same release that introduces its replacement is how a weekly job
+ * quietly stops writing - so both are set until the text column can go.
+ */
+async function fuelTypeIDFor(name: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("FuelType")
+    .select("fuelTypeID")
+    .eq("name", name)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`Could not resolve the fuel type "${name}": ${error.message}`);
+    return null;
+  }
+
+  return (data?.fuelTypeID as string) ?? null;
+}
+
+
 const DOE_ADJUSTMENT_PAGE =
   "https://doe.gov.ph/data-and-prices/liquid-fuels/retail-pump-prices/price-adjustments";
 
@@ -155,7 +178,7 @@ export async function synchronizeLatestFuelPrice() {
     throw existingError;
   }
 
-  if (existing?.pricePerLiter !== null) {
+  if (existing?.pricePerUnit !== null) {
     return {
       alreadySynchronized: true,
       record: existing,
@@ -164,11 +187,11 @@ export async function synchronizeLatestFuelPrice() {
 
   const { data: previous, error: previousError } = await supabase
     .from("FuelPriceHistory")
-    .select("pricePerLiter")
+    .select("pricePerUnit")
     .eq("fuelType", "Diesel")
     .eq("region", "NCR")
     .lt("effectiveDate", effectiveDate)
-    .not("pricePerLiter", "is", null)
+    .not("pricePerUnit", "is", null)
     .order("effectiveDate", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -177,29 +200,30 @@ export async function synchronizeLatestFuelPrice() {
     throw previousError;
   }
 
-  if (!previous?.pricePerLiter) {
+  if (!previous?.pricePerUnit) {
     throw new Error(
       "No previous diesel price is available. Add a baseline price first.",
     );
   }
 
-  const pricePerLiter = Number(
+  const pricePerUnit = Number(
     (
-      Number(previous.pricePerLiter) + weeklyAdjustment
+      Number(previous.pricePerUnit) + weeklyAdjustment
     ).toFixed(2),
   );
 
-  if (pricePerLiter < 20 || pricePerLiter > 200) {
+  if (pricePerUnit < 20 || pricePerUnit > 200) {
     throw new Error(
-      `Calculated diesel price ${pricePerLiter} failed validation.`,
+      `Calculated diesel price ${pricePerUnit} failed validation.`,
     );
   }
 
   const record = {
     effectiveDate,
     fuelType: "Diesel",
+    fuelTypeID: await fuelTypeIDFor("Diesel"),
     region: "NCR",
-    pricePerLiter,
+    pricePerUnit,
     weeklyAdjustment,
     source: "DOE Philippines",
     sourceUrl: pdfUrl,
@@ -265,7 +289,7 @@ export async function backfillFuelPriceHistory(months = 24) {
     .select("*")
     .eq("fuelType", "Diesel")
     .eq("region", "NCR")
-    .not("pricePerLiter", "is", null)
+    .not("pricePerUnit", "is", null)
     .order("effectiveDate", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -274,7 +298,7 @@ export async function backfillFuelPriceHistory(months = 24) {
     throw baselineError;
   }
 
-  if (!baseline?.pricePerLiter || !baseline?.effectiveDate) {
+  if (!baseline?.pricePerUnit || !baseline?.effectiveDate) {
     throw new Error(
       "A baseline diesel price is required before running the backfill.",
     );
@@ -369,7 +393,10 @@ export async function backfillFuelPriceHistory(months = 24) {
     );
   }
 
-  let calculatedPrice = Number(baseline.pricePerLiter);
+  let calculatedPrice = Number(baseline.pricePerUnit);
+  // Resolved once rather than per row.
+  const dieselID = await fuelTypeIDFor("Diesel");
+
   const records = [];
 
   for (let index = 0; index < orderedAdjustments.length; index++) {
@@ -393,8 +420,9 @@ export async function backfillFuelPriceHistory(months = 24) {
     records.push({
       effectiveDate: current.effectiveDate,
       fuelType: "Diesel",
+      fuelTypeID: dieselID,
       region: "NCR",
-      pricePerLiter: calculatedPrice,
+      pricePerUnit: calculatedPrice,
       weeklyAdjustment: current.weeklyAdjustment,
       source: "DOE Philippines",
       sourceUrl: current.sourceUrl,
@@ -415,7 +443,7 @@ export async function backfillFuelPriceHistory(months = 24) {
 
   return {
     baselineDate: baseline.effectiveDate,
-    baselinePrice: Number(baseline.pricePerLiter),
+    baselinePrice: Number(baseline.pricePerUnit),
     requestedMonths: months,
     pdfsFound: pdfUrls.length,
     pdfsProcessed: parsedAdjustments.length,

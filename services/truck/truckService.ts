@@ -12,13 +12,24 @@ const generateTruckCode = (plateNumber: string): string => {
   return `TRK-${cleanPlate}`;
 };
 
+/** Flattens the joined fuel onto the truck, since an embed arrives as an object or an array. */
+function withFuelType(row: Record<string, unknown>): Truck {
+  const joined = row.FuelType as { name: string; unit: string } | { name: string; unit: string }[] | null;
+  const fuelType = Array.isArray(joined) ? (joined[0] ?? null) : (joined ?? null);
+
+  const truck = { ...row };
+  delete truck.FuelType;
+
+  return { ...(truck as unknown as Truck), fuelType };
+}
+
 // ==========================================
 // GET ALL ACTIVE TRUCKS
 // ==========================================
 export async function getTrucks(): Promise<Truck[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    .select("*, FuelType ( name, unit )")
     .eq("isActive", true)
     .order("plateNumber", { ascending: true });
 
@@ -26,7 +37,7 @@ export async function getTrucks(): Promise<Truck[]> {
     throw error;
   }
 
-  return data as Truck[];
+  return (data ?? []).map(withFuelType);
 }
 
 // ==========================================
@@ -35,7 +46,7 @@ export async function getTrucks(): Promise<Truck[]> {
 export async function getTruckById(id: string): Promise<Truck | null> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    .select("*, FuelType ( name, unit )")
     .eq("truckID", id)
     .maybeSingle();
 
@@ -43,7 +54,7 @@ export async function getTruckById(id: string): Promise<Truck | null> {
     throw error;
   }
 
-  return data as Truck | null;
+  return data ? withFuelType(data) : null;
 }
 
 // ==========================================
@@ -140,6 +151,12 @@ export function toTruckPayload(body: Record<string, unknown>): UpdateTruckDto & 
     payload.lastChecked = body.lastChecked ? String(body.lastChecked) : null;
   }
 
+  // Accepts the id, or an empty string from a "not recorded" option, which
+  // clears it rather than being ignored.
+  if (body.fuelTypeID !== undefined) {
+    payload.fuelTypeID = typeof body.fuelTypeID === "string" && body.fuelTypeID ? body.fuelTypeID : null;
+  }
+
   const status = body.status ?? body.truckStatus;
   if (typeof status === "string" && status) payload.truckStatus = status as UpdateTruckDto["truckStatus"];
 
@@ -160,12 +177,13 @@ export function validateTruckPayload(payload: UpdateTruckDto, isCreate: boolean)
 export async function getFleet(): Promise<Truck[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    // The fuel's name comes along, so a list does not have to resolve 36 ids.
+    .select("*, FuelType ( name, unit )")
     .eq("isActive", true)
     .order("lastChecked", { ascending: false, nullsFirst: false });
 
   if (error) throw error;
-  return data as Truck[];
+  return (data ?? []).map(withFuelType);
 }
 
 export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: string }): Promise<Truck> {
