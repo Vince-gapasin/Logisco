@@ -52,7 +52,7 @@ function TripRow({ trip, onOpen }: { trip: SubconTripView; onOpen: () => void })
             )}
           </p>
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
       </button>
     </li>
   );
@@ -102,7 +102,7 @@ export default function SubconTripsPanel() {
         </p>
         <div className="flex gap-2">
           <div className="relative flex-1 sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

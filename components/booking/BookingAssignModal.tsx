@@ -300,19 +300,19 @@ export default function BookingAssignModal({
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">{booking.dateCreated || "N/A"}</p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">{booking.createdBy || "N/A"}</p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
@@ -328,7 +328,7 @@ export default function BookingAssignModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status || (reassigning ? "Assigned" : "Created")} />
@@ -490,7 +490,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.truckPlate}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -501,7 +501,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.driver}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -512,7 +512,7 @@ export default function BookingAssignModal({
                     placeholder="09XXXXXXXXX (optional)"
                     value={formData.partnerContact ?? ""}
                     onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-400 ${
+                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-500 ${
                       errors.partnerContact ? "border-red-500" : "border-slate-300"
                     }`}
                   />
@@ -528,7 +528,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.helper1}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -539,7 +539,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.helper2}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
               </div>

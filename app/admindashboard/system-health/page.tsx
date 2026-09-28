@@ -102,7 +102,7 @@ export default function SystemHealthPage() {
                     <p className="font-medium text-slate-900">{check.name}</p>
                     <p className="text-sm text-slate-600">{check.detail}</p>
                     {check.setting && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         Set <span className="font-mono">{check.setting}</span> on the deployment, then redeploy.
                       </p>
                     )}

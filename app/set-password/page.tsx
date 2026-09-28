@@ -28,7 +28,7 @@ const Requirement = ({
         className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
           valid
             ? "bg-green-100 text-green-600"
-            : "bg-slate-100 text-slate-400"
+            : "bg-slate-100 text-slate-500"
         }`}
       >
         {valid ? "✓" : "•"}

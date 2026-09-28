@@ -102,7 +102,7 @@ export default function PushCheckPage() {
                 </p>
                 <p className="text-sm text-slate-600">{status.detail}</p>
                 {status.projectID && (
-                  <p className="text-xs text-slate-400 mt-1">Firebase project: {status.projectID}</p>
+                  <p className="text-xs text-slate-500 mt-1">Firebase project: {status.projectID}</p>
                 )}
               </div>
             </div>

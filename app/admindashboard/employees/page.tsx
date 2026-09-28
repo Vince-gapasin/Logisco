@@ -615,7 +615,7 @@ function EmployeeModal({
                   value={formData.firstName}
                   onChange={handleInputChange}
                   placeholder="Enter first name"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.firstName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -633,7 +633,7 @@ function EmployeeModal({
                   value={formData.middleName}
                   onChange={handleInputChange}
                   placeholder="Enter middle name"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -646,7 +646,7 @@ function EmployeeModal({
                   value={formData.lastName}
                   onChange={handleInputChange}
                   placeholder="Enter last name"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.lastName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -664,7 +664,7 @@ function EmployeeModal({
                   value={formData.suffix}
                   onChange={handleInputChange}
                   placeholder="e.g. Jr., III"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -705,7 +705,7 @@ function EmployeeModal({
                   value={formData.address}
                   onChange={handleInputChange}
                   placeholder="Enter residential address"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.address && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -723,7 +723,7 @@ function EmployeeModal({
                   value={formData.contactNumber}
                   onChange={handleInputChange}
                   placeholder="Enter contact number"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -742,7 +742,7 @@ function EmployeeModal({
                   onChange={handleInputChange}
                   disabled={Boolean(editData)}
                   placeholder="Enter email address"
-                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -781,7 +781,7 @@ function EmployeeModal({
                   value={formData.nationality}
                   onChange={handleInputChange}
                   placeholder="Enter nationality"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -794,7 +794,7 @@ function EmployeeModal({
                   value={formData.religion}
                   onChange={handleInputChange}
                   placeholder="Enter religion"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -891,7 +891,7 @@ function EmployeeModal({
                   value={formData.licenseNumber}
                   onChange={handleInputChange}
                   placeholder="Enter license number"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.licenseNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -909,7 +909,7 @@ function EmployeeModal({
                   value={formData.driverLicenseType}
                   onChange={handleInputChange}
                   placeholder="e.g. Professional / 123"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.driverLicenseType && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -945,7 +945,7 @@ function EmployeeModal({
                   value={formData.drivingExperience}
                   onChange={handleInputChange}
                   placeholder="Enter years of experience"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.drivingExperience && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1025,7 +1025,7 @@ function EmployeeModal({
                   value={formData.emergencyContactPerson}
                   onChange={handleInputChange}
                   placeholder="Enter contact person name"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1038,7 +1038,7 @@ function EmployeeModal({
                   value={formData.emergencyContactNumber}
                   onChange={handleInputChange}
                   placeholder="Enter contact number"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1051,7 +1051,7 @@ function EmployeeModal({
                   value={formData.relationship}
                   onChange={handleInputChange}
                   placeholder="e.g. Spouse, Parent"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1075,7 +1075,7 @@ function EmployeeModal({
                   value={formData.skills}
                   onChange={handleInputChange}
                   placeholder="Enter skills or specializations..."
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1103,7 +1103,7 @@ function EmployeeModal({
                   value={formData.remarks}
                   onChange={handleInputChange}
                   placeholder="Any additional remarks..."
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1332,7 +1332,7 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400 cursor-not-allowed"
               >
                 <Loader2 className="h-4 w-4" />
                 Resend in {activationRemainingMinutes} min
@@ -2263,7 +2263,7 @@ export default function EmployeesPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <input
                 type="text"
@@ -2274,7 +2274,7 @@ export default function EmployeesPage() {
                     ? "Search employees..."
                     : `Search ${selectedRole.toLowerCase()}s...`
                 }
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
 
@@ -2364,7 +2364,6 @@ export default function EmployeesPage() {
                     key={employee.id}
                     onClick={() => handleRowClick(employee.id)}
                     className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
-                    title="Click to view complete employee record"
                   >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
                       <RowOpenButton

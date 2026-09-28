@@ -275,7 +275,7 @@ function TruckModal({
                     onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
                     className={`w-full bg-white border rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
-                    <span className={formData.truckType ? "text-black" : "text-slate-400"}>
+                    <span className={formData.truckType ? "text-black" : "text-slate-500"}>
                       {formData.truckType || "Select truck type"}
                     </span>
                     <ChevronDown
@@ -323,7 +323,7 @@ function TruckModal({
                     onClick={() => setIsFuelDropdownOpen(!isFuelDropdownOpen)}
                     className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal text-black flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all"
                   >
-                    <span className={selectedFuelName ? "text-black" : "text-slate-400"}>
+                    <span className={selectedFuelName ? "text-black" : "text-slate-500"}>
                       {selectedFuelName || "Select fuel type"}
                     </span>
                     <ChevronDown
@@ -833,7 +833,7 @@ export default function FleetStatusPage() {
                       <span className="text-xs text-slate-500 font-normal">
                         ({truck.truckType})
                         {truck.fuelTypeName && (
-                          <span className="ml-1.5 text-slate-400">· {truck.fuelTypeName}</span>
+                          <span className="ml-1.5 text-slate-500">· {truck.fuelTypeName}</span>
                         )}
                       </span>
                     </td>

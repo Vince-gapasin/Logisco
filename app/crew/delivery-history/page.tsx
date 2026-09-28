@@ -395,7 +395,7 @@ export default function DeliveryHistoryPage() {
             <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="text-lg font-bold text-slate-900">Report an Issue</h3>
-                <button onClick={() => setShowReportModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button onClick={() => setShowReportModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>

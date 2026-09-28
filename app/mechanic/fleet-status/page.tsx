@@ -10,6 +10,7 @@ import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/Toast";
+import RowOpenButton from "@/components/RowOpenButton";
 import {
   Search,
   Truck,
@@ -440,7 +441,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., ABC-1234"
                   value={formData.plateNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.plateNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -470,7 +471,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   >
                     <span
                       className={
-                        formData.truckType ? "text-black" : "text-slate-400"
+                        formData.truckType ? "text-black" : "text-slate-500"
                       }
                     >
                       {formData.truckType || "Select truck type"}
@@ -516,7 +517,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., Isuzu NPR / Fuso Canter"
                   value={formData.truckModel}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.truckModel && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -535,7 +536,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., 5 Tons or 5000 kg"
                   value={formData.capacity}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.capacity && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -843,7 +844,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                       className={
                         formData.truckID
                           ? "text-black truncate pr-2"
-                          : "text-slate-400"
+                          : "text-slate-500"
                       }
                     >
                       {formData.truckID
@@ -974,7 +975,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   }
                   value={formData[activeFields.issue]}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors[activeFields.issue] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors[activeFields.issue] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors[activeFields.issue] && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -995,7 +996,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   placeholder="Any additional notes, future recommendations, or observations..."
                   value={formData[activeFields.remarks]}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1798,7 +1799,7 @@ function TruckDetailView({
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* NEW: Inline Truck Icon for context */}
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Truck className="w-5 h-5 text-slate-400" />
+              <Truck className="w-5 h-5 text-slate-500" />
               {truck.plateNumber}
             </h2>
 
@@ -2803,14 +2804,14 @@ export default function MechanicFleetStatusPage({
                 )}
               </div>
               <div className="relative w-full lg:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                 <UrlSearchSync onQuery={setSearchTerm} />
                 <input
                   type="text"
                   placeholder="Search by Plate No or Type..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
                 />
               </div>
             </div>
@@ -2842,7 +2843,7 @@ export default function MechanicFleetStatusPage({
                     <tr>
                       <td colSpan={2} className="py-16 sm:py-20 text-center">
                         <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                             <FileText className="w-6 h-6" />
                           </div>
                           <p className="text-sm font-semibold text-slate-800">
@@ -2859,11 +2860,16 @@ export default function MechanicFleetStatusPage({
                           key={truck.id || `truck-row-${index}`}
                           onClick={() => setSelectedTruck(truck)}
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                          title="Click to view complete truck record"
                         >
                           <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
                             <div className="font-medium text-slate-900 truncate">
-                              {truck.plateNumber}
+                              <RowOpenButton
+                                label={`View truck ${truck.plateNumber}`}
+                                onOpen={() => setSelectedTruck(truck)}
+                                className="max-w-full truncate"
+                              >
+                                {truck.plateNumber}
+                              </RowOpenButton>
                               <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
                                 — {truck.truckType}
                               </span>

@@ -341,7 +341,7 @@ export default function RecoveryPanel({
         <div className="mt-5 space-y-4 border-t border-slate-200 pt-5">
           {(action === "reassign" || action === "reschedule" || action === "subcontract") && (
             <p className="flex gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
               {incident.cargoLoaded
                 ? "The cargo was already on the broken-down truck, so the new trip starts by collecting it at the breakdown site."
                 : "The cargo had not been collected yet, so the new trip picks it up at the original warehouse."}{" "}

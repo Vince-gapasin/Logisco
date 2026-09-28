@@ -248,7 +248,7 @@ export default function SharedProfile() {
                   Company Name
                 </label>
                 <div className="relative">
-                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
                     type="text"
                     readOnly
@@ -285,7 +285,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsEmailModalOpen(false)}
-                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingEmail}
               >
                 <X className="w-5 h-5" />
@@ -308,7 +308,7 @@ export default function SharedProfile() {
                   onChange={(e) => setCurrentEmail(e.target.value)}
                   placeholder="Enter current email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -321,7 +321,7 @@ export default function SharedProfile() {
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="Enter new email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -334,7 +334,7 @@ export default function SharedProfile() {
                   onChange={(e) => setConfirmEmail(e.target.value)}
                   placeholder="Confirm new email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -348,7 +348,7 @@ export default function SharedProfile() {
                   placeholder="Enter your password to confirm"
                   autoComplete="current-password"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -383,7 +383,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsPasswordModalOpen(false)}
-                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingPassword}
               >
                 <X className="w-5 h-5" />
@@ -406,7 +406,7 @@ export default function SharedProfile() {
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -419,7 +419,7 @@ export default function SharedProfile() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="8+ chars with upper, lower, number & symbol"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -432,7 +432,7 @@ export default function SharedProfile() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

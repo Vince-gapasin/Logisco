@@ -69,7 +69,7 @@ function StopProof({ stop }: { stop: SubconStopView }) {
         </p>
       ) : null}
       {proof.remarks && <p>Remarks: {proof.remarks}</p>}
-      {proof.recordedBy && <p className="text-slate-400">Recorded by {proof.recordedBy}</p>}
+      {proof.recordedBy && <p className="text-slate-500">Recorded by {proof.recordedBy}</p>}
     </div>
   );
 }
@@ -305,7 +305,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Their driver and truck</p>
                   <p className="text-slate-900">
-                    <Truck className="inline h-4 w-4 mr-1 text-slate-400" />
+                    <Truck className="inline h-4 w-4 mr-1 text-slate-500" />
                     {[trip.driverName, trip.plateNumber].filter(Boolean).join(" · ") || "Not given"}
                   </p>
                   {trip.driverContact && (
@@ -319,7 +319,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
               {/* Pickup */}
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="flex items-center gap-2 font-semibold text-slate-900">
-                  <Package className="h-4 w-4 text-slate-400" /> Pickup
+                  <Package className="h-4 w-4 text-slate-500" /> Pickup
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {trip.pickups.map((p) => p.warehouseName).join(", ") || "No pickup recorded on the booking"}

@@ -162,7 +162,7 @@ export default function DeliveryFeedbackCard({ token, invitation, onSaved }: Pro
           rows={2}
           maxLength={1000}
           placeholder="Anything the coordinator should know."
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-y"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 resize-y"
         />
       </div>
 
@@ -173,11 +173,11 @@ export default function DeliveryFeedbackCard({ token, invitation, onSaved }: Pro
           type="button"
           onClick={submit}
           disabled={!bothAnswered || saving}
-          className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+          className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500 transition-colors"
         >
           {saving ? "Sending..." : "Send feedback"}
         </button>
-        {!bothAnswered && <span className="text-xs text-slate-400">Please answer both questions.</span>}
+        {!bothAnswered && <span className="text-xs text-slate-500">Please answer both questions.</span>}
       </div>
     </div>
   );

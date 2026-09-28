@@ -68,14 +68,14 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
 const STAGE_MARKS: Record<TrackingStage, string> = {
   completed: "bg-emerald-500 text-white ring-2 ring-white",
   current: "bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse",
-  upcoming: "bg-white text-slate-300 ring-2 ring-slate-200",
+  upcoming: "bg-white text-slate-500 ring-2 ring-slate-200",
   problem: "bg-red-600 text-white ring-2 ring-white",
 };
 
 const STAGE_TITLES: Record<TrackingStage, string> = {
   completed: "text-slate-900",
   current: "text-blue-700 font-semibold",
-  upcoming: "text-slate-400",
+  upcoming: "text-slate-500",
   problem: "text-red-700 font-semibold",
 };
 
@@ -131,7 +131,7 @@ function Notice({ title, subtitle }: { title: string; subtitle: string }) {
     <div className="flex-1 bg-white flex flex-col items-center justify-center p-8 sm:p-12 min-h-100 text-center">
       <div className="bg-black text-white px-6 py-4 rounded-xl shadow-md max-w-md w-full flex flex-col gap-1 items-center">
         <p className="text-sm sm:text-base font-semibold tracking-tight">{title}</p>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
     </div>
   );
@@ -394,7 +394,7 @@ function ClientTrackerView() {
                       <div className="text-xs text-slate-600">
                         {[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}
                       </div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-500">
                         Partly hidden. Contact your coordinator if these are not yours.
                       </div>
                     </div>
@@ -498,7 +498,7 @@ function ClientTrackerView() {
                           {step.detail}
                         </span>
                         {step.at && (
-                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-400">
+                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-500">
                             {formatDateTime(step.at)}
                           </span>
                         )}

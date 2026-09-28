@@ -1414,8 +1414,8 @@ export default function CrewDashboardPage({
             
             <div className="relative w-full md:w-72 shrink-0">
               <input type="text" placeholder="Search Booking ID or Client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-11 sm:pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all" />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-0 sm:right-3 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Clear search"><X className="w-3.5 h-3.5" /></button>}
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-0 sm:right-3 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-slate-500 hover:text-slate-600 cursor-pointer" aria-label="Clear search"><X className="w-3.5 h-3.5" /></button>}
             </div>
           </div>
 
@@ -1459,7 +1459,7 @@ export default function CrewDashboardPage({
                     <tr>
                       <td colSpan={2} className="py-10 text-center">
                         <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2"><FileText className="w-4 h-4" /></div>
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-2"><FileText className="w-4 h-4" /></div>
                           <p className="text-sm font-semibold text-slate-800">{searchTerm ? "No matching deliveries found." : "No delivery records found"}</p>
                           <p className="text-slate-500 text-xs mt-0.5">{searchTerm ? "Try a different search term." : "Try switching tabs to view other records."}</p>
                         </div>
@@ -1487,7 +1487,7 @@ export default function CrewDashboardPage({
                                 Delivering", which will not fit on one line in a
                                 third of a phone screen. It wraps rather than
                                 being cut off or forcing the row sideways. */}
-                            <span className={`inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
+                            <span className={`inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
                               {getDisplayStatus(delivery)}
                             </span>
                           </div>

@@ -206,14 +206,14 @@ export default function UnassignedBookingsPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search order ID, client, or product..."
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -252,12 +252,11 @@ export default function UnassignedBookingsPage() {
                     onClick={() => handleOpenModal(booking)}
                     className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-3.5 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 md:truncate">
-                      <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
+                    <td role="cell" className="block md:table-cell pb-2 mb-1 border-b border-slate-100 md:pb-3.5 md:mb-0 md:border-0 py-1.5 md:py-3.5 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 md:truncate">
                       <RowOpenButton
                         label={`Assign booking ${booking.orderId}`}
                         onOpen={() => handleOpenModal(booking)}
-                        className="wrap-break-word font-medium"
+                        className="wrap-break-word text-base font-semibold md:text-sm md:font-medium"
                       >
                         {booking.orderId}
                       </RowOpenButton>

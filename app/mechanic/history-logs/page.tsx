@@ -231,7 +231,7 @@ function LogMaintenanceModal({
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
                     className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
-                    <span className={formData.truckID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.truckID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.truckID
                         ? trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))
                           ? `${trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))?.plateNumber} — ${trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))?.truckType}`
@@ -270,7 +270,7 @@ function LogMaintenanceModal({
                     onClick={() => setIsPrimaryDropdownOpen(!isPrimaryDropdownOpen)}
                     className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
-                    <span className={formData.primaryMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.primaryMechanicID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.primaryMechanicID
                         ? mechanicsOptions.find((m) => String(m.employeeID) === String(formData.primaryMechanicID))?.employeeName || editData?.mechanicName
                         : "Choose mechanic..."}
@@ -311,7 +311,7 @@ function LogMaintenanceModal({
                     onClick={() => setIsAdditionalDropdownOpen(!isAdditionalDropdownOpen)}
                     className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : ""}`}
                   >
-                    <span className={formData.additionalMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.additionalMechanicID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.additionalMechanicID
                         ? mechanicsOptions.find((m) => String(m.employeeID) === String(formData.additionalMechanicID))?.employeeName || editData?.additionalMechanic
                         : "Select Mechanic..."}
@@ -363,7 +363,7 @@ function LogMaintenanceModal({
                   placeholder="Describe the completed maintenance work and truck condition..."
                   value={formData.issue}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.issue && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.issue}</p>}
               </div>
@@ -375,7 +375,7 @@ function LogMaintenanceModal({
                   placeholder="Any additional notes, future recommendations, or observations..."
                   value={formData.remarks}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -843,9 +843,9 @@ export default function MechanicHistoryLogsPage() {
                 <h2 className="text-base font-bold text-slate-800">Maintenance Records</h2>
               </div>
               <div className="relative w-full lg:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                 <UrlSearchSync onQuery={setSearchTerm} />
-                <input type="text" placeholder="Search plate, mechanic, issue..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400" />
+                <input type="text" placeholder="Search plate, mechanic, issue..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500" />
               </div>
             </div>
 
@@ -869,7 +869,7 @@ export default function MechanicHistoryLogsPage() {
                       <tr role="row" className="block md:table-row">
                         <td role="cell" colSpan={4} className="block md:table-cell py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3"><FileText className="w-6 h-6" /></div>
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3"><FileText className="w-6 h-6" /></div>
                             <p className="text-sm font-semibold text-slate-800">No history logs found</p>
                             <p className="text-slate-500 text-xs mt-1">Try adjusting your search query or add a new maintenance log to see it here.</p>
                           </div>
@@ -877,7 +877,7 @@ export default function MechanicHistoryLogsPage() {
                       </tr>
                     ) : (
                       paginatedLogs.map((log) => (
-                        <tr role="row" data-pressable key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
+                        <tr role="row" data-pressable key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors">
                           <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
                             <span className="md:hidden text-xs font-semibold text-slate-500">Date</span>
                             <RowOpenButton
@@ -910,7 +910,7 @@ export default function MechanicHistoryLogsPage() {
                                 {log.statusBefore}
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">—</span>
+                              <span className="text-xs text-slate-500">—</span>
                             )}
                           </td>
                           <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left md:text-right align-top sm:align-middle">
@@ -920,7 +920,7 @@ export default function MechanicHistoryLogsPage() {
                                 {log.statusAfter}
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">—</span>
+                              <span className="text-xs text-slate-500">—</span>
                             )}
                           </td>
                         </tr>

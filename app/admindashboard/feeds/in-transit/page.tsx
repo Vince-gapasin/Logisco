@@ -187,7 +187,7 @@ function BookingDetailsModal({
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -195,7 +195,7 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -203,7 +203,7 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
@@ -220,7 +220,7 @@ function BookingDetailsModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status} />
@@ -422,7 +422,7 @@ export default function InTransitFeedPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <UrlOpenSync rows={bookings} ready={!isLoading} onOpen={handleOpenModal} />
               <input
@@ -430,7 +430,7 @@ export default function InTransitFeedPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search order ID, client, product..."
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -476,12 +476,11 @@ export default function InTransitFeedPage() {
                     onClick={() => handleOpenModal(booking)}
                     className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
-                      <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
+                    <td role="cell" className="block md:table-cell pb-2 mb-1 border-b border-slate-100 md:pb-4 md:mb-0 md:border-0 py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
                       <RowOpenButton
                         label={`View booking ${booking.orderId}`}
                         onOpen={() => handleOpenModal(booking)}
-                        className="wrap-break-word font-medium"
+                        className="wrap-break-word text-base font-semibold md:text-sm md:font-medium"
                       >
                         {booking.orderId}
                       </RowOpenButton>
@@ -529,7 +528,7 @@ export default function InTransitFeedPage() {
                     <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:pl-4 md:pr-6 align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Status</span>
                       <span
-                        className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
+                        className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
                       >
                         {booking.confirmationStatus}
                       </span>

@@ -204,7 +204,7 @@ function LateStopRow({
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-medium text-slate-800">{stop.branchName}</span>
         <span className="text-amber-700">{stop.minutesLate} min late</span>
-        {stop.orderCode && <span className="text-slate-400">{stop.orderCode}</span>}
+        {stop.orderCode && <span className="text-slate-500">{stop.orderCode}</span>}
 
         {canExcuse && !open && (
           <button
@@ -241,7 +241,7 @@ function LateStopRow({
             onChange={(event) => setNotes(event.target.value)}
             maxLength={500}
             placeholder={reason === "other" ? "Required: what happened?" : "Optional note"}
-            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none"
+            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none"
           />
 
           {error && <p className="text-xs font-medium text-red-600">{error}</p>}
@@ -251,7 +251,7 @@ function LateStopRow({
               type="button"
               onClick={submit}
               disabled={!reason || saving || (reason === "other" && notes.trim().length === 0)}
-              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
             >
               {saving ? "Saving..." : "Excuse this delay"}
             </button>
@@ -332,7 +332,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
   if (!data.performance) {
     return (
       <div className="border border-slate-200 rounded-xl p-6 bg-slate-50 text-center">
-        <Info className="w-5 h-5 text-slate-400 mx-auto mb-2" />
+        <Info className="w-5 h-5 text-slate-500 mx-auto mb-2" />
         <p className="text-sm text-slate-600 max-w-md mx-auto">{data.notRatedBecause}</p>
       </div>
     );
@@ -447,12 +447,12 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <span className="font-medium text-slate-900">{component.label}</span>
                 <span className="flex items-baseline gap-2">
-                  <span className={`font-semibold ${component.scored ? "text-slate-900" : "text-slate-400"}`}>
+                  <span className={`font-semibold ${component.scored ? "text-slate-900" : "text-slate-500"}`}>
                     {component.rate === null ? "No data" : percent(component.rate)}
                   </span>
                   {/* Pointless, and faintly absurd, next to a withheld rating. */}
                   {component.scored && rating !== null && (
-                    <span className="text-xs text-slate-400">{percent(component.weight)} of the rating</span>
+                    <span className="text-xs text-slate-500">{percent(component.weight)} of the rating</span>
                   )}
                 </span>
               </div>
@@ -468,10 +468,10 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                   </span>
                 )}
                 {component.detail && (
-                  <span className="block mt-0.5 text-slate-400">{component.detail}</span>
+                  <span className="block mt-0.5 text-slate-500">{component.detail}</span>
                 )}
                 {component.why && (
-                  <span className={component.denominator > 0 ? "block mt-0.5 text-slate-400" : "text-slate-400"}>
+                  <span className={component.denominator > 0 ? "block mt-0.5 text-slate-500" : "text-slate-500"}>
                     {component.why}
                   </span>
                 )}
@@ -504,7 +504,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5">
                   <Clock className="w-3.5 h-3.5" /> Stops that missed their slot ({reported.lateStops.length})
                 </div>
-                <p className="text-xs text-slate-400 mb-1.5">
+                <p className="text-xs text-slate-500 mb-1.5">
                   These do count against the on-time figure. If one was not the crew&apos;s doing, say so and it
                   stops counting - the arrival time itself is never changed.
                 </p>
@@ -532,7 +532,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                       <span className="font-medium text-slate-800">{breakdown.orderCode ?? "Trip"}</span>
                       {" - "}
                       {breakdown.issueType}
-                      <span className="text-slate-400"> · {formatDateTime(breakdown.reportedAt)}</span>
+                      <span className="text-slate-500"> · {formatDateTime(breakdown.reportedAt)}</span>
                     </li>
                   ))}
                 </ul>
@@ -541,7 +541,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
 
             {reported.stallAlerts > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
                 <span>
                   <span className="font-semibold text-slate-700">{reported.stallAlerts}</span> stall alert
                   {reported.stallAlerts === 1 ? "" : "s"} raised on their trips - the truck went quiet, which may
@@ -555,7 +555,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5">
                   <ThumbsDown className="w-3.5 h-3.5" /> Trips turned down ({reported.declines.length})
                 </div>
-                <p className="text-xs text-slate-400 mb-1.5">
+                <p className="text-xs text-slate-500 mb-1.5">
                   A decline lowers the trips figure above, except where the reason is one the company wants
                   reported - an unsafe truck, a crew not fit to drive, the wrong licence. Those are marked and
                   left out of it.
@@ -568,7 +568,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                       {decline.code ? DECLINE_CODES[decline.code as DeclineCode] : null}
                       {decline.code && decline.reason?.trim() ? ": " : null}
                       {decline.reason?.trim() ||
-                        (decline.code ? null : <span className="italic text-slate-400">no reason given</span>)}
+                        (decline.code ? null : <span className="italic text-slate-500">no reason given</span>)}
                       {decline.forCause && (
                         <span className="ml-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
                           not counted
@@ -592,10 +592,10 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                       {" - "}
                       {excused.reason.replace(/_/g, " ")}
                       {excused.minutesLate !== null && excused.minutesLate > 0 && (
-                        <span className="text-slate-400"> · {Math.round(excused.minutesLate)} min late</span>
+                        <span className="text-slate-500"> · {Math.round(excused.minutesLate)} min late</span>
                       )}
                       {excused.excusedBy && (
-                        <span className="text-slate-400"> · granted by {excused.excusedBy}</span>
+                        <span className="text-slate-500"> · granted by {excused.excusedBy}</span>
                       )}
                       {excused.notes && <span className="block text-slate-500">{excused.notes}</span>}
                     </li>
@@ -644,7 +644,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
                     )}
                     conduct
                   </span>
-                  <span className="text-slate-400">
+                  <span className="text-slate-500">
                     {comment.orderCode ?? ""} · {formatDateTime(comment.submittedAt)}
                   </span>
                 </div>
@@ -655,7 +655,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
         )}
       </Section>
 
-      <p className="flex items-start gap-2 text-xs text-slate-400 px-1">
+      <p className="flex items-start gap-2 text-xs text-slate-500 px-1">
         <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         <span>
           Worked out fresh each time this is opened, from trips, stop times, proof of delivery and client

@@ -394,7 +394,7 @@ export function ClientModal({
                   placeholder="Enter client name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
@@ -410,7 +410,7 @@ export function ClientModal({
                   placeholder="Enter contact name"
                   value={formData.contactName}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -428,7 +428,7 @@ export function ClientModal({
                   placeholder="Enter contact number"
                   value={formData.contactNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -446,7 +446,7 @@ export function ClientModal({
                   placeholder="Enter email address"
                   value={formData.emailAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -464,7 +464,7 @@ export function ClientModal({
                   placeholder="Enter business address"
                   value={formData.businessAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -598,7 +598,7 @@ export function ClientModal({
                                 e.target.value,
                               )
                             }
-                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-500 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
                             <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
@@ -801,7 +801,7 @@ export function ClientModal({
                                 e.target.value,
                               )
                             }
-                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-500 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
                             <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
@@ -1047,7 +1047,7 @@ export function PartnerModal({
                   placeholder="Enter company or owner name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
@@ -1077,7 +1077,7 @@ export function PartnerModal({
                   >
                     <span
                       className={
-                        formData.contractType ? "text-black" : "text-slate-400"
+                        formData.contractType ? "text-black" : "text-slate-500"
                       }
                     >
                       {formData.contractType || "Select type of contract"}
@@ -1124,7 +1124,7 @@ export function PartnerModal({
                   placeholder="Enter contact person"
                   value={formData.contactPerson}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactPerson && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1143,7 +1143,7 @@ export function PartnerModal({
                   placeholder="Enter contact number"
                   value={formData.contactNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1162,7 +1162,7 @@ export function PartnerModal({
                   placeholder="Enter email address"
                   value={formData.emailAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1181,7 +1181,7 @@ export function PartnerModal({
                   placeholder="Enter business address"
                   value={formData.businessAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1566,7 +1566,6 @@ function ClientsTable({
                   key={item.id}
                   onClick={() => onRowClick(item)}
                   className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800 h-13.25"
-                  title="Click to view complete record"
                 >
                   <td
                     className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate"
@@ -1974,7 +1973,7 @@ export default function ClientsPage() {
               placeholder={`Search ${activeTab.toLowerCase()}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-sm font-normal text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 text-sm font-normal text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
             />
           </div>
         </div>

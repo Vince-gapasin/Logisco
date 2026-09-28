@@ -202,7 +202,7 @@ export default function FleetLiveTracking() {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+            className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
           />
         </div>
       </div>
@@ -310,7 +310,7 @@ export default function FleetLiveTracking() {
                               {copiedToken === record.trackingToken ? "Copied" : "Copy client link"}
                             </button>
                           ) : (
-                            <span className="text-slate-400">No link</span>
+                            <span className="text-slate-500">No link</span>
                           )}
                           {hasFix && (
                             <a
@@ -329,12 +329,12 @@ export default function FleetLiveTracking() {
                         <span className="md:hidden text-xs font-semibold text-slate-500 text-left">Status</span>
                         <div className="flex flex-col items-end md:items-start text-right md:text-left text-sm text-slate-600 wrap-break-word">
                           <span>{record.status}</span>
-                          <span className="block text-xs text-slate-400 mt-0.5">
+                          <span className="block text-xs text-slate-500 mt-0.5">
                             {formatLastSeen(record.lastUpdated, loadedAt)}
                           </span>
                           {silence && (
                             <span
-                              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold ${
+                              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
                                 // A trip nobody closed is a tidying job, not an
                                 // alarm, so it gets its own quiet styling rather
                                 // than the grey that used to make the stalest
