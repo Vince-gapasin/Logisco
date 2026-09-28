@@ -1560,6 +1560,7 @@ function ClientsTable({
             {paginatedData.length > 0 ? (
               paginatedData.map((item) => (
                 <tr
+                  data-pressable
                   key={item.id}
                   onClick={() => onRowClick(item)}
                   className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800 h-13.25"
@@ -1891,7 +1892,7 @@ export default function ClientsPage() {
 
         {/* TOAST NOTIFICATION */}
         {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+          <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
             <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
               <div
                 className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
@@ -2044,7 +2045,7 @@ export default function ClientsPage() {
       )}
 
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+        <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
             <div
               className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${

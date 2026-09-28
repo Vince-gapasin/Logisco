@@ -880,7 +880,7 @@ export default function MechanicHistoryLogsPage() {
                       </tr>
                     ) : (
                       paginatedLogs.map((log) => (
-                        <tr key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
+                        <tr data-pressable key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
                           <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
                             <span className="md:hidden text-xs font-semibold text-slate-500">Date</span>
                             <div className="text-sm font-medium text-slate-800">
@@ -951,7 +951,7 @@ export default function MechanicHistoryLogsPage() {
       />
 
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+        <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
           <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${toastMessage === "No changes were made." ? "bg-blue-500" : "bg-emerald-500"}`}>
               {toastMessage === "No changes were made." ? (

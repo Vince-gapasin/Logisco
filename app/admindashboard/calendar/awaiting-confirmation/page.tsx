@@ -248,6 +248,7 @@ export default function AwaitingConfirmationPage() {
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
                   <tr
+                    data-pressable
                     key={booking.id}
                     onClick={() => handleOpenModal(booking)}
                     className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"

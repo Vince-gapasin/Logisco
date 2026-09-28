@@ -33,7 +33,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
   }, []);
 
   return (
-    <header className="h-16 bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
+    <header className="min-h-16 pt-[var(--safe-top)] bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
       <div className="flex items-center gap-3 w-full max-w-md min-w-0">
         {!isOpen && (
           <button

@@ -118,7 +118,7 @@ type LoadState = "loading" | "ready" | "expired" | "missing" | "error";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto min-h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
+    <div className="p-4 sm:p-6 md:p-8 pt-[calc(1rem+var(--safe-top))] pb-[calc(1rem+var(--safe-bottom))] w-full max-w-7xl mx-auto min-h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
       <div className="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
         {children}
       </div>

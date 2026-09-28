@@ -25,6 +25,94 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ---------------------------------------------------------------------------
+   Safe areas
+   ---------------------------------------------------------------------------
+
+   Android 15 lays every app out edge to edge whether it asks to or not, and
+   Android 16 removed the opt-out. This shell targets SDK 36, so the WebView is
+   already drawing behind the status bar and the navigation bar on any recent
+   phone - the header's menu button sat under the clock, and the crew
+   dashboard's sticky action bar sat under the gesture pill. Those are the
+   buttons a driver presses to close out a delivery.
+
+   env() reports zero until the viewport is declared viewport-fit=cover, which
+   app/layout.tsx now does. The fallbacks keep these at zero everywhere else,
+   so a desktop browser and the four sides of an older phone are unaffected.
+
+   Named rather than inlined because the padding is applied in about a dozen
+   places - the app shells, the header, the sidebars and each toast - and a
+   number that appears in a dozen places wants one home. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ---------------------------------------------------------------------------
+   Press feedback
+   ---------------------------------------------------------------------------
+
+   There were 493 hover: styles in this app and three active: ones. A pointer
+   is the one input a phone does not have, so on a phone almost nothing
+   acknowledged a tap, and the next thing the driver saw was whatever came back
+   from the network. Worse, Android's WebView leaves the hover state stuck on
+   the element that was tapped last, so the only feedback there was lied about
+   which row you were on.
+
+   Done here rather than per button because it applies to every control in the
+   app and because 351 buttons is too many to keep in step by hand. */
+
+button,
+[role="button"],
+[data-pressable],
+a,
+summary {
+  /* The platform's own flash ignores border-radius on some Android versions,
+     so it paints a grey rectangle inside a rounded card. The :active rule
+     below replaces it and follows the element's shape. */
+  -webkit-tap-highlight-color: transparent;
+  /* Drops the 300ms wait for a possible second tap. Deliberately on the
+     controls only: on body it would take pinch zoom with it, and pinch zoom
+     is an accessibility feature, not a nuisance. */
+  touch-action: manipulation;
+}
+
+@media (hover: none) {
+  button:not(:disabled):not([aria-disabled="true"]):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  [data-pressable]:active,
+  a:active,
+  summary:active {
+    /* An overlay, not a colour. It darkens whatever the element already is, so
+       this single rule covers a white card and a blue button alike, and it
+       leaves background-color free for the utility classes that own it.
+       Safe because nothing in this app uses a background image. */
+    background-image: linear-gradient(
+      rgb(15 23 42 / 0.09),
+      rgb(15 23 42 / 0.09)
+    );
+    transform: scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:active,
+  [role="button"]:active,
+  [data-pressable]:active,
+  a:active,
+  summary:active {
+    transform: none;
+  }
+}
+
+/* There was not one focus-visible style in the app, which left keyboard and
+   switch-access users with no way to tell where they were. Only :focus-visible,
+   so a mouse or a finger does not leave rings behind. */
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 html {
   /* iOS enlarges text in landscape without this, which throws off every
      size decided below. */

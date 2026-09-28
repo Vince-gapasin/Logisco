@@ -2136,7 +2136,7 @@ export default function AdminDashboardPage() {
       {/* MODALS */}
       <SubconTripModal dispatchID={subconTripID} onClose={() => setSubconTripID(null)} onChanged={() => void fetchOrders()} />
       {foulTripNotice && (
-        <div role="status" className="fixed bottom-6 right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
+        <div role="status" className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
           {foulTripNotice}
         </div>
       )}
