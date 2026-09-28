@@ -8,6 +8,7 @@
 
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -2366,9 +2367,15 @@ export default function EmployeesPage() {
                     title="Click to view complete employee record"
                   >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
-                      {employee.firstName}{" "}
-                      {employee.middleName ? `${employee.middleName[0]}. ` : ""}
-                      {employee.lastName} {employee.suffix}
+                      <RowOpenButton
+                        label={`View record for ${employee.firstName} ${employee.lastName}`}
+                        onOpen={() => handleRowClick(employee.id)}
+                        className="truncate max-w-full"
+                      >
+                        {employee.firstName}{" "}
+                        {employee.middleName ? `${employee.middleName[0]}. ` : ""}
+                        {employee.lastName} {employee.suffix}
+                      </RowOpenButton>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 truncate">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">

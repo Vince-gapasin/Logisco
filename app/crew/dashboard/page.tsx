@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
 import React, { useState, useEffect, useCallback } from "react";
@@ -1460,7 +1461,13 @@ export default function CrewDashboardPage({
                     currentDeliveries.map((delivery) => (
                       <tr data-pressable key={delivery.id} onClick={() => handleRowClick(delivery)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
                         <td className="py-3 pl-4 sm:pl-8 md:pl-16 pr-2 text-left w-2/3 overflow-hidden">
-                          <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base mb-0.5 truncate">{delivery.clientName}</div>
+                          <RowOpenButton
+                            label={`View delivery for ${delivery.clientName}`}
+                            onOpen={() => handleRowClick(delivery)}
+                            className="block w-full font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base mb-0.5 truncate"
+                          >
+                            {delivery.clientName}
+                          </RowOpenButton>
                           <div className="text-xs font-semibold text-slate-600 mb-0.5 whitespace-nowrap">{delivery.bookingId}</div>
                           <div className="text-xs text-slate-500 mb-0.5 truncate w-full" title={delivery.address}>{delivery.address}</div>
                           <div className="text-xs text-slate-500 font-medium whitespace-nowrap">{delivery.dateTime}</div>

@@ -241,27 +241,27 @@ export default function FleetLiveTracking() {
             md up it is an ordinary table. One set of markup, one set of data -
             the layout switches rather than a second copy of the list existing. */}
         <div className="overflow-x-auto px-4 sm:px-6 md:px-0">
-          <table className="w-full text-left border-collapse md:table-fixed my-2 block md:table">
-            <thead className="hidden md:table-header-group">
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6">Order ID</th>
-                <th className="py-3.5 px-4 sm:px-6">Truck</th>
-                <th className="py-3.5 px-4 sm:px-6">Client</th>
-                <th className="py-3.5 px-4 sm:px-6">Tracking Link</th>
-                <th className="py-3.5 px-4 sm:px-6">Status</th>
+          <table role="table" className="w-full text-left border-collapse md:table-fixed my-2 block md:table">
+            <thead role="rowgroup" className="hidden md:table-header-group">
+              <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Order ID</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Truck</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Client</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Tracking Link</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Status</th>
               </tr>
             </thead>
-            <tbody className="block md:table-row-group">
+            <tbody role="rowgroup" className="block md:table-row-group">
               {currentRecords.length > 0 ? (
                 currentRecords.map((record) => {
                   const hasFix = record.latitude !== null && record.longitude !== null;
                   const silence = quiet[record.dispatchID];
                   return (
-                    <tr
+                    <tr role="row"
                       key={record.dispatchID}
                       className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 hover:bg-slate-50/50 transition-colors shadow-sm md:shadow-none overflow-hidden"
                     >
-                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                      <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
                         <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
                         <div className="text-right md:text-left text-sm wrap-break-word">
                           <span className="font-bold text-blue-700 bg-blue-100 md:bg-transparent md:font-medium md:text-slate-900 px-2.5 md:px-0 py-1 md:py-0 rounded-md inline-block">
@@ -270,7 +270,7 @@ export default function FleetLiveTracking() {
                         </div>
                       </td>
 
-                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                      <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
                         <span className="md:hidden text-xs font-semibold text-slate-500">Truck</span>
                         <div className="text-right md:text-left text-sm text-slate-600 wrap-break-word">
                           <span className="block">{record.truck}</span>
@@ -286,14 +286,14 @@ export default function FleetLiveTracking() {
                         </div>
                       </td>
 
-                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                      <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
                         <span className="md:hidden text-xs font-semibold text-slate-500">Client</span>
                         <div className="text-right md:text-left text-sm text-slate-600 wrap-break-word">
                           {record.client}
                         </div>
                       </td>
 
-                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                      <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
                         <span className="md:hidden text-xs font-semibold text-slate-500">Tracking Link</span>
                         <div className="flex flex-col items-end md:items-start text-right md:text-left text-sm wrap-break-word">
                           {record.trackingToken ? (
@@ -325,7 +325,7 @@ export default function FleetLiveTracking() {
                         </div>
                       </td>
 
-                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle">
+                      <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle">
                         <span className="md:hidden text-xs font-semibold text-slate-500 text-left">Status</span>
                         <div className="flex flex-col items-end md:items-start text-right md:text-left text-sm text-slate-600 wrap-break-word">
                           <span>{record.status}</span>
@@ -373,8 +373,8 @@ export default function FleetLiveTracking() {
                   );
                 })
               ) : (
-                <tr className="block md:table-row">
-                  <td colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center w-full">
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center w-full">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3 shadow-inner">
                         <FileText className="w-6 h-6" />

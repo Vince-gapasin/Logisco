@@ -4,6 +4,7 @@
 // ==========================================
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -1570,7 +1571,13 @@ function ClientsTable({
                     className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate"
                     title={item.name}
                   >
-                    {item.name}
+                    <RowOpenButton
+                      label={`View record for ${item.name}`}
+                      onOpen={() => onRowClick(item)}
+                      className="truncate max-w-full"
+                    >
+                      {item.name}
+                    </RowOpenButton>
                   </td>
                   <td className="py-3.5 px-4 sm:px-6 truncate">
                     <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">

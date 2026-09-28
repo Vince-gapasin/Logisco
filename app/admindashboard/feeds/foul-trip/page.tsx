@@ -3,6 +3,7 @@
 
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
+import RowOpenButton from "@/components/RowOpenButton";
 import TableSkeleton from "@/components/TableSkeleton";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
@@ -299,54 +300,60 @@ export default function FoulTripFeedPage() {
         {/* TABLE */}
         {/* ========================================== */}
         <div className="md:overflow-x-auto px-4 pt-4 md:px-0 md:pt-0 min-h-100 md:min-h-135">
-          <table className="w-full text-left border-collapse md:min-w-250 md:table-fixed block md:table">
-            <thead className="hidden md:table-header-group">
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
+          <table role="table" className="w-full text-left border-collapse md:min-w-250 md:table-fixed block md:table">
+            <thead role="rowgroup" className="hidden md:table-header-group">
+              <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th role="columnheader" className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
                   Order ID
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
-                <th className="py-3.5 px-4 w-[20%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">
                   Product to Deliver
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">
                   Scheduled Date
                 </th>
-                <th className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
-                <th className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
+                <th role="columnheader" className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody className="block md:table-row-group">
+            <tbody role="rowgroup" className="block md:table-row-group">
               {isLoading ? (
                 <TableSkeleton rows={5} columns={6} stacked />
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
-                  <tr
+                  <tr role="row"
                     data-pressable
                     key={booking.id}
                     onClick={() => handleOpenModal(booking)}
                     className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
-                      <span className="wrap-break-word">{booking.orderId}</span>
+                      <RowOpenButton
+                        label={`View booking ${booking.orderId}`}
+                        onOpen={() => handleOpenModal(booking)}
+                        className="wrap-break-word font-medium"
+                      >
+                        {booking.orderId}
+                      </RowOpenButton>
                     </td>
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 font-medium align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 font-medium align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Client Name</span>
                       <span className="wrap-break-word">{booking.clientName}</span>
                     </td>
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top text-slate-600 md:truncate">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top text-slate-600 md:truncate">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Product</span>
                       <span className="wrap-break-word">{booking.product}</span>
                     </td>
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Scheduled Date</span>
                       <span className="wrap-break-word">{booking.displayDate}</span>
                     </td>
 
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Assigned Crew</span>
                       {booking.crews && booking.crews.length > 0 ? (
                         <div className="flex flex-col gap-1.5 min-w-0">
@@ -373,7 +380,7 @@ export default function FoulTripFeedPage() {
                     </td>
 
                     {/* STATUS COLUMN */}
-                    <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:pl-4 md:pr-6 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:pl-4 md:pr-6 align-top">
                       <span className="md:hidden text-xs font-semibold text-slate-500">Status</span>
                       <div className="min-w-0">
                         <span
@@ -394,8 +401,8 @@ export default function FoulTripFeedPage() {
                   </tr>
                 ))
               ) : (
-                <tr className="block md:table-row">
-                  <td colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
