@@ -25,6 +25,11 @@ import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
 import DeliveryFeedbackCard, { type FeedbackInvitation } from "@/components/DeliveryFeedbackCard";
+import type {
+  TrackingStage,
+  TrackingStep,
+  TrackingStepKind,
+} from "@/services/tracking/publicTrackingService";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
@@ -33,23 +38,6 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-type TrackingStage = "completed" | "current" | "upcoming" | "problem";
-type TrackingStepKind =
-  | "booked"
-  | "assigned"
-  | "confirmed"
-  | "departed"
-  | "stop"
-  | "completed"
-  | "problem";
-
-interface TrackingStep {
-  title: string;
-  detail: string;
-  stage: TrackingStage;
-  kind: TrackingStepKind;
-  at?: string | null;
-}
 
 // What each step is about, so the line can be read without reading it.
 const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
@@ -60,6 +48,10 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
   stop: MapPin,
   completed: Flag,
   problem: AlertTriangle,
+  // A delay, not a fault. Deliberately not the warning triangle: the crew
+  // tapping "held up in traffic" is the system working, and drawing it as a
+  // problem would tell the customer something worse than what happened.
+  heldup: Clock,
 };
 
 // Done, happening, still to come, gone wrong - told apart by shape as much as

@@ -10,7 +10,7 @@ import { formatTime } from "@/app/lib/datetime";
 import React, { useState, useEffect, useCallback } from "react";
 import { usePolling } from "@/app/lib/usePolling";
 import { apiFetch } from "@/app/lib/apiClient";
-import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
+import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
 import { getAccessToken } from "@/app/lib/apiClient";
@@ -1163,10 +1163,34 @@ export default function CrewDashboardPage({
                 <p className="text-sm text-slate-500 mt-0.5">Track locations and upload proofs of delivery.</p>
               </div>
             </div>
-            <button onClick={() => setShowEmergencyModal(true)} className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Emergency</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  // Opened on "yes, I can continue", because that is what this
+                  // button is for. The modal still asks, and the driver can
+                  // still say no - it is a starting point, not a decision.
+                  setCanContinue(true);
+                  setEmergencyReason(CONTINUING_REASONS[0]);
+                  setShowEmergencyModal(true);
+                }}
+                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <TrafficCone className="w-4 h-4 shrink-0" />
+                <span>Report a delay</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCanContinue(false);
+                  setEmergencyReason(STOPPING_REASONS[0]);
+                  setShowEmergencyModal(true);
+                }}
+                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Emergency</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
@@ -1827,8 +1851,15 @@ export default function CrewDashboardPage({
       {showEmergencyModal && (
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
-            <h3 className="text-lg font-bold text-red-600 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" /> {canContinue ? "Report an Issue" : "Report Emergency"}
+            <h3
+              className={`text-lg font-bold mb-2 flex items-center gap-2 ${canContinue ? "text-amber-800" : "text-red-600"}`}
+            >
+              {canContinue ? (
+                <TrafficCone className="w-5 h-5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5" />
+              )}
+              {canContinue ? "Report a delay" : "Report Emergency"}
             </h3>
             <p className="text-sm text-slate-600 mb-4">Dispatch is told either way. Whether the delivery stops depends on your answer below.</p>
             <div className="space-y-4 mb-6">
@@ -1837,11 +1868,17 @@ export default function CrewDashboardPage({
                 <div className="grid grid-cols-1 gap-2">
                   {([
                     [false, "No - the trip has to stop", "Dispatch will arrange a replacement. The truck and crew are freed."],
-                    [true, "Yes - I can continue", "The delivery stays active. Dispatch is told what happened."],
+                    [true, "Yes - I can continue", "The delivery stays active. Dispatch is told, and the customer sees the reason on their tracking page."],
                   ] as const).map(([value, title, hint]) => (
                     <label
                       key={title}
-                      className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${canContinue === value ? "border-red-500 bg-red-50/40" : "border-slate-200"}`}
+                      className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${
+                        canContinue === value
+                          ? value
+                            ? "border-amber-400 bg-amber-50/50"
+                            : "border-red-500 bg-red-50/40"
+                          : "border-slate-200"
+                      }`}
                     >
                       <input
                         type="radio"

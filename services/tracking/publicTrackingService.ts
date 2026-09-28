@@ -28,7 +28,8 @@ export type TrackingStepKind =
   | "departed"
   | "stop"
   | "completed"
-  | "problem";
+  | "problem"
+  | "heldup";
 
 export interface TrackingStep {
   title: string;
@@ -184,6 +185,7 @@ function buildSteps(
   problems: ReportedProblem[] = [],
   times: Map<TrackingStepKind, string> = new Map(),
   minutesToNextStop: number | null = null,
+  heldUp: HeldUp[] = [],
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   const accepted = ["Accepted", "In Transit", "Completed"].includes(dispatchStatus ?? "");
@@ -258,6 +260,22 @@ function buildSteps(
     });
   }
 
+  // Why the delivery is running late, when the crew have said so. Not a problem
+  // and not drawn as one: an ordinary hold-up on an ordinary delivery, which is
+  // the thing a customer refreshing this page actually wants to know. Nothing
+  // here is shown once the delivery is done - by then it is only an excuse.
+  if (!isCompleted) {
+    for (const update of [...heldUp].reverse()) {
+      steps.push({
+        title: update.wording,
+        detail: "The delivery is carrying on.",
+        stage: "current",
+        kind: "heldup",
+        at: update.at,
+      });
+    }
+  }
+
   // What the crew reported. One that stopped the trip is the reason it is
   // interrupted; one they carried on through is worth saying so plainly.
   for (const problem of [...problems].reverse()) {
@@ -289,6 +307,67 @@ function buildSteps(
   }
 
   return steps;
+}
+
+/**
+ * What the crew tapped when the app asked why they had gone quiet, in words a
+ * customer should see.
+ *
+ * Only the four that are ordinary delays. "The truck has a problem" and "I need
+ * help" are a call to the office, not an update for the customer - those travel
+ * as an incident, if the office decides they should, and saying "the crew have
+ * asked for help" on a tracking page would frighten somebody with a version of
+ * events nobody has confirmed yet.
+ *
+ * A break is deliberately not "the driver is eating". It is lawful, required by
+ * Article 85, and wording it plainly invites a complaint about something nobody
+ * is allowed to skip.
+ */
+const HELD_UP_WORDING: Record<string, string> = {
+  traffic: "Held up in traffic",
+  waiting: "Waiting to be received",
+  loading: "Loading at a stop",
+  on_break: "Paused on a scheduled break",
+};
+
+interface HeldUp {
+  wording: string;
+  at: string;
+}
+
+/**
+ * The crew's check-ins for this trip, newest first, one per kind.
+ *
+ * Deduplicated because a long jam produces a tap every time the alarm comes
+ * back round, and a customer does not want "Held up in traffic" five times.
+ */
+async function heldUpUpdates(dispatchID: string | null): Promise<HeldUp[]> {
+  if (!dispatchID) return [];
+
+  const { data, error } = await supabase
+    .from("StallCheckIn")
+    .select("state, createdAt")
+    .eq("dispatchID", dispatchID)
+    .order("createdAt", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("[Tracking] Could not read the crew check-ins:", error.message);
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const updates: HeldUp[] = [];
+
+  for (const row of data ?? []) {
+    const state = row.state as string;
+    const wording = HELD_UP_WORDING[state];
+    if (!wording || seen.has(state)) continue;
+    seen.add(state);
+    updates.push({ wording, at: row.createdAt as string });
+  }
+
+  return updates;
 }
 
 interface ReportedProblem {
@@ -510,6 +589,7 @@ export async function getTrackingByToken(
 
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
   const problems = await reportedProblems(order.orderID);
+  const heldUp = await heldUpUpdates(dispatch?.dispatchID ?? null);
   const feedback = await getFeedbackInvitation(dispatch?.dispatchID ?? null, dispatch?.status ?? null);
 
   return {
@@ -540,6 +620,7 @@ export async function getTrackingByToken(
       problems,
       stepTimes,
       liveEta?.minutes ?? null,
+      heldUp,
     ),
   };
 }
