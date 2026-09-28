@@ -11,6 +11,7 @@ import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos, needsPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/Toast";
+import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import {
   Search,
   FileText,
@@ -62,22 +63,6 @@ export interface EmployeeOption {
   role: string;
 }
 
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case "Available":
-      return { bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200/50" };
-    case "Already Booked":
-      return { bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200/50" };
-    case "On Delivery":
-      return { bgLight: "bg-blue-50 text-blue-700 border-blue-200/50" };
-    case "On Maintenance":
-      return { bgLight: "bg-amber-50 text-amber-700 border-amber-200/50" };
-    case "Out of Service":
-      return { bgLight: "bg-rose-50 text-rose-700 border-rose-200/50" };
-    default:
-      return { bgLight: "bg-slate-50 text-slate-700 border-slate-200/50" };
-  }
-};
 
 interface LogMaintenanceModalProps {
   isOpen: boolean;
