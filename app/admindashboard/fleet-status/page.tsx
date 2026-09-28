@@ -70,9 +70,9 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
     lastChecked: truck.lastChecked ? truck.lastChecked.split("T")[0] : "",
     status: truck.truckStatus || "Available",
     fuelTypeID: truck.fuelTypeID || "",
-    // Blank on purpose when nothing is recorded: the screens say "Not recorded"
-    // rather than assuming diesel, because a default here quietly becomes a
-    // fuel-costing assumption nobody goes back and checks.
+    // Blank when nothing is recorded rather than defaulting to diesel: the
+    // fuel a truck burns decides which price series its cost is drawn from,
+    // and a guess there is a wrong number that looks right.
     fuelTypeName: truck.fuelType?.name || "",
   };
 }
@@ -276,16 +276,15 @@ function TruckModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
                 >
-                  <option value="">Not recorded</option>
+                  <option value="" disabled>
+                    Select fuel type
+                  </option>
                   {fuelTypes.map((fuel) => (
                     <option key={fuel.fuelTypeID} value={fuel.fuelTypeID}>
                       {fuel.name}
                     </option>
                   ))}
                 </select>
-                <p className="text-slate-400 text-[11px] mt-1">
-                  Used to price this truck&apos;s fuel. Leave as Not recorded rather than guessing.
-                </p>
               </div>
 
               <div>
@@ -450,13 +449,11 @@ function TruckDetailView({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                   {truck.status}
                 </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    truck.fuelTypeName ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {truck.fuelTypeName || "Fuel not recorded"}
-                </span>
+                {truck.fuelTypeName && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    {truck.fuelTypeName}
+                  </span>
+                )}
               </div>
             </div>
           </div>
