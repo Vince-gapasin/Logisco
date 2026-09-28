@@ -453,13 +453,15 @@ export default function BookingAssignModal({
                   {booking.crews.map((member, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between bg-white px-3 py-2 sm:px-2.5 sm:py-1.5 rounded border border-slate-200 gap-1.5"
                     >
-                      <span className="font-medium text-slate-800">
-                        {member.role}: {member.name}
+                      {/* A name and a status side by side leaves neither enough
+                          room on a phone, so they stack until there is space. */}
+                      <span className="font-medium text-slate-800 text-sm sm:text-xs wrap-break-word">
+                        {member.role}: <span className="font-bold">{member.name}</span>
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs sm:text-[10px] font-bold uppercase ${crewStatusBadge(member.status)}`}
+                        className={`w-max px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${crewStatusBadge(member.status)}`}
                       >
                         {member.status}
                       </span>
@@ -595,7 +597,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={() => setShowCancelConfirm(true)}
-            className="w-full sm:w-auto px-6 py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
           >
             Cancel Booking
           </button>
@@ -603,7 +605,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -612,7 +614,7 @@ export default function BookingAssignModal({
             type="submit"
             form="assign-booking-form"
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? "Saving…" : reassigning ? "Re-assign Booking" : "Assign Now"}
           </button>
@@ -628,11 +630,11 @@ export default function BookingAssignModal({
               <p className="text-sm text-slate-600 mb-6 px-2">
                 Are you sure you want to cancel this booking? This action cannot be undone.
               </p>
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
                 <button
                   type="button"
                   onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   No, Keep It
                 </button>
@@ -642,7 +644,7 @@ export default function BookingAssignModal({
                     setShowCancelConfirm(false);
                     onCancelBooking(event, booking.id);
                   }}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
                   Yes, Cancel
                 </button>

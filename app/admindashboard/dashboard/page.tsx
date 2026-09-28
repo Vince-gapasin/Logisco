@@ -958,7 +958,9 @@ function KPIGrid({
   bookingsData: Record<string, DashboardBooking[]>;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    // Four across on a phone rather than stacked: these are the counts somebody
+    // checks at a glance, and one per screenful turns a glance into scrolling.
+    <div className="grid grid-cols-4 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-6 mb-8">
       {TABS.map((tab) => {
         const styles = COLOR_STYLES[tab.color as keyof typeof COLOR_STYLES];
         const count = bookingsData[tab.name]?.length ?? 0;
@@ -966,17 +968,31 @@ function KPIGrid({
           <button
             key={tab.name}
             onClick={() => onNavigate(tab.name)}
-            className="p-5 rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex items-center space-x-4 text-left w-full"
+            className="p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
+            title={tab.name}
           >
             <div
-              className={`w-14 h-14 rounded-full ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
+              className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
             >
-              <tab.icon className="w-7 h-7" />
+              <tab.icon className="w-5 h-5 sm:w-7 sm:h-7" />
             </div>
-            <div>
+
+            {/* Full name and a large count where there is room. */}
+            <div className="hidden sm:block">
               <p className="text-3xl font-extrabold text-slate-800">{count}</p>
               <p className="text-gray-500 text-xs sm:text-[11px] font-bold tracking-wider mt-0.5">
                 {tab.name.toUpperCase()}
+              </p>
+            </div>
+
+            {/* On a phone the short status label, since "Pending Bookings" will
+                not fit a quarter of the width without truncating to nothing. */}
+            <div className="flex sm:hidden flex-col items-center mt-1.5 w-full">
+              <p className="text-sm font-extrabold text-slate-800 leading-none">{count}</p>
+              <p
+                className={`text-[8px] font-bold mt-1 tracking-tight text-center truncate w-full ${styles.iconText}`}
+              >
+                {tab.statusLabel.toUpperCase()}
               </p>
             </div>
           </button>
@@ -1742,37 +1758,38 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Buttons Flex Container */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto relative z-10">
+        <div className="grid grid-cols-5 sm:flex sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto relative z-10">
           <button
             onClick={() => {
               setSelectedClientForBooking("");
               setIsBookingModalOpen(true);
             }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
+            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
           >
             + On-Call Booking
           </button>
           <button
             onClick={() => setIsClientSearchModalOpen(true)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
+            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
           >
             + New Booking
           </button>
 
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`h-11 px-4 inline-flex items-center justify-center border text-sm font-semibold rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap ${
+            className={`col-span-1 w-full sm:w-auto h-11 inline-flex items-center justify-center border text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap px-1 sm:px-4 ${
               isFilterOpen
                 ? "bg-slate-100 border-slate-300 text-slate-800"
                 : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
             }`}
+            title="Filters"
           >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
+            <Filter className="w-4 h-4 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline">Filters</span>
           </button>
           {/* Filter Dropdown Panel */}
           {isFilterOpen && (
-            <div className="absolute top-full mt-1.5 right-0 w-56 sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in">
+            <div className="absolute top-full mt-2 right-0 w-[calc(100vw-2rem)] max-w-xs sm:max-w-none sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in origin-top-right">
               <div className="flex justify-between items-center mb-2 border-b border-slate-100 pb-1.5">
                 <h3 className="font-bold text-xs text-slate-800">Filters</h3>
                 <button

@@ -858,8 +858,8 @@ export default function MechanicHistoryLogsPage() {
                   <div className="text-sm font-medium text-slate-500 animate-pulse">Loading database records...</div>
                 </div>
               ) : (
-                <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
-                  <thead>
+                <table className="w-full max-w-5xl mx-auto text-left border-collapse md:table-fixed my-2 block md:table">
+                  <thead className="hidden md:table-header-group">
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
                       <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
@@ -867,10 +867,10 @@ export default function MechanicHistoryLogsPage() {
                       <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                  <tbody className="block md:table-row-group text-sm text-slate-700">
                     {paginatedLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-16 sm:py-20 text-center">
+                      <tr className="block md:table-row">
+                        <td colSpan={4} className="block md:table-cell py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
                             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3"><FileText className="w-6 h-6" /></div>
                             <p className="text-sm font-semibold text-slate-800">No history logs found</p>
@@ -880,36 +880,42 @@ export default function MechanicHistoryLogsPage() {
                       </tr>
                     ) : (
                       paginatedLogs.map((log) => (
-                        <tr key={log.id} onClick={() => setSelectedLog(log)} className="hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                        <tr key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
+                          <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Date</span>
                             <div className="text-sm font-medium text-slate-800">
                               {new Date(log.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
                             </div>
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
-                            <div className="font-semibold text-slate-900 truncate">
-                              {log.plateNumber}
-                              <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">— {log.truckType}</span>
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
-                              <div className="font-medium text-slate-700">
-                                {log.mechanicName} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
+                          <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Plate Number</span>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 md:truncate wrap-break-word">
+                                {log.plateNumber}
+                                <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">— {log.truckType}</span>
                               </div>
-                              <div className="mt-0.5 truncate">{log.issue}</div>
+                              <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
+                                <div className="font-medium text-slate-700 wrap-break-word">
+                                  {log.mechanicName} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
+                                </div>
+                                <div className="mt-0.5 md:truncate wrap-break-word">{log.issue}</div>
+                              </div>
                             </div>
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                          <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Status Before</span>
                             {log.statusBefore && log.statusBefore !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
+                              <div className={`inline-flex w-max items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
                                 {log.statusBefore}
                               </div>
                             ) : (
                               <span className="text-xs text-slate-400">—</span>
                             )}
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                          <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left md:text-right align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Current Status</span>
                             {log.statusAfter && log.statusAfter !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
+                              <div className={`inline-flex w-max items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
                                 {log.statusAfter}
                               </div>
                             ) : (

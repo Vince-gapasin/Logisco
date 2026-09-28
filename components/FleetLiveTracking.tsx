@@ -251,7 +251,7 @@ export default function FleetLiveTracking() {
                 <th className="py-3.5 px-4 sm:px-6">Status</th>
               </tr>
             </thead>
-            <tbody className="block md:table-row-group md:divide-y md:divide-slate-100">
+            <tbody className="block md:table-row-group">
               {currentRecords.length > 0 ? (
                 currentRecords.map((record) => {
                   const hasFix = record.latitude !== null && record.longitude !== null;
@@ -259,7 +259,7 @@ export default function FleetLiveTracking() {
                   return (
                     <tr
                       key={record.dispatchID}
-                      className="block md:table-row bg-white border border-slate-200 md:border-none rounded-xl md:rounded-none mb-4 md:mb-0 hover:bg-slate-50/50 transition-colors shadow-sm md:shadow-none overflow-hidden"
+                      className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 hover:bg-slate-50/50 transition-colors shadow-sm md:shadow-none overflow-hidden"
                     >
                       <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
                         <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
