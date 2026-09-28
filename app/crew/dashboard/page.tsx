@@ -4,6 +4,7 @@
 "use client";
 
 import RowOpenButton from "@/components/RowOpenButton";
+import { useToast } from "@/components/Toast";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
 import React, { useState, useEffect, useCallback } from "react";
@@ -385,6 +386,7 @@ export default function CrewDashboardPage({
   isOpen,
   setIsOpen,
 }: CrewDashboardProps) {
+  const showToast = useToast();
   const [selectedFilter, setSelectedFilter] = useState<TabFilter>("Active");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -743,11 +745,11 @@ export default function CrewDashboardPage({
     
     if (isPodRequiredForStop) {
       if (!selectedFile) {
-        alert("Proof of delivery photo is required to complete this location.");
+        showToast("Proof of delivery photo is required to complete this location.", "error");
         return;
       }
       if (!receiverName.trim()) {
-        alert("Receiver's Name is required to complete this location.");
+        showToast("Receiver's Name is required to complete this location.", "error");
         return;
       }
     }
@@ -815,7 +817,7 @@ export default function CrewDashboardPage({
         void stopLiveTracking();
         setShowTripReportModal(true);
       } else {
-        alert(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`);
+        showToast(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`, "success");
         setViewMode("list");
         setSelectedDelivery(null);
         setSelectedImage(null);
@@ -824,7 +826,7 @@ export default function CrewDashboardPage({
         setReceiverName(""); 
       }
     } catch (error) {
-      alert(`Status update failed: ${error instanceof Error ? error.message : error}`);
+      showToast(`Status update failed: ${error instanceof Error ? error.message : error}`, "error");
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -872,7 +874,7 @@ export default function CrewDashboardPage({
       setViewMode("update-status");
 
     } catch (error) {
-      alert(`Failed to start route: ${error instanceof Error ? error.message : error}`);
+      showToast(`Failed to start route: ${error instanceof Error ? error.message : error}`, "error");
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -913,7 +915,7 @@ export default function CrewDashboardPage({
 
     // "Other" used to arrive at dispatch as the single word "Other".
     if (emergencyReason === "Other" && !emergencyMessage.trim()) {
-      alert("Describe what happened - dispatch needs to know what to send.");
+      showToast("Describe what happened - dispatch needs to know what to send.", "error");
       return;
     }
 
@@ -970,7 +972,7 @@ export default function CrewDashboardPage({
       }, 2000);
 
     } catch (error) {
-      alert(`Error sending alert: ${error instanceof Error ? error.message : error}`);
+      showToast(`Error sending alert: ${error instanceof Error ? error.message : error}`, "error");
     } finally {
       setIsSendingEmergency(false);
     }
@@ -1013,18 +1015,18 @@ export default function CrewDashboardPage({
       }, 2000);
       
     } catch (error) {
-      alert(`Error saving report: ${error instanceof Error ? error.message : error}`);
+      showToast(`Error saving report: ${error instanceof Error ? error.message : error}`, "error");
     }
   };
 
   const handleDispatchResponse = async (action: "accept" | "decline") => {
     if (!selectedDelivery) return;
     if (action === "decline" && !declineCode) {
-      alert("Please choose what the reason is.");
+      showToast("Please choose what the reason is.", "error");
       return;
     }
     if (action === "decline" && !declineReason.trim()) {
-      alert("Please provide a reason for declining.");
+      showToast("Please provide a reason for declining.", "error");
       return;
     }
 
@@ -1057,9 +1059,15 @@ export default function CrewDashboardPage({
       setShowDeclineConfirmModal(false);
       setShowDetailsModal(false);
       setDeclineReason("");
-      alert(`Assignment ${action}ed successfully.`);
+      showToast(`Assignment ${action}ed successfully.`, "success");
     } catch (error) {
-      alert(error instanceof Error ? error.message : error);
+      // String() rather than the bare value: a catch gives back unknown, and
+      // alert() used to accept that and show the driver "[object Object]"
+      // whenever what was thrown was not an Error.
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
     } finally {
       setIsSubmittingResponse(false);
     }

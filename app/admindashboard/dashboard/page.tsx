@@ -33,6 +33,7 @@ import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
+import { useToast } from "@/components/Toast";
 import {
   mapOrderToBookingView,
   toFeedBooking,
@@ -1149,6 +1150,7 @@ function FeedTable({
 // ==========================================
 
 export default function AdminDashboardPage() {
+  const showToast = useToast();
   const router = useRouter();
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -1596,7 +1598,7 @@ export default function AdminDashboardPage() {
           });
         } catch (partnerError) {
           const reason = partnerError instanceof Error ? partnerError.message : "unknown error";
-          alert(`Booking created, but handing it to ${data.subconPartnerName || "the partner"} failed: ${reason}`);
+          showToast(`Booking created, but handing it to ${data.subconPartnerName || "the partner"} failed: ${reason}`, "error");
         }
       } else if (!data.unassigned) {
         try {
@@ -1612,8 +1614,9 @@ export default function AdminDashboardPage() {
           });
           console.log("Resources locked successfully!");
         } catch (assignError) {
-          alert(
+          showToast(
             `Booking created, but assignment failed: ${assignError instanceof Error ? assignError.message : assignError}`,
+            "error",
           );
         }
       }
@@ -1625,7 +1628,7 @@ export default function AdminDashboardPage() {
       await fetchOrders();
     } catch (err) {
       console.error(err);
-      alert(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`);
+      showToast(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`, "error");
     }
   };
 

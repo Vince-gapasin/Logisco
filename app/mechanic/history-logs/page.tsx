@@ -10,6 +10,7 @@ import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos, needsPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
+import { useToast } from "@/components/Toast";
 import {
   Search,
   FileText,
@@ -101,6 +102,7 @@ function LogMaintenanceModal({
     preliminaryPhotoUrl: "", additionalIssue: "", progressRemarks: "", progressPhotoUrl: "",
   };
 
+  const showToast = useToast();
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -164,7 +166,7 @@ function LogMaintenanceModal({
       // Stored as a data URL in LogPhotos, so keep it small.
       compressImageToDataUrl(file)
         .then((dataUrl) => setFormData((prev) => ({ ...prev, [fieldName]: dataUrl })))
-        .catch(() => alert("Could not read that image. Please choose a different photo."));
+        .catch(() => showToast("Could not read that image. Please choose a different photo.", "error"));
     }
   };
 
@@ -655,14 +657,8 @@ export default function MechanicHistoryLogsPage() {
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useToast();
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -762,7 +758,7 @@ export default function MechanicHistoryLogsPage() {
         if (response.ok) {
           await fetchLogs();
           setSelectedLog((prev) => prev?.id === editingLog.id ? { ...prev, ...finalPayload } : prev);
-          setToastMessage("Changes saved successfully.");
+          showToast("Changes saved successfully.", "success");
         }
       } else {
         const response = await authFetch(`/api/historyLogsM`, { 
@@ -772,7 +768,7 @@ export default function MechanicHistoryLogsPage() {
         });
         if (response.ok) {
           await fetchLogs();
-          setToastMessage("Log added successfully.");
+          showToast("Log added successfully.", "success");
         }
       }
     } catch (error) {
@@ -791,7 +787,7 @@ export default function MechanicHistoryLogsPage() {
       if (response.ok) {
         setLogsList((prev) => prev.filter((log) => log.id !== id));
         setSelectedLog(null);
-        setToastMessage("Deleted successfully.");
+        showToast("Deleted successfully.", "success");
       }
     } catch (error) {
       console.error("Error deleting log:", error);
@@ -955,20 +951,6 @@ export default function MechanicHistoryLogsPage() {
         mechanicsOptions={mechanicsOptions}
       />
 
-      {toastMessage && (
-        <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${toastMessage === "No changes were made." ? "bg-blue-500" : "bg-emerald-500"}`}>
-              {toastMessage === "No changes were made." ? (
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-              )}
-            </div>
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

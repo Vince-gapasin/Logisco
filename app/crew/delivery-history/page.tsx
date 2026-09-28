@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle, Camera } from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 export interface PickupRecord {
   warehouse: string;
@@ -56,6 +57,7 @@ export interface DeliveryHistoryRecord {
 }
 
 export default function DeliveryHistoryPage() {
+  const showToast = useToast();
   // State to manage navigation between list and details view
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryHistoryRecord | null>(null);
 
@@ -162,7 +164,7 @@ export default function DeliveryHistoryPage() {
         setReportImage(null);
       }, 2000);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to send report.");
+      showToast(error instanceof Error ? error.message : "Failed to send report.", "error");
     }
   };
 

@@ -8,6 +8,7 @@ import TableSkeleton from "@/components/TableSkeleton";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/app/lib/apiClient";
 import BookingAssignModal from "@/components/booking/BookingAssignModal";
+import { useToast } from "@/components/Toast";
 import {
   isAwaitingAssignment,
   mapOrderToBookingView,
@@ -79,6 +80,7 @@ export default function UnassignedBookingsPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successOrderCode, setSuccessOrderCode] = useState("");
 
+  const showToast = useToast();
   const [bookings, setBookings] = useState<BookingView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -153,7 +155,7 @@ export default function UnassignedBookingsPage() {
       setSelectedBooking(null);
       await loadBookings();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+      showToast(error instanceof Error ? error.message : "Failed to cancel booking.", "error");
     }
   };
 

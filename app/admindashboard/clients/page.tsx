@@ -15,6 +15,7 @@ import type {
   WarehouseRow,
 } from "@/types/database";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { useToast } from "@/components/Toast";
 import {
   UserPlus,
   Search,
@@ -1671,19 +1672,13 @@ export default function ClientsPage() {
     null,
   );
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const showToast = useToast();
   const [dataMap, setDataMap] = useState<Record<TabType, UnifiedRecord[]>>({
     Clients: [],
     Partners: [],
   });
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const fetchClientsAndPartners = useCallback(async () => {
     try {
@@ -1735,9 +1730,11 @@ export default function ClientsPage() {
       });
     } catch (error) {
       console.error("Failed to fetch data from Database:", error);
-      setToastMessage("Failed to load records");
+      showToast("Failed to load records", "error");
     }
-  }, []);
+    // showToast is memoised all the way up through the provider, so naming it
+    // here satisfies the rule without making this callback churn.
+  }, [showToast]);
 
   useEffect(() => {
     fetchClientsAndPartners();
@@ -1755,7 +1752,7 @@ export default function ClientsPage() {
     try {
       if (editingRecord) {
         if (checkNoChanges(editingRecord, newRecord)) {
-          setToastMessage("No changes were made.");
+          showToast("No changes were made.", "info");
           setEditingRecord(null);
           return;
         }
@@ -1776,7 +1773,7 @@ export default function ClientsPage() {
           body: JSON.stringify(payload),
         });
 
-        setToastMessage("Changes saved successfully.");
+        showToast("Changes saved successfully.", "success");
       } else {
         const payload = {
           name: newRecord.name,
@@ -1793,7 +1790,7 @@ export default function ClientsPage() {
           body: JSON.stringify(payload),
         });
 
-        setToastMessage("Added successfully.");
+        showToast("Added successfully.", "success");
       }
 
       setEditingRecord(null);
@@ -1801,7 +1798,7 @@ export default function ClientsPage() {
       if (editingRecord) setSelectedRecord(newRecord);
     } catch (error) {
       console.error("Failed to save client to Database:", error);
-      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
+      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
     }
   };
 
@@ -1819,7 +1816,7 @@ export default function ClientsPage() {
 
       if (editingRecord) {
         if (checkNoChanges(editingRecord, newRecord)) {
-          setToastMessage("No changes were made.");
+          showToast("No changes were made.", "info");
           setEditingRecord(null);
           return;
         }
@@ -1828,13 +1825,13 @@ export default function ClientsPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        setToastMessage("Changes saved successfully.");
+        showToast("Changes saved successfully.", "success");
       } else {
         await apiFetch(`/api/subcontractors`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        setToastMessage("Added successfully.");
+        showToast("Added successfully.", "success");
       }
 
       setEditingRecord(null);
@@ -1842,7 +1839,7 @@ export default function ClientsPage() {
       if (editingRecord) setSelectedRecord(newRecord);
     } catch (error) {
       console.error("Failed to save partner to Database:", error);
-      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
+      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
     }
   };
 
@@ -1852,11 +1849,11 @@ export default function ClientsPage() {
       await apiFetch(`/api/${endpoint}/${id}`, { method: "DELETE" });
 
       setSelectedRecord(null);
-      setToastMessage("Deleted successfully.");
+      showToast("Deleted successfully.", "success");
       await fetchClientsAndPartners();
     } catch (error) {
       console.error(`Failed to delete ${activeTab} from Database:`, error);
-      setToastMessage(error instanceof Error ? error.message : "Error deleting record.");
+      showToast(error instanceof Error ? error.message : "Error deleting record.", "error");
     }
   };
 
@@ -1898,53 +1895,6 @@ export default function ClientsPage() {
         )}
 
         {/* TOAST NOTIFICATION */}
-        {toastMessage && (
-          <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-            <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-              <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                  toastMessage.toLowerCase().includes("error") ||
-                  toastMessage.toLowerCase().includes("fail")
-                    ? "bg-red-500"
-                    : toastMessage === "No changes were made."
-                      ? "bg-blue-500"
-                      : "bg-emerald-500"
-                }`}
-              >
-                {toastMessage === "No changes were made." ? (
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                )}
-              </div>
-              {toastMessage}
-            </div>
-          </div>
-        )}
       </>
     );
   }
@@ -2051,53 +2001,6 @@ export default function ClientsPage() {
         />
       )}
 
-      {toastMessage && (
-        <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-            <div
-              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                toastMessage.toLowerCase().includes("error") ||
-                toastMessage.toLowerCase().includes("fail")
-                  ? "bg-red-500"
-                  : toastMessage === "No changes were made."
-                    ? "bg-blue-500"
-                    : "bg-emerald-500"
-              }`}
-            >
-              {toastMessage === "No changes were made." ? (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              )}
-            </div>
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

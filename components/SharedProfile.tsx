@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { Mail, Lock, X, AlertCircle, User, Shield, Building } from "lucide-react";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
+import { useToast } from "@/components/Toast";
 
 // ==========================================
 // SESSION & API FETCH
@@ -16,6 +17,7 @@ const SESSION_KEY = "logisco_user_session";
 // MAIN COMPONENT
 // ==========================================
 export default function SharedProfile() {
+  const showToast = useToast();
   // Session state
   const [userInfo, setUserInfo] = useState({
     name: "Loading...",
@@ -100,7 +102,7 @@ export default function SharedProfile() {
         body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
       });
 
-      alert(response.message);
+      showToast(response.message, "success");
       
       // Update local session
       const sessionData = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
@@ -158,7 +160,7 @@ export default function SharedProfile() {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      alert(response.message);
+      showToast(response.message, "success");
       setIsPasswordModalOpen(false);
       setCurrentPassword("");
       setNewPassword("");

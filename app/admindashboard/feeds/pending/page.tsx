@@ -24,6 +24,7 @@ import CrewPicker from "@/components/booking/CrewPicker";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
 import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 import {
   Search,
   FileText,
@@ -917,6 +918,7 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function PendingBookingPage() {
+  const showToast = useToast();
   const [bookings, setBookings] = useState<FeedBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -1023,7 +1025,7 @@ export default function PendingBookingPage() {
       });
       await loadBookings();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+      showToast(error instanceof Error ? error.message : "Failed to cancel booking.", "error");
     }
   };
 

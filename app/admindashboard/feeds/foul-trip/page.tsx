@@ -15,6 +15,7 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 import {
   Search,
   FileText,
@@ -64,6 +65,7 @@ function hoursLabel(hours: number | null): string {
 }
 
 export default function FoulTripFeedPage() {
+  const showToast = useToast();
   const [bookings, setBookings] = useState<FoulTripRow[]>([]);
   const [summary, setSummary] = useState<FoulTripSummary | null>(null);
   const [recent, setRecent] = useState<IncidentView[]>([]);
@@ -172,7 +174,7 @@ export default function FoulTripFeedPage() {
       });
       handleProceedSuccess(`${incident.orderCode ?? "The issue"} closed.`);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not close it.");
+      showToast(error instanceof Error ? error.message : "Could not close it.", "error");
     } finally {
       setClosing(null);
     }

@@ -6,6 +6,7 @@ import React, { useState } from "react";
 
 import ProtectedPortal from "@/components/ProtectedPortal";
 import SharedHeader from "@/components/SharedHeader";
+import { ToastProvider } from "@/components/Toast";
 import Sidebar from "@/components/Sidebaradmin";
 
 export default function AdminLayout({
@@ -17,33 +18,35 @@ export default function AdminLayout({
 
   return (
     <ProtectedPortal>
-      <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans pb-[var(--safe-bottom)]">
-        <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <ToastProvider>
+        <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans pb-[var(--safe-bottom)]">
+          <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-        <div className="flex w-full flex-1 flex-col overflow-hidden">
-          <SharedHeader
-            isOpen={isSidebarOpen}
-            setIsOpen={setIsSidebarOpen}
-            basePath="/admindashboard"
-          />
+          <div className="flex w-full flex-1 flex-col overflow-hidden">
+            <SharedHeader
+              isOpen={isSidebarOpen}
+              setIsOpen={setIsSidebarOpen}
+              basePath="/admindashboard"
+            />
 
-          <main className="flex-1 overflow-y-auto">
-            {React.Children.map(children, (child) => {
-              if (React.isValidElement(child)) {
-                return React.cloneElement(
-                  child as React.ReactElement<Record<string, unknown>>,
-                  {
-                    isOpen: isSidebarOpen,
-                    setIsOpen: setIsSidebarOpen,
-                  },
-                );
-              }
+            <main className="flex-1 overflow-y-auto">
+              {React.Children.map(children, (child) => {
+                if (React.isValidElement(child)) {
+                  return React.cloneElement(
+                    child as React.ReactElement<Record<string, unknown>>,
+                    {
+                      isOpen: isSidebarOpen,
+                      setIsOpen: setIsSidebarOpen,
+                    },
+                  );
+                }
 
-              return child;
-            })}
-          </main>
+                return child;
+              })}
+            </main>
+          </div>
         </div>
-      </div>
+      </ToastProvider>
     </ProtectedPortal>
   );
 }
