@@ -48,7 +48,7 @@ export default function NotificationBell({ basePath }: { basePath: string }) {
   return (
     <Link
       href={`${basePath}/notifications`}
-      className="relative cursor-pointer hover:bg-gray-100 p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 rounded-full transition flex items-center justify-center"
+      className="relative cursor-pointer hover:bg-gray-100 p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 rounded-full transition flex items-center justify-center"
       title={unread > 0 ? `${unread} unread notification${unread === 1 ? "" : "s"}` : "Notifications"}
     >
       <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />

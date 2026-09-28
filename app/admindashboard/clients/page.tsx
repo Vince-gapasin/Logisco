@@ -369,7 +369,7 @@ export function ClientModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -658,7 +658,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={pickupList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   pickupList.length === 1
@@ -861,7 +861,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={deliveryList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   deliveryList.length === 1
@@ -1021,7 +1021,7 @@ export function PartnerModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1073,7 +1073,7 @@ export function PartnerModal({
                     onClick={() =>
                       setIsContractDropdownOpen(!isContractDropdownOpen)
                     }
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span
                       className={
@@ -1099,7 +1099,7 @@ export function PartnerModal({
                             });
                             setIsContractDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>
@@ -1247,7 +1247,7 @@ function RecordDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
             title={`Back to ${tabType}`}
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1354,7 +1354,7 @@ function RecordDetailView({
                 <label className="block text-xs font-medium text-black mb-1">
                   Address
                 </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12 wrap-break-word">
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-tap wrap-break-word">
                   {isPartner(record) || isClient(record)
                     ? record.businessAddress
                     : "N/A"}
@@ -1634,7 +1634,7 @@ function ClientsTable({
           <button
             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
           >
             Previous
           </button>
@@ -1646,7 +1646,7 @@ function ClientsTable({
               setCurrentPage((prev) => Math.min(prev + 1, totalPages))
             }
             disabled={currentPage === totalPages || totalPages === 0}
-            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
           >
             Next
           </button>

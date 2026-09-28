@@ -109,7 +109,7 @@ export default function SelectMenu({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listID : undefined}
-        className="w-full min-h-11 sm:min-h-10 flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:bg-slate-50"
+        className="w-full min-h-tap sm:min-h-10 flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:bg-slate-50"
       >
         {selected ? (
           <span className="min-w-0">
@@ -147,7 +147,7 @@ export default function SelectMenu({
                   searchRef.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

@@ -114,7 +114,7 @@ export default function SubconTripsPanel() {
             type="button"
             onClick={() => void load()}
             aria-label="Refresh"
-            className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            className="min-w-tap min-h-tap inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
           >
             <RefreshCw className="h-4 w-4" />
           </button>

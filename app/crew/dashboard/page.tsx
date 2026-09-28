@@ -1091,7 +1091,7 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowDetailsModal(false)}
-          className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Close Details
         </button>
@@ -1103,13 +1103,13 @@ export default function CrewDashboardPage({
         <>
           <button
             onClick={() => setShowDeclineConfirmModal(true)}
-            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
           >
             Decline
           </button>
           <button
             onClick={() => setShowAcceptConfirmModal(true)}
-            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
             Accept
           </button>
@@ -1121,7 +1121,7 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowStartConfirmModal(true)}
-          className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Start Delivery
         </button>
@@ -1141,7 +1141,7 @@ export default function CrewDashboardPage({
           setShowDetailsModal(false);
           setViewMode("update-status");
         }}
-        className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
       >
         Update Status
       </button>
@@ -1155,7 +1155,7 @@ export default function CrewDashboardPage({
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">
             <div className="flex items-center gap-3">
-              <button onClick={() => setViewMode("list")} className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
+              <button onClick={() => setViewMode("list")} className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
@@ -1163,7 +1163,7 @@ export default function CrewDashboardPage({
                 <p className="text-sm text-slate-500 mt-0.5">Track locations and upload proofs of delivery.</p>
               </div>
             </div>
-            <button onClick={() => setShowEmergencyModal(true)} className="px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+            <button onClick={() => setShowEmergencyModal(true)} className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap">
               <AlertTriangle className="w-4 h-4" />
               <span>Emergency</span>
             </button>
@@ -1385,7 +1385,7 @@ export default function CrewDashboardPage({
                     setViewMode("list");
                     setSelectedDelivery(null);
                   }}
-                  className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                  className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
                 >
                   Back to Deliveries
                 </button>
@@ -1393,7 +1393,7 @@ export default function CrewDashboardPage({
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
                   disabled={isSubmittingResponse}
-                  className="w-full sm:w-64 min-h-11 sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
+                  className="w-full sm:w-64 min-h-tap sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
@@ -1428,21 +1428,21 @@ export default function CrewDashboardPage({
               <div className="grid grid-cols-3 gap-1 sm:gap-2 w-full">
                 <button
                   onClick={() => setSelectedFilter("Active")}
-                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
                 >
                   <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="truncate">Active ({activeCount})</span>
                 </button>
                 <button
                   onClick={() => setSelectedFilter("Assigned")}
-                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}
                 >
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="truncate">Assigned ({unconfirmedCount})</span>
                 </button>
                 <button
                   onClick={() => setSelectedFilter("Completed")}
-                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
                 >
                   <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span className="truncate">History ({completedCount})</span>
@@ -1504,8 +1504,8 @@ export default function CrewDashboardPage({
                 Showing {filteredDeliveries.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, filteredDeliveries.length)} of {filteredDeliveries.length} entries
               </span>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
-                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
+                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
+                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
               </div>
             </div>
           </div>
@@ -1531,7 +1531,7 @@ export default function CrewDashboardPage({
                 ) : (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Assigned - accept or decline</span>
                 )}
-                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
+                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
               </div>
             </div>
 
@@ -1730,8 +1730,8 @@ export default function CrewDashboardPage({
               {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>
@@ -1750,8 +1750,8 @@ export default function CrewDashboardPage({
               <div><label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Issues (If any)</label><textarea value={vehicleIssues} onChange={(e) => setVehicleIssues(e.target.value)} placeholder="Any unusual sounds, flat tires, etc." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-20"></textarea></div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={completeTripWorkflow} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
-              <button onClick={handleSendRemarks} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
+              <button onClick={completeTripWorkflow} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
+              <button onClick={handleSendRemarks} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
                 {showRemarksSuccess ? "Saved!" : "Save Report"}
               </button>
             </div>
@@ -1770,14 +1770,14 @@ export default function CrewDashboardPage({
               {showStartConfirmModal ? "Open tracking and update the status of this delivery?" : "Confirm this delivery assignment?"}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
+              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
               <button onClick={() => {
                   if (showStartConfirmModal) {
                     handleStartDelivery();
                   } else {
                     handleDispatchResponse("accept");
                   }
-                }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
+                }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
               >
                 {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : isSubmittingResponse && showStartConfirmModal ? "Starting..." : "Yes"}
               </button>
@@ -1814,8 +1814,8 @@ export default function CrewDashboardPage({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5 mt-3">In your own words</label>
             <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required></textarea>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); setDeclineCode(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim() || !declineCode} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
+              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); setDeclineCode(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim() || !declineCode} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
                 {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
               </button>
             </div>
@@ -1886,7 +1886,7 @@ export default function CrewDashboardPage({
                     </button>
                   </div>
                 ) : (
-                  <label className="flex min-h-11 items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-600 cursor-pointer">
+                  <label className="flex min-h-tap items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-600 cursor-pointer">
                     <Camera className="w-4 h-4 text-slate-500" />
                     Take or attach a photo
                     <input type="file" accept="image/*" capture="environment" onChange={handleEmergencyPhoto} className="hidden" />
@@ -1896,8 +1896,8 @@ export default function CrewDashboardPage({
               <p className="text-xs text-slate-500">Your current location is sent with the report.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
-              <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
+              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+              <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
                 {emergencySubmitted
                   ? canContinue
                     ? "Reported - carry on"

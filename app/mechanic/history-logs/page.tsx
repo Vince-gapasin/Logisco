@@ -199,7 +199,7 @@ function LogMaintenanceModal({
           <h2 className="text-xl font-bold text-white tracking-wide">
             {editData ? "Edit Maintenance Log" : "Maintenance Log Form"}
           </h2>
-          <button type="button" onClick={handleCloseModal} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+          <button type="button" onClick={handleCloseModal} className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -229,7 +229,7 @@ function LogMaintenanceModal({
                   <button
                     type="button"
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span className={formData.truckID ? "text-black truncate pr-2" : "text-slate-400"}>
                       {formData.truckID
@@ -250,7 +250,7 @@ function LogMaintenanceModal({
                             handleInputChange({ target: { name: "truckID", value: String(truck.truckID) } });
                             setIsTruckDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {truck.plateNumber} — {truck.truckType}
                         </button>
@@ -268,7 +268,7 @@ function LogMaintenanceModal({
                   <button
                     type="button"
                     onClick={() => setIsPrimaryDropdownOpen(!isPrimaryDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span className={formData.primaryMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
                       {formData.primaryMechanicID
@@ -290,7 +290,7 @@ function LogMaintenanceModal({
                             }
                             setIsPrimaryDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.primaryMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.primaryMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {emp.employeeName}
                         </button>
@@ -309,7 +309,7 @@ function LogMaintenanceModal({
                     type="button"
                     disabled={!formData.primaryMechanicID}
                     onClick={() => setIsAdditionalDropdownOpen(!isAdditionalDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : ""}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : ""}`}
                   >
                     <span className={formData.additionalMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
                       {formData.additionalMechanicID
@@ -326,7 +326,7 @@ function LogMaintenanceModal({
                           handleInputChange({ target: { name: "additionalMechanicID", value: "" } });
                           setIsAdditionalDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${!formData.additionalMechanicID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${!formData.additionalMechanicID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                       >
                         None
                       </button>
@@ -338,7 +338,7 @@ function LogMaintenanceModal({
                             handleInputChange({ target: { name: "additionalMechanicID", value: String(emp.employeeID) } });
                             setIsAdditionalDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.additionalMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.additionalMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {emp.employeeName}
                         </button>
@@ -394,7 +394,7 @@ function LogMaintenanceModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" /> {formData.photoUrl ? "Change File" : "Choose File"}
                 </button>
@@ -426,7 +426,7 @@ function LogMaintenanceModal({
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken Before Maintenance</label>
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => prelimFileInputRef.current?.click()} className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
+                    <button type="button" onClick={() => prelimFileInputRef.current?.click()} className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
                     <input ref={prelimFileInputRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "preliminaryPhotoUrl")} className="hidden" />
                 </div>
                 {formData.preliminaryPhotoUrl && (
@@ -450,7 +450,7 @@ function LogMaintenanceModal({
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken During Maintenance</label>
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => progressFileInputRef.current?.click()} className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
+                    <button type="button" onClick={() => progressFileInputRef.current?.click()} className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
                     <input ref={progressFileInputRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "progressPhotoUrl")} className="hidden" />
                 </div>
                 {formData.progressPhotoUrl && (
@@ -490,7 +490,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDeta
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer" title="Back to History Logs">
+          <button onClick={onBack} className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer" title="Back to History Logs">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -934,8 +934,8 @@ export default function MechanicHistoryLogsPage() {
             <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
               <span>Showing {sortedLogs.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, sortedLogs.length)} of {sortedLogs.length} entries</span>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
-                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
+                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
+                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
               </div>
             </div>
           </div>

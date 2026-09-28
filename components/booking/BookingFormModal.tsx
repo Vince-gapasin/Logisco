@@ -518,7 +518,7 @@ function BookingForm({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -609,7 +609,7 @@ function BookingForm({
                 <button
                   type="button"
                   onClick={() => setPickupList((rows) => [...rows, emptyPickup()])}
-                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
                 >
                   <Plus className="w-4 h-4" /> New Pickup
                 </button>
@@ -728,7 +728,7 @@ function BookingForm({
                 <button
                   type="button"
                   onClick={() => setDeliveryList((rows) => [...rows, emptyDelivery()])}
-                  className="inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
                 >
                   <Plus className="w-4 h-4" /> Branch
                 </button>
@@ -1022,7 +1022,7 @@ function BookingForm({
               <button
                 type="button"
                 onClick={() => setConfirmUnassigned(null)}
-                className="min-h-11 px-5 py-2 rounded-xl bg-slate-200 text-sm font-semibold text-slate-800"
+                className="min-h-tap px-5 py-2 rounded-xl bg-slate-200 text-sm font-semibold text-slate-800"
               >
                 Go back
               </button>
@@ -1034,7 +1034,7 @@ function BookingForm({
                   onSubmitSuccess(result);
                   onClose();
                 }}
-                className="min-h-11 px-5 py-2 rounded-xl bg-blue-600 text-sm font-semibold text-white"
+                className="min-h-tap px-5 py-2 rounded-xl bg-blue-600 text-sm font-semibold text-white"
               >
                 Create unassigned booking
               </button>

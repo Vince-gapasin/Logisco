@@ -220,7 +220,7 @@ function ViewOrderModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -650,7 +650,7 @@ const FilterDropdown = ({
                 setValue(opt);
                 setActiveDropdown(null);
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
+              className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
                 value === opt
                   ? "bg-blue-50 text-blue-600 font-medium"
                   : "text-slate-700"
@@ -1178,7 +1178,7 @@ export default function ReportsForecastingPage() {
             role="tab"
             aria-selected={view === id}
             onClick={() => setView(id)}
-            className={`min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+            className={`min-h-tap md:min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
           >
             {title}
           </button>
@@ -1418,7 +1418,7 @@ export default function ReportsForecastingPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Previous
             </button>
@@ -1430,7 +1430,7 @@ export default function ReportsForecastingPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Next
             </button>

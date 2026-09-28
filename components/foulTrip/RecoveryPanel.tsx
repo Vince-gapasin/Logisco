@@ -311,7 +311,7 @@ export default function RecoveryPanel({
               onClick={() => choose(option.id)}
               disabled={!enabled}
               aria-pressed={selected}
-              className={`flex min-h-11 items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+              className={`flex min-h-tap items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
                 selected
                   ? "border-blue-500 bg-blue-50/50 shadow-sm"
                   : enabled
@@ -523,7 +523,7 @@ export default function RecoveryPanel({
               type="button"
               onClick={submit}
               disabled={submitting}
-              className={`inline-flex min-h-11 w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-60 ${
+              className={`inline-flex min-h-tap w-full sm:w-auto items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-60 ${
                 action === "cancel" ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
               }`}
             >

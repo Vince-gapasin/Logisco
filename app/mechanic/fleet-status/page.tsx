@@ -233,7 +233,7 @@ function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
 
         <button
           onClick={onClose}
-          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
           title="Close"
         >
           <X className="w-5 h-5" />
@@ -415,7 +415,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -466,7 +466,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   <button
                     type="button"
                     onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span
                       className={
@@ -491,7 +491,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                             });
                             setIsTypeDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>
@@ -787,7 +787,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -837,7 +837,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                     type="button"
                     disabled={!!preselectedTruckId}
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
                   >
                     <span
                       className={
@@ -876,7 +876,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                             });
                             setIsTruckDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {truck.plateNumber} — {truck.truckType}
                         </button>
@@ -1015,7 +1015,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />{" "}
                   {formData[activeFields.photo]
@@ -1181,7 +1181,7 @@ function LogDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1543,7 +1543,7 @@ function TruckSpecificHistoryView({
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -1625,7 +1625,7 @@ function TruckSpecificHistoryView({
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Previous
             </button>
@@ -1634,7 +1634,7 @@ function TruckSpecificHistoryView({
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Next
             </button>
@@ -1787,7 +1787,7 @@ function TruckDetailView({
         <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1850,7 +1850,7 @@ function TruckDetailView({
               {/* More Actions Dropdown Menu */}
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
+                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
                 title="More Actions"
               >
                 <MoreHorizontal className="w-5 h-5" />
@@ -2761,7 +2761,7 @@ export default function MechanicFleetStatusPage({
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
                 <button
                   onClick={() => setSelectedFilter("All")}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
+                  className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
                 >
                   All ({showArchived ? disabledCount : totalCount})
                 </button>
@@ -2771,31 +2771,31 @@ export default function MechanicFleetStatusPage({
                   <>
                     <button
                       onClick={() => setSelectedFilter("On Maintenance")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}
                     >
                       On Maintenance ({maintenanceCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Available")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}
                     >
                       Available ({operationalCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Already Booked")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
                     >
                       Already Booked ({alreadyBookedCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("On Delivery")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}
                     >
                       On Delivery ({deliveryCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Out of Service")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}
                     >
                       Out of Service ({outOfServiceCount})
                     </button>
@@ -2902,7 +2902,7 @@ export default function MechanicFleetStatusPage({
                     setCurrentPage((prev) => Math.max(prev - 1, 1))
                   }
                   disabled={currentPage === 1}
-                  className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+                  className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
                 >
                   Previous
                 </button>
@@ -2911,7 +2911,7 @@ export default function MechanicFleetStatusPage({
                     setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                   }
                   disabled={currentPage === totalPages || totalPages === 0}
-                  className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+                  className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
                 >
                   Next
                 </button>

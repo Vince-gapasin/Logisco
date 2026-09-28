@@ -279,7 +279,7 @@ export default function FleetLiveTracking() {
                             onClick={() =>
                               setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
                             }
-                            className="mt-0.5 min-h-11 md:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
+                            className="mt-0.5 min-h-tap md:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
                           >
                             {routeFor === record.dispatchID ? "Hide route" : "Show route"}
                           </button>
@@ -300,7 +300,7 @@ export default function FleetLiveTracking() {
                             <button
                               type="button"
                               onClick={() => copyTrackingLink(record.trackingToken as string)}
-                              className="inline-flex items-center gap-1.5 min-h-11 md:min-h-0 text-blue-600 hover:underline"
+                              className="inline-flex items-center gap-1.5 min-h-tap md:min-h-0 text-blue-600 hover:underline"
                             >
                               {copiedToken === record.trackingToken ? (
                                 <Check className="w-3.5 h-3.5 shrink-0" />
@@ -404,7 +404,7 @@ export default function FleetLiveTracking() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || totalPages === 0}
-              className={`px-3 py-1.5 min-h-11 sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
+              className={`px-3 py-1.5 min-h-tap sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === 1 || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"
@@ -418,7 +418,7 @@ export default function FleetLiveTracking() {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 min-h-11 sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
+              className={`px-3 py-1.5 min-h-tap sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === totalPages || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"

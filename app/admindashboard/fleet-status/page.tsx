@@ -221,7 +221,7 @@ function TruckModal({
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -273,7 +273,7 @@ function TruckModal({
                   <button
                     type="button"
                     onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 min-h-11 sm:min-h-0 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`w-full bg-white border rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span className={formData.truckType ? "text-black" : "text-slate-400"}>
                       {formData.truckType || "Select truck type"}
@@ -292,7 +292,7 @@ function TruckModal({
                             handleInputChange({ target: { name: "truckType", value: opt } });
                             setIsTypeDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 min-h-11 sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`w-full text-left px-3 py-2 min-h-tap sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>
@@ -321,7 +321,7 @@ function TruckModal({
                   <button
                     type="button"
                     onClick={() => setIsFuelDropdownOpen(!isFuelDropdownOpen)}
-                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 min-h-11 sm:min-h-0 text-xs font-normal text-black flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all"
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal text-black flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all"
                   >
                     <span className={selectedFuelName ? "text-black" : "text-slate-400"}>
                       {selectedFuelName || "Select fuel type"}
@@ -340,7 +340,7 @@ function TruckModal({
                             handleInputChange({ target: { name: "fuelTypeID", value: fuel.fuelTypeID } });
                             setIsFuelDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 min-h-11 sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.fuelTypeID === fuel.fuelTypeID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`w-full text-left px-3 py-2 min-h-tap sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.fuelTypeID === fuel.fuelTypeID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {fuel.name}
                         </button>
@@ -463,7 +463,7 @@ function TruckDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -869,7 +869,7 @@ export default function FleetStatusPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || isLoading}
-              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Previous
             </button>
@@ -883,7 +883,7 @@ export default function FleetStatusPage() {
               disabled={
                 currentPage === totalPages || totalPages === 0 || isLoading
               }
-              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Next
             </button>

@@ -175,7 +175,7 @@ function BookingDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -391,7 +391,7 @@ export default function InTransitFeedPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/admindashboard/dashboard")}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -569,7 +569,7 @@ export default function InTransitFeedPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage <= 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -585,7 +585,7 @@ export default function InTransitFeedPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage >= totalPages}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"

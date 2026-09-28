@@ -247,7 +247,7 @@ function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderID }: Su
                 type="button"
                 onClick={emailTrackingLink}
                 disabled={!orderID || emailState.status === "sending"}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
+                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
               >
                 {emailState.status === "sending" ? "Sending…" : "Email it to the client"}
               </button>
@@ -468,7 +468,7 @@ function ViewOrderModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -880,7 +880,7 @@ function ClientSearchModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center max-h-[90dvh]">
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -920,7 +920,7 @@ function ClientSearchModal({
                       <td className="w-20 text-center border-l border-slate-200">
                         <button
                           onClick={() => onSelectClient(client.clientID ?? "")}
-                          className="text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
+                          className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
                         >
                           Select
                         </button>
@@ -969,7 +969,7 @@ function KPIGrid({
           <button
             key={tab.name}
             onClick={() => onNavigate(tab.name)}
-            className="p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
+            className="min-h-tap md:min-h-0 p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
             title={tab.name}
           >
             <div
@@ -1881,7 +1881,7 @@ export default function AdminDashboardPage() {
                         setIsCrewDropdownOpen(!isCrewDropdownOpen);
                         setIsClientDropdownOpen(false);
                       }}
-                      className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">{selectedCrewLabel}</span>
                       <ChevronDown
@@ -1983,7 +1983,7 @@ export default function AdminDashboardPage() {
                         setIsClientDropdownOpen(!isClientDropdownOpen);
                         setIsCrewDropdownOpen(false);
                       }}
-                      className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">
                         {selectedClientLabel}
@@ -2095,7 +2095,7 @@ export default function AdminDashboardPage() {
                     setIsCrewDropdownOpen(false);
                     setIsClientDropdownOpen(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Clear Filters
                 </button>
@@ -2105,7 +2105,7 @@ export default function AdminDashboardPage() {
                     setIsClientDropdownOpen(false);
                     setIsFilterOpen(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Apply Filters
                 </button>

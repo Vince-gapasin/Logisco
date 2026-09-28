@@ -38,7 +38,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
+            className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
             aria-label="Open Menu"
           >
             <Menu className="w-5 h-5 md:w-6 md:h-6" />

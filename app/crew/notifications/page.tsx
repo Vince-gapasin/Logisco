@@ -91,7 +91,7 @@ export default function CrewNotificationsPage() {
         {anyUnread && (
           <button
             onClick={handleMarkAllAsRead}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
+            className="min-h-tap md:min-h-0 flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
           >
             <Check className="w-4 h-4" />
             Mark all as read
@@ -174,7 +174,7 @@ export default function CrewNotificationsPage() {
                   <div className="flex items-center sm:pl-4 sm:pr-2 sm:border-l border-slate-100 pt-3 sm:pt-0 border-t sm:border-t-0 mt-3 sm:mt-0 shrink-0">
                     <button
                       onClick={() => handleMarkAsRead(notif.id)}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors w-full sm:w-auto"
+                      className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors w-full sm:w-auto"
                     >
                       Mark as read
                     </button>

@@ -83,7 +83,7 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
         {/* X Close Button */}
         <button
           onClick={() => setIsOpen(false)}
-          className="absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
           aria-label="Close Menu"
         >
           <X className="w-5 h-5" />

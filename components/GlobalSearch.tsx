@@ -288,7 +288,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => go(result)}
                       onMouseMove={() => active !== index && setActive(index)}
-                      className={`mx-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 ${
+                      className={`mx-1 flex min-h-tap cursor-pointer items-center gap-3 rounded-lg px-2 py-2 ${
                         selected ? "bg-blue-50" : "hover:bg-slate-50"
                       }`}
                     >

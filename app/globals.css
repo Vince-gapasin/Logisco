@@ -16,6 +16,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* The smallest a thing you tap is allowed to be, as min-h-tap / min-w-tap.
+     48dp, which is what Android asks for. The design pass used 11 (44px)
+     throughout, which is Apple's number - and there is no iOS build here, only
+     android/, so the floor was set to the wrong platform's figure and every
+     control in the app was 4px short of its actual target.
+     Named rather than written as min-h-12 at each of seventy-odd call sites,
+     because the next time this number is questioned it should be one edit. */
+  --spacing-tap: 3rem;
 }
 
 body {

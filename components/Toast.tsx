@@ -167,7 +167,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               onClick={dismiss}
               aria-label="Dismiss"
               // Full 48dp, because on an error this is the only way out.
-              className="shrink-0 min-w-12 min-h-12 -my-3 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-colors"
+              className="shrink-0 min-w-tap min-h-tap -my-3 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-white transition-colors"
             >
               <svg
                 className="w-4 h-4"

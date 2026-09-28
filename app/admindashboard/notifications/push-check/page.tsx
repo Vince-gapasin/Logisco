@@ -146,7 +146,7 @@ export default function PushCheckPage() {
                       <button
                         onClick={() => void sendTest(device)}
                         disabled={sending === device.employeeID}
-                        className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors disabled:opacity-60"
+                        className="min-h-tap md:min-h-0 inline-flex items-center justify-center shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors disabled:opacity-60"
                       >
                         {sending === device.employeeID ? "Sending…" : "Send test"}
                       </button>

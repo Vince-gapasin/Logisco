@@ -108,7 +108,7 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
           type="button"
           onClick={() => setDismissed(true)}
           aria-label="Dismiss"
-          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 shrink-0"
+          className="min-h-tap md:min-h-0 inline-flex items-center justify-center p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 shrink-0"
         >
           <X className="w-4 h-4" />
         </button>

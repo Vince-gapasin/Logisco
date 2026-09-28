@@ -222,7 +222,7 @@ export default function CalendarPage() {
       onClick={() => openEvent(event)}
       style={{ top: `${event.topPx}px` }}
       title={`${event.orderId} - ${event.clientName} (${event.stage})`}
-      className={`absolute left-1 right-1 z-10 rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
+      className={`min-h-tap md:min-h-0 inline-flex items-center justify-start absolute left-1 right-1 z-10 rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
         STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
       }`}
     >
@@ -258,7 +258,7 @@ export default function CalendarPage() {
           <span className="font-bold text-slate-900">Calendar Menu</span>
           <button
             onClick={() => setIsMiniSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-gray-100"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:bg-gray-100"
             aria-label="Close Calendar Menu"
           >
             <X size={20} />
@@ -273,14 +273,14 @@ export default function CalendarPage() {
               <button
                 aria-label="Previous Month"
                 onClick={() => setWeekStart((current) => addDays(current, -28))}
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 aria-label="Next Month"
                 onClick={() => setWeekStart((current) => addDays(current, 28))}
-                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronRight size={16} />
               </button>
@@ -313,7 +313,7 @@ export default function CalendarPage() {
                     setSelectedDayIndex((date.getDay() + 6) % 7);
                     setIsMiniSidebarOpen(false);
                   }}
-                  className={`p-1.5 cursor-pointer rounded-full transition-colors relative ${
+                  className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
                     iso === todayIso
                       ? "bg-blue-600 text-white font-semibold shadow-sm"
                       : isInWeek
@@ -392,7 +392,7 @@ export default function CalendarPage() {
             {/* Mobile trigger button to open the mini-calendar drawer */}
             <button
               onClick={() => setIsMiniSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 -ml-2 rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
               aria-label="Open Calendar Menu"
             >
               <Menu size={20} />
@@ -408,20 +408,20 @@ export default function CalendarPage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setWeekStart((current) => addDays(current, -7))}
-              className="p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
               aria-label="Previous week"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={goToToday}
-              className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
             >
               Today
             </button>
             <button
               onClick={() => setWeekStart((current) => addDays(current, 7))}
-              className="p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
               aria-label="Next week"
             >
               <ChevronRight size={16} />
@@ -441,7 +441,7 @@ export default function CalendarPage() {
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
             <button
               onClick={handlePrevDay}
-              className="p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
               aria-label="Previous Day"
             >
               <ChevronLeft size={18} />
@@ -454,7 +454,7 @@ export default function CalendarPage() {
             </div>
             <button
               onClick={handleNextDay}
-              className="p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
               aria-label="Next Day"
             >
               <ChevronRight size={18} />

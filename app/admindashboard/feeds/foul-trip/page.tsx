@@ -211,7 +211,7 @@ export default function FoulTripFeedPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/admindashboard/dashboard")}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -446,7 +446,7 @@ export default function FoulTripFeedPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage <= 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -462,7 +462,7 @@ export default function FoulTripFeedPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage >= totalPages}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -499,7 +499,7 @@ export default function FoulTripFeedPage() {
                   type="button"
                   onClick={() => closeIssue(issue)}
                   disabled={closing === issue.incidentID}
-                  className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                  className="min-h-tap sm:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
                 >
                   {closing === issue.incidentID ? "Saving…" : "Close"}
                 </button>
@@ -539,7 +539,7 @@ export default function FoulTripFeedPage() {
                     <button
                       type="button"
                       onClick={() => setPartnerTripID(partnerTrip!.dispatchID)}
-                      className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap"
+                      className="min-h-tap sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap"
                     >
                       Update partner trip
                     </button>
