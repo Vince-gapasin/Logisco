@@ -1411,11 +1411,33 @@ export default function CrewDashboardPage({
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-3 sm:p-4 px-4 sm:px-8 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2 w-full overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
-                <button onClick={() => setSelectedFilter("Active")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Truck className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Active ({activeCount})</span></button>
-                <button onClick={() => setSelectedFilter("Assigned")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}><Clock className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Assigned ({unconfirmedCount})</span></button>
-                <button onClick={() => setSelectedFilter("Completed")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Archive className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">History ({completedCount})</span></button>
+            {/* Three equal columns rather than a scrolling strip: on a phone
+                all three filters have to be reachable without swiping, since a
+                driver is using this one-handed in a cab. Each keeps a 44px tap
+                target on mobile and relaxes to the normal size from sm up. */}
+            <div className="p-2 sm:p-4 border-b border-slate-100 w-full">
+              <div className="grid grid-cols-3 gap-1 sm:gap-2 w-full">
+                <button
+                  onClick={() => setSelectedFilter("Active")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                >
+                  <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Active ({activeCount})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("Assigned")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}
+                >
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Assigned ({unconfirmedCount})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("Completed")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-11 sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                >
+                  <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">History ({completedCount})</span>
+                </button>
               </div>
             </div>
 
@@ -1446,7 +1468,11 @@ export default function CrewDashboardPage({
                         <td className="py-3 pr-4 sm:pr-8 md:pr-16 pl-2 align-top w-1/3">
                           <div className="flex flex-col items-end justify-start gap-1 h-full">
                             <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700 transition-colors text-right whitespace-nowrap"><Eye className="w-3.5 h-3.5 shrink-0" /><span>Click to View</span></div>
-                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${getStatusBadgeClass(delivery.status)}`}>
+                            {/* The longest of these is "Products Loaded -
+                                Delivering", which will not fit on one line in a
+                                third of a phone screen. It wraps rather than
+                                being cut off or forcing the row sideways. */}
+                            <span className={`inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
                               {getDisplayStatus(delivery)}
                             </span>
                           </div>

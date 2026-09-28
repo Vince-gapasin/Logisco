@@ -17,6 +17,7 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 
 import type {
@@ -109,6 +110,25 @@ function TruckModal({
 
   const [formData, setFormData] = useState(initialTruckState);
   const [fuelTypes, setFuelTypes] = useState<{ fuelTypeID: string; name: string; unit: string }[]>([]);
+  const TRUCK_TYPES = [
+    "Closed Van",
+    "Wing Van",
+    "Dry Van",
+    "Refrigerated Truck",
+    "Boom Truck",
+    "Flatbed Truck",
+    "Dump Truck",
+    "Trailer Truck",
+    "Tanker Truck",
+    "Pickup Truck",
+    "Others",
+  ];
+
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [isFuelDropdownOpen, setIsFuelDropdownOpen] = useState(false);
+
+  // The button shows the chosen fuel by name; the form still stores its id.
+  const selectedFuelName = fuelTypes.find((fuel) => fuel.fuelTypeID === formData.fuelTypeID)?.name ?? "";
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -152,7 +172,9 @@ function TruckModal({
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e:
+      | React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+      | { target: { name: string; value: string } },
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -234,31 +256,50 @@ function TruckModal({
                 )}
               </div>
 
+              {/* Both of these are the dropdown the mechanic fleet screen
+                  already uses: a button and a panel rather than a native
+                  select, so the two fleet forms look and behave alike. */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Type of Truck *
                 </label>
-                <select
-                  name="truckType"
-                  value={formData.truckType}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
+                <div
+                  className={`relative w-full ${isTypeDropdownOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select truck type
-                  </option>
-                  <option value="Closed Van">Closed Van</option>
-                  <option value="Wing Van">Wing Van</option>
-                  <option value="Dry Van">Dry Van</option>
-                  <option value="Refrigerated Truck">Refrigerated Truck</option>
-                  <option value="Boom Truck">Boom Truck</option>
-                  <option value="Flatbed Truck">Flatbed Truck</option>
-                  <option value="Dump Truck">Dump Truck</option>
-                  <option value="Trailer Truck">Trailer Truck</option>
-                  <option value="Tanker Truck">Tanker Truck</option>
-                  <option value="Pickup Truck">Pickup Truck</option>
-                  <option value="Others">Others</option>
-                </select>
+                  {isTypeDropdownOpen && (
+                    <div className="fixed inset-0 z-40" onClick={() => setIsTypeDropdownOpen(false)} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                    className={`w-full bg-white border rounded-md px-3 py-2 min-h-11 sm:min-h-0 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                  >
+                    <span className={formData.truckType ? "text-black" : "text-slate-400"}>
+                      {formData.truckType || "Select truck type"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${isTypeDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isTypeDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {TRUCK_TYPES.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({ target: { name: "truckType", value: opt } });
+                            setIsTypeDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 min-h-11 sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {errors.truckType && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.truckType}
@@ -270,21 +311,43 @@ function TruckModal({
                 <label className="block text-xs font-medium text-black mb-1">
                   Fuel Type
                 </label>
-                <select
-                  name="fuelTypeID"
-                  value={formData.fuelTypeID}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
+                <div
+                  className={`relative w-full ${isFuelDropdownOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select fuel type
-                  </option>
-                  {fuelTypes.map((fuel) => (
-                    <option key={fuel.fuelTypeID} value={fuel.fuelTypeID}>
-                      {fuel.name}
-                    </option>
-                  ))}
-                </select>
+                  {isFuelDropdownOpen && (
+                    <div className="fixed inset-0 z-40" onClick={() => setIsFuelDropdownOpen(false)} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsFuelDropdownOpen(!isFuelDropdownOpen)}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 min-h-11 sm:min-h-0 text-xs font-normal text-black flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all"
+                  >
+                    <span className={selectedFuelName ? "text-black" : "text-slate-400"}>
+                      {selectedFuelName || "Select fuel type"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${isFuelDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isFuelDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {fuelTypes.map((fuel) => (
+                        <button
+                          key={fuel.fuelTypeID}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({ target: { name: "fuelTypeID", value: fuel.fuelTypeID } });
+                            setIsFuelDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 min-h-11 sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.fuelTypeID === fuel.fuelTypeID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        >
+                          {fuel.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

@@ -237,9 +237,12 @@ export default function FleetLiveTracking() {
 
       {/* Main Content Container Card */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-150">
-            <thead>
+        {/* On a phone each row becomes its own card of label/value pairs; from
+            md up it is an ordinary table. One set of markup, one set of data -
+            the layout switches rather than a second copy of the list existing. */}
+        <div className="overflow-x-auto px-4 sm:px-6 md:px-0">
+          <table className="w-full text-left border-collapse md:table-fixed my-2 block md:table">
+            <thead className="hidden md:table-header-group">
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th className="py-3.5 px-4 sm:px-6">Order ID</th>
                 <th className="py-3.5 px-4 sm:px-6">Truck</th>
@@ -248,7 +251,7 @@ export default function FleetLiveTracking() {
                 <th className="py-3.5 px-4 sm:px-6">Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block md:table-row-group md:divide-y md:divide-slate-100">
               {currentRecords.length > 0 ? (
                 currentRecords.map((record) => {
                   const hasFix = record.latitude !== null && record.longitude !== null;
@@ -256,99 +259,122 @@ export default function FleetLiveTracking() {
                   return (
                     <tr
                       key={record.dispatchID}
-                      className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                      className="block md:table-row bg-white border border-slate-200 md:border-none rounded-xl md:rounded-none mb-4 md:mb-0 hover:bg-slate-50/50 transition-colors shadow-sm md:shadow-none overflow-hidden"
                     >
-                      <td className="py-4 px-4 sm:px-6 text-sm text-slate-900 font-medium">
-                        {record.orderId}
+                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                        <span className="md:hidden text-xs font-semibold text-slate-500">Order ID</span>
+                        <div className="text-right md:text-left text-sm wrap-break-word">
+                          <span className="font-bold text-blue-700 bg-blue-100 md:bg-transparent md:font-medium md:text-slate-900 px-2.5 md:px-0 py-1 md:py-0 rounded-md inline-block">
+                            {record.orderId}
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-4 px-4 sm:px-6 text-sm text-slate-600">
-                        <span className="block">{record.truck}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
-                          }
-                          className="mt-0.5 text-xs font-medium text-blue-600 hover:underline"
-                        >
-                          {routeFor === record.dispatchID ? "Hide route" : "Show route"}
-                        </button>
-                      </td>
-                      <td className="py-4 px-4 sm:px-6 text-sm text-slate-600">
-                        {record.client}
-                      </td>
-                      <td className="py-4 px-4 sm:px-6 text-sm">
-                        {record.trackingToken ? (
+
+                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                        <span className="md:hidden text-xs font-semibold text-slate-500">Truck</span>
+                        <div className="text-right md:text-left text-sm text-slate-600 wrap-break-word">
+                          <span className="block">{record.truck}</span>
                           <button
                             type="button"
-                            onClick={() => copyTrackingLink(record.trackingToken as string)}
-                            className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"
+                            onClick={() =>
+                              setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
+                            }
+                            className="mt-0.5 min-h-11 md:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
                           >
-                            {copiedToken === record.trackingToken ? (
-                              <Check className="w-3.5 h-3.5" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                            {copiedToken === record.trackingToken ? "Copied" : "Copy client link"}
+                            {routeFor === record.dispatchID ? "Hide route" : "Show route"}
                           </button>
-                        ) : (
-                          <span className="text-slate-400">No link</span>
-                        )}
-                        {hasFix && (
-                          <a
-                            href={`https://www.google.com/maps?q=${record.latitude},${record.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-xs text-slate-500 hover:underline mt-0.5"
-                          >
-                            Open in Google Maps
-                          </a>
-                        )}
+                        </div>
                       </td>
-                      <td className="py-4 px-4 sm:px-6 text-sm text-slate-600">
-                        {record.status}
-                        <span className="block text-xs text-slate-400 mt-0.5">
-                          {formatLastSeen(record.lastUpdated, loadedAt)}
-                        </span>
-                        {silence && (
-                          <span
-                            className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs sm:text-[11px] font-semibold ${
-                              // A trip nobody closed is a tidying job, not an
-                              // alarm, so it gets its own quiet styling rather
-                              // than the grey that used to make the stalest
-                              // trip on the board look like the calmest.
-                              silence.reason === "left open"
-                                ? "bg-slate-200 text-slate-700"
-                                : (silence.threshold ?? 0) >= 45
-                                  ? "bg-red-100 text-red-700"
-                                  : (silence.threshold ?? 0) >= 30
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            <AlertTriangle className="h-3 w-3" />
-                            {silence.reason === "left open"
-                              ? `Left open - ${describeSilence(silence.silentFor)}`
-                              : `Quiet ${describeSilence(silence.silentFor)}`}
+
+                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                        <span className="md:hidden text-xs font-semibold text-slate-500">Client</span>
+                        <div className="text-right md:text-left text-sm text-slate-600 wrap-break-word">
+                          {record.client}
+                        </div>
+                      </td>
+
+                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle border-b md:border-none border-slate-100">
+                        <span className="md:hidden text-xs font-semibold text-slate-500">Tracking Link</span>
+                        <div className="flex flex-col items-end md:items-start text-right md:text-left text-sm wrap-break-word">
+                          {record.trackingToken ? (
+                            <button
+                              type="button"
+                              onClick={() => copyTrackingLink(record.trackingToken as string)}
+                              className="inline-flex items-center gap-1.5 min-h-11 md:min-h-0 text-blue-600 hover:underline"
+                            >
+                              {copiedToken === record.trackingToken ? (
+                                <Check className="w-3.5 h-3.5 shrink-0" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              {copiedToken === record.trackingToken ? "Copied" : "Copy client link"}
+                            </button>
+                          ) : (
+                            <span className="text-slate-400">No link</span>
+                          )}
+                          {hasFix && (
+                            <a
+                              href={`https://www.google.com/maps?q=${record.latitude},${record.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-xs text-slate-500 hover:underline mt-0.5"
+                            >
+                              Open in Google Maps
+                            </a>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-3 md:py-4 px-4 sm:px-6 w-full md:w-auto align-middle">
+                        <span className="md:hidden text-xs font-semibold text-slate-500 text-left">Status</span>
+                        <div className="flex flex-col items-end md:items-start text-right md:text-left text-sm text-slate-600 wrap-break-word">
+                          <span>{record.status}</span>
+                          <span className="block text-xs text-slate-400 mt-0.5">
+                            {formatLastSeen(record.lastUpdated, loadedAt)}
                           </span>
-                        )}
-                        {/* What the crew said, so nobody rings a driver who has
-                            already told us they are on their break. */}
-                        {silence?.checkIn && (
-                          <span
-                            className={`mt-1 block text-xs ${
-                              silence.reason === "crew asked for help" ? "font-semibold text-red-700" : "text-slate-500"
-                            }`}
-                          >
-                            Crew: {CHECK_IN_LABELS[silence.checkIn.state]}
-                          </span>
-                        )}
+                          {silence && (
+                            <span
+                              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold ${
+                                // A trip nobody closed is a tidying job, not an
+                                // alarm, so it gets its own quiet styling rather
+                                // than the grey that used to make the stalest
+                                // trip on the board look like the calmest.
+                                silence.reason === "left open"
+                                  ? "bg-slate-200 text-slate-700"
+                                  : (silence.threshold ?? 0) >= 45
+                                    ? "bg-red-100 text-red-700"
+                                    : (silence.threshold ?? 0) >= 30
+                                      ? "bg-amber-100 text-amber-800"
+                                      : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              {silence.reason === "left open"
+                                ? `Left open - ${describeSilence(silence.silentFor)}`
+                                : `Quiet ${describeSilence(silence.silentFor)}`}
+                            </span>
+                          )}
+                          {/* What the crew said, so nobody rings a driver who has
+                              already told us they are on their break. */}
+                          {silence?.checkIn && (
+                            <span
+                              className={`mt-1 block text-xs ${
+                                silence.reason === "crew asked for help"
+                                  ? "font-semibold text-red-700"
+                                  : "text-slate-500"
+                              }`}
+                            >
+                              Crew: {CHECK_IN_LABELS[silence.checkIn.state]}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })
               ) : (
-                <tr>
-                  <td colSpan={5} className="py-16 sm:py-20 text-center">
+                <tr className="block md:table-row">
+                  <td colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center w-full">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3 shadow-inner">
                         <FileText className="w-6 h-6" />
@@ -369,17 +395,16 @@ export default function FleetLiveTracking() {
         </div>
 
         {/* Pagination Footer */}
-        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
-          <span>
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:grid sm:grid-cols-3 gap-3 items-center text-xs text-slate-700 bg-white">
+          <div className="w-full text-center sm:text-left">
             Showing {filteredList.length === 0 ? 0 : startIndex + 1} to{" "}
-            {Math.min(endIndex, filteredList.length)} of {filteredList.length}{" "}
-            entries
-          </span>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {Math.min(endIndex, filteredList.length)} of {filteredList.length} entries
+          </div>
+          <div className="flex items-center justify-center gap-2 w-full">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors w-full sm:w-auto text-center ${
+              className={`px-3 py-1.5 min-h-11 sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === 1 || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"
@@ -387,10 +412,13 @@ export default function FleetLiveTracking() {
             >
               Previous
             </button>
+            <span className="mx-2 whitespace-nowrap">
+              Page {currentPage} of {totalPages === 0 ? 1 : totalPages}
+            </span>
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors w-full sm:w-auto text-center ${
+              className={`px-3 py-1.5 min-h-11 sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === totalPages || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"
@@ -399,6 +427,8 @@ export default function FleetLiveTracking() {
               Next
             </button>
           </div>
+          {/* Balances the grid so the buttons sit centred from sm up. */}
+          <div className="hidden sm:block" />
         </div>
       </div>
     </div>
