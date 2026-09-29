@@ -1,5 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
-import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
+import { ACCEPTED_ONWARDS, DELIVERY_STATUS, ON_THE_ROAD_ONWARDS, STOP_STATUS } from "@/app/lib/enums";
 import { formatDateTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
 import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
@@ -189,8 +189,12 @@ function buildSteps(
   pickupProgressAt: string | null = null,
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
-  const accepted = ["Accepted", "In Transit", "Completed"].includes(dispatchStatus ?? "");
-  const inTransit = ["In Transit", "Completed"].includes(dispatchStatus ?? "");
+  // Named status lists, not literals. These used to be spelled out here, so
+  // adding Arrived and In Warehouse to the system silently regressed this page:
+  // a truck standing at the customer's own delivery point was reported to them
+  // as "waiting for the driver to confirm" and "the trip has not started yet".
+  const accepted = ACCEPTED_ONWARDS.includes(dispatchStatus ?? "");
+  const inTransit = ON_THE_ROAD_ONWARDS.includes(dispatchStatus ?? "");
   const isFoulTrip = dispatchStatus === "Foul Trip";
 
   const steps: TrackingStep[] = [
@@ -292,10 +296,16 @@ function buildSteps(
     ...stops.map((stop) => stop.deliveredAt),
   );
 
+  // Collected rather than appended, and put back in time order below. Appending
+  // them after every stop meant a problem resolved at 7:18 sat underneath an
+  // arrival at 7:19 and read as the newer of the two - and the page picks its
+  // "Latest" card by reading the list from the bottom.
+  const interjections: TrackingStep[] = [];
+
   if (!isCompleted) {
     for (const update of [...heldUp].reverse()) {
       if (progressAt && new Date(update.at) <= new Date(progressAt)) continue;
-      steps.push({
+      interjections.push({
         title: update.wording,
         detail: "The delivery is carrying on.",
         stage: "current",
@@ -313,7 +323,7 @@ function buildSteps(
     // already told about it - disappearing would read worse than resolving.
     const sorted = !problem.blocking && problem.resolvedAt !== null;
 
-    steps.push({
+    interjections.push({
       title: sorted
         ? `Resolved: ${problem.issueType}`
         : problem.blocking
@@ -328,6 +338,20 @@ function buildSteps(
       kind: sorted ? "completed" : "problem",
       at: sorted ? problem.resolvedAt : problem.reportedAt,
     });
+  }
+
+  // Back into the timeline where each of them happened: after the last thing
+  // already on it that is no later. A step with no time yet is something still
+  // to come, so anything that has actually happened belongs above it.
+  for (const step of interjections) {
+    const at = step.at ? new Date(step.at).getTime() : Number.MAX_SAFE_INTEGER;
+    let index = steps.length;
+    while (index > 0) {
+      const previous = steps[index - 1].at;
+      if (previous && new Date(previous).getTime() <= at) break;
+      index -= 1;
+    }
+    steps.splice(index, 0, step);
   }
 
   // A reported problem above already says the trip stopped, and why.
@@ -657,7 +681,8 @@ export async function getTrackingByToken(
   // A partner carrier has no app, so there is no live position to show.
   else if (dispatch?.subConID && dispatch.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit with our partner carrier";
   else if (dispatch?.subConID) deliveryStatus = "Handed to our partner carrier";
-  else if (dispatch?.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit";
+  else if (dispatch?.status === DELIVERY_STATUS.arrived) deliveryStatus = "Crew at the stop";
+  else if (ON_THE_ROAD_ONWARDS.includes(dispatch?.status ?? "")) deliveryStatus = "In transit";
   else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";
   else if (dispatch?.status) deliveryStatus = "Crew assigned";
 

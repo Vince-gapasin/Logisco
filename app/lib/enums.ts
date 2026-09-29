@@ -103,6 +103,22 @@ export const ACCEPTED_ONWARDS: string[] = [
   DELIVERY_STATUS.returned,
 ];
 
+// The truck has left base. Every one of these means the trip is under way -
+// Start Delivery does not, because nothing has set off yet.
+//
+// The customer's timeline used to test for "In Transit" by name, so the day
+// Arrived and In Warehouse were introduced a truck standing at the delivery
+// point read on the tracking page as a trip that had not started and a driver
+// who had not confirmed.
+export const ON_THE_ROAD_ONWARDS: string[] = [
+  DELIVERY_STATUS.inWarehouse,
+  DELIVERY_STATUS.inTransit,
+  DELIVERY_STATUS.arrived,
+  DELIVERY_STATUS.delivered,
+  DELIVERY_STATUS.completed,
+  DELIVERY_STATUS.returned,
+];
+
 // ==========================================
 // helper_status  (DispatchHelper.status)
 // ==========================================

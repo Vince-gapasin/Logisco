@@ -194,3 +194,70 @@ describe("a hold-up the crew have since driven out of", () => {
     expect(steps.some((step) => step.title === "Held up in traffic")).toBe(true);
   });
 });
+
+describe("what the customer's page calls the current state", () => {
+  const stop = (over: Record<string, unknown> = {}) => ({
+    branchID: 1,
+    branchName: "Makati",
+    expectedTime: null,
+    status: "Arrived",
+    latitude: null,
+    longitude: null,
+    arrivedAt: "2026-09-30T07:19:00.000Z",
+    deliveredAt: null,
+    receivedBy: null,
+    ...over,
+  });
+
+  // How the page itself picks its "Latest" card: the last problem or current
+  // step, reading the list from the bottom.
+  const latestOf = (steps: { stage: string; title: string }[]) =>
+    [...steps].reverse().find((step) => step.stage === "problem" || step.stage === "current");
+
+  it("does not call a truck standing at the stop an unconfirmed trip", () => {
+    // Arrived and In Warehouse were added to the system after this page tested
+    // for "In Transit" by name, so a crew at the customer's own delivery point
+    // were reported to them as a driver who had not confirmed.
+    const steps = buildTrackingSteps("Arrived", [stop()], false);
+
+    const confirmed = steps.find((step) => step.title === "Driver confirmed");
+    expect(confirmed?.stage).toBe("completed");
+    const road = steps.find((step) => step.title === "On the road");
+    expect(road?.stage).toBe("completed");
+    expect(latestOf(steps)?.title).toBe("Arrived at Makati");
+  });
+
+  it("treats a trip loading at a warehouse as under way too", () => {
+    const steps = buildTrackingSteps("In Warehouse", [stop({ arrivedAt: null, status: "Pending" })], false);
+    expect(steps.find((step) => step.title === "On the road")?.stage).toBe("completed");
+  });
+
+  it("still waits on a driver who genuinely has not confirmed", () => {
+    const steps = buildTrackingSteps("Assigned", [stop({ arrivedAt: null, status: "Pending" })], false);
+    expect(steps.find((step) => step.title === "Driver confirmed")?.stage).toBe("current");
+  });
+
+  it("puts a resolved problem before an arrival that came after it", () => {
+    const steps = buildTrackingSteps(
+      "Arrived",
+      [stop()],
+      false,
+      [
+        {
+          issueType: "Wrong product collected",
+          reportedAt: "2026-09-30T06:00:00.000Z",
+          blocking: false,
+          resolvedAt: "2026-09-30T07:18:00.000Z",
+        },
+      ],
+      new Map([["departed", "2026-09-30T05:00:00.000Z"]]),
+    );
+
+    const titles = steps.map((step) => step.title);
+    expect(titles.indexOf("Resolved: Wrong product collected")).toBeLessThan(
+      titles.indexOf("Arrived at Makati"),
+    );
+    // And the newest thing is what the Latest card shows.
+    expect(latestOf(steps)?.title).toBe("Arrived at Makati");
+  });
+});
