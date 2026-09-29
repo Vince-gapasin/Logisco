@@ -35,7 +35,7 @@ import {
   Truck,
   X,
   Clock,
-  Trash2,
+  ShieldAlert,
 } from "lucide-react";
 
 // ==========================================
@@ -84,7 +84,6 @@ function BookingDetailsModal({
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [pickupList, setPickupList] = useState<FeedStopRow[]>([]);
   const [deliveryList, setDeliveryList] = useState<FeedStopRow[]>([]);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // The form is seeded from the booking this was opened with. That is a
   // synchronous setState in an effect, which the rule is right to notice and
@@ -92,7 +91,6 @@ function BookingDetailsModal({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isOpen && booking) {
-      setShowCancelConfirm(false);
 
       setFormData({
         clientName: booking.clientName || "",
@@ -248,7 +246,21 @@ function BookingDetailsModal({
         </div>
 
         {/* FIXED FOOTER */}
-        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row sm:justify-between gap-3 sm:gap-4 bg-slate-50">
+          {/* The office ending this itself: cancel it, declare the foul trip the
+              crew never reported, or close a delivery they finished and drove
+              away from. On the left and in plain colours, because it is a thing
+              you reach for when something has gone wrong rather than a thing you
+              press on the way past. */}
+          <button
+            type="button"
+            onClick={(event) => onCancelBooking(event, booking.id)}
+            className="w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2.5 inline-flex items-center justify-center gap-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-xl text-sm shadow-sm transition-colors cursor-pointer"
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            End this booking
+          </button>
+
           <button
             type="button"
             onClick={onClose}
@@ -258,42 +270,12 @@ function BookingDetailsModal({
           </button>
         </div>
 
-        {/* Cancel Confirmation Modal Overlay */}
-        {showCancelConfirm && (
-          <div className="absolute inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in rounded-2xl">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm p-6 text-center">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                Cancel Booking?
-              </h3>
-              <p className="text-sm text-slate-600 mb-6 px-2">
-                Are you sure you want to cancel this booking? This action cannot
-                be undone.
-              </p>
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-                >
-                  No, Keep It
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setShowCancelConfirm(false);
-                    onCancelBooking(e, booking.id);
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
-                >
-                  Yes, Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* The cancel confirmation that used to sit here is gone. Nothing
+            ever set showCancelConfirm to true, so it could not be opened -
+            and what it confirmed, a cancel through the ordinary path, is
+            refused for every booking on this feed anyway. Ending a booking
+            from the office goes through BookingOverrideModal now, which has
+            its own confirmation and asks for a reason. */}
       </div>
     </div>
   );
