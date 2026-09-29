@@ -27,6 +27,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import ListLoadError from "@/components/ListLoadError";
+import BookingOverrideModal from "@/components/booking/BookingOverrideModal";
 import {
   Search,
   FileText,
@@ -338,6 +339,8 @@ export default function InTransitFeedPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<FeedBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  /** The booking the office is ending itself, if any. */
+  const [overrideFor, setOverrideFor] = useState<string | null>(null);
 
   // ==========================================
   // FILTERING
@@ -368,18 +371,19 @@ export default function InTransitFeedPage() {
     setIsModalOpen(true);
   };
 
-  const handleCancelBooking = async (e: React.MouseEvent, bookingId: string) => {
+  /**
+   * Opens the office override.
+   *
+   * This used to PATCH /api/bookings/[id] with action cancel, which
+   * cancelBooking refuses once the cargo is moving - and every booking on this
+   * feed is moving by definition, so the button could never have worked. The
+   * override is what it was reaching for: cancel it anyway, declare the foul trip
+   * the crew never reported, or close a delivery they finished and drove away
+   * from.
+   */
+  const handleCancelBooking = (e: React.MouseEvent, bookingId: string) => {
     e.stopPropagation();
-
-    try {
-      await apiFetch(`/api/bookings/${bookingId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ action: "cancel" }),
-      });
-      await loadBookings();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Failed to cancel booking.", "error");
-    }
+    setOverrideFor(bookingId);
   };
 
   return (
@@ -603,6 +607,23 @@ export default function InTransitFeedPage() {
         booking={selectedBooking}
         onCancelBooking={handleCancelBooking}
       />
+
+      {overrideFor && (
+        <BookingOverrideModal
+          isOpen
+          onClose={() => setOverrideFor(null)}
+          orderID={overrideFor}
+          orderCode={
+            bookings.find((booking) => booking.id === overrideFor)?.orderId ?? overrideFor
+          }
+          onDone={(message) => {
+            setOverrideFor(null);
+            setIsModalOpen(false);
+            showToast(message, "success");
+            void loadBookings();
+          }}
+        />
+      )}
     </div>
   );
 }

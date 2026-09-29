@@ -105,6 +105,40 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
     }
     case "DispatchOrder/TRIP_COMPLETE":
       return { title: "Delivery completed", detail: "All stops were delivered." };
+    // The office ending a booking itself. Worded so it cannot be mistaken for
+    // the crew doing it: whoever reads this later needs to know which it was.
+    case "Order/OVERRIDE_CANCEL":
+    case "DispatchOrder/OVERRIDE_CANCEL":
+      return {
+        title: "Cancelled by the office",
+        detail: `${text(data.reason) || "No reason given."} The truck and crew were released.`,
+      };
+    case "DispatchOrder/OVERRIDE_FOUL_TRIP":
+      return {
+        title: "Foul trip declared by the office",
+        detail: [
+          text(data.issueType) ? `${text(data.issueType)}.` : "",
+          text(data.reason) || "No reason given.",
+          "The crew did not report this.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      };
+    case "DispatchOrder/OVERRIDE_COMPLETE": {
+      const stops = Number(data.stopsClosed ?? 0);
+      return {
+        title: "Closed by the office",
+        detail: [
+          text(data.reason) || "No reason given.",
+          stops > 0
+            ? `${stops} stop(s) were closed without proof of delivery.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      };
+    }
+
     case "DispatchOrder/POD_EDIT": {
       const what = [
         data.replacedPhoto ? "the photograph" : "",
