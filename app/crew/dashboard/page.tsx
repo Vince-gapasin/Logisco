@@ -23,6 +23,7 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 import { compressImage } from "@/app/lib/imageCompression";
 import { markPing, markMovement } from "@/app/lib/trackingPulse";
 import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
+import OpenIssueNotice from "@/components/crew/OpenIssueNotice";
 import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, STOP_STATUS, type DeclineCode } from "@/app/lib/enums";
 
 // Background Geolocation Setup
@@ -1390,6 +1391,14 @@ export default function CrewDashboardPage({
             {/* Shows itself only once this device has stopped getting positions
                 through, which is the only moment the question makes sense. */}
             <StallCheckInPrompt dispatchID={selectedDelivery.id} />
+
+            {/* Anything they reported and have not cleared. Shows itself only
+                when there is one, and clears in a tap - they are the ones who
+                know it is sorted, and until now only the office could say so. */}
+            <OpenIssueNotice
+              dispatchID={selectedDelivery.id}
+              onResolved={(message) => showToast(message, "success")}
+            />
 
             {/* One tap on arrival, before any of the work at the stop.
                 It is what stops the office being told a truck has gone quiet

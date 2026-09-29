@@ -289,14 +289,25 @@ function buildSteps(
   // What the crew reported. One that stopped the trip is the reason it is
   // interrupted; one they carried on through is worth saying so plainly.
   for (const problem of [...problems].reverse()) {
+    // One that has been sorted is no longer a problem, and is not shown as
+    // one. It stays on the timeline, because it happened and the customer was
+    // already told about it - disappearing would read worse than resolving.
+    const sorted = !problem.blocking && problem.resolvedAt !== null;
+
     steps.push({
-      title: problem.blocking ? `Trip interrupted: ${problem.issueType}` : `Reported: ${problem.issueType}`,
-      detail: problem.blocking
-        ? "Our coordinator is arranging what happens next."
-        : "The delivery is carrying on.",
-      stage: "problem",
-      kind: "problem",
-      at: problem.reportedAt,
+      title: sorted
+        ? `Resolved: ${problem.issueType}`
+        : problem.blocking
+          ? `Trip interrupted: ${problem.issueType}`
+          : `Reported: ${problem.issueType}`,
+      detail: sorted
+        ? "The crew sorted this out and the delivery carried on."
+        : problem.blocking
+          ? "Our coordinator is arranging what happens next."
+          : "The delivery is carrying on.",
+      stage: sorted ? "completed" : "problem",
+      kind: sorted ? "completed" : "problem",
+      at: sorted ? problem.resolvedAt : problem.reportedAt,
     });
   }
 
@@ -384,6 +395,8 @@ interface ReportedProblem {
   issueType: string;
   reportedAt: string;
   blocking: boolean;
+  /** When the crew or the office said it was sorted, if they have. */
+  resolvedAt: string | null;
 }
 
 /**
@@ -393,7 +406,7 @@ interface ReportedProblem {
 async function reportedProblems(orderID: string): Promise<ReportedProblem[]> {
   const { data, error } = await supabase
     .from("FoulTripIncident")
-    .select("issueType, reportedAt, blocking, status")
+    .select("issueType, reportedAt, blocking, status, resolvedAt")
     .eq("orderID", orderID)
     .order("reportedAt", { ascending: false })
     .limit(20);
@@ -403,10 +416,17 @@ async function reportedProblems(orderID: string): Promise<ReportedProblem[]> {
     return [];
   }
 
+  // status was selected and thrown away, so a problem the crew had already
+  // sorted out went on being shown to the customer as an open one for the rest
+  // of the delivery - and the longer it stayed there the worse it read.
   return (data ?? []).map((row) => ({
     issueType: (row.issueType as string) ?? "A problem",
     reportedAt: row.reportedAt as string,
     blocking: row.blocking !== false,
+    resolvedAt:
+      row.status === "resolved" || row.status === "closed"
+        ? ((row.resolvedAt as string | null) ?? (row.reportedAt as string))
+        : null,
   }));
 }
 

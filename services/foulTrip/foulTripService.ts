@@ -719,6 +719,72 @@ export async function cancel(incidentID: string, reason: string, actor: Actor) {
 }
 
 /** Handled outside the system - a note is required so the record says how. */
+/**
+ * The open issues on a trip, for the crew who are on it.
+ *
+ * Only the ones that did not stop the delivery. A foul trip is not something
+ * the crew clear from a phone - the truck is off the road and the office is
+ * arranging its recovery - so it is not offered to them here either.
+ */
+export async function openIssuesOn(dispatchID: string): Promise<
+  { incidentID: string; issueType: string; details: string | null; reportedAt: string }[]
+> {
+  const { data, error } = await supabase
+    .from("FoulTripIncident")
+    .select("incidentID, issueType, details, reportedAt")
+    .eq("dispatchID", dispatchID)
+    .eq("blocking", false)
+    .in("status", OPEN_STATUSES)
+    .order("reportedAt", { ascending: false })
+    .limit(10);
+
+  if (error) throw new Error(`Failed to read what was reported: ${error.message}`);
+  return (data ?? []) as { incidentID: string; issueType: string; details: string | null; reportedAt: string }[];
+}
+
+/**
+ * The crew saying the thing they reported is sorted.
+ *
+ * They are the ones who know. Until now the only way to clear a reported issue
+ * was the office's Close button, so a crew who collected the wrong product,
+ * went back for the right one and carried on had no way of saying so - the
+ * issue stayed open on the office's screen, and the client went on being shown
+ * a problem that no longer existed for the rest of the delivery.
+ *
+ * Deliberately refused for a foul trip. That one is not theirs to close: the
+ * truck is off the road, a recovery is being arranged around it, and a crew
+ * tapping "sorted" would take it off the list somebody is working from.
+ */
+export async function markIssueSorted(
+  incidentID: string,
+  dispatchID: string,
+  actor: Actor,
+  note: string | null,
+) {
+  const incident = await loadIncident(incidentID);
+
+  if (incident.dispatchID !== dispatchID) {
+    throw new FoulTripError("That report is not on this delivery.", 403);
+  }
+  if (incident.blocking !== false) {
+    throw new FoulTripError(
+      "This one stopped the delivery. The office has to clear it.",
+      403,
+    );
+  }
+  requireOpen(incident);
+
+  const said = note?.trim();
+  await resolve(incident, actor, {
+    status: INCIDENT_STATUS.resolved,
+    resolution: RESOLUTION.closed,
+    resolutionNotes:
+      `Sorted on the road by ${actor.employeeName ?? "the crew"}.` + (said ? ` ${said}` : ""),
+  });
+
+  return { incidentID, issueType: incident.issueType };
+}
+
 export async function close(incidentID: string, notes: string, actor: Actor) {
   const incident = await loadIncident(incidentID);
   requireOpen(incident);
