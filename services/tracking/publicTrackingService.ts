@@ -186,6 +186,7 @@ function buildSteps(
   times: Map<TrackingStepKind, string> = new Map(),
   minutesToNextStop: number | null = null,
   heldUp: HeldUp[] = [],
+  pickupProgressAt: string | null = null,
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   const accepted = ["Accepted", "In Transit", "Completed"].includes(dispatchStatus ?? "");
@@ -274,8 +275,26 @@ function buildSteps(
   // and not drawn as one: an ordinary hold-up on an ordinary delivery, which is
   // the thing a customer refreshing this page actually wants to know. Nothing
   // here is shown once the delivery is done - by then it is only an excuse.
+  //
+  // And only while it is still true. A hold-up was appended after every stop
+  // and never expired, so "Held up in traffic" sat at the bottom of the
+  // timeline as the newest thing that had happened - after the crew had
+  // reached the stop, unloaded it and driven on. Tapping "I have arrived" is
+  // the crew saying the traffic is behind them, and the page went on saying
+  // otherwise for the rest of the delivery.
+  //
+  // Progress at a pickup counts too, though warehouses are not shown here: a
+  // crew who were stuck on the way to one and have since reached it are no
+  // longer stuck, whatever the customer's own stops say.
+  const progressAt = latestOf(
+    pickupProgressAt,
+    ...stops.map((stop) => stop.arrivedAt),
+    ...stops.map((stop) => stop.deliveredAt),
+  );
+
   if (!isCompleted) {
     for (const update of [...heldUp].reverse()) {
+      if (progressAt && new Date(update.at) <= new Date(progressAt)) continue;
       steps.push({
         title: update.wording,
         detail: "The delivery is carrying on.",
@@ -350,6 +369,31 @@ const HELD_UP_WORDING: Record<string, string> = {
   loading: "Loading at a stop",
   on_break: "Paused on a scheduled break",
 };
+
+/**
+ * The last time the crew said where they were at a collection point.
+ *
+ * Warehouses are not on the customer's timeline - it is their delivery they
+ * are watching, not our loading - but reaching one is still the crew reporting
+ * progress, and it is what ends a hold-up on the way to it.
+ */
+async function lastPickupProgress(dispatchID: string | null): Promise<string | null> {
+  if (!dispatchID) return null;
+
+  const { data, error } = await supabase
+    .from("PickupStops")
+    .select("arrivedAt, completedAt")
+    .eq("dispatchID", dispatchID);
+
+  if (error) {
+    console.error("[Tracking] Could not read the pickup progress:", error.message);
+    return null;
+  }
+
+  return latestOf(
+    ...(data ?? []).flatMap((row) => [row.arrivedAt as string | null, row.completedAt as string | null]),
+  );
+}
 
 interface HeldUp {
   wording: string;
@@ -620,6 +664,7 @@ export async function getTrackingByToken(
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
   const problems = await reportedProblems(order.orderID);
   const heldUp = await heldUpUpdates(dispatch?.dispatchID ?? null);
+  const pickupProgressAt = await lastPickupProgress(dispatch?.dispatchID ?? null);
   const feedback = await getFeedbackInvitation(dispatch?.dispatchID ?? null, dispatch?.status ?? null);
 
   return {
@@ -651,6 +696,7 @@ export async function getTrackingByToken(
       stepTimes,
       liveEta?.minutes ?? null,
       heldUp,
+      pickupProgressAt,
     ),
   };
 }

@@ -136,3 +136,61 @@ describe("what the customer is shown about it", () => {
     expect(step.stage).toBe("problem");
   });
 });
+
+describe("a hold-up the crew have since driven out of", () => {
+  const stop = (over: Record<string, unknown> = {}) => ({
+    branchID: 1,
+    branchName: "Makati",
+    expectedTime: null,
+    status: "Arrived",
+    latitude: null,
+    longitude: null,
+    arrivedAt: null,
+    deliveredAt: null,
+    receivedBy: null,
+    ...over,
+  });
+
+  const traffic = [{ wording: "Held up in traffic", at: "2026-09-30T02:00:00.000Z" }];
+  const heldUpShown = (stops: ReturnType<typeof stop>[], pickupProgressAt: string | null = null) =>
+    buildTrackingSteps("In Transit", stops, false, [], new Map(), null, traffic, pickupProgressAt).some(
+      (step) => step.title === "Held up in traffic",
+    );
+
+  it("is still shown while they are in it", () => {
+    expect(heldUpShown([stop()])).toBe(true);
+  });
+
+  it("stops being shown once they say they have arrived", () => {
+    // The tap that says "I am here" is the crew saying the traffic is behind
+    // them. The page used to go on saying otherwise for the rest of the trip:
+    // the hold-up was appended after every stop and never expired, so it sat at
+    // the bottom of the timeline as the newest thing that had happened.
+    expect(heldUpShown([stop({ arrivedAt: "2026-09-30T02:30:00.000Z" })])).toBe(false);
+  });
+
+  it("stops being shown once the stop is signed for", () => {
+    expect(heldUpShown([stop({ deliveredAt: "2026-09-30T02:30:00.000Z" })])).toBe(false);
+  });
+
+  it("counts reaching a warehouse, which the customer never sees", () => {
+    // Their own stops show no progress at all, but the crew are demonstrably
+    // not in that jam any more.
+    expect(heldUpShown([stop()], "2026-09-30T02:30:00.000Z")).toBe(false);
+  });
+
+  it("comes back for a jam they hit after that progress", () => {
+    // Stuck again on the way to the next stop is a new hold-up, not a stale one.
+    const later = [{ wording: "Held up in traffic", at: "2026-09-30T03:00:00.000Z" }];
+    const steps = buildTrackingSteps(
+      "In Transit",
+      [stop({ arrivedAt: "2026-09-30T02:30:00.000Z" })],
+      false,
+      [],
+      new Map(),
+      null,
+      later,
+    );
+    expect(steps.some((step) => step.title === "Held up in traffic")).toBe(true);
+  });
+});
