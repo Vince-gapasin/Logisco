@@ -427,6 +427,12 @@ export default function CrewDashboardPage({
   useEffect(() => {
     openTripRef.current = selectedDelivery;
   }, [selectedDelivery]);
+
+  // Which stop this screen is on, and the preview it is holding, for the same
+  // reason: the poll has to compare against them without being rebuilt every
+  // time the crew type a character.
+  const stepIndexRef = useRef(0);
+  const selectedImageRef = useRef<string | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
@@ -471,6 +477,11 @@ export default function CrewDashboardPage({
   const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    stepIndexRef.current = currentStepIndex;
+    selectedImageRef.current = selectedImage;
+  }, [currentStepIndex, selectedImage]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [receiverName, setReceiverName] = useState<string>("");
 
@@ -533,7 +544,21 @@ export default function CrewDashboardPage({
             // everybody on; nothing they do should drag this screen back to a
             // stop this one has already dealt with.
             const theirStep = fresh.current_step ?? 0;
-            setCurrentStepIndex((index) => (theirStep > index ? theirStep : index));
+            if (theirStep > stepIndexRef.current) {
+              setCurrentStepIndex(theirStep);
+
+              // Whatever was half filled in belonged to the stop they just
+              // closed. Carrying a photograph and a receiver's name forward
+              // would file them against the next stop instead, which is worse
+              // than losing them - so it is cleared, and said out loud, because
+              // a form emptying itself with no explanation reads as a crash.
+              if (selectedImageRef.current) URL.revokeObjectURL(selectedImageRef.current);
+              setSelectedImage(null);
+              setSelectedFile(null);
+              setReceiverName("");
+              setRemarks("");
+              showToast("The rest of the crew finished that stop. You are on the next one.", "info");
+            }
           }
         }
       } catch (error) {
@@ -541,7 +566,7 @@ export default function CrewDashboardPage({
       } finally {
         setIsLoading(false);
       }
-  }, []);
+  }, [showToast]);
 
   usePolling(() => void fetchMyDispatches(), 30000);
 
