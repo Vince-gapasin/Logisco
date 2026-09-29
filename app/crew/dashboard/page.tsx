@@ -1285,6 +1285,15 @@ export default function CrewDashboardPage({
     // Survives a reload mid-stop: the server already knows.
     activeStopData?.status === STOP_STATUS.arrived;
 
+  // Whether the handover is the job yet.
+  //
+  // Both tasks used to be on screen together: an arrival to declare and a proof
+  // to upload, with the confirm button greyed out and the only explanation in a
+  // title attribute, which a phone never shows. So the crew were looking at a
+  // form they were meant to ignore and a dead button that would not say why,
+  // and the obvious thing to try was the form. One at a time, in the order they
+  // happen: say you are there, then record what you handed over.
+
   const reportArrival = async () => {
     if (!selectedDelivery || !activeStopData || !activeStopKey) return;
 
@@ -1393,6 +1402,9 @@ export default function CrewDashboardPage({
                 <p className="text-xs text-slate-700 mt-0.5">
                   Tell us when you get there. The office stops chasing the trip while you are
                   working, and your customer sees that you have arrived.
+                </p>
+                <p className="text-xs text-slate-600 mt-1.5">
+                  The receiver&apos;s name and the photo come after this.
                 </p>
                 <button
                   type="button"
@@ -1566,7 +1578,7 @@ export default function CrewDashboardPage({
               )}
 
               {/* Remarks (Only show if NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && (
+              {!isCompleted(selectedDelivery.status) && hasReportedArrival && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                   <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
                   <div>
@@ -1576,8 +1588,9 @@ export default function CrewDashboardPage({
                 </div>
               )}
 
-              {/* POD (Only visible if required for this step and NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
+              {/* POD (Only visible once they are there, and only if this stop
+                  hands something over) */}
+              {!isCompleted(selectedDelivery.status) && hasReportedArrival && dynamicStops[currentStepIndex]?.reqPod && (
                 <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
                   <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
                     <span className="truncate">Proof of Location / Delivery</span>
@@ -1631,19 +1644,28 @@ export default function CrewDashboardPage({
                   Back to Deliveries
                 </button>
               ) : (
+                <>
+                {/* Said out loud, not in a title attribute: there is no hover on
+                    a phone, so the reason the button was dead was invisible on
+                    the only device this screen is used from. */}
+                {!hasReportedArrival && (
+                  <p role="status" className="text-xs font-semibold text-amber-700 text-center sm:self-center sm:text-right">
+                    Tap &ldquo;I have arrived&rdquo; first.
+                  </p>
+                )}
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
                   // Finishing a stop the crew have not said they reached would
                   // leave the arrival unrecorded and the clock measuring from the
                   // wrong moment, so the order is enforced rather than suggested.
                   disabled={isSubmittingResponse || !hasReportedArrival}
-                  title={hasReportedArrival ? undefined : "Tell us you have arrived first"}
                   className="w-full sm:w-64 min-h-tap sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
                     : `Confirm: ${dynamicStops[currentStepIndex]?.title ?? "Update"}`}
                 </button>
+                </>
               )}
             </div>
           </div>
@@ -1909,52 +1931,6 @@ export default function CrewDashboardPage({
                 </div>
               )}
 
-              {/* Remarks (Only show if NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && (
-                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                  <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
-                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24"></textarea>
-                  </div>
-                </div>
-              )}
-
-              {/* POD (Only visible if required for this step and NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
-                <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
-                  <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
-                    <span className="truncate">Proof of Location / Delivery</span>
-                    <span className="text-xs font-semibold whitespace-nowrap shrink-0 text-red-500">
-                      * Required for this location
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver&apos;s Name <span className="text-red-500">*</span></label>
-                    <input 
-                      type="text" 
-                      value={receiverName} 
-                      onChange={(e) => setReceiverName(e.target.value)} 
-                      placeholder="Ex. Juan Dela Cruz" 
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      required
-                    />
-                  </div>
-
-                  <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-blue-300 rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative">
-                    {selectedImage ? (
-                      <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                        <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                        <span className="text-xs font-semibold text-blue-700">Tap to upload photo</span>
-                      </div>
-                    )}
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* Actions for Details Modal based on Status */}
