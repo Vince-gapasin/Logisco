@@ -8,6 +8,7 @@
 
 import { supabase } from "@/app/lib/supabase";
 import { formatDateTime } from "@/app/lib/datetime";
+import { signPodUrls } from "@/services/storage/podService";
 
 export interface BookingHistoryEntry {
   id: string;
@@ -18,6 +19,11 @@ export interface BookingHistoryEntry {
   detail: string;
   actorName: string;
   actorRole: string;
+  /**
+   * The proof of delivery taken at the stop this line is about, when there is
+   * one - so the history doubles as the index of them. Signed, and expiring.
+   */
+  proof: { url: string; label: string; isPdf: boolean } | null;
 }
 
 interface AuditRow {
@@ -91,6 +97,11 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
     }
     case "DispatchOrder/TRIP_COMPLETE":
       return { title: "Delivery completed", detail: "All stops were delivered." };
+    case "DispatchOrder/CREW_ARRIVED":
+      return {
+        title: "Crew arrived at a stop",
+        detail: "They reported reaching it, so the trip is not counted as quiet while they work.",
+      };
     case "DispatchOrder/EMERGENCY":
       return {
         title: `Foul trip reported: ${text(data.issueType) || "problem"}`,
@@ -164,6 +175,8 @@ export async function getBookingHistory(orderID: string): Promise<BookingHistory
     .limit(200);
   if (error) throw new Error(error.message);
 
+  const proofs = await proofsByStop(trips.map((trip) => trip.dispatchID), orderID);
+
   return ((data ?? []) as AuditRow[])
     .map((row) => {
       const described = describe(row);
@@ -177,7 +190,138 @@ export async function getBookingHistory(orderID: string): Promise<BookingHistory
         detail: described.detail,
         actorName: by.name ?? "System",
         actorRole: by.role ?? "System",
+        proof: proofs.get(stopKeyOf(row)) ?? null,
       } satisfies BookingHistoryEntry;
     })
     .filter((entry): entry is BookingHistoryEntry => entry !== null);
+}
+
+/**
+ * Which stop an audited line is about, as a key.
+ *
+ * The status route records the stop it completed alongside the status, which is
+ * what lets a proof be matched to the line that produced it rather than to a
+ * time that happens to be near it.
+ */
+function stopKeyOf(row: AuditRow): string {
+  const stop = (row.newData?.stop ?? null) as
+    | { branchID?: number | string; pickupID?: number | string }
+    | null;
+  if (!stop) return "";
+  if (stop.branchID != null) return `branch:${stop.branchID}`;
+  if (stop.pickupID != null) return `pickup:${stop.pickupID}`;
+  return "";
+}
+
+/**
+ * Every proof on this booking, keyed by the stop it was taken at.
+ *
+ * Read by trip where the rows carry a dispatchID, and by branch as well, because
+ * proofs written before the crew route filled that column in have only the stop.
+ * A stop with several - a re-upload, or a coordinator adding one later - keeps
+ * the newest, which is the one anybody asking to see it means.
+ */
+async function proofsByStop(
+  dispatchIDs: string[],
+  orderID: string,
+): Promise<Map<string, { url: string; label: string; isPdf: boolean }>> {
+  const keyed = new Map<string, { url: string; label: string; isPdf: boolean }>();
+
+  const { data: stops } = await supabase
+    .from("BranchStops")
+    .select("branchID, branchName")
+    .eq("orderID", orderID);
+
+  const branchIDs = (stops ?? []).map((stop) => stop.branchID as number);
+  const branchNames = new Map(
+    (stops ?? []).map((stop) => [stop.branchID as number, (stop.branchName as string) ?? "Stop"]),
+  );
+
+  const { data: pickups } = await supabase
+    .from("PickupStops")
+    .select("pickupID, warehouseName")
+    .eq("orderID", orderID);
+
+  const pickupNames = new Map(
+    (pickups ?? []).map((stop) => [
+      stop.pickupID as number,
+      (stop.warehouseName as string) ?? "Pickup",
+    ]),
+  );
+
+  const columns = "podID, proof, fileType, branchID, pickupID, deliveredAt";
+  const queries = [];
+  if (dispatchIDs.length > 0) {
+    queries.push(supabase.from("POD").select(columns).in("dispatchID", dispatchIDs));
+  }
+  if (branchIDs.length > 0) {
+    queries.push(supabase.from("POD").select(columns).in("branchID", branchIDs));
+  }
+  if (pickups && pickups.length > 0) {
+    queries.push(
+      supabase
+        .from("POD")
+        .select(columns)
+        .in("pickupID", pickups.map((stop) => stop.pickupID as number)),
+    );
+  }
+  if (queries.length === 0) return keyed;
+
+  const results = await Promise.all(queries);
+
+  const rows: {
+    podID: string;
+    proof: string | null;
+    fileType: string | null;
+    branchID: number | null;
+    pickupID: number | null;
+    deliveredAt: string | null;
+  }[] = [];
+  const seen = new Set<string>();
+
+  for (const result of results) {
+    if (result.error) {
+      console.warn("[History] Could not read the proofs:", result.error.message);
+      continue;
+    }
+    for (const row of (result.data ?? []) as (typeof rows)[number][]) {
+      if (seen.has(row.podID)) continue;
+      seen.add(row.podID);
+      rows.push(row);
+    }
+  }
+
+  const withFile = rows.filter((row) => row.proof);
+  if (withFile.length === 0) return keyed;
+
+  const signed = await signPodUrls(withFile.map((row) => row.proof));
+
+  // Newest last, so the newest wins the key.
+  withFile.sort((a, b) => (a.deliveredAt ?? "").localeCompare(b.deliveredAt ?? ""));
+
+  for (const row of withFile) {
+    const url = signed.get(row.proof ?? "");
+    if (!url) continue;
+
+    const key =
+      row.branchID != null
+        ? `branch:${row.branchID}`
+        : row.pickupID != null
+          ? `pickup:${row.pickupID}`
+          : "";
+    if (!key) continue;
+
+    const label =
+      row.branchID != null
+        ? branchNames.get(row.branchID) ?? "Stop"
+        : pickupNames.get(row.pickupID as number) ?? "Pickup";
+
+    keyed.set(key, {
+      url,
+      label,
+      isPdf: /\.pdf(\?|$)/i.test(url) || Boolean(row.fileType?.toLowerCase().includes("pdf")),
+    });
+  }
+
+  return keyed;
 }
