@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { formatDateTime } from "@/app/lib/datetime";
 
 /**
@@ -221,6 +222,17 @@ export default function StopProofList({
               <span className="text-xs font-medium text-slate-200 wrap-break-word">
                 {enlarged.label}
               </span>
+              {/* Supabase signs the object; adding download turns the same link
+                  into an attachment rather than something the browser displays. */}
+              <a
+                href={`${enlarged.src}&download=${encodeURIComponent(
+                  `proof-of-delivery-${enlarged.label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "stop"}.jpg`,
+                )}`}
+                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                Download
+              </a>
               <a
                 href={enlarged.src}
                 target="_blank"

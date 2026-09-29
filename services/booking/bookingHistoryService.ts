@@ -23,7 +23,15 @@ export interface BookingHistoryEntry {
    * The proof of delivery taken at the stop this line is about, when there is
    * one - so the history doubles as the index of them. Signed, and expiring.
    */
-  proof: { url: string; label: string; isPdf: boolean } | null;
+  proof: {
+    /** Needed to correct it, and to tell one line's proof from another's. */
+    podID: string;
+    url: string;
+    label: string;
+    isPdf: boolean;
+    receiverName: string;
+    remarks: string;
+  } | null;
 }
 
 interface AuditRow {
@@ -97,6 +105,24 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
     }
     case "DispatchOrder/TRIP_COMPLETE":
       return { title: "Delivery completed", detail: "All stops were delivered." };
+    case "DispatchOrder/POD_EDIT": {
+      const what = [
+        data.replacedPhoto ? "the photograph" : "",
+        text(data.receiverName) ? "the receiver's name" : "",
+        data.remarks !== undefined ? "the remarks" : "",
+      ].filter(Boolean);
+      return {
+        title: "Proof of delivery corrected",
+        detail:
+          [
+            what.length > 0 ? `Changed ${what.join(", ")}.` : "Changed.",
+            text(data.reason) ? `Reason: ${text(data.reason)}` : "",
+            data.replacedPhoto ? "The original file was kept." : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+      };
+    }
     case "DispatchOrder/CREW_ARRIVED":
       return {
         title: "Crew arrived at a stop",
@@ -224,8 +250,8 @@ function stopKeyOf(row: AuditRow): string {
 async function proofsByStop(
   dispatchIDs: string[],
   orderID: string,
-): Promise<Map<string, { url: string; label: string; isPdf: boolean }>> {
-  const keyed = new Map<string, { url: string; label: string; isPdf: boolean }>();
+): Promise<Map<string, NonNullable<BookingHistoryEntry["proof"]>>> {
+  const keyed = new Map<string, NonNullable<BookingHistoryEntry["proof"]>>();
 
   const { data: stops } = await supabase
     .from("BranchStops")
@@ -249,7 +275,7 @@ async function proofsByStop(
     ]),
   );
 
-  const columns = "podID, proof, fileType, branchID, pickupID, deliveredAt";
+  const columns = "podID, proof, fileType, branchID, pickupID, deliveredAt, receiverName, remarks";
   const queries = [];
   if (dispatchIDs.length > 0) {
     queries.push(supabase.from("POD").select(columns).in("dispatchID", dispatchIDs));
@@ -276,6 +302,8 @@ async function proofsByStop(
     branchID: number | null;
     pickupID: number | null;
     deliveredAt: string | null;
+    receiverName: string | null;
+    remarks: string | null;
   }[] = [];
   const seen = new Set<string>();
 
@@ -317,9 +345,12 @@ async function proofsByStop(
         : pickupNames.get(row.pickupID as number) ?? "Pickup";
 
     keyed.set(key, {
+      podID: row.podID,
       url,
       label,
       isPdf: /\.pdf(\?|$)/i.test(url) || Boolean(row.fileType?.toLowerCase().includes("pdf")),
+      receiverName: row.receiverName ?? "",
+      remarks: row.remarks ?? "",
     });
   }
 
