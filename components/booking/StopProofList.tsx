@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { formatDateTime } from "@/app/lib/datetime";
 
 /**
@@ -103,15 +103,28 @@ export default function StopProofList({
   pickups = [],
   deliveries = [],
   tripProof = null,
-  onOpenImage,
 }: {
   pickups?: ProofBearingStop[];
   deliveries?: ProofBearingStop[];
   /** DispatchOrder.pod_url, for trips recorded before the POD rows existed. */
   tripProof?: string | null;
-  /** Given, photographs open in place rather than in a new tab. */
-  onOpenImage?: (src: string, label: string) => void;
 }) {
+  const [enlarged, setEnlarged] = useState<{ src: string; label: string } | null>(null);
+
+  // Escape closes the photograph. Registered only while one is open, so it cannot
+  // swallow the Escape that closes the booking behind it.
+  useEffect(() => {
+    if (!enlarged) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEnlarged(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [enlarged]);
+
+  const setEnlargedFor = (src: string, label: string) => setEnlarged({ src, label });
+
   // Pickups first, because that is the order the trip ran in.
   const stops = [
     ...pickups.map((stop) => ({
@@ -182,11 +195,50 @@ export default function StopProofList({
                 href={pod.proof}
                 fileType={pod.fileType}
                 label={stop.label}
-                onOpen={onOpenImage}
+                onOpen={setEnlargedFor}
               />
             )}
           </div>
         )),
+      )}
+
+      {enlarged && (
+        <div
+          className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-950/85 animate-fade-in"
+          onClick={() => setEnlarged(null)}
+        >
+          <div
+            className="flex w-full max-w-3xl flex-col items-center gap-3"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={enlarged.src}
+              alt={`Proof of delivery from ${enlarged.label}`}
+              className="max-h-[70dvh] w-auto max-w-full rounded-xl border border-slate-700 bg-slate-900 object-contain"
+            />
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="text-xs font-medium text-slate-200 wrap-break-word">
+                {enlarged.label}
+              </span>
+              <a
+                href={enlarged.src}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
+              >
+                Open full size
+              </a>
+              <button
+                type="button"
+                onClick={() => setEnlarged(null)}
+                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-slate-300 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Older trips kept one proof against the trip rather than against a stop. */}
@@ -198,7 +250,7 @@ export default function StopProofList({
               Recorded before proofs were kept per stop.
             </p>
           </div>
-          <Thumbnail href={tripProof} label="the whole trip" onOpen={onOpenImage} />
+          <Thumbnail href={tripProof} label="the whole trip" onOpen={setEnlargedFor} />
         </div>
       )}
     </div>

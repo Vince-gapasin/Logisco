@@ -8,12 +8,10 @@ import { apiFetch } from "@/app/lib/apiClient";
 import type { FeedStopRow, OrderWithRelations } from "@/app/lib/bookingView";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
-import ProofViewerModal from "@/components/booking/ProofViewerModal";
-import { type ProofBearingStop } from "@/components/booking/StopProofList";
+import StopProofList, { type ProofBearingStop } from "@/components/booking/StopProofList";
 import {
   TrendingUp,
   FileText,
-  Image as ImageIcon,
   ChevronDown,
   Filter,
   BarChart3,
@@ -125,6 +123,17 @@ function ViewOrderModal({
     : pickupParts[1]?.trim() || "N/A";
 
   const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : raw.DispatchOrder;
+  const dispatchNote = dispatchRecord?.dispatchNote || "";
+  const podUrl = dispatchRecord?.pod_url || "";
+
+  // Whether any stop carries a proof row, so the panel can ask before drawing.
+  const hasStopProofs = [
+    ...(Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : []),
+    ...(Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : []),
+  ].some((stop) => {
+    const proofs = (stop as { POD?: unknown }).POD;
+    return Array.isArray(proofs) && proofs.length > 0;
+  });
 
   const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
   const truck =
@@ -508,6 +517,43 @@ function ViewOrderModal({
                 className="w-full resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none cursor-default"
               />
             </div>
+
+            {/* 7. COMPLETION / EMERGENCY SUMMARY PANEL */}
+            {/* The same panel the dashboard shows, so a booking reads the same
+                whichever screen it was opened from. It is also where the proofs
+                belong - part of the record of the delivery rather than a column
+                beside it. */}
+            {(category === "Completed" || category === "Foul Trip") &&
+              (dispatchNote || podUrl || hasStopProofs) && (
+              <div className={`border rounded-xl p-4 shadow-xs ${category === "Foul Trip" ? 'border-red-200 bg-red-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
+                <div className={`border-b pb-2 mb-4 font-semibold text-sm tracking-wide flex items-center gap-2 ${category === "Foul Trip" ? 'border-red-200 text-red-900' : 'border-emerald-200 text-emerald-900'}`}>
+                  {category === "Foul Trip" ? <AlertTriangle className="w-5 h-5 text-red-600" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
+                  {category === "Foul Trip" ? "7. Emergency / Abort Summary" : "7. Completion Summary"}
+                </div>
+                <div className="space-y-4">
+                  {dispatchNote && (
+                    <div>
+                      <span className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? 'text-red-800' : 'text-emerald-800'}`}>Crew Remarks / Feedback</span>
+                      <div className={`w-full bg-white border rounded-md px-4 py-3 text-sm shadow-sm leading-relaxed overflow-hidden whitespace-pre-wrap ${category === "Foul Trip" ? 'border-red-200 text-red-900' : 'border-emerald-200 text-slate-800'}`}>
+                        {dispatchNote.replace(/\[DELIVERY DETAILS\][\s\S]*?(?=\[|$)/gi, '').replace(/\[ASSIGNED CREW\][\s\S]*?(?=\[|$)/gi, '').trim() || "No additional remarks."}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <span
+                      className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? "text-red-800" : "text-emerald-800"}`}
+                    >
+                      Proof of Delivery
+                    </span>
+                    <StopProofList
+                      pickups={pickupRows as ProofBearingStop[]}
+                      deliveries={deliveries as ProofBearingStop[]}
+                      tripProof={podUrl || null}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -699,36 +745,6 @@ const MultiSelectDropdown = ({
   );
 };
 
-/** Both halves of an order's itinerary, as stops that may carry proofs. */
-function proofStopsOf(record: ReportRecord): {
-  pickups: ProofBearingStop[];
-  deliveries: ProofBearingStop[];
-} {
-  const raw = record.rawOrder as
-    | { PickupStops?: unknown; BranchStops?: unknown }
-    | undefined;
-  const asList = (value: unknown): ProofBearingStop[] =>
-    Array.isArray(value) ? (value as ProofBearingStop[]) : value ? [value as ProofBearingStop] : [];
-
-  return { pickups: asList(raw?.PickupStops), deliveries: asList(raw?.BranchStops) };
-}
-
-/** The single trip-level proof, for deliveries recorded before the rows existed. */
-function tripProofOf(record: ReportRecord): string | null {
-  const dispatch = (record.rawOrder as { DispatchOrder?: unknown } | undefined)?.DispatchOrder;
-  const first = Array.isArray(dispatch) ? dispatch[0] : dispatch;
-  return (first as { pod_url?: string | null } | undefined)?.pod_url ?? null;
-}
-
-/** How many proofs exist for this delivery, warehouses included. */
-function countProofs(record: ReportRecord): number {
-  const { pickups, deliveries } = proofStopsOf(record);
-  return [...pickups, ...deliveries].reduce(
-    (total, stop) => total + (stop.POD?.length ?? 0),
-    0,
-  );
-}
-
 export default function ReportsForecastingPage() {
   // Delivery records, or the partner trips the coordinator keeps up to date.
   const [view, setView] = useState<"records" | "subcon">("records");
@@ -756,8 +772,6 @@ export default function ReportsForecastingPage() {
   const [driverOptions, setDriverOptions] = useState<string[]>([]);
   const [helperOptions, setHelperOptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  /** The record whose proofs are being looked at, if any. */
-  const [proofRecord, setProofRecord] = useState<ReportRecord | null>(null);
 
   // Modal State for Booking details view
   const [selectedOrderForView, setSelectedOrderForView] = useState<ReportRecord | null>(null);
@@ -1301,14 +1315,13 @@ export default function ReportsForecastingPage() {
                 <th className="py-3.5 px-4 sm:px-6">Final Status</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Crews</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Remarks</th>
-                <th className="py-3.5 px-4 sm:px-6">Proof</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
                     <p className="text-slate-600 text-sm font-medium">
                       Loading records...
@@ -1344,37 +1357,11 @@ export default function ReportsForecastingPage() {
                     <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
                       {record.remarks}
                     </td>
-                    {/* The proofs, one click from the row rather than three.
-                        A month of deliveries is checked from this table, and
-                        opening each booking to scroll to a card was the reason
-                        nobody looked. */}
-                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
-                      {(() => {
-                        const proofs = countProofs(record);
-                        if (proofs === 0) {
-                          return <span className="text-xs text-slate-500">&mdash;</span>;
-                        }
-                        return (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              // The row opens the booking; this opens the proofs.
-                              event.stopPropagation();
-                              setProofRecord(record);
-                            }}
-                            className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"
-                          >
-                            <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-                            View {proofs}
-                          </button>
-                        );
-                      })()}
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 sm:py-16 text-center">
+                  <td colSpan={6} className="py-12 sm:py-16 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
@@ -1435,18 +1422,6 @@ export default function ReportsForecastingPage() {
         order={selectedOrderForView}
       />
 
-      {/* Mounted only while a record is open, so closing it takes the enlarged
-          photograph with it rather than leaving one to reappear on the next row. */}
-      {proofRecord && (
-        <ProofViewerModal
-          isOpen
-          onClose={() => setProofRecord(null)}
-          orderCode={proofRecord.orderId}
-          pickups={proofStopsOf(proofRecord).pickups}
-          deliveries={proofStopsOf(proofRecord).deliveries}
-          tripProof={tripProofOf(proofRecord)}
-        />
-      )}
     </div>
   );
 }
