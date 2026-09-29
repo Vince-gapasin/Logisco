@@ -119,8 +119,14 @@ describe("a trip nobody closed", () => {
     expect(onTheRoad(2_701).silentFor).toBe(2_701);
   });
 
-  it("is still left alone while the truck sits at one of its stops", () => {
-    expect(onTheRoad(3_000, AT_STOP_METRES - 1).reason).toBe("at a stop");
+  it("is not excused by the truck being parked at one of its stops", () => {
+    // This used to read "at a stop" and stay silent for ever. Two days parked at
+    // a delivery point is not loading - it is almost always a trip that finished
+    // and nobody closed, which is exactly what the tidying alert is for.
+    const verdict = onTheRoad(3_000, AT_STOP_METRES - 1);
+    expect(verdict.reason).toBe("left open");
+    // Still worth knowing where it is, for whoever reads the alert.
+    expect(verdict.atStop).toBe(true);
   });
 
   it("asks for the trip to be closed rather than raising an alarm", () => {

@@ -14,13 +14,18 @@ import {
   leftOpenAlert,
   WATCHED_STATUSES,
   leftOpenDedupeKey,
+  neverReportedAlert,
+  neverReportedDedupeKey,
   stallAlert,
   stallDedupeKey,
+  STOP_AT_RISK_MIN,
   type CrewCheckIn,
   type StallCause,
+  type StallContext,
   type StallThreshold,
   type StallVerdict,
 } from "@/app/lib/stallRules";
+import { expectedAt } from "@/app/lib/performance";
 import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { getAllWaypoints } from "@/services/fleet/routePlanService";
 
@@ -55,13 +60,17 @@ interface LiveTrip {
   /** When the app last spoke at all, heartbeat or movement. */
   lastContactAt: string | null;
   position: { latitude: number; longitude: number } | null;
+  /** The date the delivery was booked for, which dates the stops' clock times. */
+  deliverySchedule: string | null;
 }
 
 /** The trips that are out on the road, with wherever they last reported from. */
 async function tripsOnTheRoad(): Promise<LiveTrip[]> {
   const { data: dispatches, error } = await supabase
     .from("DispatchOrder")
-    .select("dispatchID, status, Order ( orderCode ), Truck ( plateNumber )")
+    .select(
+      "dispatchID, status, Order ( orderCode, deliverySchedule ), Truck ( plateNumber )",
+    )
     .in("status", WATCHED_STATUSES);
 
   if (error) throw new Error(`Could not read the trips on the road: ${error.message}`);
@@ -95,6 +104,8 @@ async function tripsOnTheRoad(): Promise<LiveTrip[]> {
       status: trip.status as string,
       orderCode: (order as { orderCode?: string } | null)?.orderCode ?? null,
       truck: (truck as { plateNumber?: string } | null)?.plateNumber ?? null,
+      deliverySchedule:
+        (order as { deliverySchedule?: string } | null)?.deliverySchedule ?? null,
       // Movement is what the ladder counts; contact is how the cause is judged.
       // Before the app sends heartbeats the two are the same, and moved_at is
       // null on rows written by an older deployment.
@@ -124,6 +135,60 @@ async function metresToNearestStop(trip: LiveTrip): Promise<number | null> {
   if (stops.length === 0) return null;
 
   return Math.min(...stops.map((stop) => metresBetween(trip.position!, stop)));
+}
+
+/**
+ * The next stop this delay is about to make late, if there is one.
+ *
+ * The ladder only knows how long a truck has been quiet. That is the wrong thing
+ * to escalate on by itself: fifteen minutes with an afternoon of slack and
+ * fifteen minutes on a delivery that was due at two both read as fifteen
+ * minutes. This is what tells them apart.
+ *
+ * The earliest stop still outstanding decides it - not the nearest one, since a
+ * truck stuck early in a run threatens the first promise it has left to keep.
+ *
+ * Null when nothing is at risk, and null when the answer cannot be trusted:
+ * without a booked date there is nothing to attach a clock time to, and a stop
+ * whose time will not parse is not evidence of anything.
+ */
+async function stopAtRisk(
+  trip: LiveTrip,
+  now: Date,
+): Promise<{ stopName: string; minutesLate: number } | null> {
+  if (!trip.deliverySchedule) return null;
+
+  const { data, error } = await supabase
+    .from("BranchStops")
+    .select("branchName, expectedTime, stopStatus, sequence")
+    .eq("dispatchID", trip.dispatchID)
+    .order("sequence", { ascending: true });
+
+  if (error) {
+    console.warn("Could not read the stops for this trip:", error.message);
+    return null;
+  }
+
+  for (const stop of data ?? []) {
+    // Delivered or failed: this one is no longer a promise anybody can keep.
+    const status = String(stop.stopStatus ?? "").toLowerCase();
+    if (status.includes("deliver") || status.includes("fail") || status.includes("cancel")) {
+      continue;
+    }
+
+    const due = expectedAt(trip.deliverySchedule, stop.expectedTime as string);
+    if (!due) continue;
+
+    const minutesLate = Math.round((now.getTime() - new Date(due).getTime()) / 60_000);
+    if (minutesLate < -STOP_AT_RISK_MIN) return null; // Comfortable: hours of slack.
+
+    return {
+      stopName: (stop.branchName as string) || "The next stop",
+      minutesLate,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -210,6 +275,17 @@ export async function checkForStalledTrips(
       continue;
     }
 
+    // Marked as on the road with no position ever recorded. The rules stay quiet
+    // about it - they cannot tell a trip that has not set off from one whose app
+    // is broken - but a watched status means the crew have said they have set
+    // off, and nothing arriving after that is its own kind of wrong: there is no
+    // position for anybody to look at, the office included.
+    if (verdict.reason === "never reported") {
+      const raised = telling ? await raiseNeverReported(trip, now) : false;
+      found.push({ ...trip, verdict, checkIn, raised });
+      continue;
+    }
+
     if (!verdict.stalled || !verdict.threshold || !trip.lastReportedAt) {
       if (verdict.silentFor > 0) {
         found.push({ ...trip, verdict, checkIn, raised: false });
@@ -218,12 +294,40 @@ export async function checkForStalledTrips(
     }
 
     const raised = telling
-      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause)
+      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause, {
+          atStop: verdict.atStop,
+          atRisk: await stopAtRisk(trip, now),
+        })
       : false;
     found.push({ ...trip, verdict, checkIn, raised });
   }
 
   return found;
+}
+
+/**
+ * A trip on the road whose app has never spoken. Said once a day, calmly.
+ *
+ * Not urgent: nothing is known to be wrong with the truck, and dressing it as an
+ * emergency is how people learn to ignore emergencies. But it does have to be
+ * said, because this was the one case the watchdog was completely silent about -
+ * and it is the case where the office has least to work with.
+ */
+async function raiseNeverReported(trip: LiveTrip, now: Date): Promise<boolean> {
+  const alert = neverReportedAlert(await labelFor(trip));
+
+  const told = await notify({
+    event: "TRUCK_STALLED",
+    title: alert.title,
+    body: alert.body,
+    severity: "action",
+    roles: OFFICE,
+    dedupeKey: neverReportedDedupeKey(trip.dispatchID, now),
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    link: "/admindashboard/fleet-tracking",
+  });
+
+  return told > 0;
 }
 
 /** The crew have reported trouble. Straight to the office, once per answer. */
@@ -254,8 +358,9 @@ async function raiseStall(
   silentFor: number,
   lastReportedAt: string,
   cause: StallCause,
+  context: StallContext = {},
 ): Promise<boolean> {
-  const alert = stallAlert(threshold, await labelFor(trip), silentFor, cause);
+  const alert = stallAlert(threshold, await labelFor(trip), silentFor, cause, context);
   const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
   let told = 0;
 

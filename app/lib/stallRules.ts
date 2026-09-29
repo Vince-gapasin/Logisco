@@ -56,6 +56,36 @@ export const LEFT_OPEN_AFTER_MIN = 24 * 60;
 export const AT_STOP_METRES = 200;
 
 /**
+ * How long being at one of its own stops excuses the silence.
+ *
+ * It used to excuse it for ever, which meant a truck that started a delivery and
+ * never left the depot was invisible: the depot is a pickup stop on its own
+ * itinerary, so every rung was suppressed and nobody was told anything at any
+ * point. A driver who ignored the check-in prompt left the trip in total silence.
+ *
+ * An hour, which is what a "loading" check-in buys - the same judgement about how
+ * long a stop can reasonably take, applied to a crew who have said nothing rather
+ * than to one who has. Past it the ladder runs as normal, and the wording says the
+ * truck is at a stop rather than implying it has broken down on a road somewhere.
+ */
+export const AT_STOP_GRACE_MIN = 60;
+
+/**
+ * How near a stop's promised time counts as putting it at risk.
+ *
+ * The ladder on its own only knows how long a truck has been quiet. It cannot
+ * tell fifteen minutes with a whole afternoon of slack from fifteen minutes on a
+ * delivery that was due twenty minutes ago, and those want different answers.
+ *
+ * So a stall that threatens a time the office promised is escalated early: the
+ * fifteen-minute rung, which normally tells nobody, notifies the office, and
+ * thirty goes straight to urgent. The point is to act while acting still helps,
+ * rather than waiting for the forty-five minute rung to say the same thing about
+ * a delivery that is already late.
+ */
+export const STOP_AT_RISK_MIN = 30;
+
+/**
  * How long without a word from the app before contact counts as lost.
  *
  * The heartbeat is every few minutes, so this is several heartbeats' grace - a
@@ -165,6 +195,12 @@ export interface StallVerdict {
   stalled: boolean;
   /** Whether the truck stopped, the phone did, or we cannot tell. */
   cause: StallCause;
+  /**
+   * Standing at one of its own stops. Excuses everything for the first hour;
+   * after that it is still worth saying, because where a truck is stuck changes
+   * what the office should do about it.
+   */
+  atStop: boolean;
   /** Minutes since the app last spoke at all, when that is known. */
   outOfContactFor: number;
   /** Whole minutes since the last position, when there is one. */
@@ -228,9 +264,14 @@ export function assessStall({
 
   const contactSilence = minutesSince(lastContactAt);
 
-  const quiet = (reason: StallVerdict["reason"], silentFor = 0): StallVerdict => ({
+  const quiet = (
+    reason: StallVerdict["reason"],
+    silentFor = 0,
+    atStop = false,
+  ): StallVerdict => ({
     stalled: false,
     cause: "unknown",
+    atStop,
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: null,
@@ -249,12 +290,18 @@ export function assessStall({
   // Sitting at one of its own stops is loading, not trouble. Every stop counts,
   // not only the ones still to come: a crew doing paperwork where they have
   // just delivered are where they are supposed to be.
-  if (metresToNearestStop !== null && metresToNearestStop <= AT_STOP_METRES) {
-    return quiet("at a stop", silentFor);
+  //
+  // For an hour. Past that it stops being an explanation - a truck that has been
+  // at the same stop for two hours without a word is not loading any more, and
+  // excusing it for ever is how a delivery that never left the depot went
+  // unmentioned by anybody.
+  const atStop = metresToNearestStop !== null && metresToNearestStop <= AT_STOP_METRES;
+  if (atStop && silentFor < AT_STOP_GRACE_MIN) {
+    return quiet("at a stop", silentFor, true);
   }
 
   // A day of silence is a trip nobody closed, not a truck in trouble.
-  if (silentFor >= LEFT_OPEN_AFTER_MIN) return quiet("left open", silentFor);
+  if (silentFor >= LEFT_OPEN_AFTER_MIN) return quiet("left open", silentFor, atStop);
 
   const passed = [...STALL_THRESHOLDS_MIN].reverse().find((minutes) => silentFor >= minutes) ?? null;
 
@@ -294,6 +341,7 @@ export function assessStall({
       return {
         stalled: true,
         cause,
+        atStop,
         outOfContactFor: contactSilence ?? silentFor,
         silentFor,
         threshold: STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1],
@@ -302,15 +350,16 @@ export function assessStall({
     }
 
     if (answered.minutesAgo < CHECK_IN_QUIETENS_MIN[answered.state]) {
-      return quiet("crew answered", silentFor);
+      return quiet("crew answered", silentFor, atStop);
     }
   }
 
-  if (!passed) return quiet("reporting", silentFor);
+  if (!passed) return quiet("reporting", silentFor, atStop);
 
   return {
     stalled: true,
     cause,
+    atStop,
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: passed,
@@ -387,16 +436,63 @@ function askTheCrew(silentFor: number): StallMessage {
  * day is one nobody reads by Friday. It colours the trip on the board, where
  * somebody watching will see it, and goes no further.
  */
+export interface StallContext {
+  /** Standing at one of its own stops, past the hour that excuses it. */
+  atStop?: boolean;
+  /**
+   * The next stop whose promised time this delay threatens.
+   *
+   * minutesLate is positive once the time has passed and negative while it is
+   * still ahead, so -10 reads as "due in ten minutes".
+   */
+  atRisk?: { stopName: string; minutesLate: number } | null;
+}
+
+/** How a threatened delivery time reads, in one clause. */
+function describeRisk(atRisk: NonNullable<StallContext["atRisk"]>): string {
+  const { stopName, minutesLate } = atRisk;
+  if (minutesLate > 0) {
+    return `${stopName} was due ${describeSilence(minutesLate)} ago.`;
+  }
+  const until = Math.abs(minutesLate);
+  if (until === 0) return `${stopName} is due now.`;
+  return `${stopName} is due in ${describeSilence(until)}.`;
+}
+
 export function stallAlert(
   threshold: StallThreshold,
   tripLabel: string,
   silentFor: number,
   cause: StallCause = "unknown",
+  context: StallContext = {},
 ): StallAlert {
-  const quiet = describeCause(tripLabel, silentFor, cause);
+  const { atStop = false, atRisk = null } = context;
+
+  // Where it is stuck changes what the office should do about it, so it is said
+  // rather than left to be inferred from a map.
+  const quiet = atStop
+    ? `${describeCause(tripLabel, silentFor, cause)} It is parked at one of its own stops.`
+    : describeCause(tripLabel, silentFor, cause);
   const forHowLong = describeSilence(silentFor);
+  const risk = atRisk ? ` ${describeRisk(atRisk)}` : "";
 
   if (threshold === 15) {
+    // Fifteen minutes normally tells nobody. It tells the office when the delay
+    // is already eating a time somebody promised a customer - which is the whole
+    // point of knowing about it at fifteen rather than at forty-five.
+    if (atRisk) {
+      return {
+        severity: "action",
+        notifyOffice: true,
+        office: {
+          title: `Quiet ${forHowLong} with a delivery due`,
+          body:
+            `${quiet}${risk} Reach the crew now, while there is still time to do something about it.`,
+        },
+        crew: askTheCrew(silentFor),
+      };
+    }
+
     return {
       severity: "info",
       notifyOffice: false,
@@ -407,11 +503,12 @@ export function stallAlert(
 
   if (threshold === 30) {
     return {
-      severity: "action",
+      // Already threatening a promise: this is not a thing to get round to.
+      severity: atRisk ? "urgent" : "action",
       notifyOffice: true,
       office: {
-        title: `No position for ${forHowLong}`,
-        body: `${quiet} The crew have been asked to get in touch.`,
+        title: atRisk ? `No position for ${forHowLong}, delivery at risk` : `No position for ${forHowLong}`,
+        body: `${quiet}${risk} The crew have been asked to get in touch.`,
       },
       crew: askTheCrew(silentFor),
     };
@@ -424,10 +521,10 @@ export function stallAlert(
       office: {
         title: `Silent for ${forHowLong}`,
         body:
-          cause === "stopped"
+          (cause === "stopped"
             ? `${quiet} Call the driver and find out why they are stopped.`
             : `${quiet} Call the driver. If you cannot reach them, treat it as a possible breakdown; ` +
-              `if you reach them and all is well, the app may need restarting.`,
+              `if you reach them and all is well, the app may need restarting.`) + risk,
       },
       crew: askTheCrew(silentFor),
     };
@@ -485,6 +582,36 @@ export function crewHelpAlert(tripLabel: string, state: CheckInState, silentFor:
       `${tripLabel}: the crew reported "${CHECK_IN_LABELS[state]}" after ${describeSilence(silentFor)} ` +
       `without a position. ${urgent ? "Call them now." : "Call them, and arrange a mechanic or a replacement truck."}`,
   };
+}
+
+/**
+ * A trip that says it is on the road and has never reported a position.
+ *
+ * assessStall calls this "never reported" and stays quiet about it, which was
+ * right when the status was ambiguous: a trip could sit in a watched status
+ * before anybody set off. It is not right once the crew have said they have
+ * departed. Nothing arriving then means the app is not working - permission
+ * refused, the plugin failed, the phone in a drawer - and that is a worse
+ * situation than a truck that has stopped, because there is no position to go
+ * and look at.
+ *
+ * Not a stall, and deliberately not urgent: nothing is known to be wrong with
+ * the truck. It is a "your tracking is not on" message, and the fix is usually a
+ * phone call and a restart.
+ */
+export function neverReportedAlert(tripLabel: string): StallMessage {
+  return {
+    title: "No tracking on a trip that has set off",
+    body:
+      `${tripLabel} is marked as on the road but the crew app has never sent a position, ` +
+      `so there is nothing to follow. Call the crew and have them reopen the app and allow ` +
+      `location access. Until then this delivery cannot be tracked by anybody, including the client.`,
+  };
+}
+
+/** One key per trip per day: a standing reminder, not a drumbeat. */
+export function neverReportedDedupeKey(dispatchID: string, now: Date): string {
+  return `no-tracking:${dispatchID}:${now.toISOString().slice(0, 10)}`;
 }
 
 /**
