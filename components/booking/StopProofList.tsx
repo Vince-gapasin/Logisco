@@ -42,7 +42,20 @@ function isPdf(value: string, fileType?: string | null): boolean {
   return /\.pdf(\?|$)/i.test(value);
 }
 
-function Thumbnail({ href, fileType }: { href: string; fileType?: string | null }) {
+function Thumbnail({
+  href,
+  fileType,
+  label,
+  onOpen,
+}: {
+  href: string;
+  fileType?: string | null;
+  label: string;
+  /** Given, the image opens in place instead of in a new tab. */
+  onOpen?: (src: string, label: string) => void;
+}) {
+  // A PDF always opens in a new tab. There is nothing useful to do with one in an
+  // overlay that the browser's own viewer does not do better.
   if (isPdf(href, fileType)) {
     return (
       <a
@@ -56,12 +69,30 @@ function Thumbnail({ href, fileType }: { href: string; fileType?: string | null 
     );
   }
 
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(href, label)}
+        aria-label={`View the proof from ${label}`}
+        className="shrink-0 rounded border border-slate-200 hover:border-blue-400 transition-colors"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={href}
+          alt={`Proof of delivery from ${label}`}
+          className="h-14 w-14 rounded object-cover"
+        />
+      </button>
+    );
+  }
+
   return (
     <a href={href} target="_blank" rel="noreferrer" className="shrink-0">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={href}
-        alt="Proof of delivery"
+        alt={`Proof of delivery from ${label}`}
         className="h-14 w-14 rounded border border-slate-200 object-cover"
       />
     </a>
@@ -72,11 +103,14 @@ export default function StopProofList({
   pickups = [],
   deliveries = [],
   tripProof = null,
+  onOpenImage,
 }: {
   pickups?: ProofBearingStop[];
   deliveries?: ProofBearingStop[];
   /** DispatchOrder.pod_url, for trips recorded before the POD rows existed. */
   tripProof?: string | null;
+  /** Given, photographs open in place rather than in a new tab. */
+  onOpenImage?: (src: string, label: string) => void;
 }) {
   // Pickups first, because that is the order the trip ran in.
   const stops = [
@@ -143,7 +177,14 @@ export default function StopProofList({
                 <p className="text-xs text-amber-800">No file: {pod.missingReason}</p>
               )}
             </div>
-            {pod.proof && <Thumbnail href={pod.proof} fileType={pod.fileType} />}
+            {pod.proof && (
+              <Thumbnail
+                href={pod.proof}
+                fileType={pod.fileType}
+                label={stop.label}
+                onOpen={onOpenImage}
+              />
+            )}
           </div>
         )),
       )}
@@ -157,7 +198,7 @@ export default function StopProofList({
               Recorded before proofs were kept per stop.
             </p>
           </div>
-          <Thumbnail href={tripProof} />
+          <Thumbnail href={tripProof} label="the whole trip" onOpen={onOpenImage} />
         </div>
       )}
     </div>
