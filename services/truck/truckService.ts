@@ -229,6 +229,8 @@ export async function announceTruckStatus(
   from: string | null | undefined,
   to: string,
   actor?: { employeeID: string; name: string } | null,
+  /** What put it there, when something other than a person did: "Foul trip: Broken Truck". */
+  cause?: string | null,
 ): Promise<void> {
   if (!truckID || from === to) return;
 
@@ -264,4 +266,28 @@ export async function announceTruckStatus(
     link: "/mechanic/fleet-status",
     actor: actor ?? undefined,
   });
+
+  // And written down, which is the half that answers "who grounded this truck,
+  // and when" three weeks later.
+  //
+  // Only the admin's truck form recorded anything before, and what it recorded
+  // was a generic UPDATE of the row - so a truck grounded by a crew breakdown
+  // left no trace against the truck at all. This is its own action so it reads
+  // as the operational fact it is rather than as a field edit.
+  //
+  // Not fatal, for the same reason the notification is not: a delivery must not
+  // fail to release its truck because the audit could not be written.
+  try {
+    const { recordAudit } = await import("@/services/audit/auditService");
+    await recordAudit({
+      table: TABLE,
+      recordID: truckID,
+      action: isGrounded ? "TRUCK_GROUNDED" : "TRUCK_RETURNED",
+      actor: actor ?? undefined,
+      before: { truckStatus: from ?? null },
+      after: { truckStatus: to, plateNumber: plate, cause: cause ?? null },
+    });
+  } catch (error) {
+    console.error("[Truck] Could not record the status change:", error);
+  }
 }

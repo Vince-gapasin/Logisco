@@ -23,6 +23,14 @@ vi.mock("@/services/notifications/notify", () => ({
   MECHANICS: ["Mechanic"],
 }));
 
+const audits: Record<string, unknown>[] = [];
+vi.mock("@/services/audit/auditService", () => ({
+  recordAudit: (entry: Record<string, unknown>) => {
+    audits.push(entry);
+    return Promise.resolve();
+  },
+}));
+
 const { announceTruckStatus } = await import("@/services/truck/truckService");
 
 const TRUCK = "44444444-4444-4444-4444-444444444444";
@@ -30,6 +38,7 @@ const TRUCK = "44444444-4444-4444-4444-444444444444";
 beforeEach(() => {
   db.calls.length = 0;
   sent.length = 0;
+  audits.length = 0;
 });
 
 /** The plate lookup the announcement makes before it speaks. */
@@ -102,5 +111,43 @@ describe("what it does with a truck it cannot name", () => {
   it("ignores a call with no truck", async () => {
     await announceTruckStatus("", "Available", "On Maintenance");
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("what the audit trail is left with", () => {
+  it("records who grounded the truck and why", async () => {
+    plate();
+    await announceTruckStatus(
+      TRUCK,
+      "On Delivery",
+      "On Maintenance",
+      { employeeID: "e1", name: "Christian Bacani" },
+      "Foul trip: Broken Truck",
+    );
+
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      table: "Truck",
+      recordID: TRUCK,
+      action: "TRUCK_GROUNDED",
+      actor: { employeeID: "e1", name: "Christian Bacani" },
+    });
+    expect(audits[0].before).toEqual({ truckStatus: "On Delivery" });
+    expect(audits[0].after).toMatchObject({
+      truckStatus: "On Maintenance",
+      plateNumber: "ABC-1234",
+      cause: "Foul trip: Broken Truck",
+    });
+  });
+
+  it("uses a different action when it comes back, so the two can be told apart", async () => {
+    plate();
+    await announceTruckStatus(TRUCK, "On Maintenance", "Available");
+    expect(audits[0].action).toBe("TRUCK_RETURNED");
+  });
+
+  it("writes nothing for the churn nobody is told about", async () => {
+    await announceTruckStatus(TRUCK, "Available", "On Delivery");
+    expect(audits).toHaveLength(0);
   });
 });

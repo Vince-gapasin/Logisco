@@ -46,7 +46,13 @@ async function findActiveDispatchFor(
   return data?.[0] ?? null;
 }
 
-async function setTruckStatus(truckID: string, truckStatus: string) {
+export interface StatusActor {
+  actor?: { employeeID: string; name: string } | null;
+  /** Why, when it was not a person choosing: "Foul trip: Broken Truck". */
+  cause?: string | null;
+}
+
+async function setTruckStatus(truckID: string, truckStatus: string, by: StatusActor = {}) {
   // Read first, so the announcement below knows whether this is a change worth
   // making and what it is changing from.
   const { data: before } = await supabase
@@ -71,7 +77,13 @@ async function setTruckStatus(truckID: string, truckStatus: string) {
   // Never fatal: a delivery must not fail to release its truck because a
   // notification could not be sent.
   try {
-    await announceTruckStatus(truckID, before?.truckStatus as string | undefined, truckStatus);
+    await announceTruckStatus(
+      truckID,
+      before?.truckStatus as string | undefined,
+      truckStatus,
+      by.actor,
+      by.cause,
+    );
   } catch (error) {
     console.error("[Dispatch] Could not announce the truck status:", error);
   }
@@ -285,7 +297,13 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 // ==========================================
 // Returns the truck and crew of a finished dispatch to the pool.
 // Used by completion, emergencies (foul trips) and driver rejection.
-export async function releaseDispatchResources(dispatchID: string, truckStatus: string = TRUCK_STATUS.available) {
+export async function releaseDispatchResources(
+  dispatchID: string,
+  truckStatus: string = TRUCK_STATUS.available,
+  // Who freed it and why. Only the paths that ground a truck need to say; the
+  // rest are returning it to the pool, which nobody is notified about.
+  by: StatusActor = {},
+) {
   const { data: dispatchRecord, error } = await supabase
     .from("DispatchOrder")
     .select("truckID")
@@ -296,7 +314,7 @@ export async function releaseDispatchResources(dispatchID: string, truckStatus: 
   if (!dispatchRecord) throw new Error("Dispatch Order not found.");
 
   if (dispatchRecord.truckID) {
-    await setTruckStatus(dispatchRecord.truckID, truckStatus);
+    await setTruckStatus(dispatchRecord.truckID, truckStatus, by);
   }
 
   // Remove the live map pin for this trip.
