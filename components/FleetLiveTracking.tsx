@@ -41,6 +41,85 @@ function formatLastSeen(timestamp: string | null, now: number): string {
   return `Updated ${hours}h ago`;
 }
 
+
+/**
+ * Answering a stall alert from the board it links to.
+ *
+ * Deliberately asks for a note rather than being a single button. The next
+ * person to see this alert reads what you did, and "handled" on its own tells
+ * them nothing - it is the difference between a problem being worked and a
+ * problem being ticked off.
+ */
+function AnswerStallDialog({
+  record,
+  note,
+  onNote,
+  error,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  record: LiveFleetRecord;
+  note: string;
+  onNote: (value: string) => void;
+  error: string;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-sm font-bold text-slate-900">Mark this handled</h3>
+          <p className="text-xs text-slate-600 mt-0.5 wrap-break-word">
+            {record.orderId} - {record.truck}
+          </p>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <p className="text-xs text-slate-600">
+            This quietens the alert for an hour. If the trip is still silent after that, it
+            comes back - so this is for saying what you did, not for closing it.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              What did you do? <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(event) => onNote(event.target.value)}
+              placeholder="Ex. Spoke to the driver, stuck at the gate, carrying on."
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+          </div>
+          {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl text-sm"
+          >
+            Never mind
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Mark handled"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FleetLiveTracking() {
   const [searchTerm, setSearchTerm] = useState("");
   const [trackingList, setTrackingList] = useState<LiveFleetRecord[]>([]);
@@ -59,6 +138,12 @@ export default function FleetLiveTracking() {
   const [quiet, setQuiet] = useState<
     Record<string, { silentFor: number; threshold: number | null; reason: string; checkIn: { state: CheckInState; at: string } | null }>
   >({});
+
+  /** The trip whose alert is being answered, if any. */
+  const [answering, setAnswering] = useState<LiveFleetRecord | null>(null);
+  const [answerNote, setAnswerNote] = useState("");
+  const [answerError, setAnswerError] = useState("");
+  const [savingAnswer, setSavingAnswer] = useState(false);
 
   const checkForQuietTrucks = useCallback(async () => {
     try {
@@ -94,6 +179,38 @@ export default function FleetLiveTracking() {
   }, []);
 
   usePolling(() => void checkForQuietTrucks(), REFRESH_INTERVAL_MS);
+
+  /**
+   * Records that somebody has acted on this silence.
+   *
+   * Then re-reads the board, so the trip stops being flagged straight away
+   * rather than on the next poll - the person who just dealt with it should not
+   * be looking at their own unanswered alert.
+   */
+  const answerStall = async () => {
+    if (!answering) return;
+    if (!answerNote.trim()) {
+      setAnswerError("Say what you did. The next person to see this reads it.");
+      return;
+    }
+
+    setSavingAnswer(true);
+    setAnswerError("");
+
+    try {
+      await apiFetch("/api/fleet/stall-check/respond", {
+        method: "POST",
+        body: JSON.stringify({ dispatchID: answering.dispatchID, reason: answerNote.trim() }),
+      });
+      setAnswering(null);
+      setAnswerNote("");
+      await checkForQuietTrucks();
+    } catch (error) {
+      setAnswerError(error instanceof Error ? error.message : "Could not save that.");
+    } finally {
+      setSavingAnswer(false);
+    }
+  };
 
   const [routeFor, setRouteFor] = useState<string>("");
   const [plannedRoute, setPlannedRoute] = useState<[number, number][]>([]);
@@ -367,6 +484,22 @@ export default function FleetLiveTracking() {
                               Crew: {CHECK_IN_LABELS[silence.checkIn.state]}
                             </span>
                           )}
+
+                          {/* Answering the alert, from the board it links to.
+                              The forty-five minute rung tells the office to call
+                              the driver and had no way of knowing whether anybody
+                              did, so it kept escalating at the person who already
+                              had. Saying so buys an hour - not silence, an hour. */}
+                          {silence && silence.reason !== "left open" && (silence.threshold ?? 0) >= 45 && (
+                            <button
+                              type="button"
+                              onClick={() => setAnswering(record)}
+                              className="mt-1.5 min-h-tap md:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                            >
+                              <Check className="h-3.5 w-3.5 shrink-0" />
+                              Mark handled
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -431,6 +564,22 @@ export default function FleetLiveTracking() {
           <div className="hidden sm:block" />
         </div>
       </div>
+
+      {answering && (
+        <AnswerStallDialog
+          record={answering}
+          note={answerNote}
+          onNote={setAnswerNote}
+          error={answerError}
+          saving={savingAnswer}
+          onCancel={() => {
+            setAnswering(null);
+            setAnswerNote("");
+            setAnswerError("");
+          }}
+          onSave={() => void answerStall()}
+        />
+      )}
     </div>
   );
 }

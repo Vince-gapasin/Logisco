@@ -86,6 +86,21 @@ export const AT_STOP_GRACE_MIN = 60;
 export const STOP_AT_RISK_MIN = 30;
 
 /**
+ * How long the office saying "I have dealt with this" quietens the ladder.
+ *
+ * The forty-five minute rung tells the office to call the driver and then has no
+ * idea whether anybody did. So it kept escalating at somebody who had already
+ * picked up the phone, and the two-hour rung said the same thing again to a
+ * person who had solved it an hour earlier. An alarm that cannot be answered is
+ * one people learn to ignore.
+ *
+ * An hour, the same as a crew saying they are in traffic, and for the same
+ * reason: it buys time, it does not end the matter. A trip that is still silent
+ * an hour after somebody said they had handled it has not been handled.
+ */
+export const OFFICE_RESPONSE_QUIETENS_MIN = 60;
+
+/**
  * How long without a word from the app before contact counts as lost.
  *
  * The heartbeat is every few minutes, so this is several heartbeats' grace - a
@@ -202,6 +217,15 @@ export interface StallInput {
   /** The crew's most recent answer about this trip, if they have given one. */
   checkIn?: CrewCheckIn | null;
   /**
+   * When somebody in the office last said they had acted on this silence.
+   *
+   * Recorded when a coordinator answers the alert - having reached the crew, or
+   * having decided it is a foul trip. Quietens the ladder the way a crew answer
+   * does, so the office is not chased about something they have already picked
+   * up, and only for as long.
+   */
+  officeRespondedAt?: string | null;
+  /**
    * Whether a stop's promised time is already threatened by this delay.
    *
    * Only used to decide whether being at a stop still excuses the silence. It
@@ -247,6 +271,7 @@ export interface StallVerdict {
     | "reporting"
     | "left open"
     | "crew answered"
+    | "office answered"
     | "crew asked for help";
 }
 
@@ -285,6 +310,7 @@ export function assessStall({
   status,
   metresToNearestStop,
   checkIn = null,
+  officeRespondedAt = null,
   stopAtRisk = false,
   now = new Date(),
 }: StallInput): StallVerdict {
@@ -424,6 +450,23 @@ export function assessStall({
     }
   }
 
+  // The office said they had it in hand. Checked after the crew's own answer, so
+  // a crew calling for help is never quietened by a coordinator who ticked this
+  // off beforehand - what somebody on the truck says outranks what the office
+  // assumed.
+  //
+  // Only an answer newer than the silence counts, for the same reason a crew
+  // answer has to be: one from before the truck last moved was about an earlier
+  // silence, and letting it speak for this one would hand the office a way to
+  // pre-authorise the rest of the day.
+  const respondedAt = officeRespondedAt ? new Date(officeRespondedAt).getTime() : Number.NaN;
+  if (Number.isFinite(respondedAt) && respondedAt >= progressAt) {
+    const sinceResponse = Math.max(0, Math.floor((now.getTime() - respondedAt) / 60_000));
+    if (sinceResponse < OFFICE_RESPONSE_QUIETENS_MIN) {
+      return quiet("office answered", silentFor, atStop);
+    }
+  }
+
   if (!passed) return quiet("reporting", silentFor, atStop);
 
   return {
@@ -516,6 +559,14 @@ export interface StallContext {
    * still ahead, so -10 reads as "due in ten minutes".
    */
   atRisk?: { stopName: string; minutesLate: number } | null;
+  /**
+   * Whether anybody in the office has answered this silence yet.
+   *
+   * Past the rung that asks them to call the driver, "nobody has answered this"
+   * is the most important thing on the alert - it is the difference between a
+   * problem being worked and a problem being watched.
+   */
+  answered?: boolean;
 }
 
 /** How a threatened delivery time reads, in one clause. */
@@ -536,7 +587,7 @@ export function stallAlert(
   cause: StallCause = "unknown",
   context: StallContext = {},
 ): StallAlert {
-  const { atStop = false, atRisk = null } = context;
+  const { atStop = false, atRisk = null, answered = false } = context;
 
   // Where it is stuck changes what the office should do about it, so it is said
   // rather than left to be inferred from a map.
@@ -594,7 +645,13 @@ export function stallAlert(
           (cause === "stopped"
             ? `${quiet} Call the driver and find out why they are stopped.`
             : `${quiet} Call the driver. If you cannot reach them, treat it as a possible breakdown; ` +
-              `if you reach them and all is well, the app may need restarting.`) + risk,
+              `if you reach them and all is well, the app may need restarting.`) +
+          risk +
+          // The rung that asks for a decision says so, and says what happens if
+          // it does not get one. It used to advise a phone call and then have no
+          // idea whether anybody made it.
+          ` Mark it handled once you have reached them, or end the trip from the` +
+          ` in-transit feed. Until one of those, this will keep coming back.`,
       },
       crew: askTheCrew(silentFor),
     };
@@ -607,8 +664,10 @@ export function stallAlert(
       office: {
         title: `Still nothing after ${forHowLong}`,
         body:
-          `${quiet} Nobody has heard from this trip in ${forHowLong}. ` +
-          `If the driver cannot be reached, report a foul trip so a replacement can be arranged.`,
+          `${quiet} Nobody has heard from this trip in ${forHowLong}.` +
+          (answered ? "" : " Nobody in the office has answered it either.") +
+          ` If the driver cannot be reached, report a foul trip so a replacement can be arranged.` +
+          risk,
       },
       crew: askTheCrew(silentFor),
     };
@@ -620,8 +679,9 @@ export function stallAlert(
     office: {
       title: `No contact for ${forHowLong}`,
       body:
-        `${quiet} This has gone on for ${forHowLong}. Either report a foul trip, or close the trip ` +
-        `if the delivery is in fact finished.`,
+        `${quiet} This has gone on for ${forHowLong}.` +
+        (answered ? "" : " Nobody in the office has answered it at any point.") +
+        ` Either report a foul trip, or close the trip if the delivery is in fact finished.`,
     },
     crew: askTheCrew(silentFor),
   };

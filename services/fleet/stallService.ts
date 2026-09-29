@@ -299,6 +299,7 @@ export async function checkForStalledTrips(
   const telling = options.notify ?? true;
   const trips = await tripsOnTheRoad();
   const answers = await latestCheckIns(trips.map((trip) => trip.dispatchID));
+  const responses = await latestStallResponses(trips.map((trip) => trip.dispatchID));
   const found: StalledTrip[] = [];
 
   for (const trip of trips) {
@@ -318,6 +319,7 @@ export async function checkForStalledTrips(
       status: trip.status,
       metresToNearestStop: await metresToNearestStop(trip),
       checkIn,
+      officeRespondedAt: responses.get(trip.dispatchID) ?? null,
       stopAtRisk: atRisk !== null,
       now,
     });
@@ -360,6 +362,9 @@ export async function checkForStalledTrips(
       ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause, {
           atStop: verdict.atStop,
           atRisk,
+          // Whether anybody has spoken for this silence, which is what the later
+          // rungs lead with.
+          answered: responses.has(trip.dispatchID),
         })
       : false;
     found.push({ ...trip, verdict, checkIn, raised });
@@ -479,4 +484,70 @@ async function raiseLeftOpen(trip: LiveTrip, silentFor: number, now: Date): Prom
   });
 
   return told > 0;
+}
+
+// ------------------------------------------------ answering a stall alert
+
+/**
+ * The office saying they have acted on a silence.
+ *
+ * The forty-five minute rung tells them to call the driver and then had no way
+ * of knowing whether anybody did - so it kept escalating at the person who had
+ * already picked up the phone, and the two-hour rung repeated it to somebody who
+ * had solved it an hour earlier.
+ *
+ * Written to DispatchInterventionLog, which was in the schema, shaped for
+ * exactly this - dispatch, who acted, what kind of intervention, the reason and
+ * the time - and used by nothing.
+ */
+export async function recordStallResponse(input: {
+  dispatchID: string;
+  actorID: string;
+  reason: string;
+}): Promise<void> {
+  const { error } = await supabase.from("DispatchInterventionLog").insert({
+    dispatchID: input.dispatchID,
+    actionTakenBy: input.actorID,
+    interventionType: STALL_RESPONSE_TYPE,
+    reason: input.reason,
+    timeStamp: new Date().toISOString(),
+  });
+
+  if (error) throw new Error(`Could not record that: ${error.message}`);
+}
+
+const STALL_RESPONSE_TYPE = "stall_answered";
+
+/**
+ * The newest answer for each of these trips.
+ *
+ * One query for all of them, newest first, keeping the first seen per trip - the
+ * same shape as the crew's check-ins, because the question is the same: has
+ * anybody spoken for this silence, and how long ago.
+ */
+async function latestStallResponses(dispatchIDs: string[]): Promise<Map<string, string>> {
+  const newest = new Map<string, string>();
+  if (dispatchIDs.length === 0) return newest;
+
+  const { data, error } = await supabase
+    .from("DispatchInterventionLog")
+    .select("dispatchID, timeStamp")
+    .eq("interventionType", STALL_RESPONSE_TYPE)
+    .in("dispatchID", dispatchIDs)
+    .order("timeStamp", { ascending: false });
+
+  if (error) {
+    // Before the table is in use there is nothing to read, and a watchdog that
+    // refused to run without it would be worse than one that runs as it did.
+    console.warn("Could not read the stall responses:", error.message);
+    return newest;
+  }
+
+  for (const row of data ?? []) {
+    const dispatchID = row.dispatchID as string;
+    if (!dispatchID || newest.has(dispatchID)) continue;
+    if (row.timeStamp) newest.set(dispatchID, row.timeStamp as string);
+  }
+
+  return newest;
 }

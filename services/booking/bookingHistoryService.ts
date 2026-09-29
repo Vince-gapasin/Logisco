@@ -157,6 +157,11 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
             .join(" "),
       };
     }
+    case "DispatchOrder/STALL_ANSWERED":
+      return {
+        title: "Office answered a stall alert",
+        detail: `${text(data.reason) || "No note given."} The alert is quiet for an hour.`,
+      };
     case "DispatchOrder/CREW_ARRIVED":
       return {
         title: "Crew arrived at a stop",
