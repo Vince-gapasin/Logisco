@@ -3,7 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS, isDeclineCode } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
-import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
+import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
   crewReadinessFor,
   getCrewAssignment,
@@ -13,6 +13,38 @@ import {
 
 // Statuses in which the driver can still accept or decline a dispatch.
 const RESPONDABLE_STATUSES: string[] = [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned];
+
+// The last yes is worth telling the rest of the crew about.
+//
+// Otherwise the gate is a trap: somebody accepts, finds Start Delivery greyed
+// out because the other person has not answered, and has nothing to do but keep
+// reopening the app. The poll enables the button within half a minute of the
+// last acceptance - but only for somebody who happens to be looking at it.
+//
+// Told to everybody on the trip rather than to the driver, because either of
+// them can start it, and whoever accepted last does not need telling what they
+// just did - notify() drops the actor from its own recipients.
+async function announceCrewComplete(
+  dispatchID: string,
+  actor: { employeeID: string; name: string },
+): Promise<void> {
+  const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
+  if (!readiness?.ready) return;
+
+  const crew = await crewOf(dispatchID);
+  if (crew.length === 0) return;
+
+  await notify({
+    event: "CREW_READY",
+    title: "Your crew is complete",
+    body: `${actor.name} accepted ${(await tripLabel(dispatchID)) ?? "your delivery"}. Everybody assigned has now accepted, so it can start.`,
+    severity: "info",
+    employeeIDs: crew,
+    entity: { table: "DispatchOrder", id: dispatchID },
+    link: "/crew/dashboard",
+    actor: { employeeID: actor.employeeID, name: actor.name },
+  });
+}
 
 export async function POST(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
@@ -100,6 +132,13 @@ export async function POST(request: Request) {
         });
       }
 
+      if (action === "accept") {
+        await announceCrewComplete(dispatchID, {
+          employeeID: auth.employee.employeeID,
+          name: auth.employee.employeeName,
+        });
+      }
+
       return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
     }
 
@@ -140,29 +179,6 @@ export async function POST(request: Request) {
       after: { ...updateData, dispatchID, as: "helper" },
     });
 
-    // The last yes is worth telling the driver about.
-    //
-    // Otherwise the gate is a trap: the driver accepts, finds Start Delivery
-    // greyed out because a helper has not answered, and has nothing to do but
-    // keep reopening the app. The poll would enable the button within half a
-    // minute of the helper accepting - but only if the driver happened to be
-    // looking at it.
-    if (action === "accept") {
-      const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
-      if (readiness?.ready && assignment.dispatch.driverID) {
-        await notify({
-          event: "CREW_READY",
-          title: "Your crew is complete",
-          body: `${auth.employee.employeeName} accepted ${(await tripLabel(dispatchID)) ?? "your delivery"}. Everybody assigned has now accepted, so you can start it.`,
-          severity: "info",
-          employeeIDs: [assignment.dispatch.driverID],
-          entity: { table: "DispatchOrder", id: dispatchID },
-          link: "/crew/dashboard",
-          actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
-        });
-      }
-    }
-
     if (action === "decline") {
       await notify({
         event: "CREW_DECLINED",
@@ -173,6 +189,13 @@ export async function POST(request: Request) {
         entity: { table: "DispatchOrder", id: dispatchID },
         link: "/admindashboard/feeds/pending",
         actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
+    }
+
+    if (action === "accept") {
+      await announceCrewComplete(dispatchID, {
+        employeeID: auth.employee.employeeID,
+        name: auth.employee.employeeName,
       });
     }
 
