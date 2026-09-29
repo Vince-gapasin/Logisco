@@ -289,7 +289,7 @@ export async function getCrewAssignment(dispatchID: string, employeeID: string) 
   const { data, error } = await supabase
     .from("DispatchOrder")
     .select(
-      "dispatchID, orderID, status, current_step, pickupCompletedAt, dispatchNote, truckID, driverID, DispatchHelper(dhID, helperID, status)",
+      "dispatchID, orderID, status, current_step, pickupCompletedAt, dispatchNote, pod_url, truckID, driverID, DispatchHelper(dhID, helperID, status)",
     )
     .eq("dispatchID", dispatchID)
     .maybeSingle();

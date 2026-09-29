@@ -8,6 +8,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import type { FeedStopRow, OrderWithRelations } from "@/app/lib/bookingView";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
+import StopProofList, { type ProofBearingStop } from "@/components/booking/StopProofList";
 import {
   TrendingUp,
   FileText,
@@ -71,23 +72,9 @@ export interface ReportRecord {
 // VIEW BOOKING MODAL (READ-ONLY) - REUSED FROM DASHBOARD
 // ==========================================
 
-interface StopProofRow {
-  podID: string;
-  proof: string | null;
-  receiverName: string | null;
-  remarks: string | null;
-  deliveredAt: string | null;
-  source: string | null;
-  missingReason: string | null;
-  fileType: string | null;
-}
-interface StopWithProofs {
-  branchName?: string | null;
-  /** Pickups name themselves differently; both are folded into one list. */
-  warehouseName?: string | null;
-  isPickup?: boolean;
-  POD?: StopProofRow[];
-}
+// The proof shapes live with the component that renders them, in
+// components/booking/StopProofList.tsx - copies of them here were how this screen
+// and the dashboard drifted apart in the first place.
 
 function ViewOrderModal({
   isOpen,
@@ -449,88 +436,11 @@ function ViewOrderModal({
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
                 Proof of Delivery
               </div>
-              {(() => {
-                // Every stop on the trip, warehouses included.
-                //
-                // This listed the branch stops only, so on a booking with one
-                // pickup and one drop it showed one proof out of two - and the
-                // missing one was the warehouse, whose photograph the crew had
-                // taken and the server had filed against nothing. The pickups are
-                // read now and their proofs are signed alongside the others.
-                //
-                // Pickups first, because that is the order the trip ran in.
-                const allStops: StopWithProofs[] = [
-                  ...(pickupRows as StopWithProofs[]).map((stop) => ({
-                    ...stop,
-                    branchName: stop.warehouseName ?? "Pickup",
-                    isPickup: true,
-                  })),
-                  ...(deliveries as StopWithProofs[]),
-                ];
-
-                const withProofs = allStops.filter((stop) => (stop.POD ?? []).length > 0);
-                const tripProof = dispatchRecord?.pod_url;
-
-                if (withProofs.length === 0 && !tripProof) {
-                  return <p className="text-xs text-slate-500">No proof of delivery has been recorded for this booking.</p>;
-                }
-
-                return (
-                  <div className="space-y-3">
-                    {withProofs.map((stop) =>
-                      (stop.POD ?? []).map((pod) => (
-                        <div key={pod.podID} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-900">
-                              {stop.isPickup && (
-                                <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
-                                  Pickup
-                                </span>
-                              )}
-                              {stop.branchName || "Stop"}
-                            </p>
-                            <p className="text-xs text-slate-600">
-                              {pod.deliveredAt ? formatDateTime(pod.deliveredAt) : ""}
-                              {pod.receiverName && pod.receiverName !== "N/A" ? ` - received by ${pod.receiverName}` : ""}
-                              {pod.source === "coordinator" ? " (recorded by a coordinator)" : ""}
-                            </p>
-                            {pod.remarks && <p className="text-xs text-slate-500">{pod.remarks}</p>}
-                            {!pod.proof && pod.missingReason && (
-                              <p className="text-xs text-amber-800">No file: {pod.missingReason}</p>
-                            )}
-                          </div>
-                          {pod.proof &&
-                            (/\.pdf(\?|$)/i.test(pod.proof) ? (
-                              <a href={pod.proof} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">
-                                View PDF
-                              </a>
-                            ) : (
-                              <a href={pod.proof} target="_blank" rel="noreferrer" className="shrink-0">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={pod.proof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
-                              </a>
-                            ))}
-                        </div>
-                      )),
-                    )}
-
-                    {/* Older trips kept one proof against the trip rather than a stop. */}
-                    {tripProof && withProofs.length === 0 && (
-                      <a href={tripProof} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:underline">
-                        {/\.pdf(\?|$)/i.test(tripProof) ? (
-                          "View proof of delivery (PDF)"
-                        ) : (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={tripProof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
-                            View proof of delivery
-                          </>
-                        )}
-                      </a>
-                    )}
-                  </div>
-                );
-              })()}
+              <StopProofList
+                pickups={pickupRows as ProofBearingStop[]}
+                deliveries={deliveries as ProofBearingStop[]}
+                tripProof={dispatchRecord?.pod_url ?? null}
+              />
             </div>
 
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">

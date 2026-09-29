@@ -35,6 +35,7 @@ import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/compon
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import { useToast } from "@/components/Toast";
 import RowOpenButton from "@/components/RowOpenButton";
+import StopProofList, { type ProofBearingStop } from "@/components/booking/StopProofList";
 import {
   mapOrderToBookingView,
   toFeedBooking,
@@ -347,6 +348,16 @@ function ViewOrderModal({
 
   const dispatchNote = dispatchRecord?.dispatchNote || "";
   const podUrl = dispatchRecord?.pod_url || "";
+
+  // Whether any stop carries a proof row. Counted here rather than inside the
+  // panel so the panel's own condition can ask about it.
+  const hasStopProofs = [
+    ...(Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : []),
+    ...(Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : []),
+  ].some((stop) => {
+    const proofs = (stop as { POD?: unknown }).POD;
+    return Array.isArray(proofs) && proofs.length > 0;
+  });
 
   const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
   const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
@@ -783,7 +794,12 @@ function ViewOrderModal({
             </div>
             
             {/* 7. COMPLETION / EMERGENCY SUMMARY PANEL */}
-            {(category === "Completed" || category === "Foul Trip") && (dispatchNote || podUrl) && (
+            {/* Gated on there being something to show. It used to test podUrl,
+                which is the single overwritten column - so once proofs are kept
+                per stop and that column is left alone, the panel would have
+                hidden the very records it exists to show. */}
+            {(category === "Completed" || category === "Foul Trip") &&
+              (dispatchNote || podUrl || hasStopProofs) && (
               <div className={`border rounded-xl p-4 shadow-xs ${category === "Foul Trip" ? 'border-red-200 bg-red-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
                 <div className={`border-b pb-2 mb-4 font-semibold text-sm tracking-wide flex items-center gap-2 ${category === "Foul Trip" ? 'border-red-200 text-red-900' : 'border-emerald-200 text-emerald-900'}`}>
                   {category === "Foul Trip" ? <AlertTriangle className="w-5 h-5 text-red-600" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
@@ -798,23 +814,24 @@ function ViewOrderModal({
                       </div>
                     </div>
                   )}
-                  {podUrl && (
-                    <div>
-                      <span className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? 'text-red-800' : 'text-emerald-800'}`}>Attached Proof / Photo</span>
-                      {/* A partner may send the proof as a PDF. */}
-                      {/\.pdf(\?|$)/i.test(podUrl) ? (
-                        <a href={podUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline">
-                          <FileText className="w-4 h-4" /> View proof of delivery (PDF)
-                        </a>
-                      ) : (
-                        <img
-                          src={podUrl}
-                          alt="Uploaded Proof"
-                          className={`w-full max-w-sm h-auto object-cover rounded-xl border shadow-sm ${category === "Foul Trip" ? "border-red-200" : "border-emerald-200"}`}
-                        />
-                      )}
-                    </div>
-                  )}
+                  {/* Every proof on the trip, one per stop, warehouses included.
+                      This showed DispatchOrder.pod_url, a single column the crew
+                      app overwrote at every stop - so a four-stop delivery
+                      displayed its last photograph and looked complete. The POD
+                      rows are the record, and they come down with the booking
+                      already. */}
+                  <div>
+                    <span
+                      className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? "text-red-800" : "text-emerald-800"}`}
+                    >
+                      Proof of Delivery
+                    </span>
+                    <StopProofList
+                      pickups={pickupRows as ProofBearingStop[]}
+                      deliveries={stopsArr as ProofBearingStop[]}
+                      tripProof={podUrl || null}
+                    />
+                  </div>
                 </div>
               </div>
             )}

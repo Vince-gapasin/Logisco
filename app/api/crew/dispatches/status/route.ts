@@ -187,7 +187,21 @@ export async function POST(request: Request) {
       updatePayload.dispatchNote =
         `${current.dispatchNote || ""}\n[${title || "Update"}] ${received}Crew: ${remarks || "Arrived"}`;
     }
-    if (podPath) updatePayload.pod_url = podPath;
+    // Only the first, and only when the column is empty.
+    //
+    // This was assigned on every stop, so a four-stop delivery ended up with the
+    // last photograph and the three before it erased from the column. Nothing was
+    // lost from storage and nothing is lost now - every proof is a POD row with a
+    // dispatchID, a stop, a time and who recorded it, and both admin screens read
+    // the rows rather than this.
+    //
+    // It is deliberately not turned into a list. A second copy of the same set
+    // would be a second thing to keep in step, and the one that drifts is always
+    // the copy. What the column is for now is the trips recorded before the rows
+    // existed, which is why it is still read as a fallback - and writing the first
+    // proof keeps that fallback pointing somewhere for a trip whose rows are
+    // somehow missing.
+    if (podPath && !current.pod_url) updatePayload.pod_url = podPath;
     if (status === DELIVERY_STATUS.completed) updatePayload.completedAt = new Date().toISOString();
 
     // The pickup leg used to be recorded only as current_step = 1, which is
