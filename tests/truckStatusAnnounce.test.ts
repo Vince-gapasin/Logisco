@@ -23,11 +23,11 @@ vi.mock("@/services/notifications/notify", () => ({
   MECHANICS: ["Mechanic"],
 }));
 
-const audits: Record<string, unknown>[] = [];
-vi.mock("@/services/audit/auditService", () => ({
-  recordAudit: (entry: Record<string, unknown>) => {
-    audits.push(entry);
-    return Promise.resolve();
+const opened: Record<string, unknown>[] = [];
+vi.mock("@/services/history-logs/historyLogsService", () => ({
+  createHistoryLog: (log: Record<string, unknown>) => {
+    opened.push(log);
+    return Promise.resolve({ id: "log-1" });
   },
 }));
 
@@ -38,7 +38,7 @@ const TRUCK = "44444444-4444-4444-4444-444444444444";
 beforeEach(() => {
   db.calls.length = 0;
   sent.length = 0;
-  audits.length = 0;
+  opened.length = 0;
 });
 
 /** The plate lookup the announcement makes before it speaks. */
@@ -114,8 +114,8 @@ describe("what it does with a truck it cannot name", () => {
   });
 });
 
-describe("what the audit trail is left with", () => {
-  it("records who grounded the truck and why", async () => {
+describe("what is left behind for the mechanics", () => {
+  it("opens a maintenance log, carrying what stopped the truck and who said so", async () => {
     plate();
     await announceTruckStatus(
       TRUCK,
@@ -125,29 +125,40 @@ describe("what the audit trail is left with", () => {
       "Foul trip: Broken Truck",
     );
 
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({
-      table: "Truck",
-      recordID: TRUCK,
-      action: "TRUCK_GROUNDED",
-      actor: { employeeID: "e1", name: "Christian Bacani" },
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatchObject({
+      truckID: TRUCK,
+      statusBefore: "On Delivery",
+      statusAfter: "On Maintenance",
+      driversReport: "Foul trip: Broken Truck",
     });
-    expect(audits[0].before).toEqual({ truckStatus: "On Delivery" });
-    expect(audits[0].after).toMatchObject({
-      truckStatus: "On Maintenance",
-      plateNumber: "ABC-1234",
-      cause: "Foul trip: Broken Truck",
-    });
+    expect(String(opened[0].preliminaryRemarks)).toContain("Christian Bacani");
   });
 
-  it("uses a different action when it comes back, so the two can be told apart", async () => {
+  it("leaves the mechanic empty, because nobody has been sent yet", async () => {
+    plate();
+    await announceTruckStatus(TRUCK, "Available", "On Maintenance");
+    // An open job with no name on it is what the office is looking at until they
+    // send somebody.
+    expect(opened[0].primaryMechanicID).toBeUndefined();
+    expect(String(opened[0].preliminaryRemarks)).toMatch(/awaiting a mechanic/i);
+  });
+
+  it("says what happened even when nobody reported it by name", async () => {
+    plate();
+    await announceTruckStatus(TRUCK, "Available", "Out of Service");
+    expect(String(opened[0].driversReport)).toMatch(/out of service/i);
+  });
+
+  it("opens nothing when a truck comes back", async () => {
     plate();
     await announceTruckStatus(TRUCK, "On Maintenance", "Available");
-    expect(audits[0].action).toBe("TRUCK_RETURNED");
+    // Coming back is the closing of a repair somebody was already logging.
+    expect(opened).toHaveLength(0);
   });
 
-  it("writes nothing for the churn nobody is told about", async () => {
+  it("opens nothing for the churn nobody is told about", async () => {
     await announceTruckStatus(TRUCK, "Available", "On Delivery");
-    expect(audits).toHaveLength(0);
+    expect(opened).toHaveLength(0);
   });
 });

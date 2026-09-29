@@ -267,27 +267,42 @@ export async function announceTruckStatus(
     actor: actor ?? undefined,
   });
 
-  // And written down, which is the half that answers "who grounded this truck,
-  // and when" three weeks later.
+  // And a maintenance log is opened for it.
   //
-  // Only the admin's truck form recorded anything before, and what it recorded
-  // was a generic UPDATE of the row - so a truck grounded by a crew breakdown
-  // left no trace against the truck at all. This is its own action so it reads
-  // as the operational fact it is rather than as a field edit.
+  // This was an audit row to begin with, which was the wrong place to put it.
+  // The audit trail is written for everything and read for almost nothing - no
+  // screen in this app shows a truck's audit history - so a grounding recorded
+  // there was filed where nobody looks. The maintenance log is the record the
+  // mechanics already keep, that the office can now see on the truck, and that a
+  // person can add to.
   //
+  // So the grounding opens one rather than describing itself into a table of its
+  // own: what the truck was doing, what stopped it, and who said so. No mechanic
+  // on it yet, because nobody has been sent - which is exactly what an open job
+  // looks like, and the mechanic fills in the rest through the form they already
+  // use.
+  //
+  // Only on the way down. Coming back off maintenance is the closing of a repair
+  // somebody was already logging, not the start of a new one.
+  if (!isGrounded) return;
+
   // Not fatal, for the same reason the notification is not: a delivery must not
-  // fail to release its truck because the audit could not be written.
+  // fail to release its truck because a log could not be opened.
   try {
-    const { recordAudit } = await import("@/services/audit/auditService");
-    await recordAudit({
-      table: TABLE,
-      recordID: truckID,
-      action: isGrounded ? "TRUCK_GROUNDED" : "TRUCK_RETURNED",
-      actor: actor ?? undefined,
-      before: { truckStatus: from ?? null },
-      after: { truckStatus: to, plateNumber: plate, cause: cause ?? null },
+    const { createHistoryLog } = await import("@/services/history-logs/historyLogsService");
+    await createHistoryLog({
+      truckID,
+      date: new Date().toISOString().slice(0, 10),
+      statusBefore: from ?? null,
+      statusAfter: to,
+      // Preliminary is the phase written before anybody has looked at the truck,
+      // which is what this is.
+      driversReport: cause ?? `Set to ${to.toLowerCase()}`,
+      preliminaryRemarks: actor
+        ? `Reported by ${actor.name}. Awaiting a mechanic.`
+        : "Awaiting a mechanic.",
     });
   } catch (error) {
-    console.error("[Truck] Could not record the status change:", error);
+    console.error("[Truck] Could not open a maintenance log:", error);
   }
 }
