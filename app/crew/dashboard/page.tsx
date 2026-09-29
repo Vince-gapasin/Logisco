@@ -9,8 +9,8 @@ import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
 import React, { useState, useEffect, useCallback } from "react";
 import { usePolling } from "@/app/lib/usePolling";
-import { apiFetch } from "@/app/lib/apiClient";
-import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone } from "lucide-react";
+import { apiFetch, authFetch } from "@/app/lib/apiClient";
+import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone, MapPin } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
 import { getAccessToken } from "@/app/lib/apiClient";
@@ -23,7 +23,7 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 import { compressImage } from "@/app/lib/imageCompression";
 import { markPing, markMovement } from "@/app/lib/trackingPulse";
 import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
-import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, type DeclineCode } from "@/app/lib/enums";
+import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, STOP_STATUS, type DeclineCode } from "@/app/lib/enums";
 
 // Background Geolocation Setup
 // The Capacitor community plugin, as much of it as this screen uses.
@@ -451,6 +451,9 @@ export default function CrewDashboardPage({
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [dynamicStops, setDynamicStops] = useState<RouteStop[]>([]);
+  /** Stops this crew have reported arriving at, keyed by kind and id. */
+  const [arrivedStops, setArrivedStops] = useState<Record<string, string>>({});
+  const [isReportingArrival, setIsReportingArrival] = useState(false);
   const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1159,6 +1162,82 @@ export default function CrewDashboardPage({
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // "I am here", and what it gates
+  // ---------------------------------------------------------------------------
+  // The threshold that decides whether the office is told a truck has gone quiet
+  // used to start from the last GPS movement, which could not tell an hour of
+  // unloading from an hour broken down - the app reports only when the truck
+  // rolls, so both arrive as silence. It was guessed at from how near a stop the
+  // truck happened to be, and the guess had a hole: a delivery could start at the
+  // depot, never leave, and never be mentioned to anybody.
+  //
+  // Reporting the arrival closes it. The clock stops while the crew are at a stop
+  // they have told us about, and restarts when they finish it.
+  //
+  // The departure step is not a stop, so nothing is asked there.
+  const activeStop = dynamicStops[currentStepIndex];
+  const activeStopData = activeStop?.data;
+  const activeStopKey = activeStopData
+    ? "warehouse" in activeStopData
+      ? `pickup:${activeStopData.pickupID ?? activeStopData.warehouse}`
+      : `delivery:${activeStopData.branchID ?? activeStopData.branch}`
+    : null;
+  const stopWantsArrival =
+    (activeStop?.type === "pickup" || activeStop?.type === "delivery") &&
+    Boolean(activeStopData);
+  const hasReportedArrival =
+    !stopWantsArrival ||
+    (activeStopKey !== null && Boolean(arrivedStops[activeStopKey])) ||
+    // Survives a reload mid-stop: the server already knows.
+    activeStopData?.status === STOP_STATUS.arrived;
+
+  const reportArrival = async () => {
+    if (!selectedDelivery || !activeStopData || !activeStopKey) return;
+
+    setIsReportingArrival(true);
+    try {
+      const payload: Record<string, unknown> = { dispatchID: String(selectedDelivery.id) };
+      if ("warehouse" in activeStopData) {
+        if (activeStopData.pickupID == null) {
+          // A booking made before PickupStops existed has no row to mark. Nothing
+          // to report, and nothing gained by blocking the crew over it.
+          setArrivedStops((prev) => ({ ...prev, [activeStopKey]: new Date().toISOString() }));
+          return;
+        }
+        payload.pickupID = activeStopData.pickupID;
+      } else {
+        if (activeStopData.branchID == null) {
+          setArrivedStops((prev) => ({ ...prev, [activeStopKey]: new Date().toISOString() }));
+          return;
+        }
+        payload.branchID = activeStopData.branchID;
+      }
+
+      const response = await authFetch("/api/crew/dispatches/arrive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        showToast(result.message ?? "Could not record that. Try again.", "error");
+        return;
+      }
+
+      setArrivedStops((prev) => ({
+        ...prev,
+        [activeStopKey]: (result.arrivedAt as string) ?? new Date().toISOString(),
+      }));
+      showToast("Arrival recorded. Take your time here.", "success");
+    } catch {
+      showToast("No signal. Try again when you have one.", "error");
+    } finally {
+      setIsReportingArrival(false);
+    }
+  };
+
   return (
     <>
       <UrlSearchSync onQuery={applyUrlSearch} />
@@ -1209,6 +1288,40 @@ export default function CrewDashboardPage({
             {/* Shows itself only once this device has stopped getting positions
                 through, which is the only moment the question makes sense. */}
             <StallCheckInPrompt dispatchID={selectedDelivery.id} />
+
+            {/* One tap on arrival, before any of the work at the stop.
+                It is what stops the office being told a truck has gone quiet
+                while the crew are standing at a delivery point unloading it. */}
+            {stopWantsArrival && !hasReportedArrival && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  Have you reached {stopName(activeStopData)}?
+                </p>
+                <p className="text-xs text-slate-700 mt-0.5">
+                  Tell us when you get there. The office stops chasing the trip while you are
+                  working, and your customer sees that you have arrived.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void reportArrival()}
+                  disabled={isReportingArrival}
+                  className="mt-3 w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-3 sm:py-2.5 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  {isReportingArrival ? "Sending..." : "I have arrived"}
+                </button>
+              </div>
+            )}
+
+            {stopWantsArrival && hasReportedArrival && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-900">
+                  Arrival recorded at {stopName(activeStopData)}. Nobody is counting the clock
+                  against you while you are here.
+                </p>
+              </div>
+            )}
 
             {/* DYNAMIC MAP SECTION */}
             <div className="bg-[#e0f2fe] rounded-2xl border border-slate-300 overflow-hidden shadow-sm flex flex-col">
@@ -1427,7 +1540,11 @@ export default function CrewDashboardPage({
               ) : (
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
-                  disabled={isSubmittingResponse}
+                  // Finishing a stop the crew have not said they reached would
+                  // leave the arrival unrecorded and the clock measuring from the
+                  // wrong moment, so the order is enforced rather than suggested.
+                  disabled={isSubmittingResponse || !hasReportedArrival}
+                  title={hasReportedArrival ? undefined : "Tell us you have arrived first"}
                   className="w-full sm:w-64 min-h-tap sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1

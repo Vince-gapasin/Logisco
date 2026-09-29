@@ -174,6 +174,27 @@ export interface StallInput {
    * silence then honestly reads as unknown.
    */
   lastContactAt?: string | null;
+  /**
+   * When the crew last told us something: arrived at a stop, or finished one.
+   *
+   * The starting gun for the threshold. Movement alone is a poor baseline - the
+   * app reports it only when the truck rolls, so a legitimate hour of unloading
+   * and a breakdown produce the same silence, and the only way to tell them apart
+   * was to guess from how near a stop the truck happened to be. A crew who have
+   * said "I am here" and then "I am done" have told us which it is.
+   *
+   * The clock runs from whichever is later, this or the last movement, so
+   * finishing a stop restarts it even if the truck has not pulled away yet.
+   */
+  lastCrewUpdateAt?: string | null;
+  /**
+   * The crew have said they are at a stop and have not said they are finished.
+   *
+   * They are working. Nothing is counted against them - up to the point where it
+   * starts costing a promised delivery time, which stopAtRisk decides, because
+   * "I am unloading" cannot be allowed to mean "do not ask me again".
+   */
+  atDeclaredStop?: boolean;
   /** The trip's status. Only a trip on the road can stall. */
   status: string;
   /** Metres to the nearest stop on this trip, done or not, when both are known. */
@@ -259,6 +280,8 @@ export function describeSilence(minutes: number): string {
 export function assessStall({
   lastReportedAt,
   lastContactAt = null,
+  lastCrewUpdateAt = null,
+  atDeclaredStop = false,
   status,
   metresToNearestStop,
   checkIn = null,
@@ -295,8 +318,33 @@ export function assessStall({
   const reportedAt = new Date(lastReportedAt).getTime();
   if (Number.isNaN(reportedAt)) return quiet("never reported");
 
-  // A clock ahead of ours would otherwise read as a fresh position forever.
-  const silentFor = Math.max(0, Math.floor((now.getTime() - reportedAt) / 60_000));
+  // Two clocks, because they answer different questions.
+  //
+  // movementSilence is how long since the truck rolled. It decides the cause,
+  // against how long since the app last spoke.
+  //
+  // silentFor is how long since anything counted as progress - the truck moving,
+  // or the crew saying where they are. It drives the rungs, because a crew who
+  // have just finished a stop have told us the trip is alive whether or not the
+  // wheels have turned yet, and starting the threshold from the last GPS
+  // movement instead punished them for standing still while they signed for it.
+  //
+  // A clock ahead of ours would otherwise read as fresh forever.
+  const movementSilence = Math.max(0, Math.floor((now.getTime() - reportedAt) / 60_000));
+
+  const crewUpdateAt = lastCrewUpdateAt ? new Date(lastCrewUpdateAt).getTime() : Number.NaN;
+  const progressAt = Number.isFinite(crewUpdateAt)
+    ? Math.max(reportedAt, crewUpdateAt)
+    : reportedAt;
+  const silentFor = Math.max(0, Math.floor((now.getTime() - progressAt) / 60_000));
+
+  // The crew have said they are at a stop and not said they are done. They are
+  // working, and nothing is counted against them - until it starts costing a time
+  // somebody promised, because "I am unloading" must not come to mean "do not ask
+  // me again". Same rule as the GPS guess below, applied to a better signal.
+  if (atDeclaredStop && !stopAtRisk) {
+    return quiet("at a stop", silentFor, true);
+  }
 
   // Sitting at one of its own stops is loading, not trouble. Every stop counts,
   // not only the ones still to come: a crew doing paperwork where they have
@@ -333,7 +381,11 @@ export function assessStall({
   // compare. When the two timestamps march together there were no heartbeats,
   // and "the app has gone silent" is then the same statement as "the truck has
   // not moved" - true of both, evidence of neither.
-  const heartbeats = contactSilence !== null && contactSilence < silentFor;
+  // Against movement, not against progress. A crew update makes the trip fresh
+  // for the purposes of the ladder but says nothing about whether the phone is
+  // still talking to us, and comparing contact against it would call a truck
+  // "stopped" on the strength of a tap.
+  const heartbeats = contactSilence !== null && contactSilence < movementSilence;
   const cause: StallCause = !heartbeats
     ? "unknown"
     : contactSilence < CONTACT_LOST_MIN

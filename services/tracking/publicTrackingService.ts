@@ -243,20 +243,30 @@ function buildSteps(
     const away =
       stage === "current" && minutesToNextStop !== null ? ` About ${minutesToNextStop} min away.` : "";
 
+    // The crew have reported reaching this stop and have not finished it yet.
+    //
+    // Worth its own words, because "on the way" and "here, unloading" are
+    // different things to a customer waiting on a delivery - and until the crew
+    // began reporting arrivals this could not be said: arrivedAt was written as a
+    // copy of the completion time, so it only ever existed on stops already done.
+    const arrivedNotDone = !done && Boolean(stop.arrivedAt);
+
     steps.push({
-      title: `Delivery to ${stop.branchName}`,
+      title: arrivedNotDone ? `Arrived at ${stop.branchName}` : `Delivery to ${stop.branchName}`,
       detail: done
         ? `${delivered}.`
-        : stage === "current" && expected
-          ? `On the way. Expected by ${expected}.${away}`
-          : stage === "current"
-            ? `On the way.${away}`
-            : expected
-              ? `Expected by ${expected}.`
-              : "Scheduled.",
+        : arrivedNotDone
+          ? "Our crew are at the stop now."
+          : stage === "current" && expected
+            ? `On the way. Expected by ${expected}.${away}`
+            : stage === "current"
+              ? `On the way.${away}`
+              : expected
+                ? `Expected by ${expected}.`
+                : "Scheduled.",
       stage,
       kind: "stop",
-      at: stop.deliveredAt ?? null,
+      at: stop.deliveredAt ?? (arrivedNotDone ? stop.arrivedAt : null),
     });
   }
 

@@ -19,8 +19,12 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     DELIVERY_STATUS.assigned,
     DELIVERY_STATUS.accepted,
     DELIVERY_STATUS.inTransit,
+    // A crew who reported arriving at a stop are in "Arrived" until they finish
+    // it. Without this the finish was refused as an illegal transition, and the
+    // arrival tap would have bricked the trip one stop in.
+    DELIVERY_STATUS.arrived,
   ],
-  [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit],
+  [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.arrived],
 };
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
@@ -220,12 +224,30 @@ export async function POST(request: Request) {
     // forever even though the trip had moved on.
     const completedAt = new Date().toISOString();
 
+    // arrivedAt is no longer written here unless it is missing.
+    //
+    // It used to be set to completedAt on every stop, which made it a restatement
+    // of the finish time rather than a record of the arrival - so "arrived" and
+    // "delivered" were always the same instant and the time spent at a stop was
+    // unknowable. The crew now report the arrival themselves, from
+    // /api/crew/dispatches/arrive, and that is the timestamp worth keeping.
+    //
+    // The fallback stays for the stop that is finished without an arrival ever
+    // having been reported: a crew who tapped straight through, or a trip that
+    // was in flight when this shipped. Better a slightly late arrival time than a
+    // null one.
     if (branchID !== null) {
+      const { data: existing } = await supabase
+        .from("BranchStops")
+        .select("arrivedAt")
+        .eq("branchID", branchID)
+        .maybeSingle();
+
       const { error: stopErr } = await supabase
         .from("BranchStops")
         .update({
           stopStatus: STOP_STATUS.delivered,
-          arrivedAt: completedAt,
+          arrivedAt: (existing?.arrivedAt as string) ?? completedAt,
           completedAt,
         })
         .eq("branchID", branchID);
@@ -233,11 +255,17 @@ export async function POST(request: Request) {
     }
 
     if (pickupID !== null) {
+      const { data: existing } = await supabase
+        .from("PickupStops")
+        .select("arrivedAt")
+        .eq("pickupID", pickupID)
+        .maybeSingle();
+
       const { error: pickupErr } = await supabase
         .from("PickupStops")
         .update({
           stopStatus: STOP_STATUS.delivered,
-          arrivedAt: completedAt,
+          arrivedAt: (existing?.arrivedAt as string) ?? completedAt,
           completedAt,
         })
         .eq("pickupID", pickupID);

@@ -138,6 +138,59 @@ async function metresToNearestStop(trip: LiveTrip): Promise<number | null> {
 }
 
 /**
+ * What the crew last told us about this trip, and whether they are at a stop.
+ *
+ * The threshold's starting gun. Movement alone could not tell an hour of
+ * unloading from an hour broken down, because the app reports only when the truck
+ * rolls - so the watchdog guessed from how near a stop the truck happened to be,
+ * with a radius and a grace period that were both invented. A crew who have said
+ * "I am here" and then "I am done" have answered it instead.
+ *
+ * atDeclaredStop is the honest version of the old guess: they said they arrived
+ * and have not said they finished, so they are working.
+ */
+async function crewProgress(
+  dispatchID: string,
+): Promise<{ lastCrewUpdateAt: string | null; atDeclaredStop: boolean }> {
+  const [branches, pickups] = await Promise.all([
+    supabase
+      .from("BranchStops")
+      .select("arrivedAt, completedAt")
+      .eq("dispatchID", dispatchID),
+    supabase
+      .from("PickupStops")
+      .select("arrivedAt, completedAt")
+      .eq("dispatchID", dispatchID),
+  ]);
+
+  if (branches.error) console.warn("Could not read stop progress:", branches.error.message);
+  if (pickups.error) console.warn("Could not read pickup progress:", pickups.error.message);
+
+  const stops = [...(branches.data ?? []), ...(pickups.data ?? [])] as {
+    arrivedAt: string | null;
+    completedAt: string | null;
+  }[];
+
+  let latest = 0;
+  let atDeclaredStop = false;
+
+  for (const stop of stops) {
+    for (const moment of [stop.arrivedAt, stop.completedAt]) {
+      if (!moment) continue;
+      const at = new Date(moment).getTime();
+      if (Number.isFinite(at)) latest = Math.max(latest, at);
+    }
+    // Arrived and not finished. One such stop is enough; a crew cannot be at two.
+    if (stop.arrivedAt && !stop.completedAt) atDeclaredStop = true;
+  }
+
+  return {
+    lastCrewUpdateAt: latest > 0 ? new Date(latest).toISOString() : null,
+    atDeclaredStop,
+  };
+}
+
+/**
  * The next stop this delay is about to make late, if there is one.
  *
  * The ladder only knows how long a truck has been quiet. That is the wrong thing
@@ -255,10 +308,13 @@ export async function checkForStalledTrips(
     // verdict's own branches: whether standing at a stop still excuses the
     // silence. Reused for the alert below, so it is read once either way.
     const atRisk = await stopAtRisk(trip, now);
+    const progress = await crewProgress(trip.dispatchID);
 
     const verdict = assessStall({
       lastReportedAt: trip.lastReportedAt,
       lastContactAt: trip.lastContactAt,
+      lastCrewUpdateAt: progress.lastCrewUpdateAt,
+      atDeclaredStop: progress.atDeclaredStop,
       status: trip.status,
       metresToNearestStop: await metresToNearestStop(trip),
       checkIn,
