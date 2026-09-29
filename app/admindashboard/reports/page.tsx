@@ -83,6 +83,9 @@ interface StopProofRow {
 }
 interface StopWithProofs {
   branchName?: string | null;
+  /** Pickups name themselves differently; both are folded into one list. */
+  warehouseName?: string | null;
+  isPickup?: boolean;
   POD?: StopProofRow[];
 }
 
@@ -447,7 +450,25 @@ function ViewOrderModal({
                 Proof of Delivery
               </div>
               {(() => {
-                const withProofs = (deliveries as StopWithProofs[]).filter((stop) => (stop.POD ?? []).length > 0);
+                // Every stop on the trip, warehouses included.
+                //
+                // This listed the branch stops only, so on a booking with one
+                // pickup and one drop it showed one proof out of two - and the
+                // missing one was the warehouse, whose photograph the crew had
+                // taken and the server had filed against nothing. The pickups are
+                // read now and their proofs are signed alongside the others.
+                //
+                // Pickups first, because that is the order the trip ran in.
+                const allStops: StopWithProofs[] = [
+                  ...(pickupRows as StopWithProofs[]).map((stop) => ({
+                    ...stop,
+                    branchName: stop.warehouseName ?? "Pickup",
+                    isPickup: true,
+                  })),
+                  ...(deliveries as StopWithProofs[]),
+                ];
+
+                const withProofs = allStops.filter((stop) => (stop.POD ?? []).length > 0);
                 const tripProof = dispatchRecord?.pod_url;
 
                 if (withProofs.length === 0 && !tripProof) {
@@ -460,7 +481,14 @@ function ViewOrderModal({
                       (stop.POD ?? []).map((pod) => (
                         <div key={pod.podID} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-900">{stop.branchName || "Stop"}</p>
+                            <p className="text-xs font-semibold text-slate-900">
+                              {stop.isPickup && (
+                                <span className="mr-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                                  Pickup
+                                </span>
+                              )}
+                              {stop.branchName || "Stop"}
+                            </p>
                             <p className="text-xs text-slate-600">
                               {pod.deliveredAt ? formatDateTime(pod.deliveredAt) : ""}
                               {pod.receiverName && pod.receiverName !== "N/A" ? ` - received by ${pod.receiverName}` : ""}

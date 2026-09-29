@@ -53,7 +53,8 @@ const BOOKING_COLUMNS = `
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
   BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
-  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
@@ -158,16 +159,27 @@ interface OrderLike {
   orderID?: string;
   DispatchOrder?: Embedded<DispatchLike>;
   BranchStops?: Embedded<StopLike>;
+  PickupStops?: Embedded<StopLike>;
   OrderDetails?: Embedded<{ itemID?: string; productName?: string }>;
 }
 
 async function withSignedProofs(orders: Order[]): Promise<Order[]> {
   const dispatches = orders.flatMap((order) => embedded((order as OrderLike).DispatchOrder));
-  const stopProofs = orders.flatMap((order) =>
-    embedded((order as OrderLike).BranchStops).flatMap((stop) =>
-      embedded(stop?.POD).filter((pod) => pod?.proof),
+  // Both halves of the itinerary. Signing only the branch stops would leave every
+  // warehouse proof rendering as a bare object path, which is a broken image on
+  // the report rather than a picture of a signed delivery note.
+  const stopProofs = [
+    ...orders.flatMap((order) =>
+      embedded((order as OrderLike).BranchStops).flatMap((stop) =>
+        embedded(stop?.POD).filter((pod) => pod?.proof),
+      ),
     ),
-  );
+    ...orders.flatMap((order) =>
+      embedded((order as OrderLike).PickupStops).flatMap((stop) =>
+        embedded(stop?.POD).filter((pod) => pod?.proof),
+      ),
+    ),
+  ];
 
   const withProof = dispatches.filter((dispatch) => dispatch.pod_url);
   if (withProof.length === 0 && stopProofs.length === 0) return orders;
@@ -323,7 +335,7 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), PickupStops (*),
+        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
         BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),

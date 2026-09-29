@@ -147,6 +147,7 @@ export async function POST(request: Request) {
 
     let podUrl: string | null = null;
     let podPath: string | null = null;
+    let podFileType: string | null = null;
 
     // 3. Upload the proof-of-delivery photo, if any
     if (file && file.size > 0) {
@@ -175,14 +176,7 @@ export async function POST(request: Request) {
       podPath = fileName;
       podUrl = await signPodUrl(fileName);
 
-      const { error: podInsertError } = await supabase.from("POD").insert({
-        branchID,
-        proof: podPath,
-        receiverName: receiverName || "N/A",
-        remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
-      });
-
-      if (podInsertError) console.error("[Status API] POD Insert Error:", podInsertError);
+      podFileType = file.type || null;
     }
 
     // 4. Update DispatchOrder, appending crew remarks to the existing notes
@@ -270,6 +264,50 @@ export async function POST(request: Request) {
         })
         .eq("pickupID", pickupID);
       if (pickupErr) console.error("[Status API] Pickup status update failed:", pickupErr.message);
+    }
+
+    // The proof of what happened at this stop.
+    //
+    // Three things were wrong with where this used to sit and what it wrote.
+    //
+    // It only wrote branchID. A pickup step sends pickupID and no branchID, so
+    // every warehouse proof went in attached to nothing - the crew photographed
+    // it, the file reached the bucket, and the record of it was unfindable. That
+    // is why a one-pickup one-drop booking showed one proof instead of two.
+    //
+    // It left dispatchID, deliveredAt, recordedBy and fileType null. Those
+    // columns were added for the coordinator path and this one was never brought
+    // up to them, which is why the report showed proofs with no date beside them -
+    // and why performanceService, which filters on deliveredAt, counted none of
+    // them at all.
+    //
+    // And it only ran when there was a file. A stop finished without a photograph
+    // left no row, so a report with nothing listed against a stop could mean "no
+    // proof was taken" or "this stop was never reached", and the two look
+    // identical. Now there is always a row, and an absent file says so in
+    // missingReason - which the report already knows how to show.
+    const stopProof: Record<string, unknown> = {
+      dispatchID,
+      branchID,
+      pickupID,
+      proof: podPath,
+      fileType: podFileType,
+      receiverName: receiverName || "N/A",
+      remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
+      deliveredAt: completedAt,
+      recordedBy: auth.employee.employeeID,
+      source: "crew",
+      missingReason: podPath ? null : "No photograph was taken at this stop",
+    };
+
+    // Only for the real stops. The departure and return steps are not places
+    // anything is handed over, and a proof row for them would be noise in a
+    // record that is meant to be auditable.
+    if (branchID !== null || pickupID !== null) {
+      const { error: podInsertError } = await supabase.from("POD").insert(stopProof);
+      if (podInsertError) {
+        console.error("[Status API] POD Insert Error:", podInsertError.message);
+      }
     }
 
     // A finished stop is one the truck is no longer driving to, so the route
