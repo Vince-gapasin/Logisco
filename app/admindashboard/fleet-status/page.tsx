@@ -9,6 +9,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import RowOpenButton from "@/components/RowOpenButton";
+import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
 import {
   Search,
   Truck,
@@ -573,6 +574,12 @@ function TruckDetailView({
               </div>
             </div>
           </div>
+
+          {/* Who has had this truck, and what they found. The office could see
+              that a truck was On Maintenance and not who was fixing it or when
+              it might be back - the repair record lived only in the mechanic's
+              module, although admin and coordinator could always read it. */}
+          <TruckMaintenanceHistory truckID={truck.id} />
         </div>
       </div>
 
