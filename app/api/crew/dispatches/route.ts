@@ -11,6 +11,7 @@ import type {
 } from "@/types/database";
 import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
+import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
 
 // Stops are read through the Order: older dispatches were created before
 // BranchStops.dispatchID was being set, so the order link is the reliable one.
@@ -27,6 +28,14 @@ const DISPATCH_SELECT = `
     PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
   Truck ( plateNumber, model )
 `;
+
+// Before the truck has left, which is the only point at which the whole crew
+// having accepted is a precondition rather than a formality.
+const STARTING_OUT: string[] = [
+  DELIVERY_STATUS.pending,
+  DELIVERY_STATUS.assigned,
+  DELIVERY_STATUS.accepted,
+];
 
 // The booking form stores the schedule inside Order.notes as free text.
 function readScheduledDate(notes: string | null): string {
@@ -125,6 +134,25 @@ export async function GET(request: Request) {
       allRawDispatches.map((dispatch) => dispatch.pod_url),
     );
 
+    // Who else is on each trip and whether they have accepted. The screen used
+    // to know only about the person holding the phone, so it offered a Start
+    // Delivery button that the server would then refuse - and the driver had no
+    // way of seeing that the hold-up was a helper who had not answered.
+    const readiness = await crewReadinessFor(
+      allRawDispatches.map((dispatch) => dispatch.dispatchID),
+    );
+
+    // Why this trip cannot start yet, in one sentence, worded for whoever is
+    // holding the phone - the person who has not accepted needs telling
+    // something different from the person waiting on them. Computed here rather
+    // than in the browser so the screen and the gate that actually holds the
+    // truck cannot come to disagree about it.
+    const startBlockedReason = (dispatch: CrewDispatch): string | null => {
+      if (!STARTING_OUT.includes(dispatch.status ?? "")) return null;
+      const state = readiness.get(dispatch.dispatchID as string);
+      return state ? crewNotReadyReason(state, { isDriver: !dispatch._helperStatus }) : null;
+    };
+
     // 3. Map Database Schema to Frontend "DeliveryRecord" Format
     const formattedData = allRawDispatches.map((dispatch) => {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
@@ -192,6 +220,7 @@ export async function GET(request: Request) {
         dispatchNote: dispatch.dispatchNote || "",
         pod_url: dispatch.pod_url ? (signedProofs.get(dispatch.pod_url) ?? null) : null,
         confirmBy: "End of Day",
+        startBlockedReason: startBlockedReason(dispatch),
         pickupCompletedAt: dispatch.pickupCompletedAt ?? null,
         multiplePickups: pickups.map((pickup) => ({
           pickupID: pickup.pickupID,

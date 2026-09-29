@@ -7,7 +7,7 @@ import RowOpenButton from "@/components/RowOpenButton";
 import { useToast } from "@/components/Toast";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { usePolling } from "@/app/lib/usePolling";
 import { apiFetch, authFetch } from "@/app/lib/apiClient";
 import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone, MapPin } from "lucide-react";
@@ -296,6 +296,11 @@ export interface DeliveryRecord {
   multiplePickups?: PickupRecord[];
   multipleDeliveries?: DeliveryDestinationRecord[];
   localUpdatedAt?: number;
+  /**
+   * Why this trip cannot start yet, when it cannot: somebody assigned to it has
+   * not accepted. Worded by the server for whoever is reading it.
+   */
+  startBlockedReason?: string | null;
 }
 
 interface CrewDashboardProps {
@@ -413,6 +418,15 @@ export default function CrewDashboardPage({
   const [isSubmittingResponse, setIsSubmittingResponse] = useState<boolean>(false);
 
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryRecord | null>(null);
+
+  // The open trip, readable from the polling callback without making it depend
+  // on the trip and restart the timer every time the crew tap something.
+  // Written after the commit, not during the render, which is the only point at
+  // which a ref is anybody's to touch.
+  const openTripRef = useRef<DeliveryRecord | null>(null);
+  useEffect(() => {
+    openTripRef.current = selectedDelivery;
+  }, [selectedDelivery]);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
@@ -498,13 +512,30 @@ export default function CrewDashboardPage({
             return mine?.localUpdatedAt && mine.localUpdatedAt > startedAt ? mine : d;
           });
         });
-        // The open trip only follows the server when the server moved it on
-        // from a foul trip; mid-delivery, the screen's own state stands.
-        setSelectedDelivery((current) => {
-          if (!current || current.status !== "Foul Trip") return current;
-          const fresh = data.find((d) => d.id === current.id);
-          return fresh && fresh.status !== current.status ? fresh : current;
-        });
+        // The open trip follows the server too, under the same rule as the
+        // list: this screen's own change wins only while it is newer than the
+        // answer we asked for.
+        //
+        // It used to stand still unless the server had brought it back from a
+        // foul trip, which was a rule written for one person on a trip. With a
+        // driver and a helper it froze whoever was not tapping: the helper
+        // finished the pickup, the shared row moved on, and the driver went on
+        // being shown a stop that was already done - and offered a button the
+        // server would then refuse as "already progressed past that step".
+        const open = openTripRef.current;
+        if (open) {
+          const fresh = data.find((d) => d.id === open.id);
+          const mineIsNewer = Boolean(open.localUpdatedAt && open.localUpdatedAt > startedAt);
+          if (fresh && !mineIsNewer) {
+            setSelectedDelivery(fresh);
+            setDynamicStops(generateDynamicStops(fresh));
+            // Forward only. The other crew member finishing a stop moves
+            // everybody on; nothing they do should drag this screen back to a
+            // stop this one has already dealt with.
+            const theirStep = fresh.current_step ?? 0;
+            setCurrentStepIndex((index) => (theirStep > index ? theirStep : index));
+          }
+        }
       } catch (error) {
         console.error("Error fetching dispatches:", error);
       } finally {
@@ -841,6 +872,10 @@ export default function CrewDashboardPage({
       }
     } catch (error) {
       showToast(`Status update failed: ${error instanceof Error ? error.message : error}`, "error");
+      // Most refusals here mean the other crew member got there first. The poll
+      // would fix it within half a minute; asking now means the next thing they
+      // see is the stop that is actually outstanding.
+      void fetchMyDispatches();
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -867,7 +902,13 @@ export default function CrewDashboardPage({
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Failed to update server");
+      // The server's own words. It refuses a start when somebody assigned has
+      // not accepted, and "Failed to update server" told the crew nothing about
+      // who they were waiting for.
+      if (!response.ok) {
+        const refused = await response.json().catch(() => null);
+        throw new Error(refused?.message || "Failed to update server");
+      }
 
       // 2. Start GPS Tracking
       void startLiveTracking(selectedDelivery.id);
@@ -888,7 +929,11 @@ export default function CrewDashboardPage({
       setViewMode("update-status");
 
     } catch (error) {
-      showToast(`Failed to start route: ${error instanceof Error ? error.message : error}`, "error");
+      showToast(`${error instanceof Error ? error.message : error}`, "error");
+      // A refusal nearly always means this screen is behind the shared row -
+      // the other crew member has moved the trip on, or the office has. Go and
+      // find out rather than leaving them to tap the same button again.
+      void fetchMyDispatches();
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -1132,6 +1177,29 @@ export default function CrewDashboardPage({
     }
     
     if (selectedDelivery.status?.toLowerCase() === "accepted" && (selectedDelivery.current_step || 0) === 0) {
+      // Everybody assigned has to accept before the truck leaves. The server
+      // refuses it either way; saying so here means the crew find out from the
+      // screen rather than from a failed tap, and find out who they are
+      // waiting for.
+      const blocked = selectedDelivery.startBlockedReason;
+      if (blocked) {
+        return (
+          <div className="w-full sm:w-72">
+            <button
+              type="button"
+              disabled
+              aria-describedby="start-blocked"
+              className="w-full min-h-tap sm:min-h-0 py-2.5 bg-slate-200 text-slate-500 font-semibold rounded-xl text-sm border border-slate-300 cursor-not-allowed whitespace-nowrap"
+            >
+              Start Delivery
+            </button>
+            <p id="start-blocked" role="status" className="mt-1.5 text-xs font-medium text-amber-700 text-left">
+              {blocked}
+            </p>
+          </div>
+        );
+      }
+
       return (
         <button
           onClick={() => setShowStartConfirmModal(true)}

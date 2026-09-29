@@ -2,8 +2,10 @@ import { supabase } from "@/app/lib/supabase";
 import { announceTruckStatus } from "@/services/truck/truckService";
 import {
   ACTIVE_DELIVERY_STATUSES,
+  AWAITING_CREW_STATUSES,
   DELIVERY_STATUS,
   EMPLOYEE_ROLE,
+  HELPER_STATUS,
   isAssignable,
   TERMINAL_DELIVERY_STATUSES,
   TRUCK_STATUS,
@@ -460,4 +462,127 @@ export async function getAvailableResources(targetDate: string) {
     drivers: availableDrivers,
     helpers: availableHelpers,
   };
+}
+
+// ==========================================
+// WHO HAS AGREED TO GO
+// ==========================================
+
+/**
+ * Whether everybody assigned to a trip has said yes.
+ *
+ * The office assigns a crew; the crew agree to it; only then does the truck
+ * move. Only the first half of that was enforced. The driver accepting set the
+ * dispatch to Accepted, which is what the start button looked at - so a helper
+ * who had never answered was no obstacle at all, and a two-person job could
+ * leave with one person on it. The office found out at the warehouse.
+ *
+ * Declined is kept separate from pending on purpose. Waiting for somebody to
+ * answer is a matter of minutes and the crew can see it resolve; somebody having
+ * said no is a gap only the office can fill, and telling the driver to keep
+ * waiting for a person who has already refused is how a delivery loses an hour
+ * to nobody doing anything.
+ */
+export interface CrewReadiness {
+  ready: boolean;
+  /** Whether the driver themselves has accepted the dispatch. */
+  driverAccepted: boolean;
+  /** Who has not answered yet, by name. */
+  waitingOn: string[];
+  /** Who said no, and whose place nobody has taken yet. */
+  declined: string[];
+}
+
+const A_CREW_MEMBER = "A crew member";
+
+type NamedEmployee = { employeeName?: string | null } | { employeeName?: string | null }[] | null;
+
+function nameOf(embedded: NamedEmployee): string {
+  const row = Array.isArray(embedded) ? embedded[0] : embedded;
+  return row?.employeeName?.trim() || A_CREW_MEMBER;
+}
+
+const READINESS_SELECT = `
+  dispatchID,
+  status,
+  DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) )
+`;
+
+/** One query for a screenful of trips, rather than one query per row. */
+export async function crewReadinessFor(
+  dispatchIDs: (string | null | undefined)[],
+): Promise<Map<string, CrewReadiness>> {
+  const ids = [...new Set(dispatchIDs.filter((id): id is string => isUuid(id)))];
+  const readiness = new Map<string, CrewReadiness>();
+  if (ids.length === 0) return readiness;
+
+  const { data, error } = await supabase
+    .from("DispatchOrder")
+    .select(READINESS_SELECT)
+    .in("dispatchID", ids);
+
+  // Never fatal: a screen that cannot say who is still to accept is worse than
+  // one that says nothing about it, and the gate on the server side is what
+  // actually holds the truck.
+  if (error) {
+    console.error("[Crew] Could not read who has accepted:", error.message);
+    return readiness;
+  }
+
+  for (const trip of data ?? []) {
+    const helpers = (trip.DispatchHelper ?? []) as {
+      status: string | null;
+      Helper?: NamedEmployee;
+    }[];
+
+    const waitingOn = helpers
+      .filter((helper) => (helper.status ?? HELPER_STATUS.pending) === HELPER_STATUS.pending)
+      .map((helper) => nameOf(helper.Helper ?? null));
+    const declined = helpers
+      .filter((helper) => helper.status === HELPER_STATUS.declined)
+      .map((helper) => nameOf(helper.Helper ?? null));
+
+    // The driver's own yes is the dispatch status: Assigned and Pending both
+    // mean they have not given it.
+    const driverAccepted = !AWAITING_CREW_STATUSES.includes(trip.status ?? "");
+
+    readiness.set(trip.dispatchID as string, {
+      ready: driverAccepted && waitingOn.length === 0 && declined.length === 0,
+      driverAccepted,
+      waitingOn,
+      declined,
+    });
+  }
+
+  return readiness;
+}
+
+/**
+ * Why this trip cannot start yet, in the words the crew member holding the
+ * phone needs - which is not the same sentence for the person who has not
+ * accepted as for the person waiting on them.
+ */
+export function crewNotReadyReason(
+  readiness: CrewReadiness,
+  asking: { isDriver: boolean },
+): string | null {
+  if (readiness.ready) return null;
+
+  if (readiness.declined.length > 0) {
+    return (
+      `${readiness.declined.join(" and ")} declined this delivery. ` +
+      `The office has been told and has to send a replacement before it can start.`
+    );
+  }
+
+  if (!readiness.driverAccepted) {
+    return asking.isDriver
+      ? "Accept this delivery before starting it."
+      : "The driver has not accepted this delivery yet. It cannot start until they do.";
+  }
+
+  return (
+    `${readiness.waitingOn.join(" and ")} ${readiness.waitingOn.length === 1 ? "has" : "have"} not accepted ` +
+    `this delivery yet. Everybody assigned has to accept before the truck leaves.`
+  );
 }

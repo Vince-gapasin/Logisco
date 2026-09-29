@@ -7,6 +7,8 @@ import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import {
+  crewNotReadyReason,
+  crewReadinessFor,
   getCrewAssignment,
   isUuid,
   releaseDispatchResources,
@@ -26,6 +28,14 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   ],
   [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.arrived],
 };
+
+// The statuses a trip is still in before it has left, where the whole crew
+// having accepted is a precondition rather than a formality.
+const STARTING_OUT: string[] = [
+  DELIVERY_STATUS.pending,
+  DELIVERY_STATUS.assigned,
+  DELIVERY_STATUS.accepted,
+];
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
 
@@ -113,6 +123,26 @@ export async function POST(request: Request) {
         { message: "This trip has already progressed past that step. Please refresh.", current_step: currentStep },
         { status: 409 },
       );
+    }
+
+    // Nobody leaves until the whole crew has agreed to go.
+    //
+    // The driver accepting set the dispatch to Accepted, and the start button
+    // looked at nothing else - so a helper who had never answered was no
+    // obstacle, and a two-person job could leave with one person on it. The
+    // office found out at the warehouse.
+    //
+    // Only checked at the start. Once the truck is rolling, refusing to record
+    // a delivery that has already happened because of a row somebody never
+    // answered would lose the proof rather than the crew.
+    if (status === DELIVERY_STATUS.inTransit && STARTING_OUT.includes(current.status)) {
+      const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
+      const blocked = readiness
+        ? crewNotReadyReason(readiness, { isDriver: assignment.isDriver })
+        : null;
+      if (blocked) {
+        return NextResponse.json({ message: blocked }, { status: 409 });
+      }
     }
 
     // The stop being completed must belong to this dispatch's order.

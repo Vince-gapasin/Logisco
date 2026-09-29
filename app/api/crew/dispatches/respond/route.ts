@@ -5,6 +5,7 @@ import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS, isDeclineCode } from "@/a
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
+  crewReadinessFor,
   getCrewAssignment,
   isUuid,
   releaseDispatchResources,
@@ -138,6 +139,29 @@ export async function POST(request: Request) {
       before: { status: helper.status },
       after: { ...updateData, dispatchID, as: "helper" },
     });
+
+    // The last yes is worth telling the driver about.
+    //
+    // Otherwise the gate is a trap: the driver accepts, finds Start Delivery
+    // greyed out because a helper has not answered, and has nothing to do but
+    // keep reopening the app. The poll would enable the button within half a
+    // minute of the helper accepting - but only if the driver happened to be
+    // looking at it.
+    if (action === "accept") {
+      const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
+      if (readiness?.ready && assignment.dispatch.driverID) {
+        await notify({
+          event: "CREW_READY",
+          title: "Your crew is complete",
+          body: `${auth.employee.employeeName} accepted ${(await tripLabel(dispatchID)) ?? "your delivery"}. Everybody assigned has now accepted, so you can start it.`,
+          severity: "info",
+          employeeIDs: [assignment.dispatch.driverID],
+          entity: { table: "DispatchOrder", id: dispatchID },
+          link: "/crew/dashboard",
+          actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+        });
+      }
+    }
 
     if (action === "decline") {
       await notify({
