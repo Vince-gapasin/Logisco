@@ -180,6 +180,16 @@ export interface StallInput {
   metresToNearestStop: number | null;
   /** The crew's most recent answer about this trip, if they have given one. */
   checkIn?: CrewCheckIn | null;
+  /**
+   * Whether a stop's promised time is already threatened by this delay.
+   *
+   * Only used to decide whether being at a stop still excuses the silence. It
+   * does, while the delivery is comfortable: loading takes time and an hour of it
+   * is nobody's business. It stops excusing anything the moment that hour is
+   * costing a time the office promised somebody - at which point standing at a
+   * stop is not the reason to say nothing, it is the reason to say something.
+   */
+  stopAtRisk?: boolean;
   now?: Date;
 }
 
@@ -252,6 +262,7 @@ export function assessStall({
   status,
   metresToNearestStop,
   checkIn = null,
+  stopAtRisk = false,
   now = new Date(),
 }: StallInput): StallVerdict {
   const minutesSince = (moment: string | null): number | null => {
@@ -295,8 +306,15 @@ export function assessStall({
   // at the same stop for two hours without a word is not loading any more, and
   // excusing it for ever is how a delivery that never left the depot went
   // unmentioned by anybody.
+  // And not at all once the delay is costing a delivery. Being at a stop is an
+  // explanation for a truck that is not holding anybody up; it is not one for a
+  // truck whose next drop was due twenty minutes ago. Without this the grace
+  // period was a hole the early escalation could not reach through: a truck that
+  // started a delivery and sat at the depot while its first promised time slid
+  // past got nothing at all for a full hour.
   const atStop = metresToNearestStop !== null && metresToNearestStop <= AT_STOP_METRES;
-  if (atStop && silentFor < AT_STOP_GRACE_MIN) {
+  const grace = stopAtRisk ? 0 : AT_STOP_GRACE_MIN;
+  if (atStop && silentFor < grace) {
     return quiet("at a stop", silentFor, true);
   }
 

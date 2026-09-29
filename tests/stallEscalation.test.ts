@@ -17,11 +17,12 @@ const NOW = new Date("2026-09-29T06:00:00.000Z");
 const minutesAgo = (minutes: number) =>
   new Date(NOW.getTime() - minutes * 60_000).toISOString();
 
-const atStop = (minutes: number) =>
+const atStop = (minutes: number, stopAtRisk = false) =>
   assessStall({
     lastReportedAt: minutesAgo(minutes),
     status: "In Transit",
     metresToNearestStop: AT_STOP_METRES - 1,
+    stopAtRisk,
     now: NOW,
   });
 
@@ -45,6 +46,21 @@ describe("a truck parked at its own stop", () => {
   it("says where it is, so the office is not sent looking for a breakdown", () => {
     const alert = stallAlert(45, "ORD-1 (Acme)", 70, "stopped", { atStop: true });
     expect(alert.office.body).toMatch(/parked at one of its own stops/i);
+  });
+
+  it("gets no grace at all once a delivery time is threatened", () => {
+    // The hole this closes: the at-stop branch returned before the ladder ran, so
+    // the early escalation could not reach a truck at a stop. A delivery that
+    // started at the depot and sat there while its first promised time slid past
+    // was excused for a full hour - the exact case the escalation exists for.
+    expect(atStop(20, false).stalled).toBe(false);
+    expect(atStop(20, true).stalled).toBe(true);
+    expect(atStop(20, true).threshold).toBe(15);
+  });
+
+  it("still excuses the first hour when nothing is at risk", () => {
+    // Loading genuinely takes time, and this is the noise the grace prevents.
+    expect(atStop(59, false).reason).toBe("at a stop");
   });
 });
 

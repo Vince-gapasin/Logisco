@@ -250,12 +250,19 @@ export async function checkForStalledTrips(
 
   for (const trip of trips) {
     const checkIn = answers.get(trip.dispatchID) ?? null;
+
+    // Worked out before the verdict, not after, because it decides one of the
+    // verdict's own branches: whether standing at a stop still excuses the
+    // silence. Reused for the alert below, so it is read once either way.
+    const atRisk = await stopAtRisk(trip, now);
+
     const verdict = assessStall({
       lastReportedAt: trip.lastReportedAt,
       lastContactAt: trip.lastContactAt,
       status: trip.status,
       metresToNearestStop: await metresToNearestStop(trip),
       checkIn,
+      stopAtRisk: atRisk !== null,
       now,
     });
 
@@ -296,7 +303,7 @@ export async function checkForStalledTrips(
     const raised = telling
       ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause, {
           atStop: verdict.atStop,
-          atRisk: await stopAtRisk(trip, now),
+          atRisk,
         })
       : false;
     found.push({ ...trip, verdict, checkIn, raised });
