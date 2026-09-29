@@ -1,6 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { ACCEPTED_ONWARDS, DELIVERY_STATUS, ON_THE_ROAD_ONWARDS, STOP_STATUS } from "@/app/lib/enums";
-import { formatDateTime } from "@/app/lib/datetime";
+import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
 import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
 import { maskEmail, maskPhone } from "@/app/lib/mask";
@@ -147,15 +147,19 @@ function first<T>(value: T | T[] | null | undefined): T | null {
 }
 
 // "14:30:00" -> "2:30 PM"
+/**
+ * A stop's promised time, as the customer reads it.
+ *
+ * Through the shared formatter. This used to be its own copy of the twelve-hour
+ * conversion, so the same expectedTime was rendered by two different functions
+ * on the same page - this one in the timeline text, the shared one in the stops
+ * panel beside it. The copy also had no idea what to do with a full timestamp,
+ * where it returned null and the promised time simply vanished off the page.
+ *
+ * Null rather than empty, because every caller here asks whether there is one.
+ */
 export function formatExpectedTime(value: string | null): string | null {
-  if (!value) return null;
-  const [hourPart, minutePart] = value.split(":");
-  const hour = Number(hourPart);
-  if (Number.isNaN(hour)) return null;
-
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-  return `${displayHour}:${minutePart ?? "00"} ${suffix}`;
+  return formatTime(value) || null;
 }
 
 function isStopDone(status: string | null): boolean {
@@ -634,7 +638,18 @@ export async function getTrackingByToken(
   const client = first(order.Client as { company?: string | null; emailAdd?: string | null; contact?: string | null } | null);
 
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
-  const estimatedArrival = isCompleted ? null : formatExpectedTime(nextStop?.expectedTime ?? null);
+
+  // The crew have reported reaching this customer's own stop.
+  //
+  // Everything below that counts down to it has to stop counting. The headline
+  // took the live estimate while the trip said In Transit and the booked time
+  // otherwise - so the moment the crew tapped "I have arrived" the status left
+  // In Transit, the estimate vanished, and the page went back to announcing the
+  // booked time. A truck standing at the door was reported as arriving in three
+  // hours, above a timeline saying the crew were at the stop now.
+  const atNextStop = Boolean(nextStop?.arrivedAt);
+  const estimatedArrival =
+    isCompleted || atNextStop ? null : formatExpectedTime(nextStop?.expectedTime ?? null);
 
   // Driving time to this client's stop, read off the route already worked out
   // above rather than asked for separately.
@@ -646,7 +661,12 @@ export async function getTrackingByToken(
   // drops ahead of it announced a time it could not make. Summing the legs up
   // to the stop counts them.
   let liveEta: TrackingPayload["liveEta"] = null;
-  if (dispatch?.status === DELIVERY_STATUS.inTransit && planned && nextStop?.branchID != null) {
+  if (
+    !atNextStop &&
+    ON_THE_ROAD_ONWARDS.includes(dispatch?.status ?? "") &&
+    planned &&
+    nextStop?.branchID != null
+  ) {
     const legsToStop = legsUpTo(planned, nextStop.branchID);
 
     if (legsToStop !== null) {
@@ -681,7 +701,10 @@ export async function getTrackingByToken(
   // A partner carrier has no app, so there is no live position to show.
   else if (dispatch?.subConID && dispatch.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit with our partner carrier";
   else if (dispatch?.subConID) deliveryStatus = "Handed to our partner carrier";
-  else if (dispatch?.status === DELIVERY_STATUS.arrived) deliveryStatus = "Crew at the stop";
+  // Their stop, not any stop. A trip is "Arrived" at a warehouse as readily as
+  // at a delivery point, and telling this customer their crew had arrived while
+  // the truck was at ours would be worse than saying nothing.
+  else if (atNextStop) deliveryStatus = "Crew at your stop";
   else if (ON_THE_ROAD_ONWARDS.includes(dispatch?.status ?? "")) deliveryStatus = "In transit";
   else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";
   else if (dispatch?.status) deliveryStatus = "Crew assigned";

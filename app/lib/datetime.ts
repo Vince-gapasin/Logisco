@@ -36,7 +36,7 @@ export function formatTime(value: string | null | undefined): string {
   return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: ZONE });
 }
 
-/** A date and time together: "22 Sep 2026, 8:00 AM". */
+/** A date and time together: "Sep 22, 2026, 8:00 AM". */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "";
   const stamp = new Date(value);

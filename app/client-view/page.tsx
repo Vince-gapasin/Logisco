@@ -267,13 +267,18 @@ function ClientTrackerView() {
   const latest = [...data.steps].reverse().find((step) => step.stage === "problem" || step.stage === "current")
     ?? [...data.steps].reverse().find((step) => step.stage === "completed");
 
-  // Prefer the live driving estimate; fall back to the scheduled window.
+  // Prefer the live driving estimate; fall back to the booked window.
+  //
+  // The two are different claims and used to be worded as though they were the
+  // same one. A live estimate is where the truck actually is; the booked time is
+  // what was promised when the delivery was arranged, and saying "estimated"
+  // about it invited the reading that somebody had just worked it out.
   const headline = data.isCompleted
     ? "Delivery Completed"
     : data.liveEta
       ? `Arriving in about ${data.liveEta.minutes} min (${data.liveEta.arrivalTime})`
       : data.estimatedArrival
-        ? `Estimated Arrival by ${data.estimatedArrival}`
+        ? `Scheduled arrival by ${data.estimatedArrival}`
         : data.deliveryStatus;
 
   return (
