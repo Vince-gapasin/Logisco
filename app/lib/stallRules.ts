@@ -110,15 +110,22 @@ export const OFFICE_RESPONSE_QUIETENS_MIN = 60;
  * that was visibly going wrong, with the office unaware there was anything to
  * prepare for.
  *
- * The answer was never meant to buy silence from the office - it was meant to
- * stop the crew being asked the same question every quarter of an hour. Those are
- * different things and now they are treated as such: the crew are left alone for
- * the full window, and the office is told when a stated delay has run half an
- * hour, so somebody can decide whether to warn the client or move the load.
+ * The answer was never meant to buy silence - it was meant to stop the crew being
+ * asked the same question every quarter of an hour. Half an hour is not every
+ * quarter of an hour. So at the half hour both things happen: the office is told,
+ * so somebody can decide whether to warn the client or move the load, and the
+ * crew are asked once whether it is still going.
+ *
+ * An hour of hearing nothing back from a truck that told us it was held up is an
+ * hour of taking their word for it, and the word was about where they were half
+ * an hour ago.
  *
  * Half an hour because that is the point at which most of the answers stop being
  * ordinary. A queue at a gate is fifteen minutes; a queue at a gate that has
  * lasted thirty is a different delivery.
+ *
+ * A meal break is the one exception: the office still hears at thirty, the crew
+ * are not disturbed at all. See mayAskCrewAgain.
  */
 export const ANSWERED_DELAY_ESCALATES_MIN = 30;
 
@@ -167,7 +174,12 @@ export function isCheckInState(value: unknown): value is CheckInState {
 }
 
 /**
- * How long each answer buys before the silence is raised again.
+ * How long an answer goes on explaining the silence.
+ *
+ * Not how long the crew are left alone - that is half an hour now, whatever they
+ * said. This is the longer question: how long "I am in traffic" stays a
+ * description of now. Past it the answer is stale, the ordinary ladder takes
+ * over, and the wording stops crediting an explanation that has expired.
  *
  * A break gets ninety minutes because Article 85 of the Labor Code requires at
  * least sixty uninterrupted minutes for a meal, and a driver who has to justify
@@ -191,6 +203,19 @@ export const CHECK_IN_QUIETENS_MIN: Record<CheckInState, number> = {
 /** The two answers that are a call for help, not an explanation. */
 export function isCallForHelp(state: CheckInState): boolean {
   return CHECK_IN_QUIETENS_MIN[state] === 0;
+}
+
+/**
+ * Whether the crew may be asked again once a stated delay has run half an hour.
+ *
+ * All of them may, except a meal break. Article 85 of the Labor Code requires at
+ * least sixty uninterrupted minutes to eat, and uninterrupted is the operative
+ * word: a driver who has to justify their lunch halfway through is a driver who
+ * stops answering anything. The office still hears at thirty either way, because
+ * that part is about the load rather than about the driver.
+ */
+export function mayAskCrewAgain(state: CheckInState): boolean {
+  return state !== "on_break";
 }
 
 /** What the crew said, and when. */
@@ -478,11 +503,11 @@ export function assessStall({
     }
 
     if (answered.minutesAgo < CHECK_IN_QUIETENS_MIN[answered.state]) {
-      // They have answered, so they are not asked again for the whole window.
-      // The office is another matter: past half an hour, a stated delay is
-      // something somebody should be getting ready for, and leaving them to
-      // find it on the board was how an hour could pass on a delivery that was
-      // visibly going wrong.
+      // They have answered, so nothing is said for half an hour. Past that, a
+      // stated delay is something the office should be getting ready for - and
+      // something the crew can reasonably be asked about once, because an hour
+      // of taking their word for it is an hour of trusting a statement about
+      // where they were before it.
       if (answered.minutesAgo >= ANSWERED_DELAY_ESCALATES_MIN) {
         return {
           stalled: true,
@@ -752,35 +777,70 @@ export const CHECK_IN_LABELS: Record<CheckInState, string> = {
  * A delay the crew explained, that is still going.
  *
  * Deliberately not a stall alert. Nothing has gone quiet and nobody is missing -
- * the crew said where they were and they are still there - so it does not ask
- * them again, does not tell them anything, and does not read as an alarm. What
- * it is for is lead time: thirty minutes into a stated delay, somebody in the
- * office should be deciding whether to warn the client or move the load, and
- * until now the only way to know was to be looking at the fleet board.
+ * the crew said where they were, and the question is only whether they still
+ * are. So it does not read as an alarm and it does not accuse anybody of
+ * anything. What it is for is lead time: thirty minutes into a stated delay,
+ * somebody in the office should be deciding whether to warn the client or move
+ * the load, and until now the only way to know was to be looking at the board.
+ *
+ * Both halves go out together. Asking the office to decide while nobody has
+ * asked the crew whether the jam has cleared is asking them to decide on
+ * half-hour-old information, and the crew are the only ones who can refresh it.
  */
+export interface DelayContinuingAlert {
+  office: StallMessage;
+  /** Null during a meal break, which is not interrupted. */
+  crew: StallMessage | null;
+}
+
 export function delayContinuingAlert(
   tripLabel: string,
   state: CheckInState,
   minutesSinceAnswer: number,
-): StallMessage {
+): DelayContinuingAlert {
+  const said = CHECK_IN_LABELS[state];
+  const forHowLong = describeSilence(minutesSinceAnswer);
+  const asking = mayAskCrewAgain(state);
+
   return {
-    title: `Still ${CHECK_IN_LABELS[state].toLowerCase()} after ${describeSilence(minutesSinceAnswer)}`,
-    body:
-      `${tripLabel}: the crew reported "${CHECK_IN_LABELS[state]}" ${describeSilence(minutesSinceAnswer)} ago ` +
-      `and it is still going. They have not been asked again. ` +
-      `Decide whether the client should be told or the load moved.`,
+    office: {
+      title: `Still ${said.toLowerCase()} after ${forHowLong}`,
+      body:
+        `${tripLabel}: the crew reported "${said}" ${forHowLong} ago and it is still going. ` +
+        (asking
+          ? `They have been asked whether it has cleared. `
+          : `They are on a meal break and have not been disturbed. `) +
+        `Decide whether the client should be told or the load moved.`,
+    },
+    crew: asking
+      ? {
+          title: `Still ${said.toLowerCase()}?`,
+          body:
+            `You told us "${said}" ${forHowLong} ago and we have not heard since. ` +
+            `Update your status if anything has changed - the office is deciding whether the client needs telling.`,
+        }
+      : null,
   };
 }
 
 /**
- * One key per answer, so a delay is reported once rather than at every check.
+ * One key per answer per audience, so a delay is taken up once rather than at
+ * every check.
  *
  * Keyed on when the crew answered, not on the clock, so the same jam does not
  * report itself every ten minutes - and a crew who answer again later start a
- * new one, because that is a new statement about where they are.
+ * new one, because that is a new statement about where they are, and the half
+ * hour runs again from it.
+ *
+ * The audience is in it because the office and the crew are told different
+ * things and neither should silence the other, the same rule as a stall rung.
  */
-export function delayDedupeKey(dispatchID: string, answeredAt: string): string {
-  return `delay:${dispatchID}:${answeredAt}`;
+export function delayDedupeKey(
+  dispatchID: string,
+  answeredAt: string,
+  audience: "office" | "crew" = "office",
+): string {
+  return `delay:${dispatchID}:${answeredAt}:${audience}`;
 }
 
 /**

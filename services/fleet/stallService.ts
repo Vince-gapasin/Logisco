@@ -335,8 +335,10 @@ export async function checkForStalledTrips(
     }
 
     // A delay the crew explained that is still going. Not a stall - nothing has
-    // gone quiet and nobody is missing - so it goes to the office alone, once
-    // per answer, and the crew are left alone for the rest of their window.
+    // gone quiet and nobody is missing - so it is a decision to prepare for
+    // rather than an alarm. Once per answer: the office is told, and the crew
+    // are asked once whether it has cleared, because the office should not be
+    // deciding on half-hour-old information when the crew can refresh it.
     if (verdict.reason === "delay continuing" && checkIn && verdict.crewSaid) {
       const raised = telling
         ? await raiseDelayContinuing(trip, checkIn, verdict.crewSaid.minutesAgo)
@@ -414,9 +416,11 @@ async function raiseNeverReported(trip: LiveTrip, now: Date): Promise<boolean> {
 /**
  * A stated delay that has run past the point of being ordinary.
  *
- * Office only, and once per answer rather than once per check: the dedupe key is
- * the moment the crew spoke, so the same jam does not report itself every ten
- * minutes, and a crew who answer again later start a new one.
+ * Once per answer rather than once per check: the dedupe key is the moment the
+ * crew spoke, so the same jam does not report itself every ten minutes, and a
+ * crew who answer again later start a new one - which is the point of asking
+ * them, because their answer resets the half hour and refreshes what the office
+ * is deciding on.
  */
 async function raiseDelayContinuing(
   trip: LiveTrip,
@@ -424,18 +428,38 @@ async function raiseDelayContinuing(
   minutesSinceAnswer: number,
 ): Promise<boolean> {
   const alert = delayContinuingAlert(await labelFor(trip), checkIn.state, minutesSinceAnswer);
+  const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
+  let told = 0;
 
-  const told = await notify({
+  told += await notify({
     event: "TRUCK_STALLED",
-    title: alert.title,
-    body: alert.body,
+    title: alert.office.title,
+    body: alert.office.body,
     // Something to get ready for, not something to drop everything over.
     severity: "action",
     roles: OFFICE,
-    dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at),
-    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at, "office"),
+    entity,
     link: "/admindashboard/fleet-tracking",
   });
+
+  // Asked in their own words, and pointed at a page they are allowed to open:
+  // the office link is under /admindashboard, which the crew portal refuses.
+  if (alert.crew) {
+    const crew = await crewOf(trip.dispatchID);
+    if (crew.length > 0) {
+      told += await notify({
+        event: "TRUCK_STALLED",
+        title: alert.crew.title,
+        body: alert.crew.body,
+        severity: "action",
+        employeeIDs: crew,
+        dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at, "crew"),
+        entity,
+        link: "/crew/dashboard",
+      });
+    }
+  }
 
   return told > 0;
 }
