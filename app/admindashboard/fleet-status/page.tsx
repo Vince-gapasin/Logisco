@@ -16,6 +16,7 @@ import {
   FileText,
   X,
   ArrowLeft,
+  History as HistoryIcon,
   Edit3,
   Trash2,
   AlertTriangle,
@@ -439,6 +440,8 @@ interface TruckDetailViewProps {
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
   onDelete: (id: string) => Promise<void>;
+  /** Opens this truck's repair history, as the mechanic's module does. */
+  onHistory: () => void;
 }
 
 function TruckDetailView({
@@ -446,6 +449,7 @@ function TruckDetailView({
   onBack,
   onEdit,
   onDelete,
+  onHistory,
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -500,6 +504,17 @@ function TruckDetailView({
 
         {/* RIGHT SIDE: Action Buttons */}
         <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+          {/* Everything about past repairs lives behind this, the same as in the
+              mechanic's module - one screen, one layout, whichever side you are
+              looking from. */}
+          <button
+            onClick={onHistory}
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+          >
+            <HistoryIcon className="w-4 h-4 shrink-0" />
+            <span>History</span>
+          </button>
+
           <button
             onClick={() => onEdit(truck)}
             className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
@@ -575,11 +590,6 @@ function TruckDetailView({
             </div>
           </div>
 
-          {/* Who has had this truck, and what they found. The office could see
-              that a truck was On Maintenance and not who was fixing it or when
-              it might be back - the repair record lived only in the mechanic's
-              module, although admin and coordinator could always read it. */}
-          <TruckMaintenanceHistory truckID={truck.id} />
         </div>
       </div>
 
@@ -650,6 +660,8 @@ export default function FleetStatusPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
+  /** Whether the selected truck's repair history is the screen being shown. */
+  const [showTruckHistory, setShowTruckHistory] = useState(false);
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
   useEffect(() => {
@@ -781,6 +793,18 @@ export default function FleetStatusPage() {
     startIndex + ITEMS_PER_PAGE,
   );
 
+  // The history is its own screen rather than a panel inside the detail, which is
+  // how the mechanic's module does it and what the office asked to match.
+  if (selectedTruck && showTruckHistory) {
+    return (
+      <TruckMaintenanceHistory
+        truckID={selectedTruck.id}
+        plateNumber={selectedTruck.plateNumber}
+        onBack={() => setShowTruckHistory(false)}
+      />
+    );
+  }
+
   if (selectedTruck) {
     return (
       <>
@@ -797,6 +821,7 @@ export default function FleetStatusPage() {
         <TruckDetailView
           truck={selectedTruck}
           onBack={() => setSelectedTruck(null)}
+          onHistory={() => setShowTruckHistory(true)}
           onEdit={(truck) => {
             setEditingTruck(truck);
             setIsModalOpen(true);
