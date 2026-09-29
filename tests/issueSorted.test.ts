@@ -220,7 +220,7 @@ describe("what the customer's page calls the current state", () => {
     // were reported to them as a driver who had not confirmed.
     const steps = buildTrackingSteps("Arrived", [stop()], false);
 
-    const confirmed = steps.find((step) => step.title === "Driver confirmed");
+    const confirmed = steps.find((step) => step.title === "Crew confirmation");
     expect(confirmed?.stage).toBe("completed");
     const road = steps.find((step) => step.title === "On the road");
     expect(road?.stage).toBe("completed");
@@ -234,7 +234,7 @@ describe("what the customer's page calls the current state", () => {
 
   it("still waits on a driver who genuinely has not confirmed", () => {
     const steps = buildTrackingSteps("Assigned", [stop({ arrivedAt: null, status: "Pending" })], false);
-    expect(steps.find((step) => step.title === "Driver confirmed")?.stage).toBe("current");
+    expect(steps.find((step) => step.title === "Crew confirmation")?.stage).toBe("current");
   });
 
   it("puts a resolved problem before an arrival that came after it", () => {

@@ -1,5 +1,11 @@
 import { supabase } from "@/app/lib/supabase";
-import { ACCEPTED_ONWARDS, DELIVERY_STATUS, ON_THE_ROAD_ONWARDS, STOP_STATUS } from "@/app/lib/enums";
+import {
+  ACCEPTED_ONWARDS,
+  DELIVERY_STATUS,
+  HELPER_STATUS,
+  ON_THE_ROAD_ONWARDS,
+  STOP_STATUS,
+} from "@/app/lib/enums";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
 import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
@@ -191,6 +197,7 @@ function buildSteps(
   minutesToNextStop: number | null = null,
   heldUp: HeldUp[] = [],
   pickupProgressAt: string | null = null,
+  crew: CrewConfirmation | null = null,
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   // Named status lists, not literals. These used to be spelled out here, so
@@ -199,6 +206,7 @@ function buildSteps(
   // as "waiting for the driver to confirm" and "the trip has not started yet".
   const accepted = ACCEPTED_ONWARDS.includes(dispatchStatus ?? "");
   const inTransit = ON_THE_ROAD_ONWARDS.includes(dispatchStatus ?? "");
+  const confirmation = crewConfirmationStep(crew, accepted, inTransit);
   const isFoulTrip = dispatchStatus === "Foul Trip";
 
   const steps: TrackingStep[] = [
@@ -217,11 +225,16 @@ function buildSteps(
       at: hasDispatch ? (times.get("assigned") ?? null) : null,
     },
     {
-      title: "Driver confirmed",
-      detail: accepted ? "The driver accepted this trip." : "Waiting for the driver to confirm.",
-      stage: accepted ? "completed" : hasDispatch ? "current" : "upcoming",
+      // Every assignment has to be accepted before the truck may leave, so this
+      // is about the crew and not only about the driver. It said "Driver
+      // confirmed" off a status that only the driver can move, which left a
+      // customer watching a step that would not budge with no way of knowing a
+      // helper was what it was waiting on.
+      title: "Crew confirmation",
+      detail: confirmation.detail,
+      stage: confirmation.done ? "completed" : hasDispatch ? "current" : "upcoming",
       kind: "confirmed",
-      at: accepted ? (times.get("confirmed") ?? null) : null,
+      at: confirmation.done ? (times.get("confirmed") ?? null) : null,
     },
     {
       title: "On the road",
@@ -423,6 +436,98 @@ async function lastPickupProgress(dispatchID: string | null): Promise<string | n
   );
 }
 
+/**
+ * How far the crew's own confirmations have got.
+ *
+ * The step used to be "Driver confirmed", worded off the dispatch status alone
+ * - which only ever moves when the driver accepts. A helper who had not
+ * answered was invisible here, so the page could say the trip was confirmed
+ * while it could not legally start, and the customer had no idea what was
+ * being waited on.
+ *
+ * Counts, never names. This is a public link: the driver is named in the
+ * booking details because the customer has to be able to recognise whoever
+ * turns up, and nobody else on the crew needs naming to a stranger.
+ */
+export interface CrewConfirmation {
+  driverAccepted: boolean;
+  helpers: number;
+  helpersAccepted: number;
+  helpersDeclined: number;
+}
+
+/** "helper" or "helpers", for a sentence that has to read either way. */
+function helperWord(count: number): string {
+  return count === 1 ? "helper" : "helpers";
+}
+
+/** And the verb to go with it, so one helper does not "have confirmed". */
+function helperVerb(count: number): string {
+  return count === 1 ? "has" : "have";
+}
+
+/**
+ * What to say about the crew's confirmations, and whether they are all in.
+ *
+ * onTheRoad settles it either way: a trip that has departed was confirmed by
+ * everybody it needed, and a stale helper row left behind by an office that
+ * replaced somebody must not leave this step hanging for the whole delivery.
+ */
+function crewConfirmationStep(
+  crew: CrewConfirmation | null,
+  driverAccepted: boolean,
+  onTheRoad: boolean,
+): { done: boolean; detail: string } {
+  if (!crew) {
+    // An older payload with nothing to go on: the dispatch status is all there
+    // ever was, and it is what this page used before.
+    return {
+      done: driverAccepted,
+      detail: driverAccepted
+        ? "Your crew have confirmed this trip."
+        : "Waiting for your crew to confirm.",
+    };
+  }
+
+  const pending = Math.max(0, crew.helpers - crew.helpersAccepted - crew.helpersDeclined);
+  const allIn = crew.driverAccepted && pending === 0 && crew.helpersDeclined === 0;
+
+  if (onTheRoad || allIn) {
+    return {
+      done: true,
+      detail:
+        crew.helpers > 0
+          ? `Your driver and ${helperWord(crew.helpers)} have confirmed this trip.`
+          : "Your driver has confirmed this trip.",
+    };
+  }
+
+  if (crew.helpersDeclined > 0) {
+    return {
+      done: false,
+      detail: "Someone on the crew turned this down. Your coordinator is arranging a replacement.",
+    };
+  }
+
+  if (crew.driverAccepted) {
+    return {
+      done: false,
+      detail: `Your driver has confirmed. Waiting for the ${helperWord(pending)} to confirm.`,
+    };
+  }
+
+  if (crew.helpersAccepted > 0) {
+    return {
+      done: false,
+      detail:
+        `The ${helperWord(crew.helpersAccepted)} ${helperVerb(crew.helpersAccepted)} confirmed. ` +
+        `Waiting for the driver to confirm.`,
+    };
+  }
+
+  return { done: false, detail: "Waiting for your crew to confirm." };
+}
+
 interface HeldUp {
   wording: string;
   at: string;
@@ -516,6 +621,8 @@ interface TrackedDispatch {
   SubContractor?: { companyName?: string | null } | null;
   Truck?: { plateNumber?: string | null; model?: string | null } | null;
   Employee?: { employeeName?: string | null; contact?: string | null } | null;
+  /** Statuses only. The customer has no business knowing who the helpers are. */
+  DispatchHelper?: { status?: string | null }[] | null;
 }
 
 interface TrackedStop {
@@ -564,7 +671,8 @@ export async function getTrackingByToken(
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
          Truck ( plateNumber, model ),
-         Employee!DispatchOrder_driverID_fkey ( employeeName, contact ) )`,
+         Employee!DispatchOrder_driverID_fkey ( employeeName, contact ),
+         DispatchHelper ( status ) )`,
     )
     .eq("orderLinkToken", token)
     .maybeSingle();
@@ -709,6 +817,17 @@ export async function getTrackingByToken(
   else if (dispatch?.status === DELIVERY_STATUS.accepted) deliveryStatus = "Driver confirmed";
   else if (dispatch?.status) deliveryStatus = "Crew assigned";
 
+  // How far the crew's confirmations have got, in counts rather than names.
+  const helperRows = Array.isArray(dispatch?.DispatchHelper) ? dispatch.DispatchHelper : [];
+  const crewConfirmation: CrewConfirmation | null = dispatch
+    ? {
+        driverAccepted: ACCEPTED_ONWARDS.includes(dispatch.status ?? ""),
+        helpers: helperRows.length,
+        helpersAccepted: helperRows.filter((row) => row.status === HELPER_STATUS.accepted).length,
+        helpersDeclined: helperRows.filter((row) => row.status === HELPER_STATUS.declined).length,
+      }
+    : null;
+
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
   const problems = await reportedProblems(order.orderID);
   const heldUp = await heldUpUpdates(dispatch?.dispatchID ?? null);
@@ -745,6 +864,7 @@ export async function getTrackingByToken(
       liveEta?.minutes ?? null,
       heldUp,
       pickupProgressAt,
+      crewConfirmation,
     ),
   };
 }
