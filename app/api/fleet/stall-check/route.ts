@@ -37,6 +37,14 @@ function summarise(trips: StalledTrip[]) {
       silentFor: trip.verdict.silentFor,
       threshold: trip.verdict.threshold,
       reason: trip.verdict.reason,
+      // Whether the truck stopped, the phone did, or we cannot tell - and how
+      // long since the app last spoke at all. Both were worked out on every
+      // verdict and then left here: the board showed how long a truck had been
+      // quiet and could not say which of the two it was, which is the first
+      // thing a coordinator needs in order to decide what to do about it.
+      cause: trip.verdict.cause,
+      outOfContactFor: trip.verdict.outOfContactFor,
+      atStop: trip.verdict.atStop,
       checkIn: trip.checkIn,
       raised: trip.raised,
     })),

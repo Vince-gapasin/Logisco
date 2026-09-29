@@ -136,7 +136,7 @@ export default function FleetLiveTracking() {
   // quarter-hour stops are a queue at a gate - but whoever is watching the
   // board should be able to see it.
   const [quiet, setQuiet] = useState<
-    Record<string, { silentFor: number; threshold: number | null; reason: string; checkIn: { state: CheckInState; at: string } | null }>
+    Record<string, { silentFor: number; threshold: number | null; reason: string; cause: string; outOfContactFor: number; checkIn: { state: CheckInState; at: string } | null }>
   >({});
 
   /** The trip whose alert is being answered, if any. */
@@ -154,21 +154,31 @@ export default function FleetLiveTracking() {
             silentFor: number;
             threshold: number | null;
             reason: string;
+            cause: string;
+            outOfContactFor: number;
             checkIn: { state: CheckInState; at: string } | null;
           }[];
         };
       }>("/api/fleet/stall-check", { cache: "no-store" });
 
-      const byDispatch: Record<
-        string,
-        { silentFor: number; threshold: number | null; reason: string; checkIn: { state: CheckInState; at: string } | null }
-      > = {};
+      const byDispatch: Record<string, { silentFor: number; threshold: number | null; reason: string; cause: string; outOfContactFor: number; checkIn: { state: CheckInState; at: string } | null }> = {};
       for (const trip of res.data.trips) {
-        if (trip.reason === "at a stop" || trip.silentFor < 15) continue;
+        // At a stop is the crew working, and under a quarter of an hour is
+        // traffic. Neither belongs on the board.
+        //
+        // "Never reported" is the exception to the second: its silence measures
+        // zero because there is no position to measure from, so the length test
+        // dropped it - and a trip marked on the road whose app has never spoken
+        // is the one a coordinator has least to go on and most needs to see.
+        if (trip.reason === "at a stop") continue;
+        if (trip.reason !== "never reported" && trip.silentFor < 15) continue;
+
         byDispatch[trip.dispatchID] = {
           silentFor: trip.silentFor,
           threshold: trip.threshold,
           reason: trip.reason,
+          cause: trip.cause,
+          outOfContactFor: trip.outOfContactFor,
           checkIn: trip.checkIn ?? null,
         };
       }
@@ -458,17 +468,48 @@ export default function FleetLiveTracking() {
                                 // trip on the board look like the calmest.
                                 silence.reason === "left open"
                                   ? "bg-slate-200 text-slate-700"
-                                  : (silence.threshold ?? 0) >= 45
-                                    ? "bg-red-100 text-red-700"
-                                    : (silence.threshold ?? 0) >= 30
+                                  // Somebody has picked this up. Still worth
+                                  // seeing, no longer worth shouting about.
+                                  : silence.reason === "office answered"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    // No position at all, so there is no length
+                                    // of silence to escalate by - and it would
+                                    // otherwise fall through to the calmest
+                                    // colour on the board, which is the one case
+                                    // where there is nothing to go and look at.
+                                    : silence.reason === "never reported"
                                       ? "bg-amber-100 text-amber-800"
-                                      : "bg-slate-100 text-slate-600"
+                                      : (silence.threshold ?? 0) >= 45
+                                        ? "bg-red-100 text-red-700"
+                                        : (silence.threshold ?? 0) >= 30
+                                          ? "bg-amber-100 text-amber-800"
+                                          : "bg-slate-100 text-slate-600"
                               }`}
                             >
                               <AlertTriangle className="h-3 w-3 shrink-0" />
                               {silence.reason === "left open"
                                 ? `Left open - ${describeSilence(silence.silentFor)}`
-                                : `Quiet ${describeSilence(silence.silentFor)}`}
+                                : silence.reason === "never reported"
+                                  ? "No tracking on this trip"
+                                  : silence.reason === "office answered"
+                                    ? `Handled - quiet ${describeSilence(silence.silentFor)}`
+                                    : `Quiet ${describeSilence(silence.silentFor)}`}
+                            </span>
+                          )}
+
+                          {/* Whether the truck stopped or the phone did.
+                              assessStall has always worked this out and nothing
+                              showed it, so the board said how long a truck had
+                              been quiet and left the first question a
+                              coordinator asks - is the app still talking to us -
+                              to be answered by ringing the driver. */}
+                          {silence && silence.reason !== "never reported" && (
+                            <span className="mt-1 block text-xs text-slate-500">
+                              {silence.cause === "stopped"
+                                ? "App still reporting - the truck has stopped"
+                                : silence.cause === "out of contact"
+                                  ? `App silent ${describeSilence(silence.outOfContactFor)} - phone may be off or out of signal`
+                                  : "Cannot tell whether the truck or the phone stopped"}
                             </span>
                           )}
                           {/* What the crew said, so nobody rings a driver who has
@@ -490,7 +531,10 @@ export default function FleetLiveTracking() {
                               the driver and had no way of knowing whether anybody
                               did, so it kept escalating at the person who already
                               had. Saying so buys an hour - not silence, an hour. */}
-                          {silence && silence.reason !== "left open" && (silence.threshold ?? 0) >= 45 && (
+                          {silence &&
+                            silence.reason !== "left open" &&
+                            silence.reason !== "office answered" &&
+                            (silence.threshold ?? 0) >= 45 && (
                             <button
                               type="button"
                               onClick={() => setAnswering(record)}

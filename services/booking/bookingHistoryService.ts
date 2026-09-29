@@ -95,12 +95,24 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
     }
     case "DispatchOrder/TRIP_PROGRESS": {
       const status = text(data.status) || "Updated";
-      const stop = text(data.stop);
+      // data.stop is an object - { branchID } or { pickupID } - which text()
+      // turns into an empty string, so this half of the line has never once
+      // appeared. The status route has always recorded which stop it was; the
+      // history simply could not read it.
+      const stop = (data.stop ?? null) as
+        | { branchID?: number | string; pickupID?: number | string }
+        | null;
+      const which = stop?.branchID != null
+        ? `Delivery stop #${stop.branchID}`
+        : stop?.pickupID != null
+          ? `Pickup #${stop.pickupID}`
+          : "";
+
       return {
         title: `Status: ${status}`,
-        detail: [stop ? `Stop: ${stop}` : "", data.proof ? "Proof of delivery uploaded." : ""]
+        detail: [which, data.proof ? "Proof of delivery uploaded." : ""]
           .filter(Boolean)
-          .join(" ") || `Moved from ${text(before.status) || "the previous status"}.`,
+          .join(" - ") || `Moved from ${text(before.status) || "the previous status"}.`,
       };
     }
     case "DispatchOrder/TRIP_COMPLETE":
