@@ -10,6 +10,8 @@ import {
   assessStall,
   crewHelpAlert,
   crewHelpDedupeKey,
+  delayContinuingAlert,
+  delayDedupeKey,
   isCheckInState,
   leftOpenAlert,
   WATCHED_STATUSES,
@@ -332,6 +334,17 @@ export async function checkForStalledTrips(
       continue;
     }
 
+    // A delay the crew explained that is still going. Not a stall - nothing has
+    // gone quiet and nobody is missing - so it goes to the office alone, once
+    // per answer, and the crew are left alone for the rest of their window.
+    if (verdict.reason === "delay continuing" && checkIn && verdict.crewSaid) {
+      const raised = telling
+        ? await raiseDelayContinuing(trip, checkIn, verdict.crewSaid.minutesAgo)
+        : false;
+      found.push({ ...trip, verdict, checkIn, raised });
+      continue;
+    }
+
     // A day of silence is a trip nobody closed. Said once a day, calmly, rather
     // than escalated as an emergency for ever.
     if (verdict.reason === "left open") {
@@ -391,6 +404,35 @@ async function raiseNeverReported(trip: LiveTrip, now: Date): Promise<boolean> {
     severity: "action",
     roles: OFFICE,
     dedupeKey: neverReportedDedupeKey(trip.dispatchID, now),
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    link: "/admindashboard/fleet-tracking",
+  });
+
+  return told > 0;
+}
+
+/**
+ * A stated delay that has run past the point of being ordinary.
+ *
+ * Office only, and once per answer rather than once per check: the dedupe key is
+ * the moment the crew spoke, so the same jam does not report itself every ten
+ * minutes, and a crew who answer again later start a new one.
+ */
+async function raiseDelayContinuing(
+  trip: LiveTrip,
+  checkIn: CrewCheckIn,
+  minutesSinceAnswer: number,
+): Promise<boolean> {
+  const alert = delayContinuingAlert(await labelFor(trip), checkIn.state, minutesSinceAnswer);
+
+  const told = await notify({
+    event: "TRUCK_STALLED",
+    title: alert.title,
+    body: alert.body,
+    // Something to get ready for, not something to drop everything over.
+    severity: "action",
+    roles: OFFICE,
+    dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at),
     entity: { table: "DispatchOrder", id: trip.dispatchID },
     link: "/admindashboard/fleet-tracking",
   });

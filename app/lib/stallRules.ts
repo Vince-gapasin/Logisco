@@ -101,6 +101,28 @@ export const STOP_AT_RISK_MIN = 30;
 export const OFFICE_RESPONSE_QUIETENS_MIN = 60;
 
 /**
+ * How long a delay the crew have explained runs before the office is told.
+ *
+ * A check-in used to silence everybody. "Stuck in traffic" bought sixty minutes
+ * of nothing at all - no rung, no notification, and the office was never even
+ * told the crew had answered. It surfaced only as a line on the fleet board, for
+ * anybody who happened to be looking at it. So an hour could pass on a delivery
+ * that was visibly going wrong, with the office unaware there was anything to
+ * prepare for.
+ *
+ * The answer was never meant to buy silence from the office - it was meant to
+ * stop the crew being asked the same question every quarter of an hour. Those are
+ * different things and now they are treated as such: the crew are left alone for
+ * the full window, and the office is told when a stated delay has run half an
+ * hour, so somebody can decide whether to warn the client or move the load.
+ *
+ * Half an hour because that is the point at which most of the answers stop being
+ * ordinary. A queue at a gate is fifteen minutes; a queue at a gate that has
+ * lasted thirty is a different delivery.
+ */
+export const ANSWERED_DELAY_ESCALATES_MIN = 30;
+
+/**
  * How long without a word from the app before contact counts as lost.
  *
  * The heartbeat is every few minutes, so this is several heartbeats' grace - a
@@ -262,6 +284,13 @@ export interface StallVerdict {
   silentFor: number;
   /** The highest threshold passed, or null when none has been. */
   threshold: StallThreshold | null;
+  /**
+   * What the crew said, and how long ago, when they have answered.
+   *
+   * Carried so an alert about a delay the crew have already explained can say
+   * what it is rather than reporting it as an unexplained silence.
+   */
+  crewSaid: { state: CheckInState; minutesAgo: number } | null;
   /** Why nothing is being raised, for a screen that wants to explain itself. */
   reason:
     | "on the road"
@@ -271,6 +300,7 @@ export interface StallVerdict {
     | "reporting"
     | "left open"
     | "crew answered"
+    | "delay continuing"
     | "office answered"
     | "crew asked for help";
 }
@@ -335,6 +365,7 @@ export function assessStall({
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: null,
+    crewSaid: null,
     reason,
   });
 
@@ -441,11 +472,30 @@ export function assessStall({
         outOfContactFor: contactSilence ?? silentFor,
         silentFor,
         threshold: STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1],
+        crewSaid: answered,
         reason: "crew asked for help",
       };
     }
 
     if (answered.minutesAgo < CHECK_IN_QUIETENS_MIN[answered.state]) {
+      // They have answered, so they are not asked again for the whole window.
+      // The office is another matter: past half an hour, a stated delay is
+      // something somebody should be getting ready for, and leaving them to
+      // find it on the board was how an hour could pass on a delivery that was
+      // visibly going wrong.
+      if (answered.minutesAgo >= ANSWERED_DELAY_ESCALATES_MIN) {
+        return {
+          stalled: true,
+          cause,
+          atStop,
+          outOfContactFor: contactSilence ?? silentFor,
+          silentFor,
+          threshold: passed,
+          crewSaid: answered,
+          reason: "delay continuing",
+        };
+      }
+
       return quiet("crew answered", silentFor, atStop);
     }
   }
@@ -476,6 +526,7 @@ export function assessStall({
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: passed,
+    crewSaid: answered,
     reason: "on the road",
   };
 }
@@ -696,6 +747,41 @@ export const CHECK_IN_LABELS: Record<CheckInState, string> = {
   vehicle_problem: "Truck has a problem",
   need_help: "Needs help",
 };
+
+/**
+ * A delay the crew explained, that is still going.
+ *
+ * Deliberately not a stall alert. Nothing has gone quiet and nobody is missing -
+ * the crew said where they were and they are still there - so it does not ask
+ * them again, does not tell them anything, and does not read as an alarm. What
+ * it is for is lead time: thirty minutes into a stated delay, somebody in the
+ * office should be deciding whether to warn the client or move the load, and
+ * until now the only way to know was to be looking at the fleet board.
+ */
+export function delayContinuingAlert(
+  tripLabel: string,
+  state: CheckInState,
+  minutesSinceAnswer: number,
+): StallMessage {
+  return {
+    title: `Still ${CHECK_IN_LABELS[state].toLowerCase()} after ${describeSilence(minutesSinceAnswer)}`,
+    body:
+      `${tripLabel}: the crew reported "${CHECK_IN_LABELS[state]}" ${describeSilence(minutesSinceAnswer)} ago ` +
+      `and it is still going. They have not been asked again. ` +
+      `Decide whether the client should be told or the load moved.`,
+  };
+}
+
+/**
+ * One key per answer, so a delay is reported once rather than at every check.
+ *
+ * Keyed on when the crew answered, not on the clock, so the same jam does not
+ * report itself every ten minutes - and a crew who answer again later start a
+ * new one, because that is a new statement about where they are.
+ */
+export function delayDedupeKey(dispatchID: string, answeredAt: string): string {
+  return `delay:${dispatchID}:${answeredAt}`;
+}
 
 /**
  * The crew have told us something is wrong.

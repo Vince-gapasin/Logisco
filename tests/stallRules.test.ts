@@ -262,14 +262,27 @@ describe("when the crew answer", () => {
     // app reports only on movement, so without this every lawful lunch break
     // raised the urgent alert - every working day, on every truck.
     expect(CHECK_IN_QUIETENS_MIN.on_break).toBeGreaterThan(60);
-    expect(answered(75, "on_break", 70).stalled).toBe(false);
-    expect(answered(75, "on_break", 70).reason).toBe("crew answered");
+
+    // What the window protects is the crew: they are not asked again for the
+    // whole ninety minutes. It never meant the office should hear nothing for
+    // ninety minutes, which is what it used to do - see the delay-continuing
+    // tests. Inside the first half hour nobody is told anything at all.
+    expect(answered(35, "on_break", 20).stalled).toBe(false);
+    expect(answered(35, "on_break", 20).reason).toBe("crew answered");
   });
 
-  it("starts asking again once the answer has gone stale", () => {
-    // "I am in traffic" an hour ago is not an answer about now.
-    expect(answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic - 1).reason).toBe("crew answered");
-    expect(answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic + 1).stalled).toBe(true);
+  it("starts asking the crew again once the answer has gone stale", () => {
+    // "I am in traffic" an hour ago is not an answer about now, so past the
+    // window the ordinary ladder resumes and the crew are asked again.
+    const stale = answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic + 1);
+    expect(stale.stalled).toBe(true);
+    expect(stale.reason).toBe("on the road");
+
+    // Before that the crew are left alone - but the office is told once the
+    // delay has run half an hour, which is a different thing and is why this no
+    // longer reads "crew answered" all the way to the window's end.
+    const carryingOn = answered(70, "traffic", CHECK_IN_QUIETENS_MIN.traffic - 1);
+    expect(carryingOn.reason).toBe("delay continuing");
   });
 
   it("ignores an answer given before the truck last moved", () => {
