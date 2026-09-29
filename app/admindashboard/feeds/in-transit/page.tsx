@@ -616,6 +616,7 @@ export default function InTransitFeedPage() {
           orderCode={
             bookings.find((booking) => booking.id === overrideFor)?.orderId ?? overrideFor
           }
+          tripStatus={bookings.find((booking) => booking.id === overrideFor)?.status ?? null}
           onDone={(message) => {
             setOverrideFor(null);
             setIsModalOpen(false);

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { AlertTriangle, CheckCircle2, ShieldAlert, Trash2, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { ACCEPTED_ONWARDS } from "@/app/lib/enums";
 
 /**
  * The office ending a booking the crew cannot or will not end.
@@ -60,12 +61,15 @@ export default function BookingOverrideModal({
   onClose,
   orderID,
   orderCode,
+  tripStatus,
   onDone,
 }: {
   isOpen: boolean;
   onClose: () => void;
   orderID: string;
   orderCode: string;
+  /** Where the trip has got to, so choices that cannot apply are not offered. */
+  tripStatus?: string | null;
   /** Called after a successful override, to reload whatever is behind this. */
   onDone: (message: string) => void;
 }) {
@@ -76,6 +80,15 @@ export default function BookingOverrideModal({
   const [error, setError] = useState("");
 
   if (!isOpen) return null;
+
+  // A foul trip is something going wrong on a job a crew has taken, and closing
+  // one as delivered says a crew delivered it. Neither can be true before anyone
+  // has accepted it. The server refuses both, but refusing after somebody has
+  // chosen and typed out a reason is a poor way to say so.
+  const accepted = !tripStatus || ACCEPTED_ONWARDS.includes(tripStatus);
+  const blockedBecause = accepted
+    ? null
+    : `Not until a crew accepts this booking - it is ${tripStatus}.`;
 
   const chosen = CHOICES.find((choice) => choice.action === action);
 
@@ -147,17 +160,24 @@ export default function BookingOverrideModal({
             {CHOICES.map((choice) => {
               const Icon = choice.icon;
               const isChosen = action === choice.action;
+              // Cancelling is always available; it is the answer for a booking
+              // that has not started as much as for one that has.
+              const blocked = choice.action !== "cancel" && !accepted;
+
               return (
                 <label
                   key={choice.action}
-                  className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 transition-colors ${
-                    isChosen ? choice.selected : choice.tone
+                  className={`flex gap-3 rounded-xl border-2 p-3 transition-colors ${
+                    blocked
+                      ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
+                      : `cursor-pointer ${isChosen ? choice.selected : choice.tone}`
                   }`}
                 >
                   <input
                     type="radio"
                     name="override"
                     checked={isChosen}
+                    disabled={blocked}
                     onChange={() => {
                       setAction(choice.action);
                       setError("");
@@ -169,7 +189,9 @@ export default function BookingOverrideModal({
                       <Icon className="w-4 h-4 shrink-0" />
                       {choice.label}
                     </span>
-                    <span className="block text-xs text-slate-600 mt-0.5">{choice.hint}</span>
+                    <span className="block text-xs text-slate-600 mt-0.5">
+                      {blocked ? blockedBecause : choice.hint}
+                    </span>
                   </span>
                 </label>
               );

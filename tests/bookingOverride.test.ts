@@ -219,3 +219,58 @@ describe("closing a delivery the crew finished and drove away from", () => {
     expect(released).toEqual([TRIP]);
   });
 });
+
+describe("what a booking has to have reached", () => {
+  // The question this answers: an admin can foul-trip an In Transit booking -
+  // yes, that is the point - but the first version also let them foul-trip one
+  // still sitting in Assigned, which would have put a truck into the recovery
+  // list over a delivery that never left the yard.
+  const ON_THE_ROAD = ["Accepted", "Start Delivery", "In Warehouse", "In Transit", "Arrived"];
+  const NOT_YET = ["Pending", "Assigned"];
+
+  for (const status of ON_THE_ROAD) {
+    it(`allows a foul trip once the crew have taken it: ${status}`, async () => {
+      db.queue(booking(status), { data: { dispatchID: TRIP }, error: null });
+      const result = await overrideBooking({
+        orderID: ORDER,
+        action: "foul-trip",
+        reason: "Unreachable",
+        actorID: ACTOR,
+      });
+      expect(result.previousStatus).toBe(status);
+      expect(incidents).toHaveLength(1);
+    });
+  }
+
+  for (const status of NOT_YET) {
+    it(`refuses a foul trip before anyone has taken it: ${status}`, async () => {
+      db.queue(booking(status));
+      await expect(
+        overrideBooking({ orderID: ORDER, action: "foul-trip", reason: "x", actorID: ACTOR }),
+      ).rejects.toThrow(/no crew has accepted/i);
+      // Nothing filed, nothing changed.
+      expect(incidents).toHaveLength(0);
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it(`refuses to close it as delivered before anyone has taken it: ${status}`, async () => {
+      db.queue(booking(status));
+      await expect(
+        overrideBooking({ orderID: ORDER, action: "complete", reason: "x", actorID: ACTOR }),
+      ).rejects.toThrow(/no delivery to close/i);
+      expect(db.writes).toHaveLength(0);
+    });
+
+    it(`still cancels it, because that is the right answer there: ${status}`, async () => {
+      db.queue(booking(status), { data: { dispatchID: TRIP }, error: null }, { data: null, error: null });
+      const result = await overrideBooking({
+        orderID: ORDER,
+        action: "cancel",
+        reason: "Client called it off",
+        actorID: ACTOR,
+      });
+      expect(result.action).toBe("cancel");
+      expect(released).toEqual([TRIP]);
+    });
+  }
+});

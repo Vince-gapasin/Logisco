@@ -26,7 +26,12 @@
 // from the crew's own work would make the history worth less than no history.
 
 import { supabase } from "@/app/lib/supabase";
-import { DELIVERY_STATUS, TERMINAL_DELIVERY_STATUSES, STOP_STATUS } from "@/app/lib/enums";
+import {
+  ACCEPTED_ONWARDS,
+  DELIVERY_STATUS,
+  TERMINAL_DELIVERY_STATUSES,
+  STOP_STATUS,
+} from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
 import { recordIncident } from "@/services/foulTrip/foulTripService";
 
@@ -100,6 +105,20 @@ export async function overrideBooking(request: OverrideRequest): Promise<Overrid
       trips.length === 0
         ? "This booking has no trip yet, so there is nothing on the road to close. Cancel it instead."
         : "This booking is already closed.",
+    );
+  }
+
+  // A foul trip is something going wrong on a job a crew has taken. Closing one
+  // as delivered says a crew delivered it. Neither can be true of a booking
+  // nobody has accepted yet - that is a cancel, or a re-assignment - and the
+  // check that only excluded finished trips let both be done to a booking still
+  // sitting in Assigned, which would have put a truck into the recovery list
+  // over a delivery that never left the yard.
+  if (!ACCEPTED_ONWARDS.includes(trip.status)) {
+    throw new Error(
+      request.action === "foul-trip"
+        ? `No crew has accepted this booking yet - it is ${trip.status}, so nothing has gone wrong on the road. Cancel it, or re-assign the crew.`
+        : `No crew has accepted this booking yet - it is ${trip.status}, so there is no delivery to close. Cancel it instead.`,
     );
   }
 
