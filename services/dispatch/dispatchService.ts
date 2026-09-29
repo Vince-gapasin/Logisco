@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { announceTruckStatus } from "@/services/truck/truckService";
 import {
   ACTIVE_DELIVERY_STATUSES,
   DELIVERY_STATUS,
@@ -46,12 +47,34 @@ async function findActiveDispatchFor(
 }
 
 async function setTruckStatus(truckID: string, truckStatus: string) {
+  // Read first, so the announcement below knows whether this is a change worth
+  // making and what it is changing from.
+  const { data: before } = await supabase
+    .from("Truck")
+    .select("truckStatus")
+    .eq("truckID", truckID)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("Truck")
     .update({ truckStatus })
     .eq("truckID", truckID);
 
   if (error) throw new Error(`Failed to update truck status: ${error.message}`);
+
+  // This was a bare update, which is how a truck breaking down on the road
+  // grounded it without telling a single mechanic - while an admin typing the
+  // same status into the truck form notified all of them. announceTruckStatus
+  // ignores the Available/On Delivery churn and speaks only when a truck leaves
+  // the road or comes back to it.
+  //
+  // Never fatal: a delivery must not fail to release its truck because a
+  // notification could not be sent.
+  try {
+    await announceTruckStatus(truckID, before?.truckStatus as string | undefined, truckStatus);
+  } catch (error) {
+    console.error("[Dispatch] Could not announce the truck status:", error);
+  }
 }
 
 export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {

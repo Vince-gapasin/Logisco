@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
-import { MECHANICS, notify, OFFICE } from "@/services/notifications/notify";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import {
+  announceTruckStatus,
   deleteTruck,
   getTruckById,
   toTruckPayload,
@@ -67,18 +67,16 @@ export async function PUT(request: Request, { params }: RouteContext) {
       after: payload,
     });
 
+    // The same announcement the breakdown path makes, rather than a second copy
+    // of it here. This one also used to fire on any change at all - an admin
+    // setting a truck to On Delivery told every mechanic "Truck back in service"
+    // - where the shared one speaks only when a truck leaves the road or returns
+    // to it.
     const status = (payload as { truckStatus?: string }).truckStatus;
-    if (status && before && status !== before.truckStatus) {
-      const grounded = status === "On Maintenance" || status === "Out of Service";
-      await notify({
-        event: "TRUCK_STATUS_CHANGED",
-        title: grounded ? `Truck ${status.toLowerCase()}` : "Truck back in service",
-        body: `${before.plateNumber} is now ${status.toLowerCase()}.`,
-        severity: grounded ? "action" : "info",
-        roles: [...OFFICE, ...MECHANICS],
-        entity: { table: "Truck", id },
-        link: "/mechanic/fleet-status",
-        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+    if (status && before) {
+      await announceTruckStatus(id, before.truckStatus as string | undefined, status, {
+        employeeID: auth.employee.employeeID,
+        name: auth.employee.employeeName,
       });
     }
 

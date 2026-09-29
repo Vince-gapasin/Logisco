@@ -201,3 +201,67 @@ export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: s
   if (error) throw error;
   return data as Truck;
 }
+
+// ==========================================
+// ANNOUNCING THAT A TRUCK IS OFF THE ROAD
+// ==========================================
+
+/**
+ * Tells the office and the mechanics when a truck is grounded, or comes back.
+ *
+ * It used to live inline in the admin's truck PATCH, which meant the same fact -
+ * this truck is On Maintenance - reached mechanics when somebody typed it into a
+ * form and reached nobody when a truck actually broke down on the road. The
+ * breakdown path grounds the truck through setTruckStatus, which was a bare
+ * UPDATE. So the quieter event was announced and the real one was silent.
+ *
+ * Here so both paths call the same thing, and so anything added later that
+ * grounds a truck is announced without having to remember to.
+ *
+ * ONLY GROUNDED, AND ONLY ON A CHANGE
+ *
+ * Trucks move between Available and On Delivery all day. Telling every mechanic
+ * about that is how an alert becomes something people turn off. What they need
+ * to know is that a truck has left the road, or come back to it.
+ */
+export async function announceTruckStatus(
+  truckID: string,
+  from: string | null | undefined,
+  to: string,
+  actor?: { employeeID: string; name: string } | null,
+): Promise<void> {
+  if (!truckID || from === to) return;
+
+  const grounded = (status: string | null | undefined) =>
+    status === TRUCK_STATUS.onMaintenance || status === TRUCK_STATUS.outOfService;
+
+  const wasGrounded = grounded(from);
+  const isGrounded = grounded(to);
+  if (wasGrounded === isGrounded) return;
+
+  const { data: truck } = await supabase
+    .from(TABLE)
+    .select("plateNumber")
+    .eq("truckID", truckID)
+    .maybeSingle();
+
+  const plate = (truck?.plateNumber as string) ?? "A truck";
+
+  // Imported here rather than at the top: the notification layer is the outer
+  // edge of this service, and a top-level import would have this module loaded
+  // by everything that reads a truck.
+  const { notify, OFFICE, MECHANICS } = await import("@/services/notifications/notify");
+
+  await notify({
+    event: "TRUCK_STATUS_CHANGED",
+    title: isGrounded ? `Truck ${to.toLowerCase()}` : "Truck back in service",
+    body: isGrounded
+      ? `${plate} is now ${to.toLowerCase()} and cannot be booked until it is back.`
+      : `${plate} is off maintenance and can be booked again.`,
+    severity: isGrounded ? "action" : "info",
+    roles: [...OFFICE, ...MECHANICS],
+    entity: { table: "Truck", id: truckID },
+    link: "/mechanic/fleet-status",
+    actor: actor ?? undefined,
+  });
+}
