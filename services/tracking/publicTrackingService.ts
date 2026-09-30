@@ -124,6 +124,8 @@ export interface TrackingPayload {
   truckModel: string | null;
   driverName: string | null;
   driverContact: string | null;
+  /** The helpers coming with them, by name. Empty when there are none. */
+  crewHelpers: string[];
   currentLocation: { latitude: number; longitude: number; updatedAt: string | null } | null;
   trail: TrailPoint[];
   /**
@@ -621,8 +623,15 @@ interface TrackedDispatch {
   SubContractor?: { companyName?: string | null } | null;
   Truck?: { plateNumber?: string | null; model?: string | null } | null;
   Employee?: { employeeName?: string | null; contact?: string | null } | null;
-  /** Statuses only. The customer has no business knowing who the helpers are. */
-  DispatchHelper?: { status?: string | null }[] | null;
+  /**
+   * Who is coming, and whether they have accepted.
+   *
+   * The name is for the customer to recognise whoever gets out of the truck,
+   * which is the same reason the driver is named. No contact number: the driver
+   * is the one to ring, and a second number on a public page is a second number
+   * on a public page.
+   */
+  DispatchHelper?: { status?: string | null; Helper?: { employeeName?: string | null } | { employeeName?: string | null }[] | null }[] | null;
 }
 
 interface TrackedStop {
@@ -672,7 +681,7 @@ export async function getTrackingByToken(
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
          Truck ( plateNumber, model ),
          Employee!DispatchOrder_driverID_fkey ( employeeName, contact ),
-         DispatchHelper ( status ) )`,
+         DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) ) )`,
     )
     .eq("orderLinkToken", token)
     .maybeSingle();
@@ -828,6 +837,16 @@ export async function getTrackingByToken(
       }
     : null;
 
+  // Who else is on the truck. A helper who declined is not coming, so they are
+  // not named to somebody waiting for them to arrive.
+  const crewHelpers = helperRows
+    .filter((row) => row.status !== HELPER_STATUS.declined)
+    .map((row) => {
+      const helper = Array.isArray(row.Helper) ? row.Helper[0] : row.Helper;
+      return helper?.employeeName?.trim() ?? "";
+    })
+    .filter(Boolean);
+
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
   const problems = await reportedProblems(order.orderID);
   const heldUp = await heldUpUpdates(dispatch?.dispatchID ?? null);
@@ -850,6 +869,7 @@ export async function getTrackingByToken(
     truckModel: truck?.model ?? null,
     driverName: driver?.employeeName ?? dispatch?.partnerDriver ?? null,
     driverContact: driver?.contact ?? null,
+    crewHelpers,
     currentLocation,
     trail,
     plannedRoute: planned?.path ?? [],

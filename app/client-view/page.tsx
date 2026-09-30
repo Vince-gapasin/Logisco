@@ -20,6 +20,7 @@ import {
   Truck,
   User,
   UserCheck,
+  Users,
 } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
@@ -98,6 +99,7 @@ interface TrackingData {
   truckModel: string | null;
   driverName: string | null;
   driverContact: string | null;
+  crewHelpers?: string[];
   currentLocation: { latitude: number; longitude: number; updatedAt: string | null } | null;
   trail: { latitude: number; longitude: number }[];
   plannedRoute: [number, number][];
@@ -356,13 +358,18 @@ function ClientTrackerView() {
                   <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
                     <Truck className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs font-medium text-slate-500">Truck / Plate No.</div>
+                    {/* The plate leads. It is what somebody at the gate matches
+                        against the truck in front of them; the model is how they
+                        know which one to look for. They used to be one line
+                        joined by a dash, which reads as a single name. */}
                     <div className="text-sm font-medium text-slate-900">
-                      {data.plateNumber
-                        ? [data.truckModel, data.plateNumber].filter(Boolean).join(" - ")
-                        : "Not yet assigned"}
+                      {data.plateNumber ?? "Not yet assigned"}
                     </div>
+                    {data.plateNumber && data.truckModel ? (
+                      <div className="text-xs text-slate-600">{data.truckModel}</div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -370,15 +377,46 @@ function ClientTrackerView() {
                   <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
                     <User className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs font-medium text-slate-500">Driver</div>
                     <div className="text-sm font-medium text-slate-900">
-                      {data.driverName
-                        ? [data.driverName, data.driverContact].filter(Boolean).join(" - ")
-                        : "Not yet assigned"}
+                      {data.driverName ?? "Not yet assigned"}
                     </div>
+                    {/* Its own line, and dialable. "Audrey Valencia - 09242450563"
+                        reads as one run of text and cannot be tapped, on a page
+                        most often opened on a phone by somebody who wants to
+                        ring the driver. */}
+                    {data.driverName && data.driverContact ? (
+                      <a
+                        href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        {data.driverContact}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
+
+                {/* Who else is coming. Named so the customer can recognise
+                    whoever gets out of the truck, which is why the driver is
+                    named too - and with no number, because the driver is the one
+                    to ring and a second number on a public page is a second
+                    number on a public page. */}
+                {(data.crewHelpers ?? []).length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-slate-500">
+                        {(data.crewHelpers ?? []).length === 1 ? "Helper" : "Helpers"}
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {(data.crewHelpers ?? []).join(", ")}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {(data.clientEmail || data.clientContact) && (
                   <div className="flex items-start gap-3">
