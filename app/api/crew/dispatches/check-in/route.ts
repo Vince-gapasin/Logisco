@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
 import { CHECK_IN_LABELS, isCheckInState, isCallForHelp } from "@/app/lib/stallRules";
+import { announceCheckIn } from "@/services/dispatch/crewUpdateService";
 
 // The crew answering why their truck has gone quiet.
 //
@@ -60,6 +61,16 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw new Error(error.message);
+
+    // "Your coordinator has been told" was answered to the crew below without
+    // anybody being told. It reached the fleet board and stopped there.
+    await announceCheckIn(
+      dispatchID,
+      state,
+      note,
+      (data.createdAt as string) ?? new Date().toISOString(),
+      { employeeID: auth!.employee.employeeID, employeeName: auth!.employee.employeeName },
+    );
 
     return NextResponse.json({
       message: isCallForHelp(state)

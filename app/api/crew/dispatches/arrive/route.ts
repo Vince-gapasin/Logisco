@@ -4,6 +4,7 @@ import { supabase } from "@/app/lib/supabase";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
+import { announceArrival } from "@/services/dispatch/crewUpdateService";
 
 // "I am here."
 //
@@ -70,9 +71,10 @@ export async function POST(request: Request) {
     const idColumn = branchID !== null ? "branchID" : "pickupID";
     const idValue = branchID !== null ? branchID : pickupID;
 
+    const nameColumn = branchID !== null ? "branchName" : "warehouseName";
     const { data: stop, error: readError } = await supabase
       .from(table)
-      .select(`${idColumn}, stopStatus, arrivedAt, completedAt`)
+      .select(`${idColumn}, ${nameColumn}, stopStatus, arrivedAt, completedAt`)
       .eq(idColumn, idValue)
       .maybeSingle();
 
@@ -123,6 +125,16 @@ export async function POST(request: Request) {
       before: { status: trip.status },
       after: { status: DELIVERY_STATUS.arrived, [idColumn]: idValue, arrivedAt },
     });
+
+    await announceArrival(
+      dispatchID,
+      // The select is built from a variable, so the row comes back as a union
+      // of both shapes and neither name is on all of them.
+      ((stop as Record<string, unknown>)[nameColumn] as string | null) ||
+        (branchID !== null ? "a delivery point" : "a warehouse"),
+      arrivedAt,
+      { employeeID: auth.employee.employeeID, employeeName: auth.employee.employeeName },
+    );
 
     return NextResponse.json({ success: true, arrivedAt });
   } catch (error) {

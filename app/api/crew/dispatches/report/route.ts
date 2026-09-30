@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import { getCrewAssignment, isUuid } from "@/services/dispatch/dispatchService";
+import { announceTripReport } from "@/services/dispatch/crewUpdateService";
 
 export async function POST(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
@@ -46,6 +47,11 @@ export async function POST(request: Request) {
     });
 
     if (reportError) throw new Error(`Failed to save report: ${reportError.message}`);
+
+    await announceTripReport(dispatchID, Boolean(vehicleIssues), {
+      employeeID: auth.employee.employeeID,
+      employeeName: auth.employee.employeeName,
+    }, new Date().toISOString());
 
     return NextResponse.json({ message: "Report saved successfully" }, { status: 200 });
   } catch (error) {

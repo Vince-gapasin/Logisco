@@ -6,6 +6,7 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
+import { announceDeparture, announceStopDone } from "@/services/dispatch/crewUpdateService";
 import {
   crewNotReadyReason,
   crewReadinessFor,
@@ -379,6 +380,36 @@ export async function POST(request: Request) {
     // logged and retried if the crew app submits again.
     if (status === DELIVERY_STATUS.completed) {
       await releaseResources(dispatchID);
+    }
+
+    // Everything the crew just did, told to the office.
+    //
+    // Only the finish ever was. A crew could set off, reach a warehouse, collect
+    // a load, reach a delivery point and hand it over, and the feed would carry
+    // one line at the very end - while the fleet board, which recomputes the
+    // state on every poll, could see all of it. The board is a view; the feed is
+    // the record, and nothing was writing to it.
+    const actor = {
+      employeeID: auth.employee.employeeID,
+      employeeName: auth.employee.employeeName,
+    };
+
+    if (status === DELIVERY_STATUS.inTransit && STARTING_OUT.includes(current.status)) {
+      await announceDeparture(dispatchID, actor, current.status);
+    }
+
+    if (branchID !== null || pickupID !== null) {
+      await announceStopDone(
+        dispatchID,
+        {
+          name: (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
+          isPickup: pickupID !== null,
+          receiverName,
+          hasProof: Boolean(podPath),
+        },
+        completedAt,
+        actor,
+      );
     }
 
     if (status === DELIVERY_STATUS.completed) {
