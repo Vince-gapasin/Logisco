@@ -66,15 +66,18 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
   // minute at most, and reading a clock during render makes the render impure.
   useEffect(() => {
     const read = () => {
-      setStillFor(minutesSinceMove());
-      const sincePing = minutesSincePing();
+      // For this trip. Both clocks used to be about whichever trip last posted,
+      // so the morning delivery answered for the afternoon one and a crew who
+      // had just set off were asked why they had not moved.
+      setStillFor(minutesSinceMove(dispatchID));
+      const sincePing = minutesSincePing(dispatchID);
       setOutOfTouch(sincePing !== null && sincePing >= CONTACT_LOST_MIN);
     };
     read();
 
     const timer = setInterval(read, 30_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [dispatchID]);
 
   const answer = useCallback(
     async (state: CheckInState) => {

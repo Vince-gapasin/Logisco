@@ -114,7 +114,7 @@ async function postLocation(
     // server. The check-in prompt reads this to decide whether the silence the
     // office is seeing is real.
     if (response.ok) {
-      markPing();
+      markPing(dispatchId);
 
       // And when the truck was last somewhere else. The server works that out by
       // comparing coordinates - the app cannot, because a parked heartbeat and a
@@ -123,7 +123,7 @@ async function postLocation(
       // resetting, and never asks anything.
       const body = (await response.json().catch(() => null)) as { movedAt?: string } | null;
       const movedAt = body?.movedAt ? Date.parse(body.movedAt) : NaN;
-      if (Number.isFinite(movedAt)) markMovement(movedAt);
+      if (Number.isFinite(movedAt)) markMovement(dispatchId, movedAt);
     }
 
     return response.status !== 409;
