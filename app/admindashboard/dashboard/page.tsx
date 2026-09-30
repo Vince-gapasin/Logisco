@@ -339,7 +339,7 @@ function ViewOrderModal({
             address: pickupAddr,
             contactPerson: cPerson,
             contactNum: cNum,
-            expectedTime: pickupTime,
+            expectedTime: formatTime(pickupTime) || "N/A",
             collected: false,
           },
         ];
@@ -697,7 +697,7 @@ function ViewOrderModal({
                             {d.contactNum || cNum}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.expectedTime || "N/A"}
+                            {formatTime(d.expectedTime) || "N/A"}
                           </td>
                           <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
                             {d.quantity || quantity}

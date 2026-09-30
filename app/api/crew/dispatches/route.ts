@@ -11,6 +11,7 @@ import type {
 } from "@/types/database";
 import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
+import { formatTime } from "@/app/lib/datetime";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
 
 // Stops are read through the Order: older dispatches were created before
@@ -45,6 +46,11 @@ function readScheduledDate(notes: string | null): string {
 }
 
 // Earliest to latest stop time, e.g. "8:00 AM - 3:00 PM".
+//
+// Sorted as stored, shown through the shared formatter: 24-hour strings are
+// what sort correctly ("08:00" before "14:30"), and twelve-hour ones are what
+// a driver reads. This had its own copy of the conversion, which is how three
+// other places on these screens came to be showing the raw column instead.
 function buildTimeWindow(stops: { expectedTime?: string | null }[]): string {
   const times = stops
     .map((stop) => stop.expectedTime)
@@ -53,17 +59,9 @@ function buildTimeWindow(stops: { expectedTime?: string | null }[]): string {
 
   if (times.length === 0) return "";
 
-  const label = (time: string) => {
-    const [hourPart, minutePart] = time.split(":");
-    const hour = Number(hourPart);
-    if (Number.isNaN(hour)) return time;
-    const suffix = hour >= 12 ? "PM" : "AM";
-    return `${hour % 12 === 0 ? 12 : hour % 12}:${minutePart ?? "00"} ${suffix}`;
-  };
-
   return times.length === 1
-    ? label(times[0])
-    : `${label(times[0])} - ${label(times[times.length - 1])}`;
+    ? formatTime(times[0])
+    : `${formatTime(times[0])} - ${formatTime(times[times.length - 1])}`;
 }
 
 // The trips this route reads, with the order and stops embedded. Columns come
@@ -201,7 +199,8 @@ export async function GET(request: Request) {
         current_step: dispatch.current_step ?? 0,
         scheduledDate: readScheduledDate(order.notes ?? null),
         timeWindow: buildTimeWindow(stops),
-        pickupTime: pickups[0]?.expectedTime ? String(pickups[0].expectedTime).slice(0, 5) : "TBD",
+        // Not sliced to "08:00". The crew read these; the database sorts by them.
+        pickupTime: formatTime(pickups[0]?.expectedTime) || "TBD",
         deliveryTime: "TBD",
         // Was the literal string "Warehouse / Depot" until pickups became
         // rows: the driver was told to collect the cargo from nowhere.
@@ -228,7 +227,7 @@ export async function GET(request: Request) {
           address: pickup.pickupAddress || pickup.warehouseName || "No address on file",
           contactPerson: pickup.contactPerson || "N/A",
           contactNumber: pickup.contactNum || "N/A",
-          pickupTime: pickup.expectedTime ? String(pickup.expectedTime).slice(0, 5) : "",
+          pickupTime: formatTime(pickup.expectedTime),
           quantity: "See Manifest",
           status: pickup.stopStatus,
           latitude: Number(pickup.pickupLat) || null,
@@ -241,7 +240,7 @@ export async function GET(request: Request) {
           address: stop.deliveryAddress || stop.branchName || "No address on file",
           contactPerson: stop.contactPerson,
           contactNumber: stop.contactNum,
-          deliveryTime: stop.expectedTime,
+          deliveryTime: formatTime(stop.expectedTime),
           quantity: "TBD",
           status: stop.stopStatus,
           // 0/0 is the placeholder for a stop that was never geocoded.

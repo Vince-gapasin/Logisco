@@ -6,6 +6,13 @@
 
 const TIME_PATTERN = /^(\d{1,2}):(\d{2})/;
 
+// Already been through here. Formatting twice used to be silently destructive:
+// "2:30 PM" matches the 24-hour pattern as hour 2, so a second pass turned an
+// afternoon delivery into a morning one. Anything that has already been made
+// readable is left alone, so a value passed through by one layer and formatted
+// again by the next survives it.
+const ALREADY_READABLE = /\d\s*(AM|PM)$/i;
+
 // Every time this system shows is a time in the Philippines, and half of them
 // are rendered by a server in UTC - the tracking email, the client's tracking
 // page, a booking's history. Left to the machine's own zone, a delivery made
@@ -21,7 +28,10 @@ const ZONE = "Asia/Manila";
 export function formatTime(value: string | null | undefined): string {
   if (!value) return "";
 
-  const clock = TIME_PATTERN.exec(value.trim());
+  const trimmed = value.trim();
+  if (ALREADY_READABLE.test(trimmed)) return trimmed;
+
+  const clock = TIME_PATTERN.exec(trimmed);
   if (clock) {
     const hours = Number(clock[1]);
     const minutes = clock[2];
@@ -31,7 +41,7 @@ export function formatTime(value: string | null | undefined): string {
     return `${hour12}:${minutes} ${period}`;
   }
 
-  const stamp = new Date(value);
+  const stamp = new Date(trimmed);
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: ZONE });
 }

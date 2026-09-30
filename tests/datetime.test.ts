@@ -33,3 +33,19 @@ describe("times as people read them", () => {
     expect(formatTime("99:99")).toBe("99:99");
   });
 });
+
+describe("formatting a time that has already been formatted", () => {
+  it("leaves it alone rather than reading the hour again", () => {
+    // "2:30 PM" matches the 24-hour pattern as hour 2, so a second pass used to
+    // turn an afternoon delivery into a morning one. Values are passed through
+    // several layers - an API route formats, a screen formats again - and that
+    // has to be harmless.
+    expect(formatTime("2:30 PM")).toBe("2:30 PM");
+    expect(formatTime("12:00 AM")).toBe("12:00 AM");
+    expect(formatTime(formatTime("14:30"))).toBe("2:30 PM");
+  });
+
+  it("still converts anything that has not been", () => {
+    expect(formatTime("14:30")).toBe("2:30 PM");
+  });
+});
