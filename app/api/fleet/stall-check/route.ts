@@ -23,7 +23,14 @@ export const dynamic = "force-dynamic";
 function fromTheSchedule(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) return false;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
+
+  // Trimmed on both sides. The schedule builds this header in SQL from a value
+  // pasted into Supabase Vault, and a pasted secret carries a trailing newline
+  // more often than not - which fails the comparison, falls through to the
+  // staff check, and answers 401 to a job that had the right secret all along.
+  // The secret still has to match exactly; only the whitespace around it does
+  // not count.
+  return request.headers.get("authorization")?.trim() === `Bearer ${secret}`;
 }
 
 function summarise(trips: StalledTrip[]) {

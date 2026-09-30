@@ -101,11 +101,13 @@ COMMIT;
 --   LIMIT 5;
 --
 -- And that cron itself is not erroring:
---   SELECT status, return_message, start_time
---   FROM cron.job_run_details
---   WHERE jobname = 'stall-check'
---   ORDER BY start_time DESC
+--   SELECT d.status, d.return_message, d.start_time
+--   FROM cron.job_run_details d
+--   JOIN cron.job j ON j.jobid = d.jobid
+--   WHERE j.jobname = 'stall-check'
+--   ORDER BY d.start_time DESC
 --   LIMIT 5;
+--   (job_run_details keys on jobid, not jobname - the name lives on cron.job.)
 --
 -- TO STOP IT
 --   SELECT cron.unschedule('stall-check');
