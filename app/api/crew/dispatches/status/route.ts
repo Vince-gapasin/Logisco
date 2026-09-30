@@ -6,7 +6,7 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
-import { announceDeparture, announceStopDone } from "@/services/dispatch/crewUpdateService";
+import { announceMissingProof } from "@/services/dispatch/crewUpdateService";
 import {
   crewNotReadyReason,
   crewReadinessFor,
@@ -382,33 +382,23 @@ export async function POST(request: Request) {
       await releaseResources(dispatchID);
     }
 
-    // Everything the crew just did, told to the office.
+    // Problems and the finish, and nothing in between.
     //
-    // Only the finish ever was. A crew could set off, reach a warehouse, collect
-    // a load, reach a delivery point and hand it over, and the feed would carry
-    // one line at the very end - while the fleet board, which recomputes the
-    // state on every poll, could see all of it. The board is a view; the feed is
-    // the record, and nothing was writing to it.
-    const actor = {
-      employeeID: auth.employee.employeeID,
-      employeeName: auth.employee.employeeName,
-    };
-
-    if (status === DELIVERY_STATUS.inTransit && STARTING_OUT.includes(current.status)) {
-      await announceDeparture(dispatchID, actor, current.status);
-    }
-
-    if (branchID !== null || pickupID !== null) {
-      await announceStopDone(
+    // Every stop was announced for about an hour, which on a four-drop delivery
+    // is six notifications nobody asked for. Ordinary progress belongs on the
+    // fleet board, which recomputes it on every poll; the feed is for the things
+    // somebody may have to do something about.
+    //
+    // A stop closed with no photograph is one of those. It is the only stop
+    // event still announced, because it is the only one where the office can
+    // still act - the crew are standing there, and a phone call now is a proof
+    // recovered rather than a gap in the record found weeks later.
+    if ((branchID !== null || pickupID !== null) && !podPath) {
+      await announceMissingProof(
         dispatchID,
-        {
-          name: (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
-          isPickup: pickupID !== null,
-          receiverName,
-          hasProof: Boolean(podPath),
-        },
+        (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
         completedAt,
-        actor,
+        { employeeID: auth.employee.employeeID, employeeName: auth.employee.employeeName },
       );
     }
 

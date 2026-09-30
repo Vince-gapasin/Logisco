@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Telling the office what the crew just did.
+// What the office is told about a trip in progress.
 //
-// Almost none of it reached them. A crew could set off, reach a warehouse,
-// collect a load, reach a delivery point, hand it over and report a delay, and
-// the office would be told exactly once - when the whole trip completed. The
-// fleet board could see all of it, because it recomputes the state on every
-// poll; the feed is the record of what was said, and nothing was saying it.
+// Almost nothing was. A crew could report a delay, close a stop with no
+// photograph, or ask for help, and the only thing to reach the notification
+// feed was the trip finishing. The fleet board could see all of it, because it
+// recomputes the state on every poll - which is what made the gap easy to miss.
+// The board is a view; the feed is the record of what was said.
+//
+// And not everything. Announcing every arrival and every stop is six
+// notifications on a four-drop delivery that went entirely to plan. What is
+// here is what somebody may have to do something about.
 
 const sent: Record<string, unknown>[] = [];
 
@@ -19,13 +23,9 @@ vi.mock("@/services/notifications/notify", () => ({
   },
 }));
 
-const {
-  announceArrival,
-  announceCheckIn,
-  announceDeparture,
-  announceStopDone,
-  announceTripReport,
-} = await import("@/services/dispatch/crewUpdateService");
+const { announceCheckIn, announceMissingProof, announceTripReport } = await import(
+  "@/services/dispatch/crewUpdateService"
+);
 
 const TRIP = "11111111-2222-3333-4444-555555555555";
 const ANA = { employeeID: "emp-1", employeeName: "Ana" };
@@ -37,63 +37,12 @@ beforeEach(() => {
   sent.length = 0;
 });
 
-describe("what reaches the office now", () => {
-  it("says the trip has set off", async () => {
-    await announceDeparture(TRIP, ANA, "Accepted");
-    expect(last().title).toBe("Trip started");
-    expect(last().body).toMatch(/Ana has set off/);
-  });
-
-  it("says where the crew have arrived", async () => {
-    await announceArrival(TRIP, "Bonchon Valenzuela", AT, ANA);
-    expect(last().title).toBe("Arrived at Bonchon Valenzuela");
-  });
-
-  it("tells a collection from a hand-over", async () => {
-    await announceStopDone(
-      TRIP,
-      { name: "Valenzuela Warehouse", isPickup: true, hasProof: true },
-      AT,
-      ANA,
-    );
-    expect(last().title).toBe("Collected from Valenzuela Warehouse");
-
-    await announceStopDone(
-      TRIP,
-      { name: "Makati Branch", isPickup: false, receiverName: "Trisha", hasProof: true },
-      AT,
-      ANA,
-    );
-    expect(last().title).toBe("Delivered to Makati Branch");
-    expect(last().body).toMatch(/Received by Trisha/);
-  });
-
-  it("says plainly when a stop was closed with no photograph", async () => {
-    // The one the office may want to ask about while the crew are still near it,
-    // rather than discover in the report afterwards.
-    await announceStopDone(
-      TRIP,
-      { name: "Makati Branch", isPickup: false, hasProof: false },
-      AT,
-      ANA,
-    );
-    expect(last().body).toMatch(/No photograph was taken/);
-  });
-
-  it("does not claim a receiver when the crew app sent its placeholder", async () => {
-    await announceStopDone(
-      TRIP,
-      { name: "Makati Branch", isPickup: false, receiverName: "N/A", hasProof: true },
-      AT,
-      ANA,
-    );
-    expect(last().body).not.toMatch(/Received by/);
-  });
-
-  it("passes on a delay the crew reported, which only the board used to see", async () => {
-    await announceCheckIn(TRIP, "traffic", null, AT, ANA);
-    expect(last().title).toBe("Crew reported: Stuck in traffic");
-    expect(last().body).toMatch(/customer can see the reason/);
+describe("a delay the crew reported", () => {
+  it("reaches the office, which only the board used to see", () => {
+    return announceCheckIn(TRIP, "traffic", null, AT, ANA).then(() => {
+      expect(last().title).toBe("Crew reported: Stuck in traffic");
+      expect(last().body).toMatch(/customer can see the reason/);
+    });
   });
 
   it("carries whatever the crew typed with it", async () => {
@@ -101,20 +50,7 @@ describe("what reaches the office now", () => {
     expect(last().body).toMatch(/Gate 3 is closed/);
   });
 
-  it("files the trip report", async () => {
-    await announceTripReport(TRIP, false, ANA, AT);
-    expect(last().title).toBe("Trip report filed");
-  });
-});
-
-describe("how loudly each one arrives", () => {
-  it("keeps ordinary progress quiet, so the urgent ones still read as urgent", async () => {
-    await announceDeparture(TRIP, ANA, "Accepted");
-    expect(last().severity).toBe("info");
-
-    await announceArrival(TRIP, "Makati", AT, ANA);
-    expect(last().severity).toBe("info");
-
+  it("stays quiet enough that the urgent ones still read as urgent", async () => {
     await announceCheckIn(TRIP, "traffic", null, AT, ANA);
     expect(last().severity).toBe("info");
   });
@@ -132,32 +68,54 @@ describe("how loudly each one arrives", () => {
     expect(last().severity).toBe("urgent");
   });
 
-  it("raises a trip report that mentions the truck", async () => {
-    // Something to act on before it goes out again.
+  it("is said once per answer, so a second answer is still heard", async () => {
+    await announceCheckIn(TRIP, "traffic", null, AT, ANA);
+    const first = last().dedupeKey;
+    await announceCheckIn(TRIP, "traffic", null, "2026-09-30T03:00:00.000Z", ANA);
+    expect(last().dedupeKey).not.toBe(first);
+  });
+});
+
+describe("a stop closed with no photograph", () => {
+  it("is the one stop event worth saying, because it can still be fixed", async () => {
+    // The crew are standing there. A call now is a proof recovered rather than
+    // a gap in the record found weeks later.
+    await announceMissingProof(TRIP, "Makati Branch", AT, ANA);
+    expect(last().title).toBe("No proof at Makati Branch");
+    expect(last().body).toMatch(/may still be there/);
+    expect(last().severity).toBe("action");
+  });
+
+  it("is said once per stop, not once per retry", async () => {
+    await announceMissingProof(TRIP, "Makati Branch", AT, ANA);
+    expect(last().dedupeKey).toBe(`no-proof:${TRIP}:${AT}`);
+  });
+});
+
+describe("the trip report", () => {
+  it("is announced only when it names something wrong", async () => {
+    // A report with nothing in it arrives beside TRIP_COMPLETED and says the
+    // same thing twice.
+    await announceTripReport(TRIP, false, ANA, AT);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("is raised when it mentions the truck", async () => {
     await announceTripReport(TRIP, true, ANA, AT);
+    expect(last().title).toMatch(/truck problem/i);
     expect(last().severity).toBe("action");
     expect(last().body).toMatch(/before it goes out again/);
   });
 });
 
-describe("saying each thing once", () => {
-  it("keys a departure on the status it left, not on the clock", async () => {
-    await announceDeparture(TRIP, ANA, "Accepted");
-    const first = last().dedupeKey;
-    await announceDeparture(TRIP, ANA, "Accepted");
-    expect(last().dedupeKey).toBe(first);
-  });
-
-  it("keys an arrival on the moment reported", async () => {
-    await announceArrival(TRIP, "Makati", AT, ANA);
-    expect(last().dedupeKey).toBe(`arrived:${TRIP}:${AT}`);
-  });
-
-  it("keys a check-in per answer, so a second answer is heard", async () => {
-    await announceCheckIn(TRIP, "traffic", null, AT, ANA);
-    const first = last().dedupeKey;
-    await announceCheckIn(TRIP, "traffic", null, "2026-09-30T03:00:00.000Z", ANA);
-    expect(last().dedupeKey).not.toBe(first);
+describe("what is deliberately not announced", () => {
+  it("has no departure, arrival or ordinary stop notice at all", async () => {
+    const updates = await import("@/services/dispatch/crewUpdateService");
+    // Not "they are not called" - they do not exist. A notice nobody wants is
+    // better deleted than left behind a flag for somebody to switch back on.
+    expect(updates).not.toHaveProperty("announceDeparture");
+    expect(updates).not.toHaveProperty("announceArrival");
+    expect(updates).not.toHaveProperty("announceStopDone");
   });
 });
 
@@ -166,7 +124,7 @@ describe("when telling people fails", () => {
     // A delivery that was recorded is recorded whether or not anybody was told.
     const notify = await import("@/services/notifications/notify");
     const spy = vi.spyOn(notify, "notify").mockRejectedValueOnce(new Error("down"));
-    await expect(announceArrival(TRIP, "Makati", AT, ANA)).resolves.toBeUndefined();
+    await expect(announceMissingProof(TRIP, "Makati", AT, ANA)).resolves.toBeUndefined();
     spy.mockRestore();
   });
 });

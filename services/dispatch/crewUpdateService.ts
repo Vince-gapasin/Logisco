@@ -58,66 +58,35 @@ async function tell(input: {
   }
 }
 
-/** The trip has left. The first thing the office has been able to see happen. */
-export async function announceDeparture(
-  dispatchID: string,
-  actor: Actor,
-  lastReportedAt: string,
-): Promise<void> {
-  await tell({
-    dispatchID,
-    event: "TRIP_DEPARTED",
-    title: "Trip started",
-    body: `${actor.employeeName} has set off on ${(await tripLabel(dispatchID)) ?? "a delivery"}.`,
-    severity: "info",
-    // Per departure, not per call: a retry on a bad line must not say it twice.
-    dedupeKey: `departed:${dispatchID}:${lastReportedAt}`,
-    actor,
-  });
-}
-
-/** "I am here." One tap from the truck, and now one line in the feed. */
-export async function announceArrival(
+/**
+ * A stop closed with no photograph.
+ *
+ * The only stop event worth a notification, because it is the only one the
+ * office can still act on: the crew are standing there, and a phone call now is
+ * a proof recovered rather than a gap in the record found weeks later.
+ *
+ * Every stop used to be announced - set off, arrived, collected, delivered -
+ * which on a four-drop delivery is six notifications for a trip going entirely
+ * to plan. Ordinary progress belongs on the fleet board, which recomputes it on
+ * every poll. The feed is for the things somebody may have to do something
+ * about.
+ */
+export async function announceMissingProof(
   dispatchID: string,
   stopName: string,
-  arrivedAt: string,
-  actor: Actor,
-): Promise<void> {
-  await tell({
-    dispatchID,
-    event: "CREW_ARRIVED",
-    title: `Arrived at ${stopName}`,
-    body:
-      `${actor.employeeName} reported reaching ${stopName} on ` +
-      `${(await tripLabel(dispatchID)) ?? "a delivery"}. Nothing is being counted against the trip while they are there.`,
-    severity: "info",
-    dedupeKey: `arrived:${dispatchID}:${arrivedAt}`,
-    actor,
-  });
-}
-
-/** A stop finished: collected, or handed over and signed for. */
-export async function announceStopDone(
-  dispatchID: string,
-  stop: { name: string; isPickup: boolean; receiverName?: string | null; hasProof: boolean },
   completedAt: string,
   actor: Actor,
 ): Promise<void> {
-  const received = stop.receiverName?.trim();
-
   await tell({
     dispatchID,
-    event: "STOP_COMPLETED",
-    title: stop.isPickup ? `Collected from ${stop.name}` : `Delivered to ${stop.name}`,
+    event: "POD_MISSING",
+    title: `No proof at ${stopName}`,
     body:
-      `${actor.employeeName} finished ${stop.name} on ${(await tripLabel(dispatchID)) ?? "a delivery"}.` +
-      (received && received !== "N/A" ? ` Received by ${received}.` : "") +
-      // Said plainly rather than left to be discovered in the report: a stop
-      // closed without a photograph is the one the office may want to ask about
-      // while the crew are still near it.
-      (stop.hasProof ? "" : " No photograph was taken at this stop."),
-    severity: "info",
-    dedupeKey: `stop-done:${dispatchID}:${completedAt}`,
+      `${actor.employeeName} closed ${stopName} on ${(await tripLabel(dispatchID)) ?? "a delivery"} ` +
+      `without a photograph. They may still be there - a call now is quicker than chasing it later.`,
+    // Something to do, and a short window to do it in.
+    severity: "action",
+    dedupeKey: `no-proof:${dispatchID}:${completedAt}`,
     actor,
   });
 }
@@ -162,24 +131,29 @@ export async function announceCheckIn(
   });
 }
 
-/** The crew's own account of the trip, filed at the end of it. */
+/**
+ * The crew's own account of the trip, when it names something wrong.
+ *
+ * Only then. A report with nothing in it arrives beside TRIP_COMPLETED and says
+ * the same thing twice; a report that mentions the truck is something to read
+ * before it goes out again.
+ */
 export async function announceTripReport(
   dispatchID: string,
   hasVehicleIssues: boolean,
   actor: Actor,
   at: string,
 ): Promise<void> {
+  if (!hasVehicleIssues) return;
+
   await tell({
     dispatchID,
     event: "TRIP_REPORT_FILED",
-    title: "Trip report filed",
+    title: "Trip report notes a truck problem",
     body:
-      `${actor.employeeName} filed their report on ${(await tripLabel(dispatchID)) ?? "a delivery"}.` +
-      (hasVehicleIssues
-        ? " They noted a problem with the truck - worth reading before it goes out again."
-        : ""),
-    // A noted vehicle problem is something to act on before the next trip.
-    severity: hasVehicleIssues ? "action" : "info",
+      `${actor.employeeName} finished ${(await tripLabel(dispatchID)) ?? "a delivery"} and ` +
+      `reported a problem with the truck. Worth reading before it goes out again.`,
+    severity: "action",
     dedupeKey: `trip-report:${dispatchID}:${at}`,
     actor,
     link: "/admindashboard/reports",
