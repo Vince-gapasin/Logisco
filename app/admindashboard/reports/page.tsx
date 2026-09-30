@@ -10,7 +10,6 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import BookingHistoryPanel from "@/components/booking/BookingHistoryPanel";
-import RowOpenButton from "@/components/RowOpenButton";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import {
@@ -995,14 +994,13 @@ export default function ReportsForecastingPage() {
                 <th className="py-3.5 px-4 sm:px-6">Final Status</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Crews</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Remarks</th>
-                <th className="py-3.5 px-4 sm:px-6 text-right">History</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
                     <p className="text-slate-600 text-sm font-medium">
                       Loading records...
@@ -1038,25 +1036,11 @@ export default function ReportsForecastingPage() {
                     <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
                       {record.remarks}
                     </td>
-                    {/* The short way to the remarks history and the proofs. It
-                        is inside the booking too, as its seventh section, which
-                        is a long way to scroll for the question this screen is
-                        usually being asked. */}
-                    <td className="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">
-                      <RowOpenButton
-                        label={`Remarks history for ${record.orderId}`}
-                        onOpen={() => setHistoryFor(record)}
-                        className="inline-flex items-center gap-1.5 min-h-tap sm:min-h-0 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        <History className="w-3.5 h-3.5 shrink-0" />
-                        History
-                      </RowOpenButton>
-                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 sm:py-16 text-center">
+                  <td colSpan={6} className="py-12 sm:py-16 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
