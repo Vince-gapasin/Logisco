@@ -104,7 +104,11 @@ function ViewOrderModal({
   isOpen: boolean;
   onClose: () => void;
   order: ReportRecord | null;
-  onOpenHistory: () => void;
+  /**
+   * Takes the booking's real ID, which this modal has and its caller does not:
+   * ReportRecord.id is the order code, and the history endpoint wants the UUID.
+   */
+  onOpenHistory: (orderID: string) => void;
 }) {
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -222,7 +226,7 @@ function ViewOrderModal({
               maintenance history. */}
           <button
             type="button"
-            onClick={onOpenHistory}
+            onClick={() => onOpenHistory(booking.id)}
             className="w-full sm:w-auto px-6 py-2.5 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
             <History className="w-4 h-4 shrink-0" />
@@ -439,7 +443,9 @@ export default function ReportsForecastingPage() {
 
   // Modal State for Booking details view
   const [selectedOrderForView, setSelectedOrderForView] = useState<ReportRecord | null>(null);
-  const [historyFor, setHistoryFor] = useState<ReportRecord | null>(null);
+  const [historyFor, setHistoryFor] = useState<
+    { orderID: string; orderCode: string; client: string } | null
+  >(null);
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
 
   // Pagination States
@@ -785,8 +791,8 @@ export default function ReportsForecastingPage() {
   if (historyFor) {
     return (
       <BookingHistoryPanel
-        orderID={historyFor.id}
-        orderCode={historyFor.orderId}
+        orderID={historyFor.orderID}
+        orderCode={historyFor.orderCode}
         clientName={historyFor.client}
         onBack={() => setHistoryFor(null)}
       />
@@ -1099,9 +1105,13 @@ export default function ReportsForecastingPage() {
         isOpen={isViewOrderModalOpen}
         onClose={() => setIsViewOrderModalOpen(false)}
         order={selectedOrderForView}
-        onOpenHistory={() => {
-          if (selectedOrderForView) setHistoryFor(selectedOrderForView);
-        }}
+        onOpenHistory={(orderID) =>
+          setHistoryFor({
+            orderID,
+            orderCode: selectedOrderForView?.orderId ?? "",
+            client: selectedOrderForView?.client ?? "",
+          })
+        }
       />
 
     </div>
