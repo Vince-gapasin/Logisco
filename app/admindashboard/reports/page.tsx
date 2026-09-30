@@ -10,6 +10,8 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import BookingHistory from "@/components/booking/BookingHistory";
+import BookingHistoryPanel from "@/components/booking/BookingHistoryPanel";
+import RowOpenButton from "@/components/RowOpenButton";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import {
@@ -32,6 +34,7 @@ import {
   Loader2,
   X,
   Search,
+  History,
 } from "lucide-react";
 
 // ==========================================
@@ -425,6 +428,7 @@ export default function ReportsForecastingPage() {
 
   // Modal State for Booking details view
   const [selectedOrderForView, setSelectedOrderForView] = useState<ReportRecord | null>(null);
+  const [historyFor, setHistoryFor] = useState<ReportRecord | null>(null);
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
 
   // Pagination States
@@ -764,6 +768,20 @@ export default function ReportsForecastingPage() {
     }
   };
 
+  // Its own screen rather than a panel inside the record, which is how the
+  // mechanic's module does it and what the office asked the truck history to
+  // match. Three lists behind a History button now, all the same shape.
+  if (historyFor) {
+    return (
+      <BookingHistoryPanel
+        orderID={historyFor.id}
+        orderCode={historyFor.orderId}
+        clientName={historyFor.client}
+        onBack={() => setHistoryFor(null)}
+      />
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       <div className="space-y-6">
@@ -965,13 +983,14 @@ export default function ReportsForecastingPage() {
                 <th className="py-3.5 px-4 sm:px-6">Final Status</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Crews</th>
                 <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Remarks</th>
+                <th className="py-3.5 px-4 sm:px-6 text-right">History</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
                     <p className="text-slate-600 text-sm font-medium">
                       Loading records...
@@ -1007,11 +1026,25 @@ export default function ReportsForecastingPage() {
                     <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
                       {record.remarks}
                     </td>
+                    {/* The short way to the remarks history and the proofs. It
+                        is inside the booking too, as its seventh section, which
+                        is a long way to scroll for the question this screen is
+                        usually being asked. */}
+                    <td className="py-3.5 px-4 sm:px-6 text-right whitespace-nowrap">
+                      <RowOpenButton
+                        label={`Remarks history for ${record.orderId}`}
+                        onOpen={() => setHistoryFor(record)}
+                        className="inline-flex items-center gap-1.5 min-h-tap sm:min-h-0 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5 shrink-0" />
+                        History
+                      </RowOpenButton>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-12 sm:py-16 text-center">
+                  <td colSpan={7} className="py-12 sm:py-16 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
