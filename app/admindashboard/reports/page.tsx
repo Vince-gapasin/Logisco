@@ -9,7 +9,6 @@ import {
   toFeedBooking,
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
-import BookingHistory from "@/components/booking/BookingHistory";
 import BookingHistoryPanel from "@/components/booking/BookingHistoryPanel";
 import RowOpenButton from "@/components/RowOpenButton";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
@@ -101,10 +100,12 @@ function ViewOrderModal({
   isOpen,
   onClose,
   order,
+  onOpenHistory,
 }: {
   isOpen: boolean;
   onClose: () => void;
   order: ReportRecord | null;
+  onOpenHistory: () => void;
 }) {
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -211,13 +212,24 @@ function ViewOrderModal({
 
           <BookingNotes notes={fields.notes} />
 
-          {/* 7. What happened to this booking, newest first - and where the
-              proofs of delivery are listed. */}
-          <BookingHistory orderID={booking.id} />
         </div>
 
         {/* FIXED FOOTER */}
         <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+          {/* What happened to this booking, and where its proofs are. It was
+              the seventh section of this modal, which meant scrolling past
+              everything else to reach the part most often wanted. Behind a
+              button, like the mechanic's repair history and the office's
+              maintenance history. */}
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            className="w-full sm:w-auto px-6 py-2.5 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+          >
+            <History className="w-4 h-4 shrink-0" />
+            History
+          </button>
+
           <button
             type="button"
             onClick={onClose}
@@ -1103,6 +1115,9 @@ export default function ReportsForecastingPage() {
         isOpen={isViewOrderModalOpen}
         onClose={() => setIsViewOrderModalOpen(false)}
         order={selectedOrderForView}
+        onOpenHistory={() => {
+          if (selectedOrderForView) setHistoryFor(selectedOrderForView);
+        }}
       />
 
     </div>
