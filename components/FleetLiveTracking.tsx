@@ -6,6 +6,7 @@ import { AlertTriangle, Search, FileText, Radio, Copy, Check } from "lucide-reac
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
 import { describeSilence, CHECK_IN_LABELS, type CheckInState } from "@/app/lib/stallRules";
+import { checkerWarning, type CheckerHealth } from "@/app/lib/schedulerHealth";
 import type { MapPoint } from "@/components/LiveRouteMap";
 
 // Mapbox is heavy and browser-only: keep it out of every other page's bundle.
@@ -145,6 +146,8 @@ export default function FleetLiveTracking() {
   const [answerError, setAnswerError] = useState("");
   const [savingAnswer, setSavingAnswer] = useState(false);
 
+  const [checker, setChecker] = useState<CheckerHealth | null>(null);
+
   const checkForQuietTrucks = useCallback(async () => {
     try {
       const res = await apiFetch<{
@@ -158,8 +161,16 @@ export default function FleetLiveTracking() {
             outOfContactFor: number;
             checkIn: { state: CheckInState; at: string } | null;
           }[];
+          checker?: CheckerHealth;
         };
       }>("/api/fleet/stall-check", { cache: "no-store" });
+
+      // Whether the thing that notifies people is still running. This board
+      // recomputes the same verdicts on every poll and notifies nobody, so when
+      // the schedule stops, quiet trips go on turning amber here while not one
+      // alert is sent - which has happened twice, and both times the only
+      // symptom was silence.
+      setChecker(res.data.checker ?? null);
 
       const byDispatch: Record<string, { silentFor: number; threshold: number | null; reason: string; cause: string; outOfContactFor: number; checkIn: { state: CheckInState; at: string } | null }> = {};
       for (const trip of res.data.trips) {
@@ -337,6 +348,21 @@ export default function FleetLiveTracking() {
       {loadError && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
           {loadError}
+        </div>
+      )}
+
+      {/* The watchdog's own pulse.
+          Above the map on purpose: everything below it is worth less when this
+          is showing, because a quiet truck on this board is only ever acted on
+          if somebody is notified about it. It names the consequence, not the
+          fault - a coordinator does not need to know what pg_cron is. */}
+      {checker && checkerWarning(checker) && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-xl text-xs"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+          <span className="font-medium">{checkerWarning(checker)}</span>
         </div>
       )}
 

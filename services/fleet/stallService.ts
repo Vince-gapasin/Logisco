@@ -29,6 +29,11 @@ import {
 } from "@/app/lib/stallRules";
 import { expectedAt } from "@/app/lib/performance";
 import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
+import {
+  checkerHealth,
+  checkerRecoveredAlert,
+  checkerRecoveredDedupeKey,
+} from "@/app/lib/schedulerHealth";
 import { getAllWaypoints } from "@/services/fleet/routePlanService";
 
 const METRES_PER_DEGREE = 111_320;
@@ -616,4 +621,99 @@ async function latestStallResponses(dispatchIDs: string[]): Promise<Map<string, 
   }
 
   return newest;
+}
+
+// -------------------------------------------------- is the checker still alive
+
+/** The name this check records itself under. */
+export const STALL_CHECK = "stall-check";
+
+/**
+ * The last time the scheduled check completed, for a screen that wants to say
+ * whether it is still running.
+ *
+ * Never throws. A board that cannot answer "is the watchdog alive" should still
+ * draw the trucks; the warning simply does not appear.
+ */
+export async function lastCheckRunAt(name = STALL_CHECK): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("ScheduledCheck")
+    .select("lastRunAt")
+    .eq("name", name)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[Stall check] Could not read the last run:", error.message);
+    return null;
+  }
+
+  return (data?.lastRunAt as string | null) ?? null;
+}
+
+/**
+ * Writes down that the check ran, and says how long it had been away.
+ *
+ * Returns the previous run's time so the caller can notice a gap. One row per
+ * named check, overwritten: the question is "when did this last work", and a
+ * log of 144 rows a day to answer it is a table nobody prunes.
+ *
+ * Best-effort, like every other notification path here. A check that found a
+ * stalled truck and raised it has done its job whether or not it managed to
+ * write down that it ran.
+ */
+export async function recordCheckRun(
+  found: StalledTrip[],
+  now: Date,
+  name = STALL_CHECK,
+): Promise<{ previousRunAt: string | null }> {
+  const previousRunAt = await lastCheckRunAt(name);
+
+  const { error } = await supabase.from("ScheduledCheck").upsert(
+    {
+      name,
+      lastRunAt: now.toISOString(),
+      tripsChecked: found.length,
+      alertsRaised: found.filter((trip) => trip.raised).length,
+    },
+    { onConflict: "name" },
+  );
+
+  if (error) console.error("[Stall check] Could not record the run:", error.message);
+
+  return { previousRunAt };
+}
+
+/**
+ * The checker telling the office it had stopped.
+ *
+ * Said on the way back, by the thing that stopped - which needs no extra
+ * trigger, because by definition it is running when it says this. It names the
+ * window rather than the fault: "it is working now" is no use to somebody
+ * deciding whether a delivery that ran quiet at four o'clock was chased.
+ *
+ * Nothing is said the first time it ever runs. A checker that has never run is
+ * a system being set up, not one that has failed.
+ */
+export async function announceRecovery(
+  previousRunAt: string | null,
+  now: Date,
+): Promise<boolean> {
+  if (!previousRunAt) return false;
+
+  const health = checkerHealth(previousRunAt, now);
+  if (!health.overdue || health.ranMinutesAgo === null) return false;
+
+  const alert = checkerRecoveredAlert(health.ranMinutesAgo);
+
+  const told = await notify({
+    event: "STALL_CHECK_RECOVERED",
+    title: alert.title,
+    body: alert.body,
+    severity: "action",
+    roles: OFFICE,
+    dedupeKey: checkerRecoveredDedupeKey(previousRunAt),
+    link: "/admindashboard/fleet-tracking",
+  });
+
+  return told > 0;
 }

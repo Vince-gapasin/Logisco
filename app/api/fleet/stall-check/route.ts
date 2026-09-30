@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { authorize } from "@/app/lib/auth";
-import { checkForStalledTrips, type StalledTrip } from "@/services/fleet/stallService";
+import {
+  announceRecovery,
+  checkForStalledTrips,
+  lastCheckRunAt,
+  recordCheckRun,
+  type StalledTrip,
+} from "@/services/fleet/stallService";
+import { checkerHealth } from "@/app/lib/schedulerHealth";
 
 // Looks for trucks that have gone quiet on the road.
 //
@@ -64,8 +71,18 @@ export async function GET(request: Request) {
   if (response) return response;
 
   try {
-    const trips = await checkForStalledTrips(new Date(), { notify: false });
-    return NextResponse.json({ data: summarise(trips) }, { headers: { "Cache-Control": "no-store" } });
+    const now = new Date();
+    const trips = await checkForStalledTrips(now, { notify: false });
+
+    // Whether the thing that actually notifies people is still running. The
+    // board asks because the board is what the office has open; a second
+    // schedule watching the first is two things that can die quietly.
+    const checker = checkerHealth(await lastCheckRunAt(), now);
+
+    return NextResponse.json(
+      { data: { ...summarise(trips), checker } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error("Stall check failed:", error);
     return NextResponse.json({ message: "Could not check the trips on the road" }, { status: 500 });
@@ -81,7 +98,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const trips = await checkForStalledTrips(new Date(), { notify: true });
+    const now = new Date();
+    const trips = await checkForStalledTrips(now, { notify: true });
+
+    // Written down after the work, so a run that threw is not recorded as one
+    // that happened - the whole point of the record is that it means the
+    // notifying half worked.
+    const { previousRunAt } = await recordCheckRun(trips, now);
+    await announceRecovery(previousRunAt, now);
+
     return NextResponse.json({ data: summarise(trips) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Stall check failed:", error);
