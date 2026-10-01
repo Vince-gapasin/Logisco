@@ -10,6 +10,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import RowOpenButton from "@/components/RowOpenButton";
 import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
+import TruckStatusControl from "@/components/truck/TruckStatusControl";
 import {
   Search,
   Truck,
@@ -18,6 +19,7 @@ import {
   ArrowLeft,
   History as HistoryIcon,
   Edit3,
+  Wrench,
   Trash2,
   AlertTriangle,
   Loader2,
@@ -442,6 +444,8 @@ interface TruckDetailViewProps {
   onDelete: (id: string) => Promise<void>;
   /** Opens this truck's repair history, as the mechanic's module does. */
   onHistory: () => void;
+  /** Takes it off the road or puts it back, when the mechanic cannot. */
+  onStatus: () => void;
 }
 
 function TruckDetailView({
@@ -450,6 +454,7 @@ function TruckDetailView({
   onEdit,
   onDelete,
   onHistory,
+  onStatus,
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -513,6 +518,17 @@ function TruckDetailView({
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
             <span>History</span>
+          </button>
+
+          {/* Taking a truck off the road is not the same job as editing its
+              plate or its capacity, and it was only reachable through the form
+              that does those - which had no status field in it at all. */}
+          <button
+            onClick={onStatus}
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+          >
+            <Wrench className="w-4 h-4 shrink-0" />
+            <span>Status</span>
           </button>
 
           <button
@@ -662,6 +678,44 @@ export default function FleetStatusPage() {
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
   /** Whether the selected truck's repair history is the screen being shown. */
   const [showTruckHistory, setShowTruckHistory] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+
+  /**
+   * The office putting a truck off the road, or back on it.
+   *
+   * The same endpoint the mechanic uses, which already audits the change, tells
+   * every mechanic, and opens a maintenance log when a truck is grounded. What
+   * the office adds is the reason - the server writes it in as the report that
+   * started the cycle, because that is what an override is: an account of the
+   * decision, not of the work.
+   */
+  const changeTruckStatus = async (status: TruckStatus, reason: string): Promise<string | null> => {
+    if (!selectedTruck) return "No truck is selected.";
+
+    try {
+      await apiFetch(`/api/fleet-status/${selectedTruck.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          plateNumber: selectedTruck.plateNumber,
+          truckType: selectedTruck.truckType,
+          model: selectedTruck.truckModel,
+          capacity: selectedTruck.capacity,
+          truckStatus: status,
+          lastChecked: selectedTruck.lastChecked,
+          fuelTypeID: selectedTruck.fuelTypeID || null,
+          reason,
+        }),
+      });
+
+      // Read back rather than patched in place, so the row, the detail and the
+      // counts along the top all come from the same answer.
+      await fetchTrucks();
+      setSelectedTruck((current) => (current ? { ...current, status } : current));
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "The status could not be changed.";
+    }
+  };
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
   useEffect(() => {
@@ -822,12 +876,22 @@ export default function FleetStatusPage() {
           truck={selectedTruck}
           onBack={() => setSelectedTruck(null)}
           onHistory={() => setShowTruckHistory(true)}
+          onStatus={() => setChangingStatus(true)}
           onEdit={(truck) => {
             setEditingTruck(truck);
             setIsModalOpen(true);
           }}
           onDelete={handleDeleteTruck}
         />
+        {changingStatus && (
+          <TruckStatusControl
+            plateNumber={selectedTruck.plateNumber}
+            current={selectedTruck.status}
+            onChange={changeTruckStatus}
+            onClose={() => setChangingStatus(false)}
+          />
+        )}
+
         <TruckModal
           isOpen={isModalOpen}
           onClose={() => {

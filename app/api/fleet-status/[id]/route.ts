@@ -74,10 +74,19 @@ export async function PUT(request: Request, { params }: RouteContext) {
     // to it.
     const status = (payload as { truckStatus?: string }).truckStatus;
     if (status && before) {
-      await announceTruckStatus(id, before.truckStatus as string | undefined, status, {
-        employeeID: auth.employee.employeeID,
-        name: auth.employee.employeeName,
-      });
+      // Why, when whoever changed it said why. It becomes the report that opens
+      // the maintenance log, which is what an office override actually is: not
+      // an account of the work, but of the decision to take the truck off the
+      // road before anybody had looked at it.
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+
+      await announceTruckStatus(
+        id,
+        before.truckStatus as string | undefined,
+        status,
+        { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+        reason || null,
+      );
     }
 
     return NextResponse.json(truck);
