@@ -4,6 +4,7 @@
 // ==========================================
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -14,6 +15,7 @@ import type {
   WarehouseRow,
 } from "@/types/database";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { useToast } from "@/components/Toast";
 import {
   UserPlus,
   Search,
@@ -367,7 +369,7 @@ export function ClientModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -392,7 +394,7 @@ export function ClientModal({
                   placeholder="Enter client name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
@@ -408,7 +410,7 @@ export function ClientModal({
                   placeholder="Enter contact name"
                   value={formData.contactName}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -426,7 +428,7 @@ export function ClientModal({
                   placeholder="Enter contact number"
                   value={formData.contactNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -444,7 +446,7 @@ export function ClientModal({
                   placeholder="Enter email address"
                   value={formData.emailAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -462,7 +464,7 @@ export function ClientModal({
                   placeholder="Enter business address"
                   value={formData.businessAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -596,7 +598,7 @@ export function ClientModal({
                                 e.target.value,
                               )
                             }
-                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-500 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
                             <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
@@ -656,7 +658,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={pickupList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   pickupList.length === 1
@@ -799,7 +801,7 @@ export function ClientModal({
                                 e.target.value,
                               )
                             }
-                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-400 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
+                            className={`w-full bg-transparent border rounded px-1.5 py-1 text-center focus:ring-0 focus:outline-none placeholder:text-slate-500 ${errNum ? "border-red-500 bg-red-50/20" : "border-slate-200"}`}
                           />
                           {errNum && (
                             <p className="text-red-500 text-xs sm:text-[10px] mt-0.5 text-center">
@@ -859,7 +861,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={deliveryList.length === 1}
-                              className={`p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   deliveryList.length === 1
@@ -1019,7 +1021,7 @@ export function PartnerModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1045,7 +1047,7 @@ export function PartnerModal({
                   placeholder="Enter company or owner name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.name ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.name && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.name}</p>
@@ -1071,11 +1073,11 @@ export function PartnerModal({
                     onClick={() =>
                       setIsContractDropdownOpen(!isContractDropdownOpen)
                     }
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span
                       className={
-                        formData.contractType ? "text-black" : "text-slate-400"
+                        formData.contractType ? "text-black" : "text-slate-500"
                       }
                     >
                       {formData.contractType || "Select type of contract"}
@@ -1097,7 +1099,7 @@ export function PartnerModal({
                             });
                             setIsContractDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>
@@ -1122,7 +1124,7 @@ export function PartnerModal({
                   placeholder="Enter contact person"
                   value={formData.contactPerson}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactPerson ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactPerson && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1141,7 +1143,7 @@ export function PartnerModal({
                   placeholder="Enter contact number"
                   value={formData.contactNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1160,7 +1162,7 @@ export function PartnerModal({
                   placeholder="Enter email address"
                   value={formData.emailAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1179,7 +1181,7 @@ export function PartnerModal({
                   placeholder="Enter business address"
                   value={formData.businessAddress}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.businessAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.businessAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1245,7 +1247,7 @@ function RecordDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs"
             title={`Back to ${tabType}`}
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1352,7 +1354,7 @@ function RecordDetailView({
                 <label className="block text-xs font-medium text-black mb-1">
                   Address
                 </label>
-                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12 wrap-break-word">
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-tap wrap-break-word">
                   {isPartner(record) || isClient(record)
                     ? record.businessAddress
                     : "N/A"}
@@ -1539,35 +1541,59 @@ function ClientsTable({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-      <div className="overflow-x-auto flex-1 min-h-145">
-        <table className="w-full text-left border-collapse min-w-200 table-fixed">
+      {/* A 580px floor is most of a phone screen left blank, so the short
+          version applies there and the taller one returns from sm up, where it
+          keeps the pagination footer in a consistent place. */}
+      <div className="overflow-x-auto flex-1 min-h-36.25 sm:min-h-145">
+        {/* Fixed widths on a phone, fluid percentages from sm up. The first two
+            columns come to 270px against a 550px table, so the third is half
+            visible at the edge - which is what tells somebody the row scrolls
+            rather than ends there. */}
+        <table className="w-full text-left border-collapse table-fixed min-w-137.5">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              <th className="py-3.5 px-6 w-1/4">Name</th>
-              <th className="py-3.5 px-6 w-1/4">Status</th>
-              <th className="py-3.5 px-6 w-1/4">Contact Person</th>
-              <th className="py-3.5 px-6 w-1/4 text-center">Contact Number</th>
+              <th className="py-3.5 px-4 sm:px-6 w-45 sm:w-[30%]">Name</th>
+              <th className="py-3.5 px-4 sm:px-6 w-22.5 sm:w-[15%]">Status</th>
+              <th className="py-3.5 px-4 sm:px-6 w-37.5 sm:w-[30%]">Contact Person</th>
+              <th className="py-3.5 px-4 sm:px-6 w-32.5 sm:w-[25%] text-center">Contact Number</th>
             </tr>
           </thead>
           <tbody className="align-top">
             {paginatedData.length > 0 ? (
               paginatedData.map((item) => (
                 <tr
+                  data-pressable
                   key={item.id}
                   onClick={() => onRowClick(item)}
                   className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800 h-13.25"
-                  title="Click to view complete record"
                 >
-                  <td className="py-3.5 px-6 font-medium text-slate-900 truncate">
-                    {item.name}
+                  <td
+                    className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate"
+                    title={item.name}
+                  >
+                    <RowOpenButton
+                      label={`View record for ${item.name}`}
+                      onOpen={() => onRowClick(item)}
+                      className="truncate max-w-full"
+                    >
+                      {item.name}
+                    </RowOpenButton>
                   </td>
-                  <td className="py-3.5 px-6 truncate">
+                  <td className="py-3.5 px-4 sm:px-6 truncate">
                     <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
                       {item.status}
                     </span>
                   </td>
-                  <td className="py-3.5 px-6 truncate">{item.contactPerson}</td>
-                  <td className="py-3.5 px-6 truncate text-center">
+                  <td
+                    className="py-3.5 px-4 sm:px-6 truncate"
+                    title={item.contactPerson}
+                  >
+                    {item.contactPerson}
+                  </td>
+                  <td
+                    className="py-3.5 px-4 sm:px-6 truncate text-center"
+                    title={item.contactNumber}
+                  >
                     {item.contactNumber}
                   </td>
                 </tr>
@@ -1576,7 +1602,7 @@ function ClientsTable({
               <tr>
                 <td
                   colSpan={4}
-                  className="py-12 sm:py-16 text-center h-125 align-middle"
+                  className="py-12 sm:py-16 text-center h-31.25 sm:h-125 align-middle"
                 >
                   <div className="flex flex-col items-center justify-center px-4">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
@@ -1607,7 +1633,7 @@ function ClientsTable({
           <button
             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
           >
             Previous
           </button>
@@ -1619,7 +1645,7 @@ function ClientsTable({
               setCurrentPage((prev) => Math.min(prev + 1, totalPages))
             }
             disabled={currentPage === totalPages || totalPages === 0}
-            className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+            className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
           >
             Next
           </button>
@@ -1645,19 +1671,13 @@ export default function ClientsPage() {
     null,
   );
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const showToast = useToast();
   const [dataMap, setDataMap] = useState<Record<TabType, UnifiedRecord[]>>({
     Clients: [],
     Partners: [],
   });
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const fetchClientsAndPartners = useCallback(async () => {
     try {
@@ -1709,9 +1729,11 @@ export default function ClientsPage() {
       });
     } catch (error) {
       console.error("Failed to fetch data from Database:", error);
-      setToastMessage("Failed to load records");
+      showToast("Failed to load records", "error");
     }
-  }, []);
+    // showToast is memoised all the way up through the provider, so naming it
+    // here satisfies the rule without making this callback churn.
+  }, [showToast]);
 
   useEffect(() => {
     fetchClientsAndPartners();
@@ -1729,7 +1751,7 @@ export default function ClientsPage() {
     try {
       if (editingRecord) {
         if (checkNoChanges(editingRecord, newRecord)) {
-          setToastMessage("No changes were made.");
+          showToast("No changes were made.", "info");
           setEditingRecord(null);
           return;
         }
@@ -1750,7 +1772,7 @@ export default function ClientsPage() {
           body: JSON.stringify(payload),
         });
 
-        setToastMessage("Changes saved successfully.");
+        showToast("Changes saved successfully.", "success");
       } else {
         const payload = {
           name: newRecord.name,
@@ -1767,7 +1789,7 @@ export default function ClientsPage() {
           body: JSON.stringify(payload),
         });
 
-        setToastMessage("Added successfully.");
+        showToast("Added successfully.", "success");
       }
 
       setEditingRecord(null);
@@ -1775,7 +1797,7 @@ export default function ClientsPage() {
       if (editingRecord) setSelectedRecord(newRecord);
     } catch (error) {
       console.error("Failed to save client to Database:", error);
-      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
+      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
     }
   };
 
@@ -1793,7 +1815,7 @@ export default function ClientsPage() {
 
       if (editingRecord) {
         if (checkNoChanges(editingRecord, newRecord)) {
-          setToastMessage("No changes were made.");
+          showToast("No changes were made.", "info");
           setEditingRecord(null);
           return;
         }
@@ -1802,13 +1824,13 @@ export default function ClientsPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        setToastMessage("Changes saved successfully.");
+        showToast("Changes saved successfully.", "success");
       } else {
         await apiFetch(`/api/subcontractors`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        setToastMessage("Added successfully.");
+        showToast("Added successfully.", "success");
       }
 
       setEditingRecord(null);
@@ -1816,7 +1838,7 @@ export default function ClientsPage() {
       if (editingRecord) setSelectedRecord(newRecord);
     } catch (error) {
       console.error("Failed to save partner to Database:", error);
-      setToastMessage(error instanceof Error ? error.message : "Error saving record.");
+      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
     }
   };
 
@@ -1826,11 +1848,11 @@ export default function ClientsPage() {
       await apiFetch(`/api/${endpoint}/${id}`, { method: "DELETE" });
 
       setSelectedRecord(null);
-      setToastMessage("Deleted successfully.");
+      showToast("Deleted successfully.", "success");
       await fetchClientsAndPartners();
     } catch (error) {
       console.error(`Failed to delete ${activeTab} from Database:`, error);
-      setToastMessage(error instanceof Error ? error.message : "Error deleting record.");
+      showToast(error instanceof Error ? error.message : "Error deleting record.", "error");
     }
   };
 
@@ -1872,53 +1894,6 @@ export default function ClientsPage() {
         )}
 
         {/* TOAST NOTIFICATION */}
-        {toastMessage && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-            <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-              <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                  toastMessage.toLowerCase().includes("error") ||
-                  toastMessage.toLowerCase().includes("fail")
-                    ? "bg-red-500"
-                    : toastMessage === "No changes were made."
-                      ? "bg-blue-500"
-                      : "bg-emerald-500"
-                }`}
-              >
-                {toastMessage === "No changes were made." ? (
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                )}
-              </div>
-              {toastMessage}
-            </div>
-          </div>
-        )}
       </>
     );
   }
@@ -1930,10 +1905,7 @@ export default function ClientsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Clients & Partners
           </h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Manage your client directories and partner relationships.
-          </p>
-        </div>
+          </div>
 
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           {activeTab === "Clients" && (
@@ -1998,7 +1970,7 @@ export default function ClientsPage() {
               placeholder={`Search ${activeTab.toLowerCase()}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-sm font-normal text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+              className="w-full bg-slate-50 border border-slate-200 text-sm font-normal text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
             />
           </div>
         </div>
@@ -2025,53 +1997,6 @@ export default function ClientsPage() {
         />
       )}
 
-      {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-            <div
-              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                toastMessage.toLowerCase().includes("error") ||
-                toastMessage.toLowerCase().includes("fail")
-                  ? "bg-red-500"
-                  : toastMessage === "No changes were made."
-                    ? "bg-blue-500"
-                    : "bg-emerald-500"
-              }`}
-            >
-              {toastMessage === "No changes were made." ? (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              )}
-            </div>
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

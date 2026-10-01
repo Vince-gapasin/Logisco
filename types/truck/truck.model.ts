@@ -16,4 +16,8 @@ export interface Truck {
   truckStatus: TruckStatus;
   lastChecked: string | null;
   isActive: boolean;
+  /** What it burns. Null means nobody has recorded it, not that it is diesel. */
+  fuelTypeID: string | null;
+  /** Joined from FuelType when the fleet is read, for display. */
+  fuelType?: { name: string; unit: string } | null;
 }

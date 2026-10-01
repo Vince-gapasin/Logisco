@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
-import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
+import { AVAILABILITY, DELIVERY_STATUS, HELPER_STATUS, isDeclineCode } from "@/app/lib/enums";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
-import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
+import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
+  crewReadinessFor,
   getCrewAssignment,
   isUuid,
   releaseDispatchResources,
@@ -12,6 +13,38 @@ import {
 
 // Statuses in which the driver can still accept or decline a dispatch.
 const RESPONDABLE_STATUSES: string[] = [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned];
+
+// The last yes is worth telling the rest of the crew about.
+//
+// Otherwise the gate is a trap: somebody accepts, finds Start Delivery greyed
+// out because the other person has not answered, and has nothing to do but keep
+// reopening the app. The poll enables the button within half a minute of the
+// last acceptance - but only for somebody who happens to be looking at it.
+//
+// Told to everybody on the trip rather than to the driver, because either of
+// them can start it, and whoever accepted last does not need telling what they
+// just did - notify() drops the actor from its own recipients.
+async function announceCrewComplete(
+  dispatchID: string,
+  actor: { employeeID: string; name: string },
+): Promise<void> {
+  const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
+  if (!readiness?.ready) return;
+
+  const crew = await crewOf(dispatchID);
+  if (crew.length === 0) return;
+
+  await notify({
+    event: "CREW_READY",
+    title: "Your crew is complete",
+    body: `${actor.name} accepted ${(await tripLabel(dispatchID)) ?? "your delivery"}. Everybody assigned has now accepted, so it can start.`,
+    severity: "info",
+    employeeIDs: crew,
+    entity: { table: "DispatchOrder", id: dispatchID },
+    link: "/crew/dashboard",
+    actor: { employeeID: actor.employeeID, name: actor.name },
+  });
+}
 
 export async function POST(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
@@ -37,6 +70,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "A reason is required to decline" }, { status: 400 });
   }
 
+  // The typed reason stays required and unchanged. The code is what a fair
+  // figure can be computed from - "brakes", "brakes are gone" and "unsafe" are
+  // one reason typed three ways - and it is optional so an older app build keeps
+  // working, its declines simply counting the way they always did.
+  const code = isDeclineCode((body as { code?: unknown }).code) ? (body as { code: string }).code : null;
+
   try {
     const assignment = await getCrewAssignment(dispatchID, auth.employee.employeeID);
     if (!assignment) {
@@ -56,7 +95,7 @@ export async function POST(request: Request) {
       const updateData =
         action === "accept"
           ? { status: DELIVERY_STATUS.accepted }
-          : { status: DELIVERY_STATUS.rejected, rejectionreason: reason };
+          : { status: DELIVERY_STATUS.rejected, rejectionreason: reason, declineCode: code };
 
       const { error: updateErr } = await supabase
         .from("DispatchOrder")
@@ -93,6 +132,13 @@ export async function POST(request: Request) {
         });
       }
 
+      if (action === "accept") {
+        await announceCrewComplete(dispatchID, {
+          employeeID: auth.employee.employeeID,
+          name: auth.employee.employeeName,
+        });
+      }
+
       return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
     }
 
@@ -106,7 +152,7 @@ export async function POST(request: Request) {
     const updateData =
       action === "accept"
         ? { status: HELPER_STATUS.accepted }
-        : { status: HELPER_STATUS.declined, declinereason: reason };
+        : { status: HELPER_STATUS.declined, declinereason: reason, declineCode: code };
 
     const { error: updateErr } = await supabase
       .from("DispatchHelper")
@@ -143,6 +189,13 @@ export async function POST(request: Request) {
         entity: { table: "DispatchOrder", id: dispatchID },
         link: "/admindashboard/feeds/pending",
         actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+      });
+    }
+
+    if (action === "accept") {
+      await announceCrewComplete(dispatchID, {
+        employeeID: auth.employee.employeeID,
+        name: auth.employee.employeeName,
       });
     }
 

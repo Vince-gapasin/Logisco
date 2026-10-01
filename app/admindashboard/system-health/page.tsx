@@ -65,7 +65,7 @@ export default function SystemHealthPage() {
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+          className="min-h-tap md:min-h-0 shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           Check again
@@ -102,7 +102,7 @@ export default function SystemHealthPage() {
                     <p className="font-medium text-slate-900">{check.name}</p>
                     <p className="text-sm text-slate-600">{check.detail}</p>
                     {check.setting && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         Set <span className="font-mono">{check.setting}</span> on the deployment, then redeploy.
                       </p>
                     )}

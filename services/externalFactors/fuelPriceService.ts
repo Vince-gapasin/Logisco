@@ -4,6 +4,36 @@ import { supabase } from "@/app/lib/supabase";
 const DOE_NCR_PUMP_PRICE_PAGE =
   "https://doe.gov.ph/data-and-prices/liquid-fuels/retail-pump-prices/ncr-pump-prices";
 
+/**
+ * The id of a fuel by name, from the FuelType table (from the team's version).
+ * Looked up once per name per run; the IDs listed in FUEL_PRODUCTS are only a
+ * fallback if the lookup fails.
+ */
+const fuelTypeIDCache = new Map<string, Promise<string | null>>();
+
+function fuelTypeIDFor(name: string): Promise<string | null> {
+  const cached = fuelTypeIDCache.get(name);
+  if (cached) return cached;
+
+  const lookup = (async () => {
+    const { data, error } = await supabase
+      .from("FuelType")
+      .select("fuelTypeID")
+      .eq("name", name)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`Could not resolve the fuel type "${name}": ${error.message}`);
+      return null;
+    }
+
+    return (data?.fuelTypeID as string | undefined) ?? null;
+  })();
+
+  fuelTypeIDCache.set(name, lookup);
+  return lookup;
+}
+
 const REGION = "NCR";
 const SOURCE = "DOE Philippines - NCR Pump Prices";
 
@@ -389,7 +419,9 @@ async function saveFuelWeek(
         retrievedAt: new Date().toISOString(),
       };
 
-      if (price.fuelTypeID) record.fuelTypeID = price.fuelTypeID;
+      const fuelTypeID =
+        (await fuelTypeIDFor(price.fuelType)) ?? price.fuelTypeID ?? null;
+      if (fuelTypeID) record.fuelTypeID = fuelTypeID;
 
       const { error } = await supabase
         .from("FuelPriceHistory")

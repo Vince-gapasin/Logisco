@@ -4,11 +4,14 @@
 "use client";
 
 import type { TruckRow } from "@/types/database";
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos, needsPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
+import { useToast } from "@/components/Toast";
+import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import {
   Search,
   FileText,
@@ -60,22 +63,6 @@ export interface EmployeeOption {
   role: string;
 }
 
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case "Available":
-      return { bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200/50" };
-    case "Already Booked":
-      return { bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200/50" };
-    case "On Delivery":
-      return { bgLight: "bg-blue-50 text-blue-700 border-blue-200/50" };
-    case "On Maintenance":
-      return { bgLight: "bg-amber-50 text-amber-700 border-amber-200/50" };
-    case "Out of Service":
-      return { bgLight: "bg-rose-50 text-rose-700 border-rose-200/50" };
-    default:
-      return { bgLight: "bg-slate-50 text-slate-700 border-slate-200/50" };
-  }
-};
 
 interface LogMaintenanceModalProps {
   isOpen: boolean;
@@ -100,6 +87,7 @@ function LogMaintenanceModal({
     preliminaryPhotoUrl: "", additionalIssue: "", progressRemarks: "", progressPhotoUrl: "",
   };
 
+  const showToast = useToast();
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -163,7 +151,7 @@ function LogMaintenanceModal({
       // Stored as a data URL in LogPhotos, so keep it small.
       compressImageToDataUrl(file)
         .then((dataUrl) => setFormData((prev) => ({ ...prev, [fieldName]: dataUrl })))
-        .catch(() => alert("Could not read that image. Please choose a different photo."));
+        .catch(() => showToast("Could not read that image. Please choose a different photo.", "error"));
     }
   };
 
@@ -196,7 +184,7 @@ function LogMaintenanceModal({
           <h2 className="text-xl font-bold text-white tracking-wide">
             {editData ? "Edit Maintenance Log" : "Maintenance Log Form"}
           </h2>
-          <button type="button" onClick={handleCloseModal} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+          <button type="button" onClick={handleCloseModal} className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -226,9 +214,9 @@ function LogMaintenanceModal({
                   <button
                     type="button"
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
-                    <span className={formData.truckID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.truckID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.truckID
                         ? trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))
                           ? `${trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))?.plateNumber} — ${trucksOptions.find((t) => String(t.truckID) === String(formData.truckID))?.truckType}`
@@ -247,7 +235,7 @@ function LogMaintenanceModal({
                             handleInputChange({ target: { name: "truckID", value: String(truck.truckID) } });
                             setIsTruckDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {truck.plateNumber} — {truck.truckType}
                         </button>
@@ -265,9 +253,9 @@ function LogMaintenanceModal({
                   <button
                     type="button"
                     onClick={() => setIsPrimaryDropdownOpen(!isPrimaryDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
-                    <span className={formData.primaryMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.primaryMechanicID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.primaryMechanicID
                         ? mechanicsOptions.find((m) => String(m.employeeID) === String(formData.primaryMechanicID))?.employeeName || editData?.mechanicName
                         : "Choose mechanic..."}
@@ -287,7 +275,7 @@ function LogMaintenanceModal({
                             }
                             setIsPrimaryDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.primaryMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.primaryMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {emp.employeeName}
                         </button>
@@ -306,9 +294,9 @@ function LogMaintenanceModal({
                     type="button"
                     disabled={!formData.primaryMechanicID}
                     onClick={() => setIsAdditionalDropdownOpen(!isAdditionalDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : ""}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.additionalMechanicID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${!formData.primaryMechanicID ? "opacity-60 cursor-not-allowed bg-slate-50" : ""}`}
                   >
-                    <span className={formData.additionalMechanicID ? "text-black truncate pr-2" : "text-slate-400"}>
+                    <span className={formData.additionalMechanicID ? "text-black truncate pr-2" : "text-slate-500"}>
                       {formData.additionalMechanicID
                         ? mechanicsOptions.find((m) => String(m.employeeID) === String(formData.additionalMechanicID))?.employeeName || editData?.additionalMechanic
                         : "Select Mechanic..."}
@@ -323,7 +311,7 @@ function LogMaintenanceModal({
                           handleInputChange({ target: { name: "additionalMechanicID", value: "" } });
                           setIsAdditionalDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${!formData.additionalMechanicID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${!formData.additionalMechanicID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                       >
                         None
                       </button>
@@ -335,7 +323,7 @@ function LogMaintenanceModal({
                             handleInputChange({ target: { name: "additionalMechanicID", value: String(emp.employeeID) } });
                             setIsAdditionalDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.additionalMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.additionalMechanicID) === String(emp.employeeID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {emp.employeeName}
                         </button>
@@ -360,7 +348,7 @@ function LogMaintenanceModal({
                   placeholder="Describe the completed maintenance work and truck condition..."
                   value={formData.issue}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.issue ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.issue && <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.issue}</p>}
               </div>
@@ -372,7 +360,7 @@ function LogMaintenanceModal({
                   placeholder="Any additional notes, future recommendations, or observations..."
                   value={formData.remarks}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -391,7 +379,7 @@ function LogMaintenanceModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" /> {formData.photoUrl ? "Change File" : "Choose File"}
                 </button>
@@ -423,7 +411,7 @@ function LogMaintenanceModal({
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken Before Maintenance</label>
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => prelimFileInputRef.current?.click()} className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
+                    <button type="button" onClick={() => prelimFileInputRef.current?.click()} className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
                     <input ref={prelimFileInputRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "preliminaryPhotoUrl")} className="hidden" />
                 </div>
                 {formData.preliminaryPhotoUrl && (
@@ -447,7 +435,7 @@ function LogMaintenanceModal({
               <div>
                 <label className="block text-xs font-medium text-black mb-2">Picture Taken During Maintenance</label>
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => progressFileInputRef.current?.click()} className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
+                    <button type="button" onClick={() => progressFileInputRef.current?.click()} className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"><Upload className="w-4 h-4" /> Upload</button>
                     <input ref={progressFileInputRef} type="file" accept="image/*" onChange={(e) => handleFileChange(e, "progressPhotoUrl")} className="hidden" />
                 </div>
                 {formData.progressPhotoUrl && (
@@ -487,7 +475,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDeta
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer" title="Back to History Logs">
+          <button onClick={onBack} className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer" title="Back to History Logs">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -654,14 +642,8 @@ export default function MechanicHistoryLogsPage() {
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useToast();
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -761,7 +743,7 @@ export default function MechanicHistoryLogsPage() {
         if (response.ok) {
           await fetchLogs();
           setSelectedLog((prev) => prev?.id === editingLog.id ? { ...prev, ...finalPayload } : prev);
-          setToastMessage("Changes saved successfully.");
+          showToast("Changes saved successfully.", "success");
         }
       } else {
         const response = await authFetch(`/api/historyLogsM`, { 
@@ -771,7 +753,7 @@ export default function MechanicHistoryLogsPage() {
         });
         if (response.ok) {
           await fetchLogs();
-          setToastMessage("Log added successfully.");
+          showToast("Log added successfully.", "success");
         }
       }
     } catch (error) {
@@ -790,7 +772,7 @@ export default function MechanicHistoryLogsPage() {
       if (response.ok) {
         setLogsList((prev) => prev.filter((log) => log.id !== id));
         setSelectedLog(null);
-        setToastMessage("Deleted successfully.");
+        showToast("Deleted successfully.", "success");
       }
     } catch (error) {
       console.error("Error deleting log:", error);
@@ -836,8 +818,7 @@ export default function MechanicHistoryLogsPage() {
         <>
           <div className="mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
-            <p className="text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
-          </div>
+            </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -846,9 +827,9 @@ export default function MechanicHistoryLogsPage() {
                 <h2 className="text-base font-bold text-slate-800">Maintenance Records</h2>
               </div>
               <div className="relative w-full lg:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                 <UrlSearchSync onQuery={setSearchTerm} />
-                <input type="text" placeholder="Search plate, mechanic, issue..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400" />
+                <input type="text" placeholder="Search plate, mechanic, issue..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500" />
               </div>
             </div>
 
@@ -858,21 +839,21 @@ export default function MechanicHistoryLogsPage() {
                   <div className="text-sm font-medium text-slate-500 animate-pulse">Loading database records...</div>
                 </div>
               ) : (
-                <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
-                  <thead>
-                    <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      <th className="py-3.5 px-4 w-1/4 text-left">Date</th>
-                      <th className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
-                      <th className="py-3.5 px-4 w-1/4 text-left">Status Before Change</th>
-                      <th className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
+                <table role="table" className="w-full max-w-5xl mx-auto text-left border-collapse md:table-fixed my-2 block md:table">
+                  <thead role="rowgroup" className="hidden md:table-header-group">
+                    <tr role="row" className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      <th role="columnheader" className="py-3.5 px-4 w-1/4 text-left">Date</th>
+                      <th role="columnheader" className="py-3.5 px-4 w-1/4 text-left">Plate Number</th>
+                      <th role="columnheader" className="py-3.5 px-4 w-1/4 text-left">Status Before Change</th>
+                      <th role="columnheader" className="py-3.5 px-4 w-1/4 text-right">Current Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                  <tbody role="rowgroup" className="block md:table-row-group text-sm text-slate-700">
                     {paginatedLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-16 sm:py-20 text-center">
+                      <tr role="row" className="block md:table-row">
+                        <td role="cell" colSpan={4} className="block md:table-cell py-16 sm:py-20 text-center">
                           <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3"><FileText className="w-6 h-6" /></div>
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3"><FileText className="w-6 h-6" /></div>
                             <p className="text-sm font-semibold text-slate-800">No history logs found</p>
                             <p className="text-slate-500 text-xs mt-1">Try adjusting your search query or add a new maintenance log to see it here.</p>
                           </div>
@@ -880,40 +861,50 @@ export default function MechanicHistoryLogsPage() {
                       </tr>
                     ) : (
                       paginatedLogs.map((log) => (
-                        <tr key={log.id} onClick={() => setSelectedLog(log)} className="hover:bg-slate-50/80 cursor-pointer transition-colors" title="Click to view complete maintenance log">
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
-                            <div className="text-sm font-medium text-slate-800">
+                        <tr role="row" data-pressable key={log.id} onClick={() => setSelectedLog(log)} className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 cursor-pointer transition-colors">
+                          <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Date</span>
+                            <RowOpenButton
+                              label={`View maintenance log for ${log.plateNumber}`}
+                              onOpen={() => setSelectedLog(log)}
+                              className="text-sm font-medium text-slate-800"
+                            >
                               {new Date(log.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                            </div>
+                            </RowOpenButton>
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
-                            <div className="font-semibold text-slate-900 truncate">
-                              {log.plateNumber}
-                              <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">— {log.truckType}</span>
-                            </div>
-                            <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
-                              <div className="font-medium text-slate-700">
-                                {log.mechanicName} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
+                          <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Plate Number</span>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 md:truncate wrap-break-word">
+                                {log.plateNumber}
+                                <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">— {log.truckType}</span>
                               </div>
-                              <div className="mt-0.5 truncate">{log.issue}</div>
+                              <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
+                                <div className="font-medium text-slate-700 wrap-break-word">
+                                  {log.mechanicName} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
+                                </div>
+                                <div className="mt-0.5 md:truncate wrap-break-word">{log.issue}</div>
+                              </div>
                             </div>
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-left align-top sm:align-middle">
+                          <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Status Before</span>
                             {log.statusBefore && log.statusBefore !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
+                              <div className={`inline-flex w-max items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusBefore).bgLight}`}>
                                 {log.statusBefore}
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">—</span>
+                              <span className="text-xs text-slate-500">—</span>
                             )}
                           </td>
-                          <td className="py-4 px-4 w-1/4 text-right align-top sm:align-middle">
+                          <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 md:w-1/4 text-left md:text-right align-top sm:align-middle">
+                            <span className="md:hidden text-xs font-semibold text-slate-500">Current Status</span>
                             {log.statusAfter && log.statusAfter !== "Unknown" ? (
-                              <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
+                              <div className={`inline-flex w-max items-center justify-center px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-semibold border ${getStatusStyles(log.statusAfter).bgLight}`}>
                                 {log.statusAfter}
                               </div>
                             ) : (
-                              <span className="text-xs text-slate-400">—</span>
+                              <span className="text-xs text-slate-500">—</span>
                             )}
                           </td>
                         </tr>
@@ -927,8 +918,8 @@ export default function MechanicHistoryLogsPage() {
             <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
               <span>Showing {sortedLogs.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, sortedLogs.length)} of {sortedLogs.length} entries</span>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
-                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
+                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
+                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
               </div>
             </div>
           </div>
@@ -944,20 +935,6 @@ export default function MechanicHistoryLogsPage() {
         mechanicsOptions={mechanicsOptions}
       />
 
-      {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${toastMessage === "No changes were made." ? "bg-blue-500" : "bg-emerald-500"}`}>
-              {toastMessage === "No changes were made." ? (
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-              )}
-            </div>
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

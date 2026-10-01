@@ -158,7 +158,10 @@ export async function POST(request: Request) {
       const truckStatus = TRUCK_DAMAGE_ISSUES.includes(issueType)
         ? TRUCK_STATUS.onMaintenance
         : TRUCK_STATUS.available;
-      await releaseDispatchResources(dispatchID, truckStatus);
+      await releaseDispatchResources(dispatchID, truckStatus, {
+        actor: { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
+        cause: `Foul trip: ${issueType}`,
+      });
     }
 
     await recordAudit({

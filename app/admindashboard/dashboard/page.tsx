@@ -33,6 +33,9 @@ import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
+import { useToast } from "@/components/Toast";
+import RowOpenButton from "@/components/RowOpenButton";
+import StopProofList, { type ProofBearingStop } from "@/components/booking/StopProofList";
 import {
   mapOrderToBookingView,
   toFeedBooking,
@@ -246,7 +249,7 @@ function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderID }: Su
                 type="button"
                 onClick={emailTrackingLink}
                 disabled={!orderID || emailState.status === "sending"}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
+                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-xl transition-colors disabled:opacity-60"
               >
                 {emailState.status === "sending" ? "Sending…" : "Email it to the client"}
               </button>
@@ -336,7 +339,7 @@ function ViewOrderModal({
             address: pickupAddr,
             contactPerson: cPerson,
             contactNum: cNum,
-            expectedTime: pickupTime,
+            expectedTime: formatTime(pickupTime) || "N/A",
             collected: false,
           },
         ];
@@ -345,6 +348,16 @@ function ViewOrderModal({
 
   const dispatchNote = dispatchRecord?.dispatchNote || "";
   const podUrl = dispatchRecord?.pod_url || "";
+
+  // Whether any stop carries a proof row. Counted here rather than inside the
+  // panel so the panel's own condition can ask about it.
+  const hasStopProofs = [
+    ...(Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : []),
+    ...(Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : []),
+  ].some((stop) => {
+    const proofs = (stop as { POD?: unknown }).POD;
+    return Array.isArray(proofs) && proofs.length > 0;
+  });
 
   const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
   const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
@@ -467,7 +480,7 @@ function ViewOrderModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -684,7 +697,7 @@ function ViewOrderModal({
                             {d.contactNum || cNum}
                           </td>
                           <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.expectedTime || "N/A"}
+                            {formatTime(d.expectedTime) || "N/A"}
                           </td>
                           <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
                             {d.quantity || quantity}
@@ -781,7 +794,12 @@ function ViewOrderModal({
             </div>
             
             {/* 7. COMPLETION / EMERGENCY SUMMARY PANEL */}
-            {(category === "Completed" || category === "Foul Trip") && (dispatchNote || podUrl) && (
+            {/* Gated on there being something to show. It used to test podUrl,
+                which is the single overwritten column - so once proofs are kept
+                per stop and that column is left alone, the panel would have
+                hidden the very records it exists to show. */}
+            {(category === "Completed" || category === "Foul Trip") &&
+              (dispatchNote || podUrl || hasStopProofs) && (
               <div className={`border rounded-xl p-4 shadow-xs ${category === "Foul Trip" ? 'border-red-200 bg-red-50/50' : 'border-emerald-200 bg-emerald-50/50'}`}>
                 <div className={`border-b pb-2 mb-4 font-semibold text-sm tracking-wide flex items-center gap-2 ${category === "Foul Trip" ? 'border-red-200 text-red-900' : 'border-emerald-200 text-emerald-900'}`}>
                   {category === "Foul Trip" ? <AlertTriangle className="w-5 h-5 text-red-600" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
@@ -796,23 +814,24 @@ function ViewOrderModal({
                       </div>
                     </div>
                   )}
-                  {podUrl && (
-                    <div>
-                      <span className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? 'text-red-800' : 'text-emerald-800'}`}>Attached Proof / Photo</span>
-                      {/* A partner may send the proof as a PDF. */}
-                      {/\.pdf(\?|$)/i.test(podUrl) ? (
-                        <a href={podUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:underline">
-                          <FileText className="w-4 h-4" /> View proof of delivery (PDF)
-                        </a>
-                      ) : (
-                        <img
-                          src={podUrl}
-                          alt="Uploaded Proof"
-                          className={`w-full max-w-sm h-auto object-cover rounded-xl border shadow-sm ${category === "Foul Trip" ? "border-red-200" : "border-emerald-200"}`}
-                        />
-                      )}
-                    </div>
-                  )}
+                  {/* Every proof on the trip, one per stop, warehouses included.
+                      This showed DispatchOrder.pod_url, a single column the crew
+                      app overwrote at every stop - so a four-stop delivery
+                      displayed its last photograph and looked complete. The POD
+                      rows are the record, and they come down with the booking
+                      already. */}
+                  <div>
+                    <span
+                      className={`block text-xs font-semibold mb-2 ${category === "Foul Trip" ? "text-red-800" : "text-emerald-800"}`}
+                    >
+                      Proof of Delivery
+                    </span>
+                    <StopProofList
+                      pickups={pickupRows as ProofBearingStop[]}
+                      deliveries={stopsArr as ProofBearingStop[]}
+                      tripProof={podUrl || null}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -879,7 +898,7 @@ function ClientSearchModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center max-h-[90dvh]">
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-1.5 rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -892,9 +911,9 @@ function ClientSearchModal({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search client name..."
-            className="w-full bg-white border border-slate-300 rounded-full pl-4 pr-10 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+            className="w-full bg-white border border-slate-300 rounded-full pl-4 pr-10 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
           />
-          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
         </div>
 
         {filteredClients.length > 0 && (
@@ -919,7 +938,7 @@ function ClientSearchModal({
                       <td className="w-20 text-center border-l border-slate-200">
                         <button
                           onClick={() => onSelectClient(client.clientID ?? "")}
-                          className="text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
+                          className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
                         >
                           Select
                         </button>
@@ -958,7 +977,9 @@ function KPIGrid({
   bookingsData: Record<string, DashboardBooking[]>;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    // Four across on a phone rather than stacked: these are the counts somebody
+    // checks at a glance, and one per screenful turns a glance into scrolling.
+    <div className="grid grid-cols-4 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-6 mb-8">
       {TABS.map((tab) => {
         const styles = COLOR_STYLES[tab.color as keyof typeof COLOR_STYLES];
         const count = bookingsData[tab.name]?.length ?? 0;
@@ -966,17 +987,31 @@ function KPIGrid({
           <button
             key={tab.name}
             onClick={() => onNavigate(tab.name)}
-            className="p-5 rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex items-center space-x-4 text-left w-full"
+            className="min-h-tap md:min-h-0 p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
+            title={tab.name}
           >
             <div
-              className={`w-14 h-14 rounded-full ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
+              className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full ${styles.iconBg} flex items-center justify-center ${styles.iconText} shrink-0`}
             >
-              <tab.icon className="w-7 h-7" />
+              <tab.icon className="w-5 h-5 sm:w-7 sm:h-7" />
             </div>
-            <div>
+
+            {/* Full name and a large count where there is room. */}
+            <div className="hidden sm:block">
               <p className="text-3xl font-extrabold text-slate-800">{count}</p>
               <p className="text-gray-500 text-xs sm:text-[11px] font-bold tracking-wider mt-0.5">
                 {tab.name.toUpperCase()}
+              </p>
+            </div>
+
+            {/* On a phone the short status label, since "Pending Bookings" will
+                not fit a quarter of the width without truncating to nothing. */}
+            <div className="flex sm:hidden flex-col items-center mt-1.5 w-full">
+              <p className="text-sm font-extrabold text-slate-800 leading-none">{count}</p>
+              <p
+                className={`text-[8px] font-bold mt-1 tracking-tight text-center truncate w-full ${styles.iconText}`}
+              >
+                {tab.statusLabel.toUpperCase()}
               </p>
             </div>
           </button>
@@ -1061,12 +1096,17 @@ function FeedTable({
                   key={b.orderId}
                   onClick={() => onViewOrder(b)}
                   className="cursor-pointer bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 group"
-                  title="Click to view details"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="min-w-0 pr-2">
-                      <h4 className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-base truncate transition-colors inline-block">
-                        {b.orderId}
+                      <h4 className="font-bold text-base truncate">
+                        <RowOpenButton
+                          label={`View booking ${b.orderId}`}
+                          onOpen={() => onViewOrder(b)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors max-w-full truncate"
+                        >
+                          {b.orderId}
+                        </RowOpenButton>
                       </h4>
                       <p className="text-sm font-semibold text-slate-700 mt-0.5 truncate">
                         {b.client}
@@ -1133,6 +1173,7 @@ function FeedTable({
 // ==========================================
 
 export default function AdminDashboardPage() {
+  const showToast = useToast();
   const router = useRouter();
   const sectionRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
@@ -1580,7 +1621,7 @@ export default function AdminDashboardPage() {
           });
         } catch (partnerError) {
           const reason = partnerError instanceof Error ? partnerError.message : "unknown error";
-          alert(`Booking created, but handing it to ${data.subconPartnerName || "the partner"} failed: ${reason}`);
+          showToast(`Booking created, but handing it to ${data.subconPartnerName || "the partner"} failed: ${reason}`, "error");
         }
       } else if (!data.unassigned) {
         try {
@@ -1596,8 +1637,9 @@ export default function AdminDashboardPage() {
           });
           console.log("Resources locked successfully!");
         } catch (assignError) {
-          alert(
+          showToast(
             `Booking created, but assignment failed: ${assignError instanceof Error ? assignError.message : assignError}`,
+            "error",
           );
         }
       }
@@ -1609,7 +1651,7 @@ export default function AdminDashboardPage() {
       await fetchOrders();
     } catch (err) {
       console.error(err);
-      alert(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`);
+      showToast(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`, "error");
     }
   };
 
@@ -1735,49 +1777,46 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 relative">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Track pending bookings, in-transit deliveries, completed trips, and
-            foul trips at a glance.
-          </p>
-        </div>
+          </div>
 
         {/* Buttons Flex Container */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto relative z-10">
+        <div className="grid grid-cols-5 sm:flex sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto relative z-10">
           <button
             onClick={() => {
               setSelectedClientForBooking("");
               setIsBookingModalOpen(true);
             }}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
+            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
           >
             + On-Call Booking
           </button>
           <button
             onClick={() => setIsClientSearchModalOpen(true)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap"
+            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
           >
             + New Booking
           </button>
 
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`h-11 px-4 inline-flex items-center justify-center border text-sm font-semibold rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap ${
+            className={`col-span-1 w-full sm:w-auto h-11 inline-flex items-center justify-center border text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap px-1 sm:px-4 ${
               isFilterOpen
                 ? "bg-slate-100 border-slate-300 text-slate-800"
                 : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
             }`}
+            title="Filters"
           >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
+            <Filter className="w-4 h-4 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline">Filters</span>
           </button>
           {/* Filter Dropdown Panel */}
           {isFilterOpen && (
-            <div className="absolute top-full mt-1.5 right-0 w-56 sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in">
+            <div className="absolute top-full mt-2 right-0 w-[calc(100vw-2rem)] max-w-xs sm:max-w-none sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in origin-top-right">
               <div className="flex justify-between items-center mb-2 border-b border-slate-100 pb-1.5">
                 <h3 className="font-bold text-xs text-slate-800">Filters</h3>
                 <button
                   onClick={() => setIsFilterOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 transition-colors"
+                  className="text-slate-500 hover:text-slate-700 transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1861,11 +1900,11 @@ export default function AdminDashboardPage() {
                         setIsCrewDropdownOpen(!isCrewDropdownOpen);
                         setIsClientDropdownOpen(false);
                       }}
-                      className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">{selectedCrewLabel}</span>
                       <ChevronDown
-                        className={`w-4 h-4 text-slate-400 transition-transform ${
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
                           isCrewDropdownOpen ? "rotate-180" : ""
                         }`}
                       />
@@ -1880,9 +1919,9 @@ export default function AdminDashboardPage() {
                             value={crewSearchTerm}
                             onChange={(e) => setCrewSearchTerm(e.target.value)}
                             placeholder="Search crew..."
-                            className="w-full border border-slate-300 rounded-md pl-3 pr-8 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full border border-slate-300 rounded-md pl-3 pr-8 py-1.5 text-xs text-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
-                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                         </div>
 
                         {/* Scrollable Crew Options with Checkboxes */}
@@ -1941,7 +1980,7 @@ export default function AdminDashboardPage() {
                               );
                             })
                           ) : (
-                            <div className="px-2 py-2 text-xs text-slate-400 text-center">
+                            <div className="px-2 py-2 text-xs text-slate-500 text-center">
                               No crews found
                             </div>
                           )}
@@ -1963,13 +2002,13 @@ export default function AdminDashboardPage() {
                         setIsClientDropdownOpen(!isClientDropdownOpen);
                         setIsCrewDropdownOpen(false);
                       }}
-                      className="w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">
                         {selectedClientLabel}
                       </span>
                       <ChevronDown
-                        className={`w-4 h-4 text-slate-400 transition-transform ${
+                        className={`w-4 h-4 text-slate-500 transition-transform ${
                           isClientDropdownOpen ? "rotate-180" : ""
                         }`}
                       />
@@ -1986,9 +2025,9 @@ export default function AdminDashboardPage() {
                               setClientSearchTerm(e.target.value)
                             }
                             placeholder="Search client..."
-                            className="w-full border border-slate-300 rounded-md pl-3 pr-8 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full border border-slate-300 rounded-md pl-3 pr-8 py-1.5 text-xs text-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
-                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                         </div>
 
                         {/* Scrollable Client Options with Checkboxes */}
@@ -2049,7 +2088,7 @@ export default function AdminDashboardPage() {
                               );
                             })
                           ) : (
-                            <div className="px-2 py-2 text-xs text-slate-400 text-center">
+                            <div className="px-2 py-2 text-xs text-slate-500 text-center">
                               No clients found
                             </div>
                           )}
@@ -2075,7 +2114,7 @@ export default function AdminDashboardPage() {
                     setIsCrewDropdownOpen(false);
                     setIsClientDropdownOpen(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Clear Filters
                 </button>
@@ -2085,7 +2124,7 @@ export default function AdminDashboardPage() {
                     setIsClientDropdownOpen(false);
                     setIsFilterOpen(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Apply Filters
                 </button>
@@ -2119,7 +2158,7 @@ export default function AdminDashboardPage() {
       {/* MODALS */}
       <SubconTripModal dispatchID={subconTripID} onClose={() => setSubconTripID(null)} onChanged={() => void fetchOrders()} />
       {foulTripNotice && (
-        <div role="status" className="fixed bottom-6 right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
+        <div role="status" className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
           {foulTripNotice}
         </div>
       )}

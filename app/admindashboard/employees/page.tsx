@@ -8,6 +8,7 @@
 
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
@@ -33,6 +34,7 @@ import {
   Paperclip,
   HeartPulse,
 } from "lucide-react";
+import PerformancePanel from "@/components/employee/PerformancePanel";
 
 // ==========================================
 // TYPES
@@ -585,7 +587,7 @@ function EmployeeModal({
           <button
             type="button"
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -613,7 +615,7 @@ function EmployeeModal({
                   value={formData.firstName}
                   onChange={handleInputChange}
                   placeholder="Enter first name"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.firstName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.firstName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -631,7 +633,7 @@ function EmployeeModal({
                   value={formData.middleName}
                   onChange={handleInputChange}
                   placeholder="Enter middle name"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -644,7 +646,7 @@ function EmployeeModal({
                   value={formData.lastName}
                   onChange={handleInputChange}
                   placeholder="Enter last name"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.lastName ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.lastName && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -662,7 +664,7 @@ function EmployeeModal({
                   value={formData.suffix}
                   onChange={handleInputChange}
                   placeholder="e.g. Jr., III"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -703,7 +705,7 @@ function EmployeeModal({
                   value={formData.address}
                   onChange={handleInputChange}
                   placeholder="Enter residential address"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.address ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.address && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -721,7 +723,7 @@ function EmployeeModal({
                   value={formData.contactNumber}
                   onChange={handleInputChange}
                   placeholder="Enter contact number"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.contactNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.contactNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -740,7 +742,7 @@ function EmployeeModal({
                   onChange={handleInputChange}
                   disabled={Boolean(editData)}
                   placeholder="Enter email address"
-                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full border rounded-md px-3 py-2 text-xs font-normal placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${Boolean(editData) ? "bg-slate-100 text-slate-500 border-slate-300" : "bg-white text-black"} ${errors.emailAddress ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.emailAddress && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -779,7 +781,7 @@ function EmployeeModal({
                   value={formData.nationality}
                   onChange={handleInputChange}
                   placeholder="Enter nationality"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -792,7 +794,7 @@ function EmployeeModal({
                   value={formData.religion}
                   onChange={handleInputChange}
                   placeholder="Enter religion"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -889,7 +891,7 @@ function EmployeeModal({
                   value={formData.licenseNumber}
                   onChange={handleInputChange}
                   placeholder="Enter license number"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.licenseNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.licenseNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -907,7 +909,7 @@ function EmployeeModal({
                   value={formData.driverLicenseType}
                   onChange={handleInputChange}
                   placeholder="e.g. Professional / 123"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.driverLicenseType ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.driverLicenseType && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -943,7 +945,7 @@ function EmployeeModal({
                   value={formData.drivingExperience}
                   onChange={handleInputChange}
                   placeholder="Enter years of experience"
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.drivingExperience ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.drivingExperience && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -1023,7 +1025,7 @@ function EmployeeModal({
                   value={formData.emergencyContactPerson}
                   onChange={handleInputChange}
                   placeholder="Enter contact person name"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1036,7 +1038,7 @@ function EmployeeModal({
                   value={formData.emergencyContactNumber}
                   onChange={handleInputChange}
                   placeholder="Enter contact number"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1049,7 +1051,7 @@ function EmployeeModal({
                   value={formData.relationship}
                   onChange={handleInputChange}
                   placeholder="e.g. Spouse, Parent"
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1073,7 +1075,7 @@ function EmployeeModal({
                   value={formData.skills}
                   onChange={handleInputChange}
                   placeholder="Enter skills or specializations..."
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
               <div>
@@ -1101,7 +1103,7 @@ function EmployeeModal({
                   value={formData.remarks}
                   onChange={handleInputChange}
                   placeholder="Any additional remarks..."
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1150,7 +1152,7 @@ interface EmployeeDetailViewProps {
   onToggleStatus: (employee: EmployeeRecord) => Promise<void>;
 }
 
-type EmployeeDetailTab = "overview" | "health" | "attachments";
+type EmployeeDetailTab = "overview" | "health" | "attachments" | "performance";
 
 function EmployeeDetailView({
   employee,
@@ -1173,6 +1175,9 @@ function EmployeeDetailView({
 
   const isAdmin = currentRole.toLowerCase() === "admin";
   const canEdit = isAdmin;
+
+  // Drivers and helpers run deliveries, so a delivery record describes them.
+  const showsPerformance = ["driver", "helper"].includes((employee.role ?? "").toLowerCase());
 
   const accountActivated = Boolean(employee.activation_completed_at);
   const activationCooldownMs = 15 * 60 * 1000;
@@ -1280,7 +1285,7 @@ function EmployeeDetailView({
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-xs transition-colors hover:bg-slate-100"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-xs transition-colors hover:bg-slate-100"
             title="Back to Directory"
             aria-label="Back to Employee Directory"
           >
@@ -1327,7 +1332,7 @@ function EmployeeDetailView({
               <button
                 type="button"
                 disabled
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400 cursor-not-allowed"
               >
                 <Loader2 className="h-4 w-4" />
                 Resend in {activationRemainingMinutes} min
@@ -1434,6 +1439,9 @@ function EmployeeDetailView({
               ["overview", "Overview"],
               ["health", "Health Info"],
               ["attachments", "Attachments"],
+              // Only the crew who run deliveries: there is nothing honest to
+              // show for an admin or a coordinator.
+              ...(showsPerformance ? ([["performance", "Performance"]] as const) : []),
             ] as const
           ).map(([tab, label]) => (
             <button
@@ -1600,6 +1608,10 @@ function EmployeeDetailView({
                 appear here when attachment storage is connected.
               </p>
             </div>
+          )}
+
+          {activeTab === "performance" && showsPerformance && (
+            <PerformancePanel employeeID={employee.id} />
           )}
         </div>
       </div>
@@ -2123,7 +2135,7 @@ export default function EmployeesPage() {
   const renderToasts = () => {
     if (!successMessage && !errorMessage) return null;
     return (
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
+      <div className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
         <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
           <div
             className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
@@ -2221,11 +2233,7 @@ export default function EmployeesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Employee Directory
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Manage your staff listings, employee profiles, and directory
-            records.
-          </p>
-        </div>
+          </div>
 
         {canCreate && (
           <div className="flex justify-center sm:justify-start w-full sm:w-auto">
@@ -2251,7 +2259,7 @@ export default function EmployeesPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <input
                 type="text"
@@ -2262,7 +2270,7 @@ export default function EmployeesPage() {
                     ? "Search employees..."
                     : `Search ${selectedRole.toLowerCase()}s...`
                 }
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
 
@@ -2299,7 +2307,7 @@ export default function EmployeesPage() {
                           setSelectedRole(role);
                           setIsDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
+                        className={`min-h-tap md:min-h-0 w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
                           isSelected
                             ? "bg-blue-50 text-blue-600 font-semibold"
                             : "text-slate-700 hover:bg-slate-50"
@@ -2348,15 +2356,21 @@ export default function EmployeesPage() {
               ) : employeeList.length > 0 ? (
                 employeeList.map((employee) => (
                   <tr
+                    data-pressable
                     key={employee.id}
                     onClick={() => handleRowClick(employee.id)}
                     className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors text-sm text-slate-800"
-                    title="Click to view complete employee record"
                   >
                     <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 truncate">
-                      {employee.firstName}{" "}
-                      {employee.middleName ? `${employee.middleName[0]}. ` : ""}
-                      {employee.lastName} {employee.suffix}
+                      <RowOpenButton
+                        label={`View record for ${employee.firstName} ${employee.lastName}`}
+                        onOpen={() => handleRowClick(employee.id)}
+                        className="truncate max-w-full"
+                      >
+                        {employee.firstName}{" "}
+                        {employee.middleName ? `${employee.middleName[0]}. ` : ""}
+                        {employee.lastName} {employee.suffix}
+                      </RowOpenButton>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 truncate">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
@@ -2425,7 +2439,7 @@ export default function EmployeesPage() {
                 setCurrentPage((previous) => Math.max(previous - 1, 1))
               }
               disabled={currentPage <= 1 || isLoading}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1 || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -2441,7 +2455,7 @@ export default function EmployeesPage() {
                 setCurrentPage((previous) => Math.min(previous + 1, totalPages))
               }
               disabled={currentPage >= totalPages || isLoading}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"

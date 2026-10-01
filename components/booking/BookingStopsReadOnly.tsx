@@ -90,7 +90,7 @@ export default function BookingStopsReadOnly({
     <>
       {showEditNote && (
       <p className="flex items-start gap-2 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
         Pickup and delivery addresses are fixed once a booking is made. To change a client&apos;s warehouses or
         branches, edit the client under Clients &amp; Partners.
       </p>

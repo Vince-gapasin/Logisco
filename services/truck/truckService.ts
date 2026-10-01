@@ -12,13 +12,24 @@ const generateTruckCode = (plateNumber: string): string => {
   return `TRK-${cleanPlate}`;
 };
 
+/** Flattens the joined fuel onto the truck, since an embed arrives as an object or an array. */
+function withFuelType(row: Record<string, unknown>): Truck {
+  const joined = row.FuelType as { name: string; unit: string } | { name: string; unit: string }[] | null;
+  const fuelType = Array.isArray(joined) ? (joined[0] ?? null) : (joined ?? null);
+
+  const truck = { ...row };
+  delete truck.FuelType;
+
+  return { ...(truck as unknown as Truck), fuelType };
+}
+
 // ==========================================
 // GET ALL ACTIVE TRUCKS
 // ==========================================
 export async function getTrucks(): Promise<Truck[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    .select("*, FuelType ( name, unit )")
     .eq("isActive", true)
     .order("plateNumber", { ascending: true });
 
@@ -26,7 +37,7 @@ export async function getTrucks(): Promise<Truck[]> {
     throw error;
   }
 
-  return data as Truck[];
+  return (data ?? []).map(withFuelType);
 }
 
 // ==========================================
@@ -35,7 +46,7 @@ export async function getTrucks(): Promise<Truck[]> {
 export async function getTruckById(id: string): Promise<Truck | null> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    .select("*, FuelType ( name, unit )")
     .eq("truckID", id)
     .maybeSingle();
 
@@ -43,7 +54,7 @@ export async function getTruckById(id: string): Promise<Truck | null> {
     throw error;
   }
 
-  return data as Truck | null;
+  return data ? withFuelType(data) : null;
 }
 
 // ==========================================
@@ -140,6 +151,12 @@ export function toTruckPayload(body: Record<string, unknown>): UpdateTruckDto & 
     payload.lastChecked = body.lastChecked ? String(body.lastChecked) : null;
   }
 
+  // Accepts the id, or an empty string from a "not recorded" option, which
+  // clears it rather than being ignored.
+  if (body.fuelTypeID !== undefined) {
+    payload.fuelTypeID = typeof body.fuelTypeID === "string" && body.fuelTypeID ? body.fuelTypeID : null;
+  }
+
   const status = body.status ?? body.truckStatus;
   if (typeof status === "string" && status) payload.truckStatus = status as UpdateTruckDto["truckStatus"];
 
@@ -160,12 +177,13 @@ export function validateTruckPayload(payload: UpdateTruckDto, isCreate: boolean)
 export async function getFleet(): Promise<Truck[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select("*")
+    // The fuel's name comes along, so a list does not have to resolve 36 ids.
+    .select("*, FuelType ( name, unit )")
     .eq("isActive", true)
     .order("lastChecked", { ascending: false, nullsFirst: false });
 
   if (error) throw error;
-  return data as Truck[];
+  return (data ?? []).map(withFuelType);
 }
 
 export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: string }): Promise<Truck> {
@@ -182,4 +200,109 @@ export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: s
 
   if (error) throw error;
   return data as Truck;
+}
+
+// ==========================================
+// ANNOUNCING THAT A TRUCK IS OFF THE ROAD
+// ==========================================
+
+/**
+ * Tells the office and the mechanics when a truck is grounded, or comes back.
+ *
+ * It used to live inline in the admin's truck PATCH, which meant the same fact -
+ * this truck is On Maintenance - reached mechanics when somebody typed it into a
+ * form and reached nobody when a truck actually broke down on the road. The
+ * breakdown path grounds the truck through setTruckStatus, which was a bare
+ * UPDATE. So the quieter event was announced and the real one was silent.
+ *
+ * Here so both paths call the same thing, and so anything added later that
+ * grounds a truck is announced without having to remember to.
+ *
+ * ONLY GROUNDED, AND ONLY ON A CHANGE
+ *
+ * Trucks move between Available and On Delivery all day. Telling every mechanic
+ * about that is how an alert becomes something people turn off. What they need
+ * to know is that a truck has left the road, or come back to it.
+ */
+export async function announceTruckStatus(
+  truckID: string,
+  from: string | null | undefined,
+  to: string,
+  actor?: { employeeID: string; name: string } | null,
+  /** What put it there, when something other than a person did: "Foul trip: Broken Truck". */
+  cause?: string | null,
+): Promise<void> {
+  if (!truckID || from === to) return;
+
+  const grounded = (status: string | null | undefined) =>
+    status === TRUCK_STATUS.onMaintenance || status === TRUCK_STATUS.outOfService;
+
+  const wasGrounded = grounded(from);
+  const isGrounded = grounded(to);
+  if (wasGrounded === isGrounded) return;
+
+  const { data: truck } = await supabase
+    .from(TABLE)
+    .select("plateNumber")
+    .eq("truckID", truckID)
+    .maybeSingle();
+
+  const plate = (truck?.plateNumber as string) ?? "A truck";
+
+  // Imported here rather than at the top: the notification layer is the outer
+  // edge of this service, and a top-level import would have this module loaded
+  // by everything that reads a truck.
+  const { notify, OFFICE, MECHANICS } = await import("@/services/notifications/notify");
+
+  await notify({
+    event: "TRUCK_STATUS_CHANGED",
+    title: isGrounded ? `Truck ${to.toLowerCase()}` : "Truck back in service",
+    body: isGrounded
+      ? `${plate} is now ${to.toLowerCase()} and cannot be booked until it is back.`
+      : `${plate} is off maintenance and can be booked again.`,
+    severity: isGrounded ? "action" : "info",
+    roles: [...OFFICE, ...MECHANICS],
+    entity: { table: "Truck", id: truckID },
+    link: "/mechanic/fleet-status",
+    actor: actor ?? undefined,
+  });
+
+  // And a maintenance log is opened for it.
+  //
+  // This was an audit row to begin with, which was the wrong place to put it.
+  // The audit trail is written for everything and read for almost nothing - no
+  // screen in this app shows a truck's audit history - so a grounding recorded
+  // there was filed where nobody looks. The maintenance log is the record the
+  // mechanics already keep, that the office can now see on the truck, and that a
+  // person can add to.
+  //
+  // So the grounding opens one rather than describing itself into a table of its
+  // own: what the truck was doing, what stopped it, and who said so. No mechanic
+  // on it yet, because nobody has been sent - which is exactly what an open job
+  // looks like, and the mechanic fills in the rest through the form they already
+  // use.
+  //
+  // Only on the way down. Coming back off maintenance is the closing of a repair
+  // somebody was already logging, not the start of a new one.
+  if (!isGrounded) return;
+
+  // Not fatal, for the same reason the notification is not: a delivery must not
+  // fail to release its truck because a log could not be opened.
+  try {
+    const { createHistoryLog } = await import("@/services/history-logs/historyLogsService");
+    await createHistoryLog({
+      truckID,
+      date: new Date().toISOString().slice(0, 10),
+      statusBefore: from ?? null,
+      statusAfter: to,
+      // Preliminary is the phase written before anybody has looked at the truck,
+      // which is what this is.
+      driversReport: cause ?? `Set to ${to.toLowerCase()}`,
+      preliminaryRemarks: actor
+        ? `Reported by ${actor.name}. Awaiting a mechanic.`
+        : "Awaiting a mechanic.",
+    });
+  } catch (error) {
+    console.error("[Truck] Could not open a maintenance log:", error);
+  }
 }

@@ -3,6 +3,7 @@
 
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
+import RowOpenButton from "@/components/RowOpenButton";
 import TableSkeleton from "@/components/TableSkeleton";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
@@ -14,6 +15,8 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
+import ListLoadError from "@/components/ListLoadError";
 import {
   Search,
   FileText,
@@ -63,6 +66,7 @@ function hoursLabel(hours: number | null): string {
 }
 
 export default function FoulTripFeedPage() {
+  const showToast = useToast();
   const [bookings, setBookings] = useState<FoulTripRow[]>([]);
   const [summary, setSummary] = useState<FoulTripSummary | null>(null);
   const [recent, setRecent] = useState<IncidentView[]>([]);
@@ -108,6 +112,12 @@ export default function FoulTripFeedPage() {
   useEffect(() => {
     // The rows land in a network callback, not in the effect body.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadBookings();
+  }, [loadBookings]);
+
+  // Try again, with the skeleton back while it runs.
+  const retryLoad = useCallback(() => {
+    setIsLoading(true);
     void loadBookings();
   }, [loadBookings]);
 
@@ -171,7 +181,7 @@ export default function FoulTripFeedPage() {
       });
       handleProceedSuccess(`${incident.orderCode ?? "The issue"} closed.`);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not close it.");
+      showToast(error instanceof Error ? error.message : "Could not close it.", "error");
     } finally {
       setClosing(null);
     }
@@ -201,7 +211,7 @@ export default function FoulTripFeedPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/admindashboard/dashboard")}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to Dashboard"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -211,17 +221,12 @@ export default function FoulTripFeedPage() {
               <AlertTriangle className="w-6 h-6 text-red-500" />
               Foul Trip Feed
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Trips that could not finish, and what is being done about each.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 
-      {loadError && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
-          {loadError}
-        </div>
+      {loadError && paginatedBookings.length > 0 && (
+        <ListLoadError message={loadError} onRetry={retryLoad} compact />
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -282,14 +287,14 @@ export default function FoulTripFeedPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search order ID, client, product..."
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -298,61 +303,78 @@ export default function FoulTripFeedPage() {
         {/* ========================================== */}
         {/* TABLE */}
         {/* ========================================== */}
-        <div className="overflow-x-auto min-h-135">
-          <table className="w-full text-left border-collapse min-w-250 table-fixed">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
+        <div className="md:overflow-x-auto px-4 pt-4 md:px-0 md:pt-0 min-h-100 md:min-h-135">
+          <table role="table" className="w-full text-left border-collapse md:min-w-250 md:table-fixed block md:table">
+            <thead role="rowgroup" className="hidden md:table-header-group">
+              <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th role="columnheader" className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
                   Order ID
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
-                <th className="py-3.5 px-4 w-[20%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">
                   Product to Deliver
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">
                   Scheduled Date
                 </th>
-                <th className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
-                <th className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
+                <th role="columnheader" className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="block md:table-row-group">
               {isLoading ? (
-                <TableSkeleton rows={5} columns={5} />
+                <TableSkeleton rows={5} columns={6} stacked />
+              ) : loadError ? (
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
+                    <ListLoadError message={loadError} onRetry={retryLoad} />
+                  </td>
+                </tr>
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
-                  <tr
+                  <tr role="row"
+                    data-pressable
                     key={booking.id}
                     onClick={() => handleOpenModal(booking)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
+                    className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td className="py-4 pl-6 sm:pl-8 pr-4 font-medium text-slate-900 align-top">
-                      {booking.orderId}
+                    <td role="cell" className="block md:table-cell pb-2 mb-1 border-b border-slate-100 md:pb-4 md:mb-0 md:border-0 py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
+                      <RowOpenButton
+                        label={`View booking ${booking.orderId}`}
+                        onOpen={() => handleOpenModal(booking)}
+                        className="wrap-break-word text-base font-semibold md:text-sm md:font-medium"
+                      >
+                        {booking.orderId}
+                      </RowOpenButton>
                     </td>
-                    <td className="py-4 px-4 font-medium align-top">
-                      {booking.clientName}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 font-medium align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Client Name</span>
+                      <span className="wrap-break-word">{booking.clientName}</span>
                     </td>
-                    <td className="py-4 px-4 align-top text-slate-600 truncate">
-                      {booking.product}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top text-slate-600 md:truncate">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Product</span>
+                      <span className="wrap-break-word">{booking.product}</span>
                     </td>
-                    <td className="py-4 px-4 align-top">
-                      {booking.displayDate}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Scheduled Date</span>
+                      <span className="wrap-break-word">{booking.displayDate}</span>
                     </td>
 
-                    <td className="py-4 px-4 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Assigned Crew</span>
                       {booking.crews && booking.crews.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5 min-w-0">
                           {booking.crews.map((crew, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center text-xs truncate"
+                              className="flex items-baseline text-xs md:truncate"
                             >
                               <span className="font-semibold text-slate-700 mr-1.5 shrink-0 w-16">
                                 {crew.role}:
                               </span>
-                              <span className="truncate text-slate-900">
+                              <span className="md:truncate wrap-break-word text-slate-900">
                                 {crew.name}
                               </span>
                             </div>
@@ -360,33 +382,36 @@ export default function FoulTripFeedPage() {
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-slate-500 italic text-xs font-medium">
-                          <Clock className="w-3.5 h-3.5" />
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
                           Not Assigned
                         </span>
                       )}
                     </td>
 
                     {/* STATUS COLUMN */}
-                    <td className="py-4 pl-4 pr-6 sm:pr-8 align-top">
-                      <span
-                        className={`inline-flex items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(
-                          booking.confirmationStatus,
-                        )}`}
-                      >
-                        {booking.confirmationStatus}
-                      </span>
-                      {booking.incident?.status === "mechanic_assigned" && (
-                        <div className="mt-1.5 text-xs font-medium text-blue-600">Mechanic on the way</div>
-                      )}
-                      {booking.incident?.status === "open" && booking.incident.mechanicOutcome === "not_fixable" && (
-                        <div className="mt-1.5 text-xs font-medium text-amber-700">Not fixable on site</div>
-                      )}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:pl-4 md:pr-6 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Status</span>
+                      <div className="min-w-0">
+                        <span
+                          className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(
+                            booking.confirmationStatus,
+                          )}`}
+                        >
+                          {booking.confirmationStatus}
+                        </span>
+                        {booking.incident?.status === "mechanic_assigned" && (
+                          <div className="mt-1.5 text-xs font-medium text-blue-600">Mechanic on the way</div>
+                        )}
+                        {booking.incident?.status === "open" && booking.incident.mechanicOutcome === "not_fixable" && (
+                          <div className="mt-1.5 text-xs font-medium text-amber-700">Not fixable on site</div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} className="py-16 sm:py-20 text-center">
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
@@ -417,7 +442,7 @@ export default function FoulTripFeedPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage <= 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -433,7 +458,7 @@ export default function FoulTripFeedPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage >= totalPages}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -470,7 +495,7 @@ export default function FoulTripFeedPage() {
                   type="button"
                   onClick={() => closeIssue(issue)}
                   disabled={closing === issue.incidentID}
-                  className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                  className="min-h-tap sm:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
                 >
                   {closing === issue.incidentID ? "Saving…" : "Close"}
                 </button>
@@ -510,7 +535,7 @@ export default function FoulTripFeedPage() {
                     <button
                       type="button"
                       onClick={() => setPartnerTripID(partnerTrip!.dispatchID)}
-                      className="min-h-11 sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap"
+                      className="min-h-tap sm:min-h-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold whitespace-nowrap"
                     >
                       Update partner trip
                     </button>

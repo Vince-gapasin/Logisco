@@ -109,7 +109,7 @@ export default function SelectMenu({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listID : undefined}
-        className="w-full min-h-11 sm:min-h-10 flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:bg-slate-50"
+        className="w-full min-h-tap sm:min-h-10 flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:bg-slate-50"
       >
         {selected ? (
           <span className="min-w-0">
@@ -117,15 +117,15 @@ export default function SelectMenu({
             {selected.detail && <span className="block truncate text-xs text-slate-500">{selected.detail}</span>}
           </span>
         ) : (
-          <span className="truncate text-slate-400">{options.length ? placeholder : emptyText}</span>
+          <span className="truncate text-slate-500">{options.length ? placeholder : emptyText}</span>
         )}
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1.5 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
           <div className="relative mb-2">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
             <input
               ref={searchRef}
               type="text"
@@ -137,7 +137,7 @@ export default function SelectMenu({
               onKeyDown={onKeyDown}
               placeholder={searchPlaceholder}
               aria-controls={listID}
-              className="w-full rounded-md border border-slate-300 py-1.5 pl-8 pr-8 text-base sm:text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-slate-300 py-1.5 pl-8 pr-8 text-base sm:text-xs text-slate-700 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             {query && (
               <button
@@ -147,7 +147,7 @@ export default function SelectMenu({
                   searchRef.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-600"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-600"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -156,7 +156,7 @@ export default function SelectMenu({
 
           <ul id={listID} role="listbox" className="max-h-56 overflow-y-auto feed-scrollbar space-y-0.5">
             {rows.length === 0 ? (
-              <li className="px-2 py-3 text-center text-xs text-slate-400">
+              <li className="px-2 py-3 text-center text-xs text-slate-500">
                 {options.length ? "No matches" : emptyText}
               </li>
             ) : (

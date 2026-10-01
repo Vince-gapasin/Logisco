@@ -285,7 +285,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -300,19 +300,19 @@ export default function BookingAssignModal({
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">{booking.dateCreated || "N/A"}</p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">{booking.createdBy || "N/A"}</p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
@@ -328,7 +328,7 @@ export default function BookingAssignModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status || (reassigning ? "Assigned" : "Created")} />
@@ -453,13 +453,15 @@ export default function BookingAssignModal({
                   {booking.crews.map((member, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded border border-slate-200"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between bg-white px-3 py-2 sm:px-2.5 sm:py-1.5 rounded border border-slate-200 gap-1.5"
                     >
-                      <span className="font-medium text-slate-800">
-                        {member.role}: {member.name}
+                      {/* A name and a status side by side leaves neither enough
+                          room on a phone, so they stack until there is space. */}
+                      <span className="font-medium text-slate-800 text-sm sm:text-xs wrap-break-word">
+                        {member.role}: <span className="font-bold">{member.name}</span>
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs sm:text-[10px] font-bold uppercase ${crewStatusBadge(member.status)}`}
+                        className={`w-max px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${crewStatusBadge(member.status)}`}
                       >
                         {member.status}
                       </span>
@@ -488,7 +490,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.truckPlate}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -499,7 +501,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.driver}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -510,7 +512,7 @@ export default function BookingAssignModal({
                     placeholder="09XXXXXXXXX (optional)"
                     value={formData.partnerContact ?? ""}
                     onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-400 ${
+                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-500 ${
                       errors.partnerContact ? "border-red-500" : "border-slate-300"
                     }`}
                   />
@@ -526,7 +528,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.helper1}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
                 <div>
@@ -537,7 +539,7 @@ export default function BookingAssignModal({
                     placeholder="optional"
                     value={formData.helper2}
                     onChange={handleChange}
-                    className={`${editableField} placeholder:text-slate-400`}
+                    className={`${editableField} placeholder:text-slate-500`}
                   />
                 </div>
               </div>
@@ -595,7 +597,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={() => setShowCancelConfirm(true)}
-            className="w-full sm:w-auto px-6 py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
           >
             Cancel Booking
           </button>
@@ -603,7 +605,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -612,7 +614,7 @@ export default function BookingAssignModal({
             type="submit"
             form="assign-booking-form"
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? "Saving…" : reassigning ? "Re-assign Booking" : "Assign Now"}
           </button>
@@ -628,11 +630,11 @@ export default function BookingAssignModal({
               <p className="text-sm text-slate-600 mb-6 px-2">
                 Are you sure you want to cancel this booking? This action cannot be undone.
               </p>
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
                 <button
                   type="button"
                   onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   No, Keep It
                 </button>
@@ -642,7 +644,7 @@ export default function BookingAssignModal({
                     setShowCancelConfirm(false);
                     onCancelBooking(event, booking.id);
                   }}
-                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
                   Yes, Cancel
                 </button>

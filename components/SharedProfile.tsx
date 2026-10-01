@@ -1,28 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
-import { Mail, Lock, X, AlertCircle, User, Shield, Building } from "lucide-react";
+import { Mail, Lock, X, AlertCircle, User, Shield } from "lucide-react";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
-
-// ==========================================
-// SESSION & API FETCH
-// ==========================================
-const SESSION_KEY = "logisco_user_session";
-
-
+import { useToast } from "@/components/Toast";
+import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
 
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
 export default function SharedProfile() {
-  // Session state
-  const [userInfo, setUserInfo] = useState({
-    name: "Loading...",
-    email: "Loading...",
-    role: "Loading...",
-    company: "",
-  });
+  const showToast = useToast();
+
+  // Who is signed in, from the one reader the sidebars use. This had its own
+  // copy that reached past readStoredSession to JSON.parse the raw string, so
+  // a malformed session showed as a person called "Unknown User" rather than
+  // as nobody signed in.
+  const user = useSessionUser();
+
 
   // Modal states
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -42,30 +38,10 @@ export default function SharedProfile() {
   const [passwordError, setPasswordError] = useState("");
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
-  // Fetch session data on mount
-  useEffect(() => {
-    const sessionData =
-      localStorage.getItem("logisco_user_session") ||
-      sessionStorage.getItem("logisco_user_session");
-
-    if (sessionData) {
-  // Who is signed in, read out of the stored session.
-  /* eslint-disable react-hooks/set-state-in-effect */
-      try {
-        const parsed = JSON.parse(sessionData);
-        setUserInfo({
-          // Admins/Staff use employeeName, Clients might use contactName
-          name: parsed.employeeName || parsed.contactName || parsed.name || "Unknown User",
-          email: parsed.email || "No email provided",
-          role: parsed.role || "Unassigned",
-          company: parsed.company || "", // Only present for Clients
-        });
-      } catch (error) {
-        console.error("Failed to parse session", error);
-      }
-    }
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  // The address the account answers to today. A requested change does not move
+  // it: the session, and this field, follow the next sign-in with the confirmed
+  // address.
+  const shownEmail = user?.email ?? "";
 
   // Handle Email Update Submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -77,7 +53,7 @@ export default function SharedProfile() {
       return;
     }
 
-    if (currentEmail.trim().toLowerCase() !== userInfo.email.trim().toLowerCase()) {
+    if (currentEmail.trim().toLowerCase() !== shownEmail.trim().toLowerCase()) {
       setEmailError("Current email does not match your account.");
       return;
     }
@@ -100,23 +76,14 @@ export default function SharedProfile() {
         body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
       });
 
-      alert(response.message);
+      // Nothing has changed yet. The address only moves when the link sent to
+      // it is opened, so the field must not pretend otherwise.
+      showToast(response.message, "success");
       
-      // Update local session
-      const sessionData = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData);
-        parsed.email = newEmail;
-        
-        if (localStorage.getItem(SESSION_KEY)) {
-          localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
-        }
-        if (sessionStorage.getItem(SESSION_KEY)) {
-          sessionStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
-        }
-        
-        setUserInfo((prev) => ({ ...prev, email: newEmail }));
-      }
+      // Through the session's own writer, which knows which storage holds it.
+      // This used to read both, parse by hand, and write back to whichever
+      // answered - so a session in sessionStorage could be rewritten into
+      // localStorage and outlive the tab it belonged to.
 
       setIsEmailModalOpen(false);
       setCurrentEmail("");
@@ -158,7 +125,7 @@ export default function SharedProfile() {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      alert(response.message);
+      showToast(response.message, "success");
       setIsPasswordModalOpen(false);
       setCurrentPassword("");
       setNewPassword("");
@@ -178,10 +145,7 @@ export default function SharedProfile() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Profile
           </h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Manage your account credentials, security settings, and profile info.
-          </p>
-        </div>
+          </div>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
@@ -211,10 +175,10 @@ export default function SharedProfile() {
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight uppercase">
-              {userInfo.name}
+              {user?.name ?? ""}
             </h2>
-            <p className="text-sm text-slate-500 font-medium mt-0.5 capitalize">
-              {userInfo.role}
+            <p className="text-sm text-slate-500 font-medium mt-0.5">
+              {user ? describeRole(user.role) : ""}
             </p>
           </div>
         </div>
@@ -234,40 +198,27 @@ export default function SharedProfile() {
               <input
                 type="text"
                 readOnly
-                value={userInfo.email}
+                value={shownEmail}
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
             </div>
 
-            {/* Conditionally Render Client Company or Employee Role */}
-            {userInfo.role === "client" ? (
-              <div>
-                <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                  Company Name
-                </label>
-                <div className="relative">
-                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    readOnly
-                    value={userInfo.company || "Not Provided"}
-                    className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-9 pr-4 py-2.5 focus:outline-none uppercase"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                  System Role
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={userInfo.role.toUpperCase()}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
-                />
-              </div>
-            )}
+            {/* There was a Company Name field here for a signed-in client. No
+                client can sign in: the login route reads the Employee table and
+                refuses anything whose role is not one of the five. It was a
+                branch that could not be reached and a column the session has
+                never carried. */}
+            <div>
+              <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                System Role
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={user ? describeRole(user.role).toUpperCase() : ""}
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -283,7 +234,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsEmailModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingEmail}
               >
                 <X className="w-5 h-5" />
@@ -306,7 +257,7 @@ export default function SharedProfile() {
                   onChange={(e) => setCurrentEmail(e.target.value)}
                   placeholder="Enter current email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -319,7 +270,7 @@ export default function SharedProfile() {
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="Enter new email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -332,7 +283,7 @@ export default function SharedProfile() {
                   onChange={(e) => setConfirmEmail(e.target.value)}
                   placeholder="Confirm new email"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -346,7 +297,7 @@ export default function SharedProfile() {
                   placeholder="Enter your password to confirm"
                   autoComplete="current-password"
                   disabled={isSubmittingEmail}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -354,7 +305,7 @@ export default function SharedProfile() {
                   type="button"
                   onClick={() => setIsEmailModalOpen(false)}
                   disabled={isSubmittingEmail}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -381,7 +332,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsPasswordModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingPassword}
               >
                 <X className="w-5 h-5" />
@@ -404,7 +355,7 @@ export default function SharedProfile() {
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -417,7 +368,7 @@ export default function SharedProfile() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="8+ chars with upper, lower, number & symbol"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div>
@@ -430,7 +381,7 @@ export default function SharedProfile() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
                   disabled={isSubmittingPassword}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-700 transition-all placeholder:text-slate-500 disabled:opacity-50"
                 />
               </div>
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -438,7 +389,7 @@ export default function SharedProfile() {
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
                   disabled={isSubmittingPassword}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>

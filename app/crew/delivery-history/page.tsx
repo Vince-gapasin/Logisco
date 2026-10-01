@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle, Camera } from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 export interface PickupRecord {
   warehouse: string;
@@ -56,6 +57,7 @@ export interface DeliveryHistoryRecord {
 }
 
 export default function DeliveryHistoryPage() {
+  const showToast = useToast();
   // State to manage navigation between list and details view
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryHistoryRecord | null>(null);
 
@@ -162,7 +164,7 @@ export default function DeliveryHistoryPage() {
         setReportImage(null);
       }, 2000);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to send report.");
+      showToast(error instanceof Error ? error.message : "Failed to send report.", "error");
     }
   };
 
@@ -177,7 +179,7 @@ export default function DeliveryHistoryPage() {
           <div className="flex items-center gap-3 pr-24 sm:pr-0">
             <button
               onClick={() => setSelectedDelivery(null)}
-              className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+              className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
               title="Back to History List"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -193,7 +195,7 @@ export default function DeliveryHistoryPage() {
           </div>
           <button
             onClick={() => setShowReportModal(true)}
-            className="absolute top-0 right-0 sm:static px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            className="min-h-tap md:min-h-0 absolute top-0 right-0 sm:static px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
           >
             <AlertTriangle className="w-4 h-4" />
             <span>Report</span>
@@ -377,7 +379,7 @@ export default function DeliveryHistoryPage() {
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
                 6. Notes / Instructions
               </div>
-              <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-12.5 leading-relaxed">
+              <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-tap.5 leading-relaxed">
                 {selectedDelivery.notes}
               </div>
             </div>
@@ -393,7 +395,7 @@ export default function DeliveryHistoryPage() {
             <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col gap-4 text-left max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between border-b pb-3">
                 <h3 className="text-lg font-bold text-slate-900">Report an Issue</h3>
-                <button onClick={() => setShowReportModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                <button onClick={() => setShowReportModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -472,13 +474,13 @@ export default function DeliveryHistoryPage() {
                   <div className="flex items-center gap-3 pt-2">
                     <button
                       onClick={() => setShowReportModal(false)}
-                      className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+                      className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSendReport}
-                      className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-black text-white font-semibold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+                      className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 hover:bg-black text-white font-semibold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
                     >
                       Submit Report
                     </button>
@@ -503,10 +505,7 @@ export default function DeliveryHistoryPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Delivery History
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            View all past delivery history records.
-          </p>
-        </div>
+          </div>
       </div>
 
       {/* Data Container Card */}
@@ -587,7 +586,7 @@ export default function DeliveryHistoryPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage === 1
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -600,7 +599,7 @@ export default function DeliveryHistoryPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage === totalPages || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"

@@ -20,10 +20,17 @@ import {
   Truck,
   User,
   UserCheck,
+  Users,
 } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { usePolling } from "@/app/lib/usePolling";
+import DeliveryFeedbackCard, { type FeedbackInvitation } from "@/components/DeliveryFeedbackCard";
+import type {
+  TrackingStage,
+  TrackingStep,
+  TrackingStepKind,
+} from "@/services/tracking/publicTrackingService";
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
@@ -32,23 +39,6 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-type TrackingStage = "completed" | "current" | "upcoming" | "problem";
-type TrackingStepKind =
-  | "booked"
-  | "assigned"
-  | "confirmed"
-  | "departed"
-  | "stop"
-  | "completed"
-  | "problem";
-
-interface TrackingStep {
-  title: string;
-  detail: string;
-  stage: TrackingStage;
-  kind: TrackingStepKind;
-  at?: string | null;
-}
 
 // What each step is about, so the line can be read without reading it.
 const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
@@ -59,6 +49,10 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
   stop: MapPin,
   completed: Flag,
   problem: AlertTriangle,
+  // A delay, not a fault. Deliberately not the warning triangle: the crew
+  // tapping "held up in traffic" is the system working, and drawing it as a
+  // problem would tell the customer something worse than what happened.
+  heldup: Clock,
 };
 
 // Done, happening, still to come, gone wrong - told apart by shape as much as
@@ -67,14 +61,14 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
 const STAGE_MARKS: Record<TrackingStage, string> = {
   completed: "bg-emerald-500 text-white ring-2 ring-white",
   current: "bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse",
-  upcoming: "bg-white text-slate-300 ring-2 ring-slate-200",
+  upcoming: "bg-white text-slate-500 ring-2 ring-slate-200",
   problem: "bg-red-600 text-white ring-2 ring-white",
 };
 
 const STAGE_TITLES: Record<TrackingStage, string> = {
   completed: "text-slate-900",
   current: "text-blue-700 font-semibold",
-  upcoming: "text-slate-400",
+  upcoming: "text-slate-500",
   problem: "text-red-700 font-semibold",
 };
 
@@ -105,18 +99,20 @@ interface TrackingData {
   truckModel: string | null;
   driverName: string | null;
   driverContact: string | null;
+  crewHelpers?: string[];
   currentLocation: { latitude: number; longitude: number; updatedAt: string | null } | null;
   trail: { latitude: number; longitude: number }[];
   plannedRoute: [number, number][];
   stops: TrackingStop[];
   steps: TrackingStep[];
+  feedback: FeedbackInvitation;
 }
 
 type LoadState = "loading" | "ready" | "expired" | "missing" | "error";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto min-h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
+    <div className="p-4 sm:p-6 md:p-8 pt-[calc(1rem+var(--safe-top))] pb-[calc(1rem+var(--safe-bottom))] w-full max-w-7xl mx-auto min-h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
       <div className="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
         {children}
       </div>
@@ -129,7 +125,7 @@ function Notice({ title, subtitle }: { title: string; subtitle: string }) {
     <div className="flex-1 bg-white flex flex-col items-center justify-center p-8 sm:p-12 min-h-100 text-center">
       <div className="bg-black text-white px-6 py-4 rounded-xl shadow-md max-w-md w-full flex flex-col gap-1 items-center">
         <p className="text-sm sm:text-base font-semibold tracking-tight">{title}</p>
-        <p className="text-xs text-slate-400">{subtitle}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
     </div>
   );
@@ -273,13 +269,18 @@ function ClientTrackerView() {
   const latest = [...data.steps].reverse().find((step) => step.stage === "problem" || step.stage === "current")
     ?? [...data.steps].reverse().find((step) => step.stage === "completed");
 
-  // Prefer the live driving estimate; fall back to the scheduled window.
+  // Prefer the live driving estimate; fall back to the booked window.
+  //
+  // The two are different claims and used to be worded as though they were the
+  // same one. A live estimate is where the truck actually is; the booked time is
+  // what was promised when the delivery was arranged, and saying "estimated"
+  // about it invited the reading that somebody had just worked it out.
   const headline = data.isCompleted
     ? "Delivery Completed"
     : data.liveEta
       ? `Arriving in about ${data.liveEta.minutes} min (${data.liveEta.arrivalTime})`
       : data.estimatedArrival
-        ? `Estimated Arrival by ${data.estimatedArrival}`
+        ? `Scheduled arrival by ${data.estimatedArrival}`
         : data.deliveryStatus;
 
   return (
@@ -333,6 +334,15 @@ function ClientTrackerView() {
             )}
           </div>
 
+          {/* Asked only once the delivery is finished, and only once. */}
+          {data.feedback?.invited && (
+            <DeliveryFeedbackCard
+              token={token}
+              invitation={data.feedback}
+              onSaved={() => void loadTracking()}
+            />
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Booking Details Card */}
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col gap-4">
@@ -348,13 +358,18 @@ function ClientTrackerView() {
                   <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
                     <Truck className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs font-medium text-slate-500">Truck / Plate No.</div>
+                    {/* The plate leads. It is what somebody at the gate matches
+                        against the truck in front of them; the model is how they
+                        know which one to look for. They used to be one line
+                        joined by a dash, which reads as a single name. */}
                     <div className="text-sm font-medium text-slate-900">
-                      {data.plateNumber
-                        ? [data.truckModel, data.plateNumber].filter(Boolean).join(" - ")
-                        : "Not yet assigned"}
+                      {data.plateNumber ?? "Not yet assigned"}
                     </div>
+                    {data.plateNumber && data.truckModel ? (
+                      <div className="text-xs text-slate-600">{data.truckModel}</div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -362,15 +377,46 @@ function ClientTrackerView() {
                   <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
                     <User className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs font-medium text-slate-500">Driver</div>
                     <div className="text-sm font-medium text-slate-900">
-                      {data.driverName
-                        ? [data.driverName, data.driverContact].filter(Boolean).join(" - ")
-                        : "Not yet assigned"}
+                      {data.driverName ?? "Not yet assigned"}
                     </div>
+                    {/* Its own line, and dialable. "Audrey Valencia - 09242450563"
+                        reads as one run of text and cannot be tapped, on a page
+                        most often opened on a phone by somebody who wants to
+                        ring the driver. */}
+                    {data.driverName && data.driverContact ? (
+                      <a
+                        href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        {data.driverContact}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
+
+                {/* Who else is coming. Named so the customer can recognise
+                    whoever gets out of the truck, which is why the driver is
+                    named too - and with no number, because the driver is the one
+                    to ring and a second number on a public page is a second
+                    number on a public page. */}
+                {(data.crewHelpers ?? []).length > 0 && (
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-slate-500">
+                        {(data.crewHelpers ?? []).length === 1 ? "Helper" : "Helpers"}
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {(data.crewHelpers ?? []).join(", ")}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {(data.clientEmail || data.clientContact) && (
                   <div className="flex items-start gap-3">
@@ -383,7 +429,7 @@ function ClientTrackerView() {
                       <div className="text-xs text-slate-600">
                         {[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}
                       </div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-500">
                         Partly hidden. Contact your coordinator if these are not yours.
                       </div>
                     </div>
@@ -487,7 +533,7 @@ function ClientTrackerView() {
                           {step.detail}
                         </span>
                         {step.at && (
-                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-400">
+                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-500">
                             {formatDateTime(step.at)}
                           </span>
                         )}

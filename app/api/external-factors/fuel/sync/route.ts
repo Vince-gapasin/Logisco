@@ -4,15 +4,31 @@ import { synchronizeLatestFuelPrice } from "@/services/externalFactors/fuelPrice
 
 export const runtime = "nodejs";
 
+/**
+ * The weekly schedule, with the same shared secret the stall check uses.
+ *
+ * This endpoint existed but nothing ever called it: vercel.json schedules only
+ * the monthly forecasting job, so DOE prices were updated by hand or not at all
+ * and the newest row was 27 days old. A price that stale is quietly wrong in
+ * every fuel cost computed from it.
+ */
+function fromTheSchedule(request: Request): boolean {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) return false;
+  return request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth(request);
+    if (!fromTheSchedule(request)) {
+      const auth = await requireAuth(request);
 
-    if ("error" in auth) {
-      return NextResponse.json(
-        { message: auth.error },
-        { status: auth.status },
-      );
+      if ("error" in auth) {
+        return NextResponse.json(
+          { message: auth.error },
+          { status: auth.status },
+        );
+      }
     }
 
     const result = await synchronizeLatestFuelPrice();

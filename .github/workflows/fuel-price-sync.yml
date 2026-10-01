@@ -1,0 +1,59 @@
+name: Sync DOE fuel prices
+
+# Asks the deployment to fetch this week's DOE fuel price.
+#
+# The endpoint has existed all along and nothing ever called it. vercel.json
+# schedules only the monthly forecasting job, so the newest price on record was
+# 27 days old - and a stale price is quietly wrong in every fuel cost computed
+# from it, including whatever the forecasting model does with it.
+#
+# The DOE publishes its weekly advisory on Tuesdays. This runs Tuesday and again
+# Wednesday, because a schedule that gets one chance a week and misses it waits
+# seven days to try again. The sync is idempotent - it reports
+# "already synchronized" rather than writing twice.
+#
+# Same arrangement as the stall check: GitHub rather than Vercel cron, because
+# the Hobby plan runs cron once a day, and this repository is public so
+# scheduled workflows cost nothing.
+
+on:
+  schedule:
+    # 09:00 and 13:00 Manila (01:00 and 05:00 UTC), Tuesday and Wednesday.
+    - cron: "0 1,5 * * 2,3"
+  workflow_dispatch:
+
+concurrency:
+  group: fuel-price-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ask the deployment
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://logisco-system.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::No CRON_SECRET secret, so the scheduled sync cannot authenticate. Add it in Settings > Secrets > Actions, with the same value as the deployment's."
+            exit 0
+          fi
+
+          response=$(curl -sS -X POST -H "Content-Length: 0" -w '\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/external-factors/fuel/sync")
+
+          status=$(printf '%s' "$response" | tail -n 1)
+          body=$(printf '%s' "$response" | sed '$d')
+
+          echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::The fuel sync answered $status"
+            exit 1
+          fi
+
+          printf '%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"

@@ -275,7 +275,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                     {startsGroup && (
                       <li
                         role="presentation"
-                        className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400"
+                        className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
                       >
                         {group.label}
                       </li>
@@ -288,7 +288,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => go(result)}
                       onMouseMove={() => active !== index && setActive(index)}
-                      className={`mx-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 py-2 ${
+                      className={`mx-1 flex min-h-tap cursor-pointer items-center gap-3 rounded-lg px-2 py-2 ${
                         selected ? "bg-blue-50" : "hover:bg-slate-50"
                       }`}
                     >
@@ -308,7 +308,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                         </span>
                       </span>
                       {selected && (
-                        <CornerDownLeft aria-hidden className="hidden sm:block w-4 h-4 shrink-0 text-slate-400" />
+                        <CornerDownLeft aria-hidden className="hidden sm:block w-4 h-4 shrink-0 text-slate-500" />
                       )}
                     </li>
                   </React.Fragment>
@@ -323,7 +323,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
             )}
 
             {results.length > 0 && (
-              <div className="hidden sm:flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-2 text-[11px] text-slate-400">
+              <div className="hidden sm:flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
                 <span>↑↓ to move</span>
                 <span>Enter to open</span>
                 <span>Esc to close</span>

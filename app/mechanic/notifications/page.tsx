@@ -187,7 +187,7 @@ export default function MechanicNotificationsPage() {
                     >
                       {notif.title}
                     </h3>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
                       <Clock className="w-3.5 h-3.5" />
                       {notif.time}
                     </div>
@@ -227,7 +227,7 @@ export default function MechanicNotificationsPage() {
               </h2>
               <button
                 onClick={closeNotificationDetails}
-                className={`p-1.5 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer ${
+                className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer ${
                   selectedNotification.type === "warning"
                     ? "hover:bg-red-700"
                     : "hover:bg-slate-800"
@@ -285,7 +285,7 @@ export default function MechanicNotificationsPage() {
                   {!selectedNotification.isDone && (
                     <button
                       onClick={() => setIsConfirmingDone(true)}
-                      className="shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                      className="min-h-tap md:min-h-0 inline-flex items-center justify-center shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                     >
                       Mark as Done
                     </button>

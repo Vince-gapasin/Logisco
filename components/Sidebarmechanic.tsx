@@ -6,6 +6,7 @@
 import { releasePushToken } from "@/components/PushNotifications";
 
 import React, { useState } from "react";
+import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -24,6 +25,8 @@ interface SidebarProps {
 }
 
 export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
+  const user = useSessionUser();
+
   const pathname = usePathname();
   const router = useRouter();
 
@@ -70,7 +73,7 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
 
       {/* THE SIDEBAR ASIDE */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -83,7 +86,7 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
         {/* X Close Button */}
         <button
           onClick={() => setIsOpen(false)}
-          className="absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
           aria-label="Close Menu"
         >
           <X className="w-5 h-5" />
@@ -92,18 +95,31 @@ export default function SidebarMechanic({ isOpen, setIsOpen }: SidebarProps) {
         {/* Refined User Profile Section */}
         <div className="relative z-10 flex flex-col items-center justify-center py-8 border-b border-slate-950 mt-6 px-4 text-center">
           <div className="w-18 h-18 bg-black border border-slate-900 rounded-2xl mb-3 overflow-hidden shadow-inner flex items-center justify-center">
+            {/* Seeded from whoever is actually signed in. It used to be a name
+                in the markup, so every mechanic drew the same initials. */}
             <img
-              src="https://api.dicebear.com/7.x/initials/svg?seed=JD"
-              alt="Mechanic Profile"
+              src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.name ?? "?")}`}
+              alt=""
               className="w-full h-full object-cover bg-slate-200"
             />
           </div>
-          <h2 className="font-bold text-base tracking-wide text-[#f0f4ff]">
-            JUAN DELA CRUZ
-          </h2>
-          <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
-            MECHANIC
-          </p>
+          {user ? (
+            <>
+              <h2 className="font-bold text-base tracking-wide text-[#f0f4ff] wrap-break-word">
+                {user.name.toUpperCase()}
+              </h2>
+              <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
+                {describeRole(user.role).toUpperCase()}
+              </p>
+            </>
+          ) : (
+            // Until the browser has been read. A blank where the name goes is
+            // better than a name belonging to nobody.
+            <div aria-hidden="true" className="flex flex-col items-center gap-2">
+              <div className="h-4 w-32 rounded bg-slate-800" />
+              <div className="h-2.5 w-20 rounded bg-slate-900" />
+            </div>
+          )}
         </div>
 
         {/* Navigation Menu */}

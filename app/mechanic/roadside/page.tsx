@@ -140,24 +140,24 @@ function JobCard({ job, onReported }: { job: IncidentView; onReported: (message:
                 href={mapsLink(job.latitude!, job.longitude!)}
                 target="_blank"
                 rel="noreferrer"
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+                className="flex min-h-tap items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
               >
                 <Navigation className="h-4 w-4" /> Directions to the truck
               </a>
             ) : (
-              <p className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs text-slate-500">
+              <p className="flex min-h-tap items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs text-slate-500">
                 <MapPin className="h-4 w-4 shrink-0" /> No location was sent. Call the crew for directions.
               </p>
             )}
             {job.reporterContact ? (
               <a
                 href={`tel:${job.reporterContact}`}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50"
+                className="flex min-h-tap items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50"
               >
                 <Phone className="h-4 w-4" /> Call {job.reporterName ?? "the crew"}
               </a>
             ) : (
-              <p className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs text-slate-500">
+              <p className="flex min-h-tap items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs text-slate-500">
                 <Phone className="h-4 w-4 shrink-0" /> No contact number on file for {job.reporterName ?? "the crew"}.
               </p>
             )}
@@ -182,7 +182,7 @@ function JobCard({ job, onReported }: { job: IncidentView; onReported: (message:
                 type="button"
                 onClick={() => report("fixed")}
                 disabled={sending !== null}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="flex min-h-tap items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 {sending === "fixed" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 Fixed – trip can continue
@@ -191,7 +191,7 @@ function JobCard({ job, onReported }: { job: IncidentView; onReported: (message:
                 type="button"
                 onClick={() => report("not_fixable")}
                 disabled={sending !== null}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                className="flex min-h-tap items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
               >
                 {sending === "not_fixable" ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                 Can&apos;t fix it here
@@ -242,13 +242,12 @@ export default function RoadsideJobsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-blue-600" /> Roadside Jobs
           </h1>
-          <p className="text-sm text-slate-600 mt-1">Trucks that broke down on a delivery, waiting for you.</p>
-        </div>
+          </div>
         <button
           type="button"
           onClick={() => void load()}
           aria-label="Refresh"
-          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          className="min-w-tap min-h-tap inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
         >
           <RefreshCw className="w-4 h-4" />
         </button>

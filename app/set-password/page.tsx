@@ -28,7 +28,7 @@ const Requirement = ({
         className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
           valid
             ? "bg-green-100 text-green-600"
-            : "bg-slate-100 text-slate-400"
+            : "bg-slate-100 text-slate-500"
         }`}
       >
         {valid ? "✓" : "•"}
@@ -464,7 +464,7 @@ const handleSubmit = async (
 
   if (isCheckingSession) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10 flex items-center justify-center">
+      <main className="min-h-screen bg-slate-50 px-4 py-10 pt-[calc(2.5rem+var(--safe-top))] pb-[calc(2.5rem+var(--safe-bottom))] flex items-center justify-center">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <h1 className="text-xl font-bold text-slate-900">
             Verifying Invitation
@@ -483,7 +483,7 @@ const handleSubmit = async (
   // ==========================================
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 flex items-center justify-center">
+    <main className="min-h-screen bg-slate-50 px-4 py-10 pt-[calc(2.5rem+var(--safe-top))] pb-[calc(2.5rem+var(--safe-bottom))] flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
 

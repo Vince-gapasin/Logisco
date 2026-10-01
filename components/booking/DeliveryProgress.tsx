@@ -39,7 +39,7 @@ export default function DeliveryProgress({ currentStatus, finished = false }: De
           const isCompleted = finished ? index <= currentIndex : index < currentIndex;
           const isActive = !finished && index === currentIndex;
 
-          let iconBg = "bg-slate-200 text-slate-400 border-slate-200";
+          let iconBg = "bg-slate-200 text-slate-500 border-slate-200";
           if (isCompleted) iconBg = "bg-blue-500 text-white border-blue-500";
           if (isActive)
             iconBg =
@@ -62,7 +62,7 @@ export default function DeliveryProgress({ currentStatus, finished = false }: De
                 )}
               </div>
               <span
-                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-blue-700" : isCompleted ? "text-slate-700" : "text-slate-400"}`}
+                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-blue-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
               >
                 {stage}
               </span>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,25 @@ export const metadata: Metadata = {
     template: "%s | Logisco",
   },
   description: "Logistics management for bookings, dispatch, fleet and delivery tracking.",
+};
+
+// The Android shell targets SDK 36, where edge-to-edge is not a choice: the
+// WebView is laid out behind the status bar and the navigation bar, and Android
+// 16 removed the flag that used to opt out. Declaring viewport-fit=cover is
+// what makes env(safe-area-inset-*) report the real numbers instead of zero -
+// globals.css reads them as --safe-top and --safe-bottom, and the app shells,
+// the header, the sidebars and the toasts pad themselves with them.
+//
+// Next supplies width=device-width, initial-scale=1 by default; both are
+// repeated here because declaring one field of the viewport replaces the lot.
+//
+// Deliberately no maximumScale and no userScalable: locking out pinch zoom
+// fails WCAG 1.4.4, and a warehouse in daylight is exactly where somebody
+// needs to zoom.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

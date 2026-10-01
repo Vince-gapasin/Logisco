@@ -1,11 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { formatDateTime, formatTime } from "@/app/lib/datetime";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
-import type { FeedStopRow, OrderWithRelations } from "@/app/lib/bookingView";
+import {
+  mapOrderToBookingView,
+  toFeedBooking,
+  type OrderWithRelations,
+} from "@/app/lib/bookingView";
+import BookingHistoryPanel from "@/components/booking/BookingHistoryPanel";
+import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
+import DeliveryProgress from "@/components/booking/DeliveryProgress";
+import {
+  AssignedCrew,
+  BookingNotes,
+  BookingSchedule,
+  ClientInformation,
+} from "@/components/booking/BookingReadOnly";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
@@ -18,11 +30,9 @@ import {
   CheckCircle2,
   Calendar,
   Loader2,
-  Clock,
-  Truck,
-  AlertTriangle,
   X,
   Search,
+  History,
 } from "lucide-react";
 
 // ==========================================
@@ -71,530 +81,162 @@ export interface ReportRecord {
 // VIEW BOOKING MODAL (READ-ONLY) - REUSED FROM DASHBOARD
 // ==========================================
 
-interface StopProofRow {
-  podID: string;
-  proof: string | null;
-  receiverName: string | null;
-  remarks: string | null;
-  deliveredAt: string | null;
-  source: string | null;
-  missingReason: string | null;
-  fileType: string | null;
-}
-interface StopWithProofs {
-  branchName?: string | null;
-  POD?: StopProofRow[];
-}
+// The proof shapes live with the component that renders them, in
+// components/booking/StopProofList.tsx - copies of them here were how this screen
+// and the dashboard drifted apart in the first place.
 
+// The same booking record the delivery feeds show.
+//
+// This screen had its own modal: six hand-written sections that had drifted from
+// the ones the feeds use - a different header, no progress tracker, no history,
+// and an unnumbered proof card wedged into the middle of the sequence. So the
+// same booking read differently depending on which screen you opened it from.
+//
+// It is composed from the shared sections now, in the same order, from the same
+// mapper. Whatever those sections gain, this gains, and neither can drift from
+// the other again.
 function ViewOrderModal({
   isOpen,
   onClose,
   order,
+  onOpenHistory,
 }: {
   isOpen: boolean;
   onClose: () => void;
   order: ReportRecord | null;
+  /**
+   * Takes the booking's real ID, which this modal has and its caller does not:
+   * ReportRecord.id is the order code, and the history endpoint wants the UUID.
+   */
+  onOpenHistory: (orderID: string) => void;
 }) {
+  const crewSectionRef = useRef<HTMLDivElement | null>(null);
+
   if (!isOpen || !order) return null;
 
-  const raw = order.rawOrder || {};
-  const notes = raw.notes || "";
-  const category = order.status || "Pending Bookings";
-  const isPending = category === "Pending Bookings" || category === "Pending";
+  // Through the same two mappers the feeds use, so the sections receive exactly
+  // what they receive there.
+  const view = mapOrderToBookingView((order.rawOrder ?? {}) as OrderWithRelations);
+  const booking = toFeedBooking(view);
 
-  const clientInfo = (Array.isArray(raw.Client) ? raw.Client[0] : raw.Client) ?? {};
-  const cName =
-    clientInfo.company || notes.match(/Name:\s*(.*)/)?.[1] || order.client || "Walk-in Customer";
-  const cPerson = clientInfo.contactName || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "N/A";
-  const cNum = clientInfo.contact || notes.match(/\((.*?)\)/)?.[1] || "N/A";
-  const cEmail = clientInfo.emailAdd || "N/A";
-  const cAddr = clientInfo.businessAdd || "N/A";
-
-  const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
-  const reqDate =
-    notes.match(/Request Date:\s*(.*)/)?.[1] ||
-    (raw.createdAt ? new Date(raw.createdAt).toLocaleDateString() : "N/A");
-  const delSchedule =
-    notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || order.date || "N/A";
-
-  const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
-  const pickupParts = pickupLine.split(" @ ");
-  // Prefer the PickupStops row; the notes line is what bookings made before
-  // that table existed still carry.
-  const pickupRows = Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : [];
-  const firstPickup = pickupRows[0];
-  const pickupAddr =
-    firstPickup?.pickupAddress ||
-    firstPickup?.warehouseName ||
-    pickupParts[0]?.trim() ||
-    "N/A";
-  const pickupTime = firstPickup?.expectedTime
-    ? formatTime(String(firstPickup.expectedTime))
-    : pickupParts[1]?.trim() || "N/A";
-
-  const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : raw.DispatchOrder;
-
-  const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
-  const truck =
-    dispatchTruck?.plateNumber ||
-    notes.match(/Truck:\s*(.*)/)?.[1] ||
-    "Unassigned";
-  const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
-  const driver = dispatchDriver?.employeeName || notes.match(/Driver:\s*(.*)/)?.[1] || "Unassigned";
-
-  // Helpers come from their own rows. Helper1 and Helper2 were read as
-  // embeds on the trip, which no query has ever returned, so every helper
-  // name here came from the notes the booking form wrote.
-  const helperRows = Array.isArray(dispatchRecord?.DispatchHelper)
-    ? dispatchRecord.DispatchHelper
-    : dispatchRecord?.DispatchHelper
-      ? [dispatchRecord.DispatchHelper]
-      : [];
-  const helperNames = helperRows.map((row) => {
-    const person = Array.isArray(row?.Helper) ? row.Helper[0] : row?.Helper;
-    return person?.employeeName ?? "";
-  });
-
-  const h1 = helperNames[0] || notes.match(/Helper 1:\s*(.*)/)?.[1] || "None";
-  const h2 = helperNames[1] || notes.match(/Helper 2:\s*(.*)/)?.[1] || "None";
-
-  const actualNotesParts = notes.split("[NOTES]");
-  const actualNotes =
-    actualNotesParts.length > 1 ? actualNotesParts[1].trim() : "None";
-
-  const itemsArr = Array.isArray(raw.OrderDetails) ? raw.OrderDetails : raw.OrderDetails ? [raw.OrderDetails] : [];
-  const product = itemsArr[0]?.productName || "Multiple Items";
-  const quantity = itemsArr[0]?.quantity || 1;
-
-  const stopsArr = Array.isArray(raw.BranchStops) ? raw.BranchStops : raw.BranchStops ? [raw.BranchStops] : [];
-  const deliveries =
-    stopsArr.length > 0
-      ? stopsArr
-      : [
-          {
-            branchName: "N/A",
-            deliveryAddress: "N/A",
-            contactPerson: cPerson,
-            contactNum: cNum,
-            expectedTime: "N/A",
-            quantity: quantity,
-            stopStatus: "Pending",
-          },
-        ];
-
-  const inputClass =
-    "w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 cursor-default focus:outline-none";
-
-  const hasHelper = h1 !== "None" && h1 !== "N/A" && h1 !== "Unassigned";
-  const isCrewConfirmed = Boolean(
-    order.driverConfirmed && (!hasHelper || order.helperConfirmed),
-  );
-
-  const headerColors: Record<string, string> = {
-    "Pending Bookings": "bg-[#000c31] border-slate-800",
-    Pending: "bg-[#000c31] border-slate-800",
-    "In-Transit": "bg-blue-600 border-blue-800",
-    Completed: "bg-green-600 border-green-800",
-    Delivered: "bg-green-600 border-green-800",
-    "Foul Trip": "bg-red-600 border-red-800",
+  const fields: Record<string, string> = {
+    clientName: booking.clientName || "",
+    contactPerson: booking.contactPerson || "",
+    contactNumber: booking.contactNumber || "",
+    emailAddress: booking.emailAddress || "",
+    businessAddress: booking.businessAddress || "",
+    requestDate: booking.dateCreated || "",
+    deliverySchedule: booking.scheduledDate || "",
+    product: booking.product || "",
+    priorityLevel: booking.priorityLevel || "Standard",
+    subconPartner: booking.subconPartner || "",
+    truckPlate: booking.truckPlate === "Not Assigned" ? "" : booking.truckPlate,
+    driver: booking.driver === "Not Assigned" ? "" : booking.driver,
+    helper1: booking.crews?.find((member) => member.role === "Helper #1")?.name ?? "",
+    helper2: booking.crews?.find((member) => member.role === "Helper #2")?.name ?? "",
+    notes: booking.notes || "",
   };
-  const headerClass =
-    headerColors[category] || headerColors["Pending Bookings"];
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
-        <div
-          className={`flex items-center justify-between px-6 py-4 text-white border-b transition-colors ${headerClass}`}
-        >
-          <div>
-            <h2 className="text-xl font-bold text-white tracking-wide">
-              Booking Details: {order.orderId}
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
+        {/* HEADER */}
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2 wrap-break-word">
+              <FileText className="w-5 h-5 shrink-0" /> Booking Details: {booking.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Created on{" "}
-              {raw.createdAt
-                ? new Date(raw.createdAt).toLocaleString()
-                : order.date}
+              Status: {booking.status} | {booking.confirmationStatus}
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
+            aria-label="Close"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
-          <div
-            className={`px-4 py-3 rounded-xl mb-6 flex items-center gap-2 text-sm font-bold shadow-sm border ${
-              isPending && !isCrewConfirmed
-                ? "bg-amber-50 border-amber-200 text-amber-800"
-                : category === "In-Transit"
-                  ? "bg-blue-50 border-blue-200 text-blue-800"
-                  : category === "Completed" || category === "Delivered"
-                    ? "bg-green-50 border-green-200 text-green-800"
-                    : category === "Foul Trip"
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-orange-50 border-orange-200 text-orange-800"
-            }`}
-          >
-            {isPending && !isCrewConfirmed ? (
-              <>
-                <Clock className="w-5 h-5 text-amber-600" /> Waiting for Crew
-                Confirmation
-              </>
-            ) : category === "In-Transit" ? (
-              <>
-                <Truck className="w-5 h-5 text-blue-600" /> Currently In-Transit
-              </>
-            ) : category === "Completed" || category === "Delivered" ? (
-              <>
-                <CheckCircle2 className="w-5 h-5 text-green-600" /> Delivery
-                Completed
-              </>
-            ) : category === "Foul Trip" ? (
-              <>
-                <AlertTriangle className="w-5 h-5 text-red-600" /> Foul Trip /
-                Cancelled
-              </>
-            ) : (
-              <>
-                <Clock className="w-5 h-5 text-orange-600" /> Crew Confirmed -
-                Awaiting Dispatch
-              </>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                1. Client Information
+        {/* SCROLLABLE BODY */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-900">
+          <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
+              <div>
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                  Date Created
+                </p>
+                <p className="text-xs font-bold text-slate-800">{booking.dateCreated}</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Company Name
-                  </label>
-                  <input readOnly value={cName} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Contact Person
-                  </label>
-                  <input readOnly value={cPerson} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Contact Number
-                  </label>
-                  <input readOnly value={cNum} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Email Address
-                  </label>
-                  <input readOnly value={cEmail} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Business Address
-                  </label>
-                  <input readOnly value={cAddr} className={inputClass} />
-                </div>
+              <div>
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                  Created By
+                </p>
+                <p className="text-xs font-bold text-slate-800">{booking.createdBy}</p>
+              </div>
+              <div>
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                  Order Priority
+                </p>
+                <span
+                  className={`inline-flex px-2 py-0.5 rounded font-bold text-xs sm:text-[10px] uppercase tracking-wider ${
+                    booking.priorityLevel === "High Priority" || booking.priorityLevel === "Urgent"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {booking.priorityLevel}
+                </span>
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                2. Pickup Address
-              </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                        Warehouse Name
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[25%]">
-                        Address
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                        Contact Person
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                        Contact Number
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[12%]">
-                        Pick Up Time
-                      </th>
-                      <th className="p-2.5 text-center">Quantity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-slate-200 font-medium text-slate-700">
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        Origin Location
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {pickupAddr}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {cPerson}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {cNum}
-                      </td>
-                      <td className="p-2 border-r border-slate-200 bg-slate-50">
-                        {pickupTime}
-                      </td>
-                      <td className="p-2 text-center bg-slate-50">
-                        {quantity}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                3. Delivery Itinerary & Status
-              </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                        Branch Name
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">
-                        Delivery Address
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                        Contact Person
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">
-                        Contact Number
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 w-[10%]">
-                        Expected Time
-                      </th>
-                      <th className="p-2.5 border-r border-slate-200 text-center w-[10%]">
-                        Quantity
-                      </th>
-                      <th className="p-2.5 text-center w-[10%]">Stop Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deliveries.map((d, idx) => {
-                      const st = d.stopStatus?.toLowerCase() || "pending";
-                      let badgeClass = "bg-orange-100 text-orange-700";
-                      if (st.includes("transit") || st.includes("progress"))
-                        badgeClass = "bg-blue-100 text-blue-700";
-                      if (st.includes("complete") || st.includes("delivered"))
-                        badgeClass = "bg-green-100 text-green-700";
-                      if (
-                        st.includes("fail") ||
-                        st.includes("foul") ||
-                        st.includes("cancel")
-                      )
-                        badgeClass = "bg-red-100 text-red-700";
-
-                      return (
-                        <tr
-                          key={idx}
-                          className="border-b border-slate-200 font-medium text-slate-700"
-                        >
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.branchName || "Branch"}
-                          </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.deliveryAddress || d.branchName || "N/A"}
-                          </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.contactPerson || cPerson}
-                          </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.contactNum || cNum}
-                          </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
-                            {d.expectedTime || "N/A"}
-                          </td>
-                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
-                            {d.quantity || quantity}
-                          </td>
-                          <td className="p-2 text-center bg-slate-50">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
-                            >
-                              {d.stopStatus || order.status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Proofs of delivery: what the crew photographed at each stop,
-                or what a coordinator recorded from a partner. */}
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                Proof of Delivery
-              </div>
-              {(() => {
-                const withProofs = (deliveries as StopWithProofs[]).filter((stop) => (stop.POD ?? []).length > 0);
-                const tripProof = dispatchRecord?.pod_url;
-
-                if (withProofs.length === 0 && !tripProof) {
-                  return <p className="text-xs text-slate-500">No proof of delivery has been recorded for this booking.</p>;
-                }
-
-                return (
-                  <div className="space-y-3">
-                    {withProofs.map((stop) =>
-                      (stop.POD ?? []).map((pod) => (
-                        <div key={pod.podID} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-900">{stop.branchName || "Stop"}</p>
-                            <p className="text-xs text-slate-600">
-                              {pod.deliveredAt ? formatDateTime(pod.deliveredAt) : ""}
-                              {pod.receiverName && pod.receiverName !== "N/A" ? ` - received by ${pod.receiverName}` : ""}
-                              {pod.source === "coordinator" ? " (recorded by a coordinator)" : ""}
-                            </p>
-                            {pod.remarks && <p className="text-xs text-slate-500">{pod.remarks}</p>}
-                            {!pod.proof && pod.missingReason && (
-                              <p className="text-xs text-amber-800">No file: {pod.missingReason}</p>
-                            )}
-                          </div>
-                          {pod.proof &&
-                            (/\.pdf(\?|$)/i.test(pod.proof) ? (
-                              <a href={pod.proof} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">
-                                View PDF
-                              </a>
-                            ) : (
-                              <a href={pod.proof} target="_blank" rel="noreferrer" className="shrink-0">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={pod.proof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
-                              </a>
-                            ))}
-                        </div>
-                      )),
-                    )}
-
-                    {/* Older trips kept one proof against the trip rather than a stop. */}
-                    {tripProof && withProofs.length === 0 && (
-                      <a href={tripProof} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:underline">
-                        {/\.pdf(\?|$)/i.test(tripProof) ? (
-                          "View proof of delivery (PDF)"
-                        ) : (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={tripProof} alt="Proof of delivery" className="h-14 w-14 rounded border border-slate-200 object-cover" />
-                            View proof of delivery
-                          </>
-                        )}
-                      </a>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                4. Booking Details & Schedule
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Request Date
-                  </label>
-                  <input readOnly value={reqDate} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Delivery Schedule
-                  </label>
-                  <input readOnly value={delSchedule} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Product To Deliver
-                  </label>
-                  <input readOnly value={product} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Priority Level
-                  </label>
-                  <input readOnly value={priority} className={inputClass} />
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                5. Assigned Delivery Crew & Vehicle
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Truck Plate No.
-                  </label>
-                  <input readOnly value={truck} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Driver
-                  </label>
-                  <input readOnly value={driver} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Helper #1
-                  </label>
-                  <input readOnly value={h1} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs sm:text-[11px] font-medium text-slate-500 mb-1">
-                    Helper #2
-                  </label>
-                  <input readOnly value={h2} className={inputClass} />
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                6. Notes / Instructions
-              </div>
-              <textarea
-                readOnly
-                rows={3}
-                value={actualNotes}
-                className="w-full resize-y bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none cursor-default"
-              />
+            <div className="w-full md:w-87.5 shrink-0">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
+                Delivery Progress
+              </h3>
+              <DeliveryProgress currentStatus={booking.status} />
             </div>
           </div>
+
+          <ClientInformation fields={fields} />
+
+          <BookingStopsReadOnly
+            pickups={booking.pickupList ?? []}
+            deliveries={booking.deliveryList ?? []}
+            showStatus
+            showEditNote={false}
+          />
+
+          <BookingSchedule fields={fields} scheduledFor={booking.displayDate} />
+
+          <AssignedCrew fields={fields} sectionRef={crewSectionRef} />
+
+          <BookingNotes notes={fields.notes} />
+
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50">
+        {/* FIXED FOOTER */}
+        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+          {/* What happened to this booking, and where its proofs are. It was
+              the seventh section of this modal, which meant scrolling past
+              everything else to reach the part most often wanted. Behind a
+              button, like the mechanic's repair history and the office's
+              maintenance history. */}
           <button
+            type="button"
+            onClick={() => onOpenHistory(booking.id)}
+            className="w-full sm:w-auto px-6 py-2.5 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+          >
+            <History className="w-4 h-4 shrink-0" />
+            History
+          </button>
+
+          <button
+            type="button"
             onClick={onClose}
-            className={`w-full sm:w-auto px-8 py-2.5 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer ${
-              category === "In-Transit"
-                ? "bg-blue-600 hover:bg-blue-700"
-                : category === "Completed" || category === "Delivered"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : category === "Foul Trip"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-[#000c31] hover:bg-slate-800"
-            }`}
+            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
             Close Details
           </button>
@@ -637,7 +279,7 @@ const FilterDropdown = ({
       >
         <span className="truncate pr-2">{value}</span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -650,7 +292,7 @@ const FilterDropdown = ({
                 setValue(opt);
                 setActiveDropdown(null);
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
+              className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
                 value === opt
                   ? "bg-blue-50 text-blue-600 font-medium"
                   : "text-slate-700"
@@ -724,7 +366,7 @@ const MultiSelectDropdown = ({
               : `${selectedValues.length} Selected`}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -737,9 +379,9 @@ const MultiSelectDropdown = ({
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
             </div>
           </div>
           <div className="overflow-y-auto flex-1 p-1">
@@ -801,6 +443,9 @@ export default function ReportsForecastingPage() {
 
   // Modal State for Booking details view
   const [selectedOrderForView, setSelectedOrderForView] = useState<ReportRecord | null>(null);
+  const [historyFor, setHistoryFor] = useState<
+    { orderID: string; orderCode: string; client: string } | null
+  >(null);
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false);
 
   // Pagination States
@@ -1140,6 +785,20 @@ export default function ReportsForecastingPage() {
     }
   };
 
+  // Its own screen rather than a panel inside the record, which is how the
+  // mechanic's module does it and what the office asked the truck history to
+  // match. Three lists behind a History button now, all the same shape.
+  if (historyFor) {
+    return (
+      <BookingHistoryPanel
+        orderID={historyFor.orderID}
+        orderCode={historyFor.orderCode}
+        clientName={historyFor.client}
+        onBack={() => setHistoryFor(null)}
+      />
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       <div className="space-y-6">
@@ -1149,10 +808,7 @@ export default function ReportsForecastingPage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Reports Dashboard
             </h1>
-            <p className="text-sm text-slate-700 mt-1">
-              View delivery performance reports and analyze historical records.
-            </p>
-          </div>
+            </div>
 
           {/* Action Button: */}
           <div className="w-full sm:w-auto">
@@ -1178,7 +834,7 @@ export default function ReportsForecastingPage() {
             role="tab"
             aria-selected={view === id}
             onClick={() => setView(id)}
-            className={`min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+            className={`min-h-tap md:min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
           >
             {title}
           </button>
@@ -1418,7 +1074,7 @@ export default function ReportsForecastingPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Previous
             </button>
@@ -1430,7 +1086,7 @@ export default function ReportsForecastingPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Next
             </button>
@@ -1446,7 +1102,15 @@ export default function ReportsForecastingPage() {
         isOpen={isViewOrderModalOpen}
         onClose={() => setIsViewOrderModalOpen(false)}
         order={selectedOrderForView}
+        onOpenHistory={(orderID) =>
+          setHistoryFor({
+            orderID,
+            orderCode: selectedOrderForView?.orderId ?? "",
+            client: selectedOrderForView?.client ?? "",
+          })
+        }
       />
+
     </div>
   );
 }

@@ -6,7 +6,10 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
+import { announceMissingProof } from "@/services/dispatch/crewUpdateService";
 import {
+  crewNotReadyReason,
+  crewReadinessFor,
   getCrewAssignment,
   isUuid,
   releaseDispatchResources,
@@ -19,9 +22,21 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     DELIVERY_STATUS.assigned,
     DELIVERY_STATUS.accepted,
     DELIVERY_STATUS.inTransit,
+    // A crew who reported arriving at a stop are in "Arrived" until they finish
+    // it. Without this the finish was refused as an illegal transition, and the
+    // arrival tap would have bricked the trip one stop in.
+    DELIVERY_STATUS.arrived,
   ],
-  [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit],
+  [DELIVERY_STATUS.completed]: [DELIVERY_STATUS.inTransit, DELIVERY_STATUS.arrived],
 };
+
+// The statuses a trip is still in before it has left, where the whole crew
+// having accepted is a precondition rather than a formality.
+const STARTING_OUT: string[] = [
+  DELIVERY_STATUS.pending,
+  DELIVERY_STATUS.assigned,
+  DELIVERY_STATUS.accepted,
+];
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
 
@@ -111,6 +126,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Nobody leaves until the whole crew has agreed to go.
+    //
+    // The driver accepting set the dispatch to Accepted, and the start button
+    // looked at nothing else - so a helper who had never answered was no
+    // obstacle, and a two-person job could leave with one person on it. The
+    // office found out at the warehouse.
+    //
+    // Only checked at the start. Once the truck is rolling, refusing to record
+    // a delivery that has already happened because of a row somebody never
+    // answered would lose the proof rather than the crew.
+    if (status === DELIVERY_STATUS.inTransit && STARTING_OUT.includes(current.status)) {
+      const readiness = (await crewReadinessFor([dispatchID])).get(dispatchID);
+      const blocked = readiness
+        ? crewNotReadyReason(readiness, { isDriver: assignment.isDriver })
+        : null;
+      if (blocked) {
+        return NextResponse.json({ message: blocked }, { status: 409 });
+      }
+    }
+
     // The stop being completed must belong to this dispatch's order.
     let branchID: number | null = null;
     if (branchIDValue) {
@@ -143,6 +178,7 @@ export async function POST(request: Request) {
 
     let podUrl: string | null = null;
     let podPath: string | null = null;
+    let podFileType: string | null = null;
 
     // 3. Upload the proof-of-delivery photo, if any
     if (file && file.size > 0) {
@@ -171,14 +207,7 @@ export async function POST(request: Request) {
       podPath = fileName;
       podUrl = await signPodUrl(fileName);
 
-      const { error: podInsertError } = await supabase.from("POD").insert({
-        branchID,
-        proof: podPath,
-        receiverName: receiverName || "N/A",
-        remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
-      });
-
-      if (podInsertError) console.error("[Status API] POD Insert Error:", podInsertError);
+      podFileType = file.type || null;
     }
 
     // 4. Update DispatchOrder, appending crew remarks to the existing notes
@@ -189,7 +218,21 @@ export async function POST(request: Request) {
       updatePayload.dispatchNote =
         `${current.dispatchNote || ""}\n[${title || "Update"}] ${received}Crew: ${remarks || "Arrived"}`;
     }
-    if (podPath) updatePayload.pod_url = podPath;
+    // Only the first, and only when the column is empty.
+    //
+    // This was assigned on every stop, so a four-stop delivery ended up with the
+    // last photograph and the three before it erased from the column. Nothing was
+    // lost from storage and nothing is lost now - every proof is a POD row with a
+    // dispatchID, a stop, a time and who recorded it, and both admin screens read
+    // the rows rather than this.
+    //
+    // It is deliberately not turned into a list. A second copy of the same set
+    // would be a second thing to keep in step, and the one that drifts is always
+    // the copy. What the column is for now is the trips recorded before the rows
+    // existed, which is why it is still read as a fallback - and writing the first
+    // proof keeps that fallback pointing somewhere for a trip whose rows are
+    // somehow missing.
+    if (podPath && !current.pod_url) updatePayload.pod_url = podPath;
     if (status === DELIVERY_STATUS.completed) updatePayload.completedAt = new Date().toISOString();
 
     // The pickup leg used to be recorded only as current_step = 1, which is
@@ -220,12 +263,30 @@ export async function POST(request: Request) {
     // forever even though the trip had moved on.
     const completedAt = new Date().toISOString();
 
+    // arrivedAt is no longer written here unless it is missing.
+    //
+    // It used to be set to completedAt on every stop, which made it a restatement
+    // of the finish time rather than a record of the arrival - so "arrived" and
+    // "delivered" were always the same instant and the time spent at a stop was
+    // unknowable. The crew now report the arrival themselves, from
+    // /api/crew/dispatches/arrive, and that is the timestamp worth keeping.
+    //
+    // The fallback stays for the stop that is finished without an arrival ever
+    // having been reported: a crew who tapped straight through, or a trip that
+    // was in flight when this shipped. Better a slightly late arrival time than a
+    // null one.
     if (branchID !== null) {
+      const { data: existing } = await supabase
+        .from("BranchStops")
+        .select("arrivedAt")
+        .eq("branchID", branchID)
+        .maybeSingle();
+
       const { error: stopErr } = await supabase
         .from("BranchStops")
         .update({
           stopStatus: STOP_STATUS.delivered,
-          arrivedAt: completedAt,
+          arrivedAt: (existing?.arrivedAt as string) ?? completedAt,
           completedAt,
         })
         .eq("branchID", branchID);
@@ -233,15 +294,65 @@ export async function POST(request: Request) {
     }
 
     if (pickupID !== null) {
+      const { data: existing } = await supabase
+        .from("PickupStops")
+        .select("arrivedAt")
+        .eq("pickupID", pickupID)
+        .maybeSingle();
+
       const { error: pickupErr } = await supabase
         .from("PickupStops")
         .update({
           stopStatus: STOP_STATUS.delivered,
-          arrivedAt: completedAt,
+          arrivedAt: (existing?.arrivedAt as string) ?? completedAt,
           completedAt,
         })
         .eq("pickupID", pickupID);
       if (pickupErr) console.error("[Status API] Pickup status update failed:", pickupErr.message);
+    }
+
+    // The proof of what happened at this stop.
+    //
+    // Three things were wrong with where this used to sit and what it wrote.
+    //
+    // It only wrote branchID. A pickup step sends pickupID and no branchID, so
+    // every warehouse proof went in attached to nothing - the crew photographed
+    // it, the file reached the bucket, and the record of it was unfindable. That
+    // is why a one-pickup one-drop booking showed one proof instead of two.
+    //
+    // It left dispatchID, deliveredAt, recordedBy and fileType null. Those
+    // columns were added for the coordinator path and this one was never brought
+    // up to them, which is why the report showed proofs with no date beside them -
+    // and why performanceService, which filters on deliveredAt, counted none of
+    // them at all.
+    //
+    // And it only ran when there was a file. A stop finished without a photograph
+    // left no row, so a report with nothing listed against a stop could mean "no
+    // proof was taken" or "this stop was never reached", and the two look
+    // identical. Now there is always a row, and an absent file says so in
+    // missingReason - which the report already knows how to show.
+    const stopProof: Record<string, unknown> = {
+      dispatchID,
+      branchID,
+      pickupID,
+      proof: podPath,
+      fileType: podFileType,
+      receiverName: receiverName || "N/A",
+      remarks: `[${title || "Location Update"}] ${remarks || "Uploaded via Crew App"}`,
+      deliveredAt: completedAt,
+      recordedBy: auth.employee.employeeID,
+      source: "crew",
+      missingReason: podPath ? null : "No photograph was taken at this stop",
+    };
+
+    // Only for the real stops. The departure and return steps are not places
+    // anything is handed over, and a proof row for them would be noise in a
+    // record that is meant to be auditable.
+    if (branchID !== null || pickupID !== null) {
+      const { error: podInsertError } = await supabase.from("POD").insert(stopProof);
+      if (podInsertError) {
+        console.error("[Status API] POD Insert Error:", podInsertError.message);
+      }
     }
 
     // A finished stop is one the truck is no longer driving to, so the route
@@ -269,6 +380,26 @@ export async function POST(request: Request) {
     // logged and retried if the crew app submits again.
     if (status === DELIVERY_STATUS.completed) {
       await releaseResources(dispatchID);
+    }
+
+    // Problems and the finish, and nothing in between.
+    //
+    // Every stop was announced for about an hour, which on a four-drop delivery
+    // is six notifications nobody asked for. Ordinary progress belongs on the
+    // fleet board, which recomputes it on every poll; the feed is for the things
+    // somebody may have to do something about.
+    //
+    // A stop closed with no photograph is one of those. It is the only stop
+    // event still announced, because it is the only one where the office can
+    // still act - the crew are standing there, and a phone call now is a proof
+    // recovered rather than a gap in the record found weeks later.
+    if ((branchID !== null || pickupID !== null) && !podPath) {
+      await announceMissingProof(
+        dispatchID,
+        (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
+        completedAt,
+        { employeeID: auth.employee.employeeID, employeeName: auth.employee.employeeName },
+      );
     }
 
     if (status === DELIVERY_STATUS.completed) {

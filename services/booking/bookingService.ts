@@ -53,7 +53,8 @@ const BOOKING_COLUMNS = `
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
   BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
-  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID ),
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
@@ -158,16 +159,27 @@ interface OrderLike {
   orderID?: string;
   DispatchOrder?: Embedded<DispatchLike>;
   BranchStops?: Embedded<StopLike>;
+  PickupStops?: Embedded<StopLike>;
   OrderDetails?: Embedded<{ itemID?: string; productName?: string }>;
 }
 
 async function withSignedProofs(orders: Order[]): Promise<Order[]> {
   const dispatches = orders.flatMap((order) => embedded((order as OrderLike).DispatchOrder));
-  const stopProofs = orders.flatMap((order) =>
-    embedded((order as OrderLike).BranchStops).flatMap((stop) =>
-      embedded(stop?.POD).filter((pod) => pod?.proof),
+  // Both halves of the itinerary. Signing only the branch stops would leave every
+  // warehouse proof rendering as a bare object path, which is a broken image on
+  // the report rather than a picture of a signed delivery note.
+  const stopProofs = [
+    ...orders.flatMap((order) =>
+      embedded((order as OrderLike).BranchStops).flatMap((stop) =>
+        embedded(stop?.POD).filter((pod) => pod?.proof),
+      ),
     ),
-  );
+    ...orders.flatMap((order) =>
+      embedded((order as OrderLike).PickupStops).flatMap((stop) =>
+        embedded(stop?.POD).filter((pod) => pod?.proof),
+      ),
+    ),
+  ];
 
   const withProof = dispatches.filter((dispatch) => dispatch.pod_url);
   if (withProof.length === 0 && stopProofs.length === 0) return orders;
@@ -323,7 +335,7 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), PickupStops (*),
+        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
         BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
@@ -440,8 +452,16 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   if (dto.priorityLevel !== undefined) notes = setNote(notes, "Priority", dto.priorityLevel);
   if (dto.notes !== undefined) notes = setNotesBody(notes, dto.notes);
 
-  if (notes !== order.notes) {
-    const { error: notesError } = await supabase.from("Order").update({ notes }).eq("orderID", orderID);
+  // The date goes to the column as well as the note. The note is what six
+  // screens still read; the column is what punctuality is decided on, and a
+  // scheduling fact deciding somebody's performance should not live one stray
+  // newline away from vanishing.
+  const changes: Record<string, unknown> = {};
+  if (notes !== order.notes) changes.notes = notes;
+  if (dto.deliverySchedule !== undefined) changes.deliverySchedule = dto.deliverySchedule || null;
+
+  if (Object.keys(changes).length > 0) {
+    const { error: notesError } = await supabase.from("Order").update(changes).eq("orderID", orderID);
     if (notesError) throw new Error(`Failed to save this booking: ${notesError.message}`);
   }
 
@@ -483,6 +503,17 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   };
 }
 
+/**
+ * The delivery date out of a notes blob, as a date the column will accept.
+ *
+ * Null for anything that is not a plain YYYY-MM-DD, rather than a guess: a
+ * wrong date here would silently decide that a stop was late.
+ */
+function scheduleDateIn(notes: string | null | undefined): string | null {
+  const raw = readNote(notes ?? "", "Delivery Schedule").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
 export async function createBooking(dto: CreateOrderDto) {
   // 1. Generate Unique Identifiers
   const orderCode = generateOrderCode();
@@ -497,6 +528,9 @@ export async function createBooking(dto: CreateOrderDto) {
         orderCode,
         orderLinkToken,
         notes: dto.notes || "",
+        // Lifted out of the blob the booking form builds, so the column is
+        // populated from the first save rather than only when somebody edits.
+        deliverySchedule: scheduleDateIn(dto.notes),
         isActive: true,
       },
     ])

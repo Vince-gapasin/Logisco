@@ -7,16 +7,21 @@
 import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import RowOpenButton from "@/components/RowOpenButton";
+import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
 import {
   Search,
   Truck,
   FileText,
   X,
   ArrowLeft,
+  History as HistoryIcon,
   Edit3,
   Trash2,
   AlertTriangle,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 
 import type {
@@ -54,6 +59,9 @@ export interface TruckRecord {
   capacity: string;
   lastChecked: string;
   status: string;
+  fuelTypeID: string;
+  /** Resolved name, so a list does not have to look up 36 ids. */
+  fuelTypeName: string;
 }
 
 function mapApiTruck(truck: ApiTruck): TruckRecord {
@@ -66,6 +74,11 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
     capacity: truck.capacity ? String(truck.capacity) : "",
     lastChecked: truck.lastChecked ? truck.lastChecked.split("T")[0] : "",
     status: truck.truckStatus || "Available",
+    fuelTypeID: truck.fuelTypeID || "",
+    // Blank when nothing is recorded rather than defaulting to diesel: the
+    // fuel a truck burns decides which price series its cost is drawn from,
+    // and a guess there is a wrong number that looks right.
+    fuelTypeName: truck.fuelType?.name || "",
   };
 }
 
@@ -96,9 +109,30 @@ function TruckModal({
     capacity: "",
     lastChecked: "",
     status: "Available",
+    fuelTypeID: "",
   };
 
   const [formData, setFormData] = useState(initialTruckState);
+  const [fuelTypes, setFuelTypes] = useState<{ fuelTypeID: string; name: string; unit: string }[]>([]);
+  const TRUCK_TYPES = [
+    "Closed Van",
+    "Wing Van",
+    "Dry Van",
+    "Refrigerated Truck",
+    "Boom Truck",
+    "Flatbed Truck",
+    "Dump Truck",
+    "Trailer Truck",
+    "Tanker Truck",
+    "Pickup Truck",
+    "Others",
+  ];
+
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+  const [isFuelDropdownOpen, setIsFuelDropdownOpen] = useState(false);
+
+  // The button shows the chosen fuel by name; the form still stores its id.
+  const selectedFuelName = fuelTypes.find((fuel) => fuel.fuelTypeID === formData.fuelTypeID)?.name ?? "";
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -113,6 +147,7 @@ function TruckModal({
         capacity: editData.capacity,
         lastChecked: editData.lastChecked,
         status: editData.status,
+        fuelTypeID: editData.fuelTypeID,
       });
     } else {
       setFormData(initialTruckState);
@@ -120,6 +155,17 @@ function TruckModal({
     setErrors({});
   }, [editData, isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // The fuels this form may offer. Only the active ones come back, so a retired
+  // fuel is never offered again while the trucks already on it keep their name.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    void apiFetch<{ data: { fuelTypeID: string; name: string; unit: string }[] }>("/api/fuel-types")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      .then((result) => setFuelTypes(result.data ?? []))
+      .catch(() => setFuelTypes([]));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -130,7 +176,9 @@ function TruckModal({
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    e:
+      | React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+      | { target: { name: string; value: string } },
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -177,7 +225,7 @@ function TruckModal({
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -212,36 +260,98 @@ function TruckModal({
                 )}
               </div>
 
+              {/* Both of these are the dropdown the mechanic fleet screen
+                  already uses: a button and a panel rather than a native
+                  select, so the two fleet forms look and behave alike. */}
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
                   Type of Truck *
                 </label>
-                <select
-                  name="truckType"
-                  value={formData.truckType}
-                  onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs"
+                <div
+                  className={`relative w-full ${isTypeDropdownOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <option value="" disabled>
-                    Select truck type
-                  </option>
-                  <option value="Closed Van">Closed Van</option>
-                  <option value="Wing Van">Wing Van</option>
-                  <option value="Dry Van">Dry Van</option>
-                  <option value="Refrigerated Truck">Refrigerated Truck</option>
-                  <option value="Boom Truck">Boom Truck</option>
-                  <option value="Flatbed Truck">Flatbed Truck</option>
-                  <option value="Dump Truck">Dump Truck</option>
-                  <option value="Trailer Truck">Trailer Truck</option>
-                  <option value="Tanker Truck">Tanker Truck</option>
-                  <option value="Pickup Truck">Pickup Truck</option>
-                  <option value="Others">Others</option>
-                </select>
+                  {isTypeDropdownOpen && (
+                    <div className="fixed inset-0 z-40" onClick={() => setIsTypeDropdownOpen(false)} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
+                    className={`w-full bg-white border rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                  >
+                    <span className={formData.truckType ? "text-black" : "text-slate-500"}>
+                      {formData.truckType || "Select truck type"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${isTypeDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isTypeDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {TRUCK_TYPES.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({ target: { name: "truckType", value: opt } });
+                            setIsTypeDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 min-h-tap sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {errors.truckType && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.truckType}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Fuel Type
+                </label>
+                <div
+                  className={`relative w-full ${isFuelDropdownOpen ? "z-70" : "z-10"}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {isFuelDropdownOpen && (
+                    <div className="fixed inset-0 z-40" onClick={() => setIsFuelDropdownOpen(false)} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsFuelDropdownOpen(!isFuelDropdownOpen)}
+                    className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 min-h-tap sm:min-h-0 text-xs font-normal text-black flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all"
+                  >
+                    <span className={selectedFuelName ? "text-black" : "text-slate-500"}>
+                      {selectedFuelName || "Select fuel type"}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 shrink-0 transition-transform ${isFuelDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isFuelDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-60 py-1 max-h-48 overflow-y-auto text-left">
+                      {fuelTypes.map((fuel) => (
+                        <button
+                          key={fuel.fuelTypeID}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange({ target: { name: "fuelTypeID", value: fuel.fuelTypeID } });
+                            setIsFuelDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 min-h-tap sm:min-h-0 text-xs hover:bg-slate-50 transition-colors ${formData.fuelTypeID === fuel.fuelTypeID ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                        >
+                          {fuel.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -330,6 +440,8 @@ interface TruckDetailViewProps {
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
   onDelete: (id: string) => Promise<void>;
+  /** Opens this truck's repair history, as the mechanic's module does. */
+  onHistory: () => void;
 }
 
 function TruckDetailView({
@@ -337,9 +449,12 @@ function TruckDetailView({
   onBack,
   onEdit,
   onDelete,
+  onHistory,
 }: TruckDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const styles = getStatusStyles(truck.status);
 
   const confirmDelete = async () => {
     try {
@@ -353,65 +468,101 @@ function TruckDetailView({
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        {/* LEFT SIDE: Back Button + Truck Identity */}
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-              Truck Information Record
-            </h1>
-            <p className="text-sm text-slate-600 mt-0.5">
-              Complete truck details from the database.
-            </p>
+
+          <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
+
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Truck className="w-5 h-5 text-slate-500" />
+              {truck.plateNumber}
+            </h2>
+
+            <span className="px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium bg-blue-100 text-blue-700">
+              {truck.truckType}
+            </span>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium ${styles.bgLight.split(" border")[0]}`}
+            >
+              {truck.status}
+            </span>
+            {truck.fuelTypeName && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium bg-amber-100 text-amber-800">
+                {truck.fuelTypeName}
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* RIGHT SIDE: Action Buttons */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+          {/* Everything about past repairs lives behind this, the same as in the
+              mechanic's module - one screen, one layout, whichever side you are
+              looking from. */}
+          <button
+            onClick={onHistory}
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+          >
+            <HistoryIcon className="w-4 h-4 shrink-0" />
+            <span>History</span>
+          </button>
+
           <button
             onClick={() => onEdit(truck)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md"
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
-            <Edit3 className="w-4 h-4" />
+            <Edit3 className="w-4 h-4 shrink-0" />
             <span>Edit Truck</span>
           </button>
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md"
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 shrink-0" />
             <span>Delete</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100">
-              <Truck className="w-8 h-8" />
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
+        <div className="space-y-6 text-sm text-slate-900">
+          <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
+            <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
+              1. Truck Information
             </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                {truck.plateNumber}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                  {truck.truckType}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                  {truck.status}
-                </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Plate Number
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
+                  {truck.plateNumber || "N/A"}
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Type of Truck
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
+                  {truck.truckType || "N/A"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Fuel Type
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
+                  {truck.fuelTypeName || "Not recorded"}
+                </div>
+              </div>
           <div>
             <label className="block text-xs font-medium text-black mb-1">
               Truck Model
@@ -428,14 +579,17 @@ function TruckDetailView({
               {truck.capacity}
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-black mb-1">
-              Last Checked
-            </label>
-            <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-              {truck.lastChecked || "N/A"}
+              <div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Last Checked
+                </label>
+                <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
+                  {truck.lastChecked || "N/A"}
+                </div>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -478,8 +632,26 @@ function TruckDetailView({
 // MAIN PAGE
 // ==========================================
 
+// The statuses a filter pill is offered for.
+//
+// The four the service will actually store, in the order an office reads them:
+// what can go out today, what is out, what is being fixed, what is not coming
+// back soon. The mechanic's copy of this list leads with On Maintenance, which
+// is the right order for a mechanic and the wrong one here.
+//
+// It also carries an "Already Booked" pill. Nothing in the system writes that
+// status - the truck service validates against TRUCK_STATUS, which has four -
+// so that pill can only ever read (0), and it is not repeated here.
+const STATUS_FILTERS = [
+  "Available",
+  "On Delivery",
+  "On Maintenance",
+  "Out of Service",
+] as const;
+
 export default function FleetStatusPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -488,13 +660,15 @@ export default function FleetStatusPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
+  /** Whether the selected truck's repair history is the screen being shown. */
+  const [showTruckHistory, setShowTruckHistory] = useState(false);
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
 
   useEffect(() => {
-    // Back to page one whenever the search changes.
+    // Back to page one whenever the search or the filter changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, selectedFilter]);
 
   const fetchTrucks = useCallback(async () => {
     setIsLoading(true);
@@ -546,6 +720,7 @@ export default function FleetStatusPage() {
           capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
           truckStatus: formData.status as TruckStatus,
+          fuelTypeID: formData.fuelTypeID || null,
         };
 
         await apiFetch<unknown>(`/api/fleet-status/${editData.id}`, {
@@ -563,6 +738,7 @@ export default function FleetStatusPage() {
           capacity: Number(formData.capacity),
           lastChecked: formData.lastChecked || null,
           truckStatus: "Available",
+          fuelTypeID: formData.fuelTypeID || null,
         };
 
         await apiFetch<unknown>("/api/fleet-status", {
@@ -593,12 +769,22 @@ export default function FleetStatusPage() {
     }
   };
 
-  const filteredTrucks = truckList.filter(
-    (truck) =>
-      truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  // Counted off the whole list rather than the filtered one, so the pills keep
+  // saying how big the fleet is while you are looking at one part of it.
+  const statusCounts = truckList.reduce<Record<string, number>>((tally, truck) => {
+    tally[truck.status] = (tally[truck.status] ?? 0) + 1;
+    return tally;
+  }, {});
+
+  const filteredTrucks = truckList.filter((truck) => {
+    if (selectedFilter !== "All" && truck.status !== selectedFilter) return false;
+    const term = searchTerm.toLowerCase();
+    return (
+      truck.plateNumber.toLowerCase().includes(term) ||
+      truck.status.toLowerCase().includes(term) ||
+      truck.truckType.toLowerCase().includes(term)
+    );
+  });
 
   const totalPages = Math.ceil(filteredTrucks.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -606,6 +792,18 @@ export default function FleetStatusPage() {
     startIndex,
     startIndex + ITEMS_PER_PAGE,
   );
+
+  // The history is its own screen rather than a panel inside the detail, which is
+  // how the mechanic's module does it and what the office asked to match.
+  if (selectedTruck && showTruckHistory) {
+    return (
+      <TruckMaintenanceHistory
+        truckID={selectedTruck.id}
+        plateNumber={selectedTruck.plateNumber}
+        onBack={() => setShowTruckHistory(false)}
+      />
+    );
+  }
 
   if (selectedTruck) {
     return (
@@ -623,6 +821,7 @@ export default function FleetStatusPage() {
         <TruckDetailView
           truck={selectedTruck}
           onBack={() => setSelectedTruck(null)}
+          onHistory={() => setShowTruckHistory(true)}
           onEdit={(truck) => {
             setEditingTruck(truck);
             setIsModalOpen(true);
@@ -644,23 +843,20 @@ export default function FleetStatusPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             Fleet Status
           </h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Monitor and manage fleet availability.
-          </p>
-        </div>
+          </div>
         <button
           onClick={() => {
             setEditingTruck(null);
             setIsModalOpen(true);
           }}
-          className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md"
+          className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer"
         >
-          <Truck className="w-4 h-4" />
+          <Truck className="w-4 h-4 shrink-0" />
           <span>Add Truck</span>
         </button>
       </div>
@@ -676,66 +872,119 @@ export default function FleetStatusPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100">
-          <div className="relative w-full sm:w-96">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+            <button
+              onClick={() => setSelectedFilter("All")}
+              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
+            >
+              All ({truckList.length})
+            </button>
+
+            {STATUS_FILTERS.map((status) => {
+              const styles = getStatusStyles(status);
+              return (
+                <button
+                  key={status}
+                  onClick={() => setSelectedFilter(status)}
+                  className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === status ? styles.tabActive : styles.bgLight}`}
+                >
+                  {status} ({statusCounts[status] ?? 0})
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative w-full lg:w-80">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <UrlSearchSync onQuery={setSearchTerm} />
             <input
               type="text"
-              placeholder="Search by plate number or status..."
+              placeholder="Search by Plate No or Type..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl pl-10 pr-4 py-2.5"
+              className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
             />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-150">
+        <div className="overflow-x-auto relative z-10 min-h-75">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase">
-                <th className="py-3.5 px-4 sm:px-6">Plate Number</th>
-                <th className="py-3.5 px-4 sm:px-6">Last Checked</th>
-                <th className="py-3.5 px-4 sm:px-6">Status</th>
+              <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <th className="py-3.5 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 w-1/2 text-left">
+                  Plate Number
+                </th>
+                <th className="py-3.5 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 w-1/2 text-right">
+                  Current Status
+                </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {isLoading ? (
                 <tr>
-                  <td colSpan={3} className="py-16 text-center">
-                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
-                    <p className="text-sm font-medium">Loading trucks...</p>
+                  <td
+                    colSpan={2}
+                    className="py-16 sm:py-20 text-center font-medium text-slate-500"
+                  >
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+                    Loading fleet records...
                   </td>
                 </tr>
               ) : currentTrucks.length > 0 ? (
-                currentTrucks.map((truck) => (
-                  <tr
-                    key={truck.id}
-                    onClick={() => handleRowClick(truck.id)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 cursor-pointer text-sm"
-                  >
-                    <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900">
-                      {truck.plateNumber}{" "}
-                      <span className="text-xs text-slate-500 font-normal">
-                        ({truck.truckType})
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 sm:px-6">
-                      {truck.lastChecked || "N/A"}
-                    </td>
-                    <td className="py-3.5 px-4 sm:px-6">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                        {truck.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                currentTrucks.map((truck) => {
+                  const currentStyles = getStatusStyles(truck.status);
+                  return (
+                    <tr
+                      key={truck.id}
+                      data-pressable
+                      onClick={() => handleRowClick(truck.id)}
+                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                    >
+                      <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
+                        <div className="font-medium text-slate-900 truncate">
+                          <RowOpenButton
+                            label={`View truck ${truck.plateNumber}`}
+                            onOpen={() => handleRowClick(truck.id)}
+                            className="max-w-full truncate"
+                          >
+                            {truck.plateNumber}
+                          </RowOpenButton>
+                          <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
+                            — {truck.truckType}
+                            {truck.fuelTypeName && (
+                              <span className="ml-1.5">· {truck.fuelTypeName}</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          Last Checked: {truck.lastChecked || "N/A"}
+                        </div>
+                      </td>
+                      <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
+                        <div className="relative inline-block text-right z-10">
+                          <div
+                            className={`w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
+                          >
+                            <span>{truck.status}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={3} className="py-16 text-center">
-                    <FileText className="w-6 h-6 mx-auto mb-3 text-slate-500" />
-                    <p className="text-sm font-medium">No trucks found</p>
+                  <td colSpan={2} className="py-16 sm:py-20 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        No fleet records found
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -743,17 +992,17 @@ export default function FleetStatusPage() {
           </table>
         </div>
 
-        <div className="p-4 flex flex-col sm:flex-row items-center justify-between text-xs border-t">
+        <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
           <span>
             Showing {filteredTrucks.length === 0 ? 0 : startIndex + 1} to{" "}
             {Math.min(startIndex + ITEMS_PER_PAGE, filteredTrucks.length)} of{" "}
             {filteredTrucks.length} entries
           </span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || isLoading}
-              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Previous
             </button>
@@ -767,7 +1016,7 @@ export default function FleetStatusPage() {
               disabled={
                 currentPage === totalPages || totalPages === 0 || isLoading
               }
-              className="px-3 py-1.5 border rounded-lg disabled:opacity-50"
+              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 border rounded-lg disabled:opacity-50"
             >
               Next
             </button>

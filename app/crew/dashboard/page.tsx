@@ -3,12 +3,14 @@
 // ==========================================
 "use client";
 
+import RowOpenButton from "@/components/RowOpenButton";
+import { useToast } from "@/components/Toast";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { usePolling } from "@/app/lib/usePolling";
-import { apiFetch } from "@/app/lib/apiClient";
-import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive } from "lucide-react";
+import { apiFetch, authFetch } from "@/app/lib/apiClient";
+import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone, MapPin } from "lucide-react";
 import { registerPlugin, Capacitor } from '@capacitor/core';
 import dynamic from "next/dynamic";
 import { getAccessToken } from "@/app/lib/apiClient";
@@ -19,6 +21,10 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   loading: () => <div className="h-80 sm:h-100 md:h-120 w-full animate-pulse bg-slate-100" />,
 });
 import { compressImage } from "@/app/lib/imageCompression";
+import { markPing, markMovement } from "@/app/lib/trackingPulse";
+import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
+import OpenIssueNotice from "@/components/crew/OpenIssueNotice";
+import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, STOP_STATUS, type DeclineCode } from "@/app/lib/enums";
 
 // Background Geolocation Setup
 // The Capacitor community plugin, as much of it as this screen uses.
@@ -50,6 +56,39 @@ let onPositionUpdate: ((fix: PositionFix) => void) | null = null;
 const WEB_PING_INTERVAL_MS = 10_000;
 let lastWebPingAt = 0;
 
+// ---------------------------------------------------------------- heartbeat
+//
+// The watchers above only fire when the truck moves, so a stopped truck and a
+// dead phone have always sent the same thing: nothing. This re-sends the last
+// known position on a timer whether or not anything has changed, which lets the
+// office tell the two apart - the server records the last contact and the last
+// actual movement separately, and decides for itself which a ping was.
+//
+// Every three minutes. Often enough that ten minutes of silence means something,
+// rare enough to be nothing on a data plan: one small request, twenty times an
+// hour, only while a trip is open.
+const HEARTBEAT_MS = 3 * 60_000;
+
+let heartbeat: ReturnType<typeof setInterval> | null = null;
+let lastFix: { latitude: number; longitude: number; speed?: number | null; heading?: number | null } | null = null;
+
+function startHeartbeat(dispatchId: string | number) {
+  stopHeartbeat();
+
+  heartbeat = setInterval(() => {
+    // Nothing to re-send until the first real fix has arrived.
+    if (!lastFix) return;
+    void postLocation(dispatchId, lastFix);
+  }, HEARTBEAT_MS);
+}
+
+function stopHeartbeat() {
+  if (heartbeat !== null) {
+    clearInterval(heartbeat);
+    heartbeat = null;
+  }
+}
+
 // Sends one GPS fix. The token is read per ping so tracking survives token
 // refreshes. Returns false once the server reports the trip is closed.
 async function postLocation(
@@ -58,6 +97,8 @@ async function postLocation(
 ): Promise<boolean> {
   const token = getAccessToken();
   if (!token) return true;
+
+  lastFix = fix;
 
   try {
     const response = await fetch("/api/crew/dispatches/location", {
@@ -68,6 +109,23 @@ async function postLocation(
       },
       body: JSON.stringify({ dispatch_id: dispatchId, ...fix }),
     });
+
+    // The app is the only thing that knows it is still in touch with the
+    // server. The check-in prompt reads this to decide whether the silence the
+    // office is seeing is real.
+    if (response.ok) {
+      markPing(dispatchId);
+
+      // And when the truck was last somewhere else. The server works that out by
+      // comparing coordinates - the app cannot, because a parked heartbeat and a
+      // driving one are both just a post that succeeded - and hands the answer
+      // back. Without it the prompt waits on a clock the heartbeat keeps
+      // resetting, and never asks anything.
+      const body = (await response.json().catch(() => null)) as { movedAt?: string } | null;
+      const movedAt = body?.movedAt ? Date.parse(body.movedAt) : NaN;
+      if (Number.isFinite(movedAt)) markMovement(dispatchId, movedAt);
+    }
+
     return response.status !== 409;
   } catch {
     // Offline: drop this fix, the next one will update the pin.
@@ -76,6 +134,8 @@ async function postLocation(
 }
 
 async function stopLiveTracking() {
+  stopHeartbeat();
+
   if (activeTrackingId) {
     if (Capacitor.getPlatform() === 'web') {
       navigator.geolocation.clearWatch(parseInt(activeTrackingId));
@@ -120,6 +180,7 @@ const startLiveTracking = async (dispatchId: string | number) => {
       );
 
       activeTrackingId = watchId.toString();
+      startHeartbeat(dispatchId);
       return;
     }
 
@@ -149,6 +210,8 @@ const startLiveTracking = async (dispatchId: string | number) => {
         if (!stillOpen) void stopLiveTracking();
       }
     );
+
+    startHeartbeat(dispatchId);
   } catch (err) {
     console.warn("Tracking initialization failed:", err);
   }
@@ -234,6 +297,11 @@ export interface DeliveryRecord {
   multiplePickups?: PickupRecord[];
   multipleDeliveries?: DeliveryDestinationRecord[];
   localUpdatedAt?: number;
+  /**
+   * Why this trip cannot start yet, when it cannot: somebody assigned to it has
+   * not accepted. Worded by the server for whoever is reading it.
+   */
+  startBlockedReason?: string | null;
 }
 
 interface CrewDashboardProps {
@@ -335,6 +403,7 @@ export default function CrewDashboardPage({
   isOpen,
   setIsOpen,
 }: CrewDashboardProps) {
+  const showToast = useToast();
   const [selectedFilter, setSelectedFilter] = useState<TabFilter>("Active");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -343,9 +412,28 @@ export default function CrewDashboardPage({
 
   const [showDeclineConfirmModal, setShowDeclineConfirmModal] = useState<boolean>(false);
   const [declineReason, setDeclineReason] = useState<string>("");
+  // A code as well as the typed words: "brakes", "brakes are gone" and
+  // "unsafe" are one reason typed three ways, and no fair figure can be worked
+  // out from free text. Three of the codes are not counted against the crew.
+  const [declineCode, setDeclineCode] = useState<DeclineCode | "">("");
   const [isSubmittingResponse, setIsSubmittingResponse] = useState<boolean>(false);
 
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryRecord | null>(null);
+
+  // The open trip, readable from the polling callback without making it depend
+  // on the trip and restart the timer every time the crew tap something.
+  // Written after the commit, not during the render, which is the only point at
+  // which a ref is anybody's to touch.
+  const openTripRef = useRef<DeliveryRecord | null>(null);
+  useEffect(() => {
+    openTripRef.current = selectedDelivery;
+  }, [selectedDelivery]);
+
+  // Which stop this screen is on, and the preview it is holding, for the same
+  // reason: the poll has to compare against them without being rebuilt every
+  // time the crew type a character.
+  const stepIndexRef = useRef(0);
+  const selectedImageRef = useRef<string | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
@@ -384,9 +472,17 @@ export default function CrewDashboardPage({
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [dynamicStops, setDynamicStops] = useState<RouteStop[]>([]);
+  /** Stops this crew have reported arriving at, keyed by kind and id. */
+  const [arrivedStops, setArrivedStops] = useState<Record<string, string>>({});
+  const [isReportingArrival, setIsReportingArrival] = useState(false);
   const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    stepIndexRef.current = currentStepIndex;
+    selectedImageRef.current = selectedImage;
+  }, [currentStepIndex, selectedImage]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [receiverName, setReceiverName] = useState<string>("");
 
@@ -428,19 +524,50 @@ export default function CrewDashboardPage({
             return mine?.localUpdatedAt && mine.localUpdatedAt > startedAt ? mine : d;
           });
         });
-        // The open trip only follows the server when the server moved it on
-        // from a foul trip; mid-delivery, the screen's own state stands.
-        setSelectedDelivery((current) => {
-          if (!current || current.status !== "Foul Trip") return current;
-          const fresh = data.find((d) => d.id === current.id);
-          return fresh && fresh.status !== current.status ? fresh : current;
-        });
+        // The open trip follows the server too, under the same rule as the
+        // list: this screen's own change wins only while it is newer than the
+        // answer we asked for.
+        //
+        // It used to stand still unless the server had brought it back from a
+        // foul trip, which was a rule written for one person on a trip. With a
+        // driver and a helper it froze whoever was not tapping: the helper
+        // finished the pickup, the shared row moved on, and the driver went on
+        // being shown a stop that was already done - and offered a button the
+        // server would then refuse as "already progressed past that step".
+        const open = openTripRef.current;
+        if (open) {
+          const fresh = data.find((d) => d.id === open.id);
+          const mineIsNewer = Boolean(open.localUpdatedAt && open.localUpdatedAt > startedAt);
+          if (fresh && !mineIsNewer) {
+            setSelectedDelivery(fresh);
+            setDynamicStops(generateDynamicStops(fresh));
+            // Forward only. The other crew member finishing a stop moves
+            // everybody on; nothing they do should drag this screen back to a
+            // stop this one has already dealt with.
+            const theirStep = fresh.current_step ?? 0;
+            if (theirStep > stepIndexRef.current) {
+              setCurrentStepIndex(theirStep);
+
+              // Whatever was half filled in belonged to the stop they just
+              // closed. Carrying a photograph and a receiver's name forward
+              // would file them against the next stop instead, which is worse
+              // than losing them - so it is cleared, and said out loud, because
+              // a form emptying itself with no explanation reads as a crash.
+              if (selectedImageRef.current) URL.revokeObjectURL(selectedImageRef.current);
+              setSelectedImage(null);
+              setSelectedFile(null);
+              setReceiverName("");
+              setRemarks("");
+              showToast("The rest of the crew finished that stop. You are on the next one.", "info");
+            }
+          }
+        }
       } catch (error) {
         console.error("Error fetching dispatches:", error);
       } finally {
         setIsLoading(false);
       }
-  }, []);
+  }, [showToast]);
 
   usePolling(() => void fetchMyDispatches(), 30000);
 
@@ -689,11 +816,11 @@ export default function CrewDashboardPage({
     
     if (isPodRequiredForStop) {
       if (!selectedFile) {
-        alert("Proof of delivery photo is required to complete this location.");
+        showToast("Proof of delivery photo is required to complete this location.", "error");
         return;
       }
       if (!receiverName.trim()) {
-        alert("Receiver's Name is required to complete this location.");
+        showToast("Receiver's Name is required to complete this location.", "error");
         return;
       }
     }
@@ -761,7 +888,7 @@ export default function CrewDashboardPage({
         void stopLiveTracking();
         setShowTripReportModal(true);
       } else {
-        alert(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`);
+        showToast(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`, "success");
         setViewMode("list");
         setSelectedDelivery(null);
         setSelectedImage(null);
@@ -770,7 +897,11 @@ export default function CrewDashboardPage({
         setReceiverName(""); 
       }
     } catch (error) {
-      alert(`Status update failed: ${error instanceof Error ? error.message : error}`);
+      showToast(`Status update failed: ${error instanceof Error ? error.message : error}`, "error");
+      // Most refusals here mean the other crew member got there first. The poll
+      // would fix it within half a minute; asking now means the next thing they
+      // see is the stop that is actually outstanding.
+      void fetchMyDispatches();
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -797,7 +928,13 @@ export default function CrewDashboardPage({
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Failed to update server");
+      // The server's own words. It refuses a start when somebody assigned has
+      // not accepted, and "Failed to update server" told the crew nothing about
+      // who they were waiting for.
+      if (!response.ok) {
+        const refused = await response.json().catch(() => null);
+        throw new Error(refused?.message || "Failed to update server");
+      }
 
       // 2. Start GPS Tracking
       void startLiveTracking(selectedDelivery.id);
@@ -818,7 +955,11 @@ export default function CrewDashboardPage({
       setViewMode("update-status");
 
     } catch (error) {
-      alert(`Failed to start route: ${error instanceof Error ? error.message : error}`);
+      showToast(`${error instanceof Error ? error.message : error}`, "error");
+      // A refusal nearly always means this screen is behind the shared row -
+      // the other crew member has moved the trip on, or the office has. Go and
+      // find out rather than leaving them to tap the same button again.
+      void fetchMyDispatches();
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -859,7 +1000,7 @@ export default function CrewDashboardPage({
 
     // "Other" used to arrive at dispatch as the single word "Other".
     if (emergencyReason === "Other" && !emergencyMessage.trim()) {
-      alert("Describe what happened - dispatch needs to know what to send.");
+      showToast("Describe what happened - dispatch needs to know what to send.", "error");
       return;
     }
 
@@ -916,7 +1057,7 @@ export default function CrewDashboardPage({
       }, 2000);
 
     } catch (error) {
-      alert(`Error sending alert: ${error instanceof Error ? error.message : error}`);
+      showToast(`Error sending alert: ${error instanceof Error ? error.message : error}`, "error");
     } finally {
       setIsSendingEmergency(false);
     }
@@ -959,14 +1100,18 @@ export default function CrewDashboardPage({
       }, 2000);
       
     } catch (error) {
-      alert(`Error saving report: ${error instanceof Error ? error.message : error}`);
+      showToast(`Error saving report: ${error instanceof Error ? error.message : error}`, "error");
     }
   };
 
   const handleDispatchResponse = async (action: "accept" | "decline") => {
     if (!selectedDelivery) return;
+    if (action === "decline" && !declineCode) {
+      showToast("Please choose what the reason is.", "error");
+      return;
+    }
     if (action === "decline" && !declineReason.trim()) {
-      alert("Please provide a reason for declining.");
+      showToast("Please provide a reason for declining.", "error");
       return;
     }
 
@@ -984,7 +1129,8 @@ export default function CrewDashboardPage({
         body: JSON.stringify({
           dispatchID: selectedDelivery.id, 
           action,
-          reason: action === "decline" ? declineReason : undefined
+          reason: action === "decline" ? declineReason : undefined,
+          code: action === "decline" ? declineCode || undefined : undefined
         }),
       });
 
@@ -998,9 +1144,15 @@ export default function CrewDashboardPage({
       setShowDeclineConfirmModal(false);
       setShowDetailsModal(false);
       setDeclineReason("");
-      alert(`Assignment ${action}ed successfully.`);
+      showToast(`Assignment ${action}ed successfully.`, "success");
     } catch (error) {
-      alert(error instanceof Error ? error.message : error);
+      // String() rather than the bare value: a catch gives back unknown, and
+      // alert() used to accept that and show the driver "[object Object]"
+      // whenever what was thrown was not an Error.
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        "error",
+      );
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -1024,7 +1176,7 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowDetailsModal(false)}
-          className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Close Details
         </button>
@@ -1036,13 +1188,13 @@ export default function CrewDashboardPage({
         <>
           <button
             onClick={() => setShowDeclineConfirmModal(true)}
-            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
           >
             Decline
           </button>
           <button
             onClick={() => setShowAcceptConfirmModal(true)}
-            className="w-full sm:w-40 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
             Accept
           </button>
@@ -1051,10 +1203,33 @@ export default function CrewDashboardPage({
     }
     
     if (selectedDelivery.status?.toLowerCase() === "accepted" && (selectedDelivery.current_step || 0) === 0) {
+      // Everybody assigned has to accept before the truck leaves. The server
+      // refuses it either way; saying so here means the crew find out from the
+      // screen rather than from a failed tap, and find out who they are
+      // waiting for.
+      const blocked = selectedDelivery.startBlockedReason;
+      if (blocked) {
+        return (
+          <div className="w-full sm:w-72">
+            <button
+              type="button"
+              disabled
+              aria-describedby="start-blocked"
+              className="w-full min-h-tap sm:min-h-0 py-2.5 bg-slate-200 text-slate-500 font-semibold rounded-xl text-sm border border-slate-300 cursor-not-allowed whitespace-nowrap"
+            >
+              Start Delivery
+            </button>
+            <p id="start-blocked" role="status" className="mt-1.5 text-xs font-medium text-amber-700 text-left">
+              {blocked}
+            </p>
+          </div>
+        );
+      }
+
       return (
         <button
           onClick={() => setShowStartConfirmModal(true)}
-          className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
           Start Delivery
         </button>
@@ -1074,11 +1249,96 @@ export default function CrewDashboardPage({
           setShowDetailsModal(false);
           setViewMode("update-status");
         }}
-        className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
       >
         Update Status
       </button>
     );
+  };
+
+  // ---------------------------------------------------------------------------
+  // "I am here", and what it gates
+  // ---------------------------------------------------------------------------
+  // The threshold that decides whether the office is told a truck has gone quiet
+  // used to start from the last GPS movement, which could not tell an hour of
+  // unloading from an hour broken down - the app reports only when the truck
+  // rolls, so both arrive as silence. It was guessed at from how near a stop the
+  // truck happened to be, and the guess had a hole: a delivery could start at the
+  // depot, never leave, and never be mentioned to anybody.
+  //
+  // Reporting the arrival closes it. The clock stops while the crew are at a stop
+  // they have told us about, and restarts when they finish it.
+  //
+  // The departure step is not a stop, so nothing is asked there.
+  const activeStop = dynamicStops[currentStepIndex];
+  const activeStopData = activeStop?.data;
+  const activeStopKey = activeStopData
+    ? "warehouse" in activeStopData
+      ? `pickup:${activeStopData.pickupID ?? activeStopData.warehouse}`
+      : `delivery:${activeStopData.branchID ?? activeStopData.branch}`
+    : null;
+  const stopWantsArrival =
+    (activeStop?.type === "pickup" || activeStop?.type === "delivery") &&
+    Boolean(activeStopData);
+  const hasReportedArrival =
+    !stopWantsArrival ||
+    (activeStopKey !== null && Boolean(arrivedStops[activeStopKey])) ||
+    // Survives a reload mid-stop: the server already knows.
+    activeStopData?.status === STOP_STATUS.arrived;
+
+  // Whether the handover is the job yet.
+  //
+  // Both tasks used to be on screen together: an arrival to declare and a proof
+  // to upload, with the confirm button greyed out and the only explanation in a
+  // title attribute, which a phone never shows. So the crew were looking at a
+  // form they were meant to ignore and a dead button that would not say why,
+  // and the obvious thing to try was the form. One at a time, in the order they
+  // happen: say you are there, then record what you handed over.
+
+  const reportArrival = async () => {
+    if (!selectedDelivery || !activeStopData || !activeStopKey) return;
+
+    setIsReportingArrival(true);
+    try {
+      const payload: Record<string, unknown> = { dispatchID: String(selectedDelivery.id) };
+      if ("warehouse" in activeStopData) {
+        if (activeStopData.pickupID == null) {
+          // A booking made before PickupStops existed has no row to mark. Nothing
+          // to report, and nothing gained by blocking the crew over it.
+          setArrivedStops((prev) => ({ ...prev, [activeStopKey]: new Date().toISOString() }));
+          return;
+        }
+        payload.pickupID = activeStopData.pickupID;
+      } else {
+        if (activeStopData.branchID == null) {
+          setArrivedStops((prev) => ({ ...prev, [activeStopKey]: new Date().toISOString() }));
+          return;
+        }
+        payload.branchID = activeStopData.branchID;
+      }
+
+      const response = await authFetch("/api/crew/dispatches/arrive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        showToast(result.message ?? "Could not record that. Try again.", "error");
+        return;
+      }
+
+      setArrivedStops((prev) => ({
+        ...prev,
+        [activeStopKey]: (result.arrivedAt as string) ?? new Date().toISOString(),
+      }));
+      showToast("Arrival recorded. Take your time here.", "success");
+    } catch {
+      showToast("No signal. Try again when you have one.", "error");
+    } finally {
+      setIsReportingArrival(false);
+    }
   };
 
   return (
@@ -1088,7 +1348,7 @@ export default function CrewDashboardPage({
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
           <div className="flex items-center justify-between mb-6 gap-2">
             <div className="flex items-center gap-3">
-              <button onClick={() => setViewMode("list")} className="p-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
+              <button onClick={() => setViewMode("list")} className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
@@ -1096,14 +1356,87 @@ export default function CrewDashboardPage({
                 <p className="text-sm text-slate-500 mt-0.5">Track locations and upload proofs of delivery.</p>
               </div>
             </div>
-            <button onClick={() => setShowEmergencyModal(true)} className="px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Emergency</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  // Opened on "yes, I can continue", because that is what this
+                  // button is for. The modal still asks, and the driver can
+                  // still say no - it is a starting point, not a decision.
+                  setCanContinue(true);
+                  setEmergencyReason(CONTINUING_REASONS[0]);
+                  setShowEmergencyModal(true);
+                }}
+                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <TrafficCone className="w-4 h-4 shrink-0" />
+                <span>Report a delay</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCanContinue(false);
+                  setEmergencyReason(STOPPING_REASONS[0]);
+                  setShowEmergencyModal(true);
+                }}
+                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Emergency</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
-            
+
+            {/* Shows itself only once this device has stopped getting positions
+                through, which is the only moment the question makes sense. */}
+            <StallCheckInPrompt dispatchID={selectedDelivery.id} />
+
+            {/* Anything they reported and have not cleared. Shows itself only
+                when there is one, and clears in a tap - they are the ones who
+                know it is sorted, and until now only the office could say so. */}
+            <OpenIssueNotice
+              dispatchID={selectedDelivery.id}
+              onResolved={(message) => showToast(message, "success")}
+            />
+
+            {/* One tap on arrival, before any of the work at the stop.
+                It is what stops the office being told a truck has gone quiet
+                while the crew are standing at a delivery point unloading it. */}
+            {stopWantsArrival && !hasReportedArrival && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  Have you reached {stopName(activeStopData)}?
+                </p>
+                <p className="text-xs text-slate-700 mt-0.5">
+                  Tell us when you get there. The office stops chasing the trip while you are
+                  working, and your customer sees that you have arrived.
+                </p>
+                <p className="text-xs text-slate-600 mt-1.5">
+                  The receiver&apos;s name and the photo come after this.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void reportArrival()}
+                  disabled={isReportingArrival}
+                  className="mt-3 w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-3 sm:py-2.5 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  {isReportingArrival ? "Sending..." : "I have arrived"}
+                </button>
+              </div>
+            )}
+
+            {stopWantsArrival && hasReportedArrival && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-900">
+                  Arrival recorded at {stopName(activeStopData)}. Nobody is counting the clock
+                  against you while you are here.
+                </p>
+              </div>
+            )}
+
             {/* DYNAMIC MAP SECTION */}
             <div className="bg-[#e0f2fe] rounded-2xl border border-slate-300 overflow-hidden shadow-sm flex flex-col">
               <div className="bg-white px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10 relative">
@@ -1254,7 +1587,7 @@ export default function CrewDashboardPage({
               )}
 
               {/* Remarks (Only show if NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && (
+              {!isCompleted(selectedDelivery.status) && hasReportedArrival && (
                 <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
                   <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
                   <div>
@@ -1264,8 +1597,9 @@ export default function CrewDashboardPage({
                 </div>
               )}
 
-              {/* POD (Only visible if required for this step and NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
+              {/* POD (Only visible once they are there, and only if this stop
+                  hands something over) */}
+              {!isCompleted(selectedDelivery.status) && hasReportedArrival && dynamicStops[currentStepIndex]?.reqPod && (
                 <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
                   <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
                     <span className="truncate">Proof of Location / Delivery</span>
@@ -1314,20 +1648,33 @@ export default function CrewDashboardPage({
                     setViewMode("list");
                     setSelectedDelivery(null);
                   }}
-                  className="w-full sm:w-48 min-h-11 sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+                  className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
                 >
                   Back to Deliveries
                 </button>
               ) : (
+                <>
+                {/* Said out loud, not in a title attribute: there is no hover on
+                    a phone, so the reason the button was dead was invisible on
+                    the only device this screen is used from. */}
+                {!hasReportedArrival && (
+                  <p role="status" className="text-xs font-semibold text-amber-700 text-center sm:self-center sm:text-right">
+                    Tap &ldquo;I have arrived&rdquo; first.
+                  </p>
+                )}
                 <button
                   onClick={() => setShowSubmitConfirmModal(true)}
-                  disabled={isSubmittingResponse}
-                  className="w-full sm:w-64 min-h-11 sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
+                  // Finishing a stop the crew have not said they reached would
+                  // leave the arrival unrecorded and the clock measuring from the
+                  // wrong moment, so the order is enforced rather than suggested.
+                  disabled={isSubmittingResponse || !hasReportedArrival}
+                  className="w-full sm:w-64 min-h-tap sm:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
                   {currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
                     : `Confirm: ${dynamicStops[currentStepIndex]?.title ?? "Update"}`}
                 </button>
+                </>
               )}
             </div>
           </div>
@@ -1343,17 +1690,39 @@ export default function CrewDashboardPage({
             
             <div className="relative w-full md:w-72 shrink-0">
               <input type="text" placeholder="Search Booking ID or Client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-11 sm:pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all" />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-0 sm:right-3 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Clear search"><X className="w-3.5 h-3.5" /></button>}
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-0 sm:right-3 top-1/2 -translate-y-1/2 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-slate-500 hover:text-slate-600 cursor-pointer" aria-label="Clear search"><X className="w-3.5 h-3.5" /></button>}
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-3 sm:p-4 px-4 sm:px-8 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2 w-full overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
-                <button onClick={() => setSelectedFilter("Active")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Truck className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Active ({activeCount})</span></button>
-                <button onClick={() => setSelectedFilter("Assigned")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}><Clock className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">Assigned ({unconfirmedCount})</span></button>
-                <button onClick={() => setSelectedFilter("Completed")} className={`px-3.5 py-1.5 rounded-xl text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}><Archive className="w-4 h-4 shrink-0" /><span className="whitespace-nowrap">History ({completedCount})</span></button>
+            {/* Three equal columns rather than a scrolling strip: on a phone
+                all three filters have to be reachable without swiping, since a
+                driver is using this one-handed in a cab. Each keeps a 44px tap
+                target on mobile and relaxes to the normal size from sm up. */}
+            <div className="p-2 sm:p-4 border-b border-slate-100 w-full">
+              <div className="grid grid-cols-3 gap-1 sm:gap-2 w-full">
+                <button
+                  onClick={() => setSelectedFilter("Active")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Active" ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                >
+                  <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Active ({activeCount})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("Assigned")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Assigned" ? "bg-amber-600 text-white shadow-md" : "bg-amber-50 text-amber-700"}`}
+                >
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">Assigned ({unconfirmedCount})</span>
+                </button>
+                <button
+                  onClick={() => setSelectedFilter("Completed")}
+                  className={`flex items-center justify-center gap-1 sm:gap-1.5 min-h-tap sm:min-h-0 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-sm font-semibold transition-all cursor-pointer truncate ${selectedFilter === "Completed" ? "bg-slate-800 text-white shadow-md" : "bg-slate-100 text-slate-600"}`}
+                >
+                  <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">History ({completedCount})</span>
+                </button>
               </div>
             </div>
 
@@ -1366,7 +1735,7 @@ export default function CrewDashboardPage({
                     <tr>
                       <td colSpan={2} className="py-10 text-center">
                         <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2"><FileText className="w-4 h-4" /></div>
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-2"><FileText className="w-4 h-4" /></div>
                           <p className="text-sm font-semibold text-slate-800">{searchTerm ? "No matching deliveries found." : "No delivery records found"}</p>
                           <p className="text-slate-500 text-xs mt-0.5">{searchTerm ? "Try a different search term." : "Try switching tabs to view other records."}</p>
                         </div>
@@ -1374,9 +1743,15 @@ export default function CrewDashboardPage({
                     </tr>
                   ) : (
                     currentDeliveries.map((delivery) => (
-                      <tr key={delivery.id} onClick={() => handleRowClick(delivery)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+                      <tr data-pressable key={delivery.id} onClick={() => handleRowClick(delivery)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
                         <td className="py-3 pl-4 sm:pl-8 md:pl-16 pr-2 text-left w-2/3 overflow-hidden">
-                          <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base mb-0.5 truncate">{delivery.clientName}</div>
+                          <RowOpenButton
+                            label={`View delivery for ${delivery.clientName}`}
+                            onOpen={() => handleRowClick(delivery)}
+                            className="block w-full font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base mb-0.5 truncate"
+                          >
+                            {delivery.clientName}
+                          </RowOpenButton>
                           <div className="text-xs font-semibold text-slate-600 mb-0.5 whitespace-nowrap">{delivery.bookingId}</div>
                           <div className="text-xs text-slate-500 mb-0.5 truncate w-full" title={delivery.address}>{delivery.address}</div>
                           <div className="text-xs text-slate-500 font-medium whitespace-nowrap">{delivery.dateTime}</div>
@@ -1384,7 +1759,11 @@ export default function CrewDashboardPage({
                         <td className="py-3 pr-4 sm:pr-8 md:pr-16 pl-2 align-top w-1/3">
                           <div className="flex flex-col items-end justify-start gap-1 h-full">
                             <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700 transition-colors text-right whitespace-nowrap"><Eye className="w-3.5 h-3.5 shrink-0" /><span>Click to View</span></div>
-                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${getStatusBadgeClass(delivery.status)}`}>
+                            {/* The longest of these is "Products Loaded -
+                                Delivering", which will not fit on one line in a
+                                third of a phone screen. It wraps rather than
+                                being cut off or forcing the row sideways. */}
+                            <span className={`inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
                               {getDisplayStatus(delivery)}
                             </span>
                           </div>
@@ -1401,8 +1780,8 @@ export default function CrewDashboardPage({
                 Showing {filteredDeliveries.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, filteredDeliveries.length)} of {filteredDeliveries.length} entries
               </span>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
-                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
+                <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
+                <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
               </div>
             </div>
           </div>
@@ -1428,7 +1807,7 @@ export default function CrewDashboardPage({
                 ) : (
                   <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Assigned - accept or decline</span>
                 )}
-                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
+                <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
               </div>
             </div>
 
@@ -1561,52 +1940,6 @@ export default function CrewDashboardPage({
                 </div>
               )}
 
-              {/* Remarks (Only show if NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && (
-                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
-                  <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide">Remarks & Notes</div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Remarks (Optional)</label>
-                    <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Ex. Arrived at the location, waiting for receiver..." className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400 min-h-24"></textarea>
-                  </div>
-                </div>
-              )}
-
-              {/* POD (Only visible if required for this step and NOT completed) */}
-              {!isCompleted(selectedDelivery.status) && dynamicStops[currentStepIndex]?.reqPod && (
-                <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
-                  <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
-                    <span className="truncate">Proof of Location / Delivery</span>
-                    <span className="text-xs font-semibold whitespace-nowrap shrink-0 text-red-500">
-                      * Required for this location
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Receiver&apos;s Name <span className="text-red-500">*</span></label>
-                    <input 
-                      type="text" 
-                      value={receiverName} 
-                      onChange={(e) => setReceiverName(e.target.value)} 
-                      placeholder="Ex. Juan Dela Cruz" 
-                      className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      required
-                    />
-                  </div>
-
-                  <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-blue-300 rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative">
-                    {selectedImage ? (
-                      <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                        <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                        <span className="text-xs font-semibold text-blue-700">Tap to upload photo</span>
-                      </div>
-                    )}
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* Actions for Details Modal based on Status */}
@@ -1627,8 +1960,8 @@ export default function CrewDashboardPage({
               {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>
@@ -1647,8 +1980,8 @@ export default function CrewDashboardPage({
               <div><label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Issues (If any)</label><textarea value={vehicleIssues} onChange={(e) => setVehicleIssues(e.target.value)} placeholder="Any unusual sounds, flat tires, etc." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-20"></textarea></div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={completeTripWorkflow} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
-              <button onClick={handleSendRemarks} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
+              <button onClick={completeTripWorkflow} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Skip & Close</button>
+              <button onClick={handleSendRemarks} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap">
                 {showRemarksSuccess ? "Saved!" : "Save Report"}
               </button>
             </div>
@@ -1667,14 +2000,14 @@ export default function CrewDashboardPage({
               {showStartConfirmModal ? "Open tracking and update the status of this delivery?" : "Confirm this delivery assignment?"}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
+              <button onClick={() => { setShowStartConfirmModal(false); setShowAcceptConfirmModal(false); }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-sm whitespace-nowrap disabled:opacity-50">No</button>
               <button onClick={() => {
                   if (showStartConfirmModal) {
                     handleStartDelivery();
                   } else {
                     handleDispatchResponse("accept");
                   }
-                }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
+                }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 text-white font-semibold responsive-btn rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-emerald-700"
               >
                 {isSubmittingResponse && !showStartConfirmModal ? "Accepting..." : isSubmittingResponse && showStartConfirmModal ? "Starting..." : "Yes"}
               </button>
@@ -1689,10 +2022,30 @@ export default function CrewDashboardPage({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
             <p className="text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">What is the reason?</label>
+            <select
+              value={declineCode}
+              onChange={(e) => setDeclineCode(e.target.value as DeclineCode | "")}
+              className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 mb-1.5 focus:outline-none focus:ring-2 focus:ring-red-600"
+              required
+            >
+              <option value="">Choose one...</option>
+              {(Object.keys(DECLINE_CODES) as DeclineCode[]).map((code) => (
+                <option key={code} value={code}>
+                  {DECLINE_CODES[code]}
+                </option>
+              ))}
+            </select>
+            {declineCode && DECLINE_CODES_NOT_COUNTED.includes(declineCode as DeclineCode) && (
+              <p className="text-xs text-emerald-700 mb-3">
+                This will not be counted against your record.
+              </p>
+            )}
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 mt-3">In your own words</label>
             <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} placeholder="Ex. Sick leave, Family emergency, Vehicle issues..." className="w-full border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 min-h-24 mb-6" required></textarea>
             <div className="flex items-center gap-3">
-              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim()} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
+              <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); setDeclineCode(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
+              <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim() || !declineCode} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
                 {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
               </button>
             </div>
@@ -1704,8 +2057,15 @@ export default function CrewDashboardPage({
       {showEmergencyModal && (
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
-            <h3 className="text-lg font-bold text-red-600 mb-2 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" /> {canContinue ? "Report an Issue" : "Report Emergency"}
+            <h3
+              className={`text-lg font-bold mb-2 flex items-center gap-2 ${canContinue ? "text-amber-800" : "text-red-600"}`}
+            >
+              {canContinue ? (
+                <TrafficCone className="w-5 h-5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5" />
+              )}
+              {canContinue ? "Report a delay" : "Report Emergency"}
             </h3>
             <p className="text-sm text-slate-600 mb-4">Dispatch is told either way. Whether the delivery stops depends on your answer below.</p>
             <div className="space-y-4 mb-6">
@@ -1714,11 +2074,17 @@ export default function CrewDashboardPage({
                 <div className="grid grid-cols-1 gap-2">
                   {([
                     [false, "No - the trip has to stop", "Dispatch will arrange a replacement. The truck and crew are freed."],
-                    [true, "Yes - I can continue", "The delivery stays active. Dispatch is told what happened."],
+                    [true, "Yes - I can continue", "The delivery stays active. Dispatch is told, and the customer sees the reason on their tracking page."],
                   ] as const).map(([value, title, hint]) => (
                     <label
                       key={title}
-                      className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${canContinue === value ? "border-red-500 bg-red-50/40" : "border-slate-200"}`}
+                      className={`flex cursor-pointer gap-3 rounded-xl border-2 p-3 ${
+                        canContinue === value
+                          ? value
+                            ? "border-amber-400 bg-amber-50/50"
+                            : "border-red-500 bg-red-50/40"
+                          : "border-slate-200"
+                      }`}
                     >
                       <input
                         type="radio"
@@ -1763,7 +2129,7 @@ export default function CrewDashboardPage({
                     </button>
                   </div>
                 ) : (
-                  <label className="flex min-h-11 items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-600 cursor-pointer">
+                  <label className="flex min-h-tap items-center justify-center gap-2 px-4 py-2 border border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-600 cursor-pointer">
                     <Camera className="w-4 h-4 text-slate-500" />
                     Take or attach a photo
                     <input type="file" accept="image/*" capture="environment" onChange={handleEmergencyPhoto} className="hidden" />
@@ -1773,8 +2139,8 @@ export default function CrewDashboardPage({
               <p className="text-xs text-slate-500">Your current location is sent with the report.</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
-              <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-11 sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
+              <button onClick={() => setShowEmergencyModal(false)} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap">Cancel</button>
+              <button onClick={handleSendEmergencyAlert} disabled={isSendingEmergency || emergencySubmitted} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
                 {emergencySubmitted
                   ? canContinue
                     ? "Reported - carry on"

@@ -69,7 +69,7 @@ function StopProof({ stop }: { stop: SubconStopView }) {
         </p>
       ) : null}
       {proof.remarks && <p>Remarks: {proof.remarks}</p>}
-      {proof.recordedBy && <p className="text-slate-400">Recorded by {proof.recordedBy}</p>}
+      {proof.recordedBy && <p className="text-slate-500">Recorded by {proof.recordedBy}</p>}
     </div>
   );
 }
@@ -175,7 +175,7 @@ function DeliveryForm({ dispatchID, stop, onSaved }: { dispatchID: string; stop:
           type="button"
           onClick={save}
           disabled={saving}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          className="inline-flex min-h-tap items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
           Record delivery
@@ -272,7 +272,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
             </h2>
             <p className="text-xs opacity-80">{trip ? `${trip.clientName ?? "Client"} · ${trip.status}` : "Loading…"}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800">
+          <button type="button" onClick={onClose} aria-label="Close" className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -305,7 +305,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Their driver and truck</p>
                   <p className="text-slate-900">
-                    <Truck className="inline h-4 w-4 mr-1 text-slate-400" />
+                    <Truck className="inline h-4 w-4 mr-1 text-slate-500" />
                     {[trip.driverName, trip.plateNumber].filter(Boolean).join(" · ") || "Not given"}
                   </p>
                   {trip.driverContact && (
@@ -319,7 +319,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
               {/* Pickup */}
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="flex items-center gap-2 font-semibold text-slate-900">
-                  <Package className="h-4 w-4 text-slate-400" /> Pickup
+                  <Package className="h-4 w-4 text-slate-500" /> Pickup
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {trip.pickups.map((p) => p.warehouseName).join(", ") || "No pickup recorded on the booking"}
@@ -336,7 +336,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                       type="button"
                       onClick={recordPickup}
                       disabled={busy}
-                      className="min-h-11 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                      className="min-h-tap rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                     >
                       Record pickup
                     </button>
@@ -368,7 +368,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                           <button
                             type="button"
                             onClick={() => setOpenStop(openStop === stop.branchID ? null : stop.branchID)}
-                            className="min-h-10 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                            className="min-h-tap md:min-h-10 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
                           >
                             {openStop === stop.branchID ? "Close" : "Record delivery"}
                           </button>
@@ -410,8 +410,8 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                         </div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button type="button" onClick={() => setShowProblem(false)} className="min-h-11 rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">Cancel</button>
-                        <button type="button" onClick={sendProblem} disabled={busy} className="min-h-11 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                        <button type="button" onClick={() => setShowProblem(false)} className="min-h-tap rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">Cancel</button>
+                        <button type="button" onClick={sendProblem} disabled={busy} className="min-h-tap rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
                           Record foul trip
                         </button>
                       </div>

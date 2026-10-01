@@ -76,6 +76,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // The profile follows the login address, repaired here rather than relied on
+    // elsewhere.
+    //
+    // The two can drift: confirming an email change updates the auth account
+    // first and the Employee row second, and that second write can fail. They
+    // also drifted under the old change-email route, which updated both and
+    // reported a 500 telling the user to find an administrator. Signing in is
+    // the one moment both values are certainly in hand, so it is where they are
+    // put back together.
+    const signedInWith = authData.user.email?.toLowerCase() ?? "";
+    if (signedInWith && (employee.emailAddress ?? "").toLowerCase() !== signedInWith) {
+      const { error: syncError } = await supabase
+        .from("Employee")
+        .update({ emailAddress: signedInWith })
+        .eq("employeeID", employee.employeeID);
+
+      // Never fails the sign-in. The address they just authenticated with is
+      // correct whether or not the profile caught up.
+      if (syncError) console.error("[Login] Profile email not synced:", syncError.message);
+    }
+
     const role = normalizeRole(employee.role);
 
     if (!role) {

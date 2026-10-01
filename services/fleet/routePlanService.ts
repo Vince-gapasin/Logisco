@@ -113,6 +113,22 @@ function usable(value: unknown): value is number {
  * through the Atlantic is worse than routing without it.
  */
 export async function getRemainingWaypoints(dispatchID: string): Promise<RouteWaypoint[]> {
+  return readWaypoints(dispatchID, false);
+}
+
+/**
+ * Every stop on the trip, including the ones already done.
+ *
+ * Routing wants only what is left. Deciding whether a quiet truck is simply
+ * parked at one of its own stops wants all of them: a crew doing paperwork
+ * where they have just delivered are exactly where they should be, and judging
+ * that against the remaining stops only had them reported as stalled.
+ */
+export async function getAllWaypoints(dispatchID: string): Promise<RouteWaypoint[]> {
+  return readWaypoints(dispatchID, true);
+}
+
+async function readWaypoints(dispatchID: string, includeDone: boolean): Promise<RouteWaypoint[]> {
   // Deliveries are linked to the trip carrying them. Pickups are linked to the
   // booking instead - only a handful of rows have ever had a dispatchID - so
   // they are read through the order, which is the link that is actually there.
@@ -140,7 +156,7 @@ export async function getRemainingWaypoints(dispatchID: string): Promise<RouteWa
   const waypoints: RouteWaypoint[] = [];
 
   for (const pickup of pickups ?? []) {
-    if (isStopDelivered(pickup.stopStatus)) continue;
+    if (!includeDone && isStopDelivered(pickup.stopStatus)) continue;
     // A pickup that was never geocoded sits at 0,0. Routing through the
     // Atlantic is worse than routing without it.
     if (!usable(pickup.pickupLat) || !usable(pickup.pickupLong)) continue;
@@ -153,7 +169,7 @@ export async function getRemainingWaypoints(dispatchID: string): Promise<RouteWa
   }
 
   for (const stop of stops ?? []) {
-    if (isStopDelivered(stop.stopStatus)) continue;
+    if (!includeDone && isStopDelivered(stop.stopStatus)) continue;
     if (!usable(stop.deliveryLat) || !usable(stop.deliverLong)) continue;
     waypoints.push({
       latitude: stop.deliveryLat,

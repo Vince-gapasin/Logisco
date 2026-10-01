@@ -92,7 +92,7 @@ function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
           const isCompleted = index <= currentIndex;
           const isActive = index === currentIndex;
 
-          let iconBg = "bg-slate-200 text-slate-400 border-slate-200";
+          let iconBg = "bg-slate-200 text-slate-500 border-slate-200";
           if (isCompleted && !isActive)
             iconBg = "bg-red-500 text-white border-red-500";
           if (isActive)
@@ -116,7 +116,7 @@ function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
                 )}
               </div>
               <span
-                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-red-700" : isCompleted ? "text-slate-700" : "text-slate-400"}`}
+                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-red-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
               >
                 {stage}
               </span>
@@ -220,7 +220,7 @@ export default function FoulTripDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -232,7 +232,7 @@ export default function FoulTripDetailsModal({
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -240,7 +240,7 @@ export default function FoulTripDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -248,7 +248,7 @@ export default function FoulTripDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
@@ -265,7 +265,7 @@ export default function FoulTripDetailsModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status} />
@@ -347,7 +347,7 @@ export default function FoulTripDetailsModal({
                     type="text"
                     readOnly
                     value="No Attachment"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-400 focus:outline-none italic"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-medium text-slate-500 focus:outline-none italic"
                   />
                 )}
               </div>

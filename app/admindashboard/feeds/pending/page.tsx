@@ -5,6 +5,7 @@ import UrlSearchSync from "@/components/UrlSearchSync";
 import UrlOpenSync from "@/components/UrlOpenSync";
 import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import RowOpenButton from "@/components/RowOpenButton";
 import TableSkeleton from "@/components/TableSkeleton";
 import { apiFetch } from "@/app/lib/apiClient";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
@@ -23,6 +24,8 @@ import CrewPicker from "@/components/booking/CrewPicker";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
 import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
+import ListLoadError from "@/components/ListLoadError";
 import {
   Search,
   FileText,
@@ -382,7 +385,7 @@ function BookingDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -398,7 +401,7 @@ function BookingDetailsModal({
           <div className="border border-slate-200 rounded-xl p-4 md:p-6 bg-white shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto flex-1">
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -406,7 +409,7 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
                 <p className="text-xs font-bold text-slate-800">
@@ -414,7 +417,7 @@ function BookingDetailsModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Order Priority
                 </p>
                 <span
@@ -431,7 +434,7 @@ function BookingDetailsModal({
             </div>
 
             <div className="w-full md:w-87.5 shrink-0">
-              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-2 md:text-right">
+              <h3 className="text-xs sm:text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-2 md:text-right">
                 Delivery Progress
               </h3>
               <DeliveryProgress currentStatus={booking.status} />
@@ -510,7 +513,7 @@ function BookingDetailsModal({
 
           {isEditable && (
             <p className="flex items-start gap-2 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
               A client&apos;s contact details belong to their record. To change them, edit the client under Clients
               &amp; Partners.
             </p>
@@ -724,7 +727,7 @@ function BookingDetailsModal({
                     placeholder="optional"
                     value={formData.truckPlate}
                     onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-400"
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-500"
                   />
                 </div>
                 <div>
@@ -737,7 +740,7 @@ function BookingDetailsModal({
                     placeholder="optional"
                     value={formData.driver}
                     onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-400"
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-500"
                   />
                 </div>
                 <div>
@@ -750,7 +753,7 @@ function BookingDetailsModal({
                     placeholder="09XXXXXXXXX (optional)"
                     value={formData.partnerContact ?? ""}
                     onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-400 ${errors.partnerContact ? "border-red-500" : "border-slate-300"}`}
+                    className={`w-full border rounded-md px-3 py-2 text-xs placeholder:text-slate-500 ${errors.partnerContact ? "border-red-500" : "border-slate-300"}`}
                   />
                   {errors.partnerContact && <p className="mt-1 text-[11px] leading-tight text-red-600">{errors.partnerContact}</p>}
                 </div>
@@ -764,7 +767,7 @@ function BookingDetailsModal({
                     placeholder="optional"
                     value={formData.helper1}
                     onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-400"
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-500"
                   />
                 </div>
                 <div>
@@ -777,7 +780,7 @@ function BookingDetailsModal({
                     placeholder="optional"
                     value={formData.helper2}
                     onChange={handleChange}
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-400"
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs placeholder:text-slate-500"
                   />
                 </div>
               </div>
@@ -916,6 +919,7 @@ function BookingDetailsModal({
 // MAIN PAGE COMPONENT
 // ==========================================
 export default function PendingBookingPage() {
+  const showToast = useToast();
   const [bookings, setBookings] = useState<FeedBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -953,6 +957,12 @@ export default function PendingBookingPage() {
   useEffect(() => {
     // The rows land in a network callback, not in the effect body.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadBookings();
+  }, [loadBookings]);
+
+  // Try again, with the skeleton back while it runs.
+  const retryLoad = useCallback(() => {
+    setIsLoading(true);
     void loadBookings();
   }, [loadBookings]);
 
@@ -1022,7 +1032,7 @@ export default function PendingBookingPage() {
       });
       await loadBookings();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to cancel booking.");
+      showToast(error instanceof Error ? error.message : "Failed to cancel booking.", "error");
     }
   };
 
@@ -1035,7 +1045,7 @@ export default function PendingBookingPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/admindashboard/dashboard")}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
             title="Back to Calendar"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -1045,17 +1055,12 @@ export default function PendingBookingPage() {
               <CalendarDays className="w-6 h-6 text-blue-500" />
               Pending Bookings
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Review and manage unfulfilled delivery schedules and assignments.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 
-      {loadError && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs">
-          {loadError}
-        </div>
+      {loadError && paginatedBookings.length > 0 && (
+        <ListLoadError message={loadError} onRetry={retryLoad} compact />
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -1068,7 +1073,7 @@ export default function PendingBookingPage() {
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={setSearchTerm} />
               <UrlOpenSync rows={bookings} ready={!isLoading} onOpen={handleOpenModal} />
               <input
@@ -1076,7 +1081,7 @@ export default function PendingBookingPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search order ID, client, product..."
-                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -1085,61 +1090,78 @@ export default function PendingBookingPage() {
         {/* ========================================== */}
         {/* TABLE */}
         {/* ========================================== */}
-        <div className="overflow-x-auto min-h-135">
-          <table className="w-full text-left border-collapse min-w-250 table-fixed">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
+        <div className="md:overflow-x-auto px-4 pt-4 md:px-0 md:pt-0 min-h-100 md:min-h-135">
+          <table role="table" className="w-full text-left border-collapse md:min-w-250 md:table-fixed block md:table">
+            <thead role="rowgroup" className="hidden md:table-header-group">
+              <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th role="columnheader" className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">
                   Order ID
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
-                <th className="py-3.5 px-4 w-[20%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">Client Name</th>
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">
                   Product to Deliver
                 </th>
-                <th className="py-3.5 px-4 w-[15%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[15%] align-top">
                   Scheduled Date
                 </th>
-                <th className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
-                <th className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
+                <th role="columnheader" className="py-3.5 px-4 w-[20%] align-top">Assigned Crew</th>
+                <th role="columnheader" className="py-3.5 pl-4 pr-6 sm:pr-8 w-[18%] align-top">
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className="block md:table-row-group">
               {isLoading ? (
-                <TableSkeleton rows={5} columns={5} />
+                <TableSkeleton rows={5} columns={6} stacked />
+              ) : loadError ? (
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
+                    <ListLoadError message={loadError} onRetry={retryLoad} />
+                  </td>
+                </tr>
               ) : paginatedBookings.length > 0 ? (
                 paginatedBookings.map((booking) => (
-                  <tr
+                  <tr role="row"
+                    data-pressable
                     key={booking.id}
                     onClick={() => handleOpenModal(booking)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
+                    className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td className="py-4 pl-6 sm:pl-8 pr-4 font-medium text-slate-900 align-top">
-                      {booking.orderId}
+                    <td role="cell" className="block md:table-cell pb-2 mb-1 border-b border-slate-100 md:pb-4 md:mb-0 md:border-0 py-1.5 md:py-4 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 align-top">
+                      <RowOpenButton
+                        label={`View booking ${booking.orderId}`}
+                        onOpen={() => handleOpenModal(booking)}
+                        className="wrap-break-word text-base font-semibold md:text-sm md:font-medium"
+                      >
+                        {booking.orderId}
+                      </RowOpenButton>
                     </td>
-                    <td className="py-4 px-4 font-medium align-top">
-                      {booking.clientName}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 font-medium align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Client Name</span>
+                      <span className="wrap-break-word">{booking.clientName}</span>
                     </td>
-                    <td className="py-4 px-4 align-top text-slate-600 truncate">
-                      {booking.product}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top text-slate-600 md:truncate">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Product</span>
+                      <span className="wrap-break-word">{booking.product}</span>
                     </td>
-                    <td className="py-4 px-4 align-top">
-                      {booking.displayDate}
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:px-4 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Scheduled Date</span>
+                      <span className="wrap-break-word">{booking.displayDate}</span>
                     </td>
 
-                    <td className="py-4 px-4 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-4 px-0 md:px-4 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Assigned Crew</span>
                       {booking.crews && booking.crews.length > 0 ? (
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5 min-w-0">
                           {booking.crews.map((crew, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center text-xs truncate"
+                              className="flex items-baseline text-xs md:truncate"
                             >
                               <span className="font-semibold text-slate-700 mr-1.5 shrink-0 w-16">
                                 {crew.role}:
                               </span>
-                              <span className="truncate text-slate-900">
+                              <span className="md:truncate wrap-break-word text-slate-900">
                                 {crew.name}
                               </span>
                             </div>
@@ -1147,16 +1169,17 @@ export default function PendingBookingPage() {
                         </div>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-slate-500 italic text-xs font-medium">
-                          <Clock className="w-3.5 h-3.5" />
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
                           Not Assigned
                         </span>
                       )}
                     </td>
 
                     {/* STATUS COLUMN */}
-                    <td className="py-4 pl-4 pr-6 sm:pr-8 align-top">
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-4 px-0 md:pl-4 md:pr-6 align-top">
+                      <span className="md:hidden text-xs font-semibold text-slate-500">Status</span>
                       <span
-                        className={`inline-flex items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
+                        className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
                       >
                         {booking.confirmationStatus}
                       </span>
@@ -1164,8 +1187,8 @@ export default function PendingBookingPage() {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} className="py-16 sm:py-20 text-center">
+                <tr role="row" className="block md:table-row">
+                  <td role="cell" colSpan={6} className="block md:table-cell py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />
@@ -1196,7 +1219,7 @@ export default function PendingBookingPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage <= 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -1212,7 +1235,7 @@ export default function PendingBookingPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage >= totalPages}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"

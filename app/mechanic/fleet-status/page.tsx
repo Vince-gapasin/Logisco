@@ -9,6 +9,9 @@ import { authFetch } from "@/app/lib/apiClient";
 import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
 import React, { useState, useEffect, useRef } from "react";
+import { useToast } from "@/components/Toast";
+import RowOpenButton from "@/components/RowOpenButton";
+import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import {
   Search,
   Truck,
@@ -108,80 +111,6 @@ export interface EmployeeOption {
   role: string;
 }
 
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case "Available":
-      return {
-        bgLight: "bg-emerald-50 text-emerald-700 border-emerald-200/50",
-        tabActive: "bg-emerald-600 text-white shadow-md shadow-emerald-600/10",
-        btn: "bg-emerald-300 text-emerald-900 border-emerald-900/80",
-        modalIcon: "bg-emerald-100 text-emerald-600",
-        modalBtn: "bg-emerald-600 hover:bg-emerald-700",
-        badgeBg: "bg-blue-500",
-        pill: "bg-blue-600 hover:bg-blue-700 text-white border-blue-600",
-      };
-    case "Already Booked":
-      return {
-        bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200/50",
-        tabActive: "bg-indigo-600 text-white shadow-md shadow-indigo-600/10",
-        btn: "bg-indigo-300 text-indigo-900 border-indigo-900/80",
-        modalIcon: "bg-indigo-100 text-indigo-600",
-        modalBtn: "bg-indigo-600 hover:bg-indigo-700",
-        badgeBg: "bg-indigo-500",
-        pill: "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600",
-      };
-    case "On Delivery":
-      return {
-        bgLight: "bg-blue-50 text-blue-700 border-blue-200/50",
-        tabActive: "bg-blue-600 text-white shadow-md shadow-blue-600/10",
-        btn: "bg-blue-300 text-blue-900 border-blue-900/80",
-        modalIcon: "bg-blue-100 text-blue-600",
-        modalBtn: "bg-blue-600 hover:bg-blue-700",
-        badgeBg: "bg-blue-500",
-        pill: "bg-blue-600 hover:bg-blue-700 text-white border-blue-600",
-      };
-    case "On Maintenance":
-      return {
-        bgLight: "bg-amber-50 text-amber-700 border-amber-200/50",
-        tabActive: "bg-amber-600 text-white shadow-md shadow-amber-600/10",
-        btn: "bg-amber-300 text-amber-900 border-amber-900/80",
-        modalIcon: "bg-amber-100 text-amber-600",
-        modalBtn: "bg-amber-600 hover:bg-amber-700",
-        badgeBg: "bg-amber-500",
-        pill: "bg-amber-600 hover:bg-amber-700 text-white border-amber-600",
-      };
-    case "Out of Service":
-      return {
-        bgLight: "bg-rose-50 text-rose-700 border-rose-200/50",
-        tabActive: "bg-rose-600 text-white shadow-md shadow-rose-600/10",
-        btn: "bg-rose-300 text-rose-900 border-rose-900/80",
-        modalIcon: "bg-rose-100 text-rose-600",
-        modalBtn: "bg-rose-600 hover:bg-rose-700",
-        badgeBg: "bg-rose-500",
-        pill: "bg-rose-600 hover:bg-rose-700 text-white border-rose-600",
-      };
-    case "Disabled":
-      return {
-        bgLight: "bg-slate-100 text-slate-500 border-slate-200",
-        tabActive: "bg-slate-800 text-white shadow-md",
-        btn: "bg-slate-200 text-slate-500 border-slate-300",
-        modalIcon: "bg-slate-100 text-slate-600",
-        modalBtn: "bg-slate-600 hover:bg-slate-700",
-        badgeBg: "bg-slate-400",
-        pill: "bg-slate-500 hover:bg-slate-600 text-white border-slate-500",
-      };
-    default:
-      return {
-        bgLight: "bg-slate-50 text-slate-700 border-slate-200/50",
-        tabActive: "bg-slate-900 text-white shadow-md",
-        btn: "bg-slate-300 text-slate-900 border-slate-900/80",
-        modalIcon: "bg-slate-100 text-slate-600",
-        modalBtn: "bg-slate-600 hover:bg-slate-700",
-        badgeBg: "bg-slate-500",
-        pill: "bg-slate-600 hover:bg-slate-700 text-white border-slate-600",
-      };
-  }
-};
 
 const formatDisplayDate = (dateString: string) => {
   if (!dateString) return "N/A";
@@ -232,7 +161,7 @@ function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
 
         <button
           onClick={onClose}
-          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
           title="Close"
         >
           <X className="w-5 h-5" />
@@ -414,7 +343,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -439,7 +368,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., ABC-1234"
                   value={formData.plateNumber}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.plateNumber ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.plateNumber && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -465,11 +394,11 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   <button
                     type="button"
                     onClick={() => setIsTypeDropdownOpen(!isTypeDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span
                       className={
-                        formData.truckType ? "text-black" : "text-slate-400"
+                        formData.truckType ? "text-black" : "text-slate-500"
                       }
                     >
                       {formData.truckType || "Select truck type"}
@@ -490,7 +419,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                             });
                             setIsTypeDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.truckType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>
@@ -515,7 +444,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., Isuzu NPR / Fuso Canter"
                   value={formData.truckModel}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.truckModel ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.truckModel && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -534,7 +463,7 @@ function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existingFleet,
                   placeholder="e.g., 5 Tons or 5000 kg"
                   value={formData.capacity}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors.capacity && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -594,6 +523,7 @@ interface LogMaintenanceModalProps {
 }
 
 function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID, isSaving }: LogMaintenanceModalProps) {
+  const showToast = useToast();
   const initialFormState: Record<string, string> = {
     date: "",
     truckID: "",
@@ -724,7 +654,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
             [activeFields.photo]: dataUrl,
           })),
         )
-        .catch(() => alert("Could not read that image. Please choose a different photo."));
+        .catch(() => showToast("Could not read that image. Please choose a different photo.", "error"));
     }
   };
 
@@ -785,7 +715,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
           <button
             type="button"
             onClick={handleCloseModal}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -835,13 +765,13 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                     type="button"
                     disabled={!!preselectedTruckId}
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
-                    className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
+                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
                   >
                     <span
                       className={
                         formData.truckID
                           ? "text-black truncate pr-2"
-                          : "text-slate-400"
+                          : "text-slate-500"
                       }
                     >
                       {formData.truckID
@@ -874,7 +804,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                             });
                             setIsTruckDropdownOpen(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {truck.plateNumber} — {truck.truckType}
                         </button>
@@ -972,7 +902,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   }
                   value={formData[activeFields.issue]}
                   onChange={handleInputChange}
-                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors[activeFields.issue] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                  className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors[activeFields.issue] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
                 />
                 {errors[activeFields.issue] && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
@@ -993,7 +923,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                   placeholder="Any additional notes, future recommendations, or observations..."
                   value={formData[activeFields.remarks]}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
@@ -1013,7 +943,7 @@ function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, truck
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />{" "}
                   {formData[activeFields.photo]
@@ -1179,7 +1109,7 @@ function LogDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1541,7 +1471,7 @@ function TruckSpecificHistoryView({
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={onBack}
-          className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -1623,7 +1553,7 @@ function TruckSpecificHistoryView({
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Previous
             </button>
@@ -1632,7 +1562,7 @@ function TruckSpecificHistoryView({
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Next
             </button>
@@ -1785,7 +1715,7 @@ function TruckDetailView({
         <div className="flex items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0"
+            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -1796,7 +1726,7 @@ function TruckDetailView({
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* NEW: Inline Truck Icon for context */}
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Truck className="w-5 h-5 text-slate-400" />
+              <Truck className="w-5 h-5 text-slate-500" />
               {truck.plateNumber}
             </h2>
 
@@ -1812,38 +1742,43 @@ function TruckDetailView({
         </div>
 
         {/* RIGHT SIDE: Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Maintenance Update Form (Only visible to assigned mechanic when broken down) */}
-          {isUnderMaintenance && hasMechanicAccess && (
-            <button
-              onClick={onLogMaintenanceClick}
-              className="inline-flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
-            >
-              <Wrench className="w-4 h-4" />
-              <span>Maintenance Update Form</span>
-            </button>
-          )}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-end w-full md:w-auto gap-2 sm:gap-3">
+          {/* The work buttons. Second on a phone, first on a desktop. */}
+          <div className="order-2 md:order-1 flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+            {/* Maintenance Update Form (Only visible to assigned mechanic when broken down) */}
+            {isUnderMaintenance && hasMechanicAccess && (
+              <button
+                onClick={onLogMaintenanceClick}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
+              >
+                <Wrench className="w-4 h-4 shrink-0" />
+                <span>Maintenance Update Form</span>
+              </button>
+            )}
 
-          {/* Hide top action buttons if the truck is being fixed by another mechanic OR is restricted (unless assigned to a foul trip) */}
-          {(!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
-            <button onClick={onUpdateStatusClick} className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
-          )}
+            {/* Hide top action buttons if the truck is being fixed by another mechanic OR is restricted (unless assigned to a foul trip) */}
+            {(!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
+              <button onClick={onUpdateStatusClick} className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
+            )}
+          </div>
 
+          {/* Looking back at the truck. First on a phone, last on a desktop. */}
+          <div className="order-1 md:order-2 flex items-center gap-2 sm:gap-3 w-full md:w-auto">
           {/* History Button (Always visible) */}
           <button
             onClick={onHistoryClick}
-            className="inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
           >
-            <HistoryIcon className="w-4 h-4" />
+            <HistoryIcon className="w-4 h-4 shrink-0" />
             <span>History</span>
           </button>
 
           {(!isUnderMaintenance || hasMechanicAccess) && (
-            <div className="relative">
+            <div className="relative shrink-0">
               {/* More Actions Dropdown Menu */}
               <button
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
+                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
                 title="More Actions"
               >
                 <MoreHorizontal className="w-5 h-5" />
@@ -1908,10 +1843,11 @@ function TruckDetailView({
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
         <div className="space-y-6 text-sm text-slate-900">
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
@@ -2081,6 +2017,7 @@ export default function MechanicFleetStatusPage({
   isOpen,
   setIsopen,
 }: MechanicFleetStatusProps) {
+  const showToast = useToast();
   // 1. Dynamic state for the logged-in mechanic
   const [currentUser, setCurrentUser] = useState({
     employeeID: "",
@@ -2154,14 +2091,7 @@ export default function MechanicFleetStatusPage({
     "inspection" | "update" | "log"
   >("log");
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -2376,11 +2306,11 @@ export default function MechanicFleetStatusPage({
           );
         }
 
-        setToastMessage("Status updated successfully.");
+        showToast("Status updated successfully.", "success");
       }
     } catch (error) {
       console.error("Error updating status:", error);
-      alert("Failed to update status on server.");
+      showToast("Failed to update status on server.", "error");
     }
   };
 
@@ -2473,17 +2403,16 @@ export default function MechanicFleetStatusPage({
           };
           setFleetList((prev) => [newTruck, ...prev]);
         }
-        setToastMessage(
+        showToast(
           editingTruck
             ? "Changes saved successfully."
-            : "Truck added successfully.",
-        );
+            : "Truck added successfully.", "success");
       } else {
-        alert("Failed to save truck. Check your server connection.");
+        showToast("Failed to save truck. Check your server connection.", "error");
       }
     } catch (error) { 
       console.error("Error saving truck:", error); 
-      alert("Error saving truck details."); 
+      showToast("Error saving truck details.", "error"); 
     } finally {
       setIsSavingTruck(false);
       setEditingTruck(null); 
@@ -2499,11 +2428,11 @@ export default function MechanicFleetStatusPage({
       if (response.ok) {
         setFleetList((prev) => prev.filter((t) => String(t.id) !== String(id)));
         setSelectedTruck(null);
-        setToastMessage("Truck deleted successfully.");
+        showToast("Truck deleted successfully.", "success");
       }
     } catch (error) {
       console.error("Error deleting truck:", error);
-      alert("Error deleting truck.");
+      showToast("Error deleting truck.", "error");
     }
   };
 
@@ -2543,18 +2472,17 @@ export default function MechanicFleetStatusPage({
 
       if (response.ok) {
         await fetchLogs();
-        setToastMessage(
+        showToast(
           editingHistoryRecord
             ? "Changes saved successfully."
-            : "Maintenance log saved successfully.",
-        );
+            : "Maintenance log saved successfully.", "success");
 
         // EXECUTE DELAYED STATUS UPDATE: Update the truck unconditionally if a target is set
         if (statusConfirmTruck && pendingStatusTarget) {
           await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget);
         }
       } else {
-        alert("Failed to save maintenance log.");
+        showToast("Failed to save maintenance log.", "error");
       }
     } catch (error) { 
       console.error("Error saving maintenance log:", error); 
@@ -2574,7 +2502,7 @@ export default function MechanicFleetStatusPage({
         prev.filter((log) => String(log.id) !== String(id)),
       );
       setSelectedHistoryRecord(null);
-      setToastMessage("Deleted successfully.");
+      showToast("Deleted successfully.", "success");
     } catch (error) {
       console.error("Error deleting log:", error);
     }
@@ -2722,12 +2650,7 @@ export default function MechanicFleetStatusPage({
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                 {showArchived ? "Archived Trucks" : "Fleet Status"}
               </h1>
-              <p className="text-sm text-slate-700 mt-1">
-                {showArchived
-                  ? "View and manage disabled or retired trucks."
-                  : "Monitor truck diagnostic health, asset availability, and maintenance conditions."}
-              </p>
-            </div>
+              </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
               <button
                 onClick={() => {
@@ -2761,7 +2684,7 @@ export default function MechanicFleetStatusPage({
               <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
                 <button
                   onClick={() => setSelectedFilter("All")}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
+                  className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
                 >
                   All ({showArchived ? disabledCount : totalCount})
                 </button>
@@ -2771,31 +2694,31 @@ export default function MechanicFleetStatusPage({
                   <>
                     <button
                       onClick={() => setSelectedFilter("On Maintenance")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Maintenance" ? getStatusStyles("On Maintenance").tabActive : getStatusStyles("On Maintenance").bgLight}`}
                     >
                       On Maintenance ({maintenanceCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Available")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}
                     >
                       Available ({operationalCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Already Booked")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
                     >
                       Already Booked ({alreadyBookedCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("On Delivery")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}
                     >
                       On Delivery ({deliveryCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("Out of Service")}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Out of Service" ? getStatusStyles("Out of Service").tabActive : getStatusStyles("Out of Service").bgLight}`}
                     >
                       Out of Service ({outOfServiceCount})
                     </button>
@@ -2803,14 +2726,14 @@ export default function MechanicFleetStatusPage({
                 )}
               </div>
               <div className="relative w-full lg:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
                 <UrlSearchSync onQuery={setSearchTerm} />
                 <input
                   type="text"
                   placeholder="Search by Plate No or Type..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
                 />
               </div>
             </div>
@@ -2842,7 +2765,7 @@ export default function MechanicFleetStatusPage({
                     <tr>
                       <td colSpan={2} className="py-16 sm:py-20 text-center">
                         <div className="flex flex-col items-center justify-center max-w-sm mx-auto px-4">
-                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                             <FileText className="w-6 h-6" />
                           </div>
                           <p className="text-sm font-semibold text-slate-800">
@@ -2859,11 +2782,16 @@ export default function MechanicFleetStatusPage({
                           key={truck.id || `truck-row-${index}`}
                           onClick={() => setSelectedTruck(truck)}
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                          title="Click to view complete truck record"
                         >
                           <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
                             <div className="font-medium text-slate-900 truncate">
-                              {truck.plateNumber}
+                              <RowOpenButton
+                                label={`View truck ${truck.plateNumber}`}
+                                onOpen={() => setSelectedTruck(truck)}
+                                className="max-w-full truncate"
+                              >
+                                {truck.plateNumber}
+                              </RowOpenButton>
                               <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
                                 — {truck.truckType}
                               </span>
@@ -2902,7 +2830,7 @@ export default function MechanicFleetStatusPage({
                     setCurrentPage((prev) => Math.max(prev - 1, 1))
                   }
                   disabled={currentPage === 1}
-                  className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+                  className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
                 >
                   Previous
                 </button>
@@ -2911,7 +2839,7 @@ export default function MechanicFleetStatusPage({
                     setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                   }
                   disabled={currentPage === totalPages || totalPages === 0}
-                  className={`px-3 py-1.5 border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+                  className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
                 >
                   Next
                 </button>
@@ -3088,46 +3016,6 @@ export default function MechanicFleetStatusPage({
         </div>
       )}
 
-      {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 animate-in fade-in slide-in-from-bottom-5">
-          <div className="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
-            <div
-              className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${toastMessage === "No changes were made." ? "bg-blue-500" : "bg-emerald-500"}`}
-            >
-              {toastMessage === "No changes were made." ? (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="w-3.5 h-3.5 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              )}
-            </div>
-            {toastMessage}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
