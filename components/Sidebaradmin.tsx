@@ -6,6 +6,7 @@
 import { releasePushToken } from "@/components/PushNotifications";
 
 import React, { useState } from "react";
+import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -27,6 +28,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+  const user = useSessionUser();
+
   const pathname = usePathname();
   const router = useRouter();
 
@@ -95,18 +98,31 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {/* Refined User Profile Section */}
         <div className="relative z-10 flex flex-col items-center justify-center py-8 border-b border-slate-950 mt-6 px-4 text-center">
           <div className="w-18 h-18 bg-black border border-slate-900 rounded-2xl mb-3 overflow-hidden shadow-inner flex items-center justify-center">
+            {/* Seeded from whoever is actually signed in. It used to be a name
+                in the markup, so every office portal drew the same initials. */}
             <img
-              src="https://api.dicebear.com/7.x/initials/svg?seed=Joanne"
-              alt="Profile"
+              src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.name ?? "?")}`}
+              alt=""
               className="w-full h-full object-cover bg-slate-200"
             />
           </div>
-          <h2 className="font-bold text-base tracking-wide text-[#f0f4ff]">
-            JOANNE PATERNO
-          </h2>
-          <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
-            ADMINISTRATOR
-          </p>
+          {user ? (
+            <>
+              <h2 className="font-bold text-base tracking-wide text-[#f0f4ff] wrap-break-word">
+                {user.name.toUpperCase()}
+              </h2>
+              <p className="text-[#8ba4d5] text-xs sm:text-[11px] font-semibold tracking-[0.2em] mt-0.5">
+                {describeRole(user.role).toUpperCase()}
+              </p>
+            </>
+          ) : (
+            // Until the browser has been read. A blank where the name goes is
+            // better than a name belonging to nobody.
+            <div aria-hidden="true" className="flex flex-col items-center gap-2">
+              <div className="h-4 w-32 rounded bg-slate-800" />
+              <div className="h-2.5 w-20 rounded bg-slate-900" />
+            </div>
+          )}
         </div>
 
         {/* Navigation Menu */}
