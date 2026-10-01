@@ -102,6 +102,12 @@ const STAGE_STATUSES: Record<string, string[]> = {
 // row. The reports screen used to pull BOOKING_COLUMNS for every order ever
 // created - every stop, pickup, item and crew member - to render a ten-row
 // table, then fetch nothing more when a row was opened.
+//
+// rejectionreason is in here for the reports list: it is short, and it is the
+// only thing a list of finished deliveries can say about the ones that did not
+// finish - a driver's reason for declining, or a coordinator's for cancelling.
+// The note itself goes here rather than inside the string, because this is a
+// PostgREST select and not SQL: a "--" in it is read as part of a column name.
 const SUMMARY_COLUMNS = `
   orderID,
   orderCode,
@@ -114,6 +120,7 @@ const SUMMARY_COLUMNS = `
     dispatchID,
     status,
     completedAt,
+    rejectionreason,
     Driver:Employee!driverID ( employeeName ),
     DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) )
   )

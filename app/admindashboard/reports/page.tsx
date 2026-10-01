@@ -568,7 +568,15 @@ export default function ReportsForecastingPage() {
               client: displayClient,
               status: category,
               crew: crewString,
-              remarks: "Retrieved from DB",
+              // Why it did not finish, where that was recorded: a driver's
+              // reason for declining, or the coordinator's for cancelling. It
+              // used to read "Retrieved from DB" on every row, which is not a
+              // remark about the delivery - it is a note about the fetch.
+              //
+              // Empty for a trip that simply ran, because there is nothing
+              // short and true to say about one. What happened on it is behind
+              // the History button, in full.
+              remarks: dispatchRecord?.rejectionreason?.trim() || "",
               rawOrder: o,
               dispatchStatus: dispatchRecord?.status,
               // From the trip itself. These used to read Order columns named
@@ -791,7 +799,7 @@ export default function ReportsForecastingPage() {
           record.client,
           record.status,
           record.crew,
-          record.remarks,
+          record.remarks || "-",
         ]),
       );
 
@@ -1140,7 +1148,7 @@ export default function ReportsForecastingPage() {
                       {record.crew}
                     </td>
                     <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
-                      {record.remarks}
+                      {record.remarks || "—"}
                     </td>
                   </tr>
                 ))
