@@ -24,16 +24,32 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 
-// What the zoom steps through: an hour's height and a day's width together.
+// The zoom counts days rather than pixels.
 //
-// Both, because bookings at the same time are laid out side by side and a lane
-// is a share of the column. Stretching only the hour made a crowded morning
-// taller and left the tags exactly as narrow - three bookings in a 112px column
-// is three 37px slivers of cropped text, on a phone that cannot pinch its way
-// out of it. At the widest step a lane is wide enough to read.
-const HOUR_HEIGHTS = [40, 64, 104, 168] as const;
-const DAY_WIDTHS = [88, 112, 200, 340] as const;
-const DEFAULT_ZOOM = 1;
+// A week at the widest and a single day at the closest, with the columns
+// dividing whatever width there is - so a laptop zoomed out shows exactly the
+// week, and zoomed in shows one day across the whole screen. Fixed pixel widths
+// could not do both: they left a laptop with half a column hanging off the edge
+// and a phone with slivers.
+const MAX_DAYS_VISIBLE = 7;
+const MIN_DAYS_VISIBLE = 1;
+
+// Narrower than this and a day is not worth drawing, so the widest view on a
+// small screen is however many days clear this.
+const MIN_READABLE_DAY_PX = 96;
+
+// How tall an hour is at each width. Fewer days on screen means more room and a
+// closer look, so the hours open up with them - which also means fewer bookings
+// count as overlapping, because an event spans less of the clock.
+const HOUR_HEIGHT_BY_DAYS: Record<number, number> = {
+  1: 168,
+  2: 136,
+  3: 112,
+  4: 96,
+  5: 80,
+  6: 72,
+  7: 64,
+};
 
 // What one event occupies, for working out which ones collide.
 const EVENT_HEIGHT_PX = 42;
@@ -166,16 +182,31 @@ export default function CalendarPage() {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
-  // How tall an hour is drawn. Stretching it is what makes a crowded morning
-  // readable once laying the bookings side by side has run out of width.
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-  const hourHeight = HOUR_HEIGHTS[zoom];
-  const dayWidth = DAY_WIDTHS[zoom];
+  // How many days are on screen at once, and how wide the grid is to share
+  // between them. The width is measured rather than assumed, because the zoom
+  // is a count of days and the columns divide what there is.
+  const [daysVisible, setDaysVisible] = useState(MAX_DAYS_VISIBLE);
+  const [gridWidth, setGridWidth] = useState(0);
 
-  // Which days of it are on screen, read back from the scroll position.
-  const [view, setView] = useState({ first: 0, count: 7 });
+  const available = Math.max(MIN_READABLE_DAY_PX, gridWidth - GUTTER_WIDTH_PX);
+  const maxDays = Math.max(
+    MIN_DAYS_VISIBLE,
+    Math.min(MAX_DAYS_VISIBLE, Math.floor(available / MIN_READABLE_DAY_PX)),
+  );
+  const shownDays = Math.min(daysVisible, maxDays);
+  const dayWidth = available / shownDays;
+  const hourHeight = HOUR_HEIGHT_BY_DAYS[shownDays] ?? 64;
+
+  // Which day is at the left edge, read back from the scroll position.
+  const [view, setView] = useState({ first: 0, count: MAX_DAYS_VISIBLE });
   const weekGridRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef(view);
+
+  const zoomBy = useCallback((step: number) => {
+    setDaysVisible((current) =>
+      Math.max(MIN_DAYS_VISIBLE, Math.min(MAX_DAYS_VISIBLE, current + step)),
+    );
+  }, []);
 
   const [bookings, setBookings] = useState<BookingView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -303,11 +334,9 @@ export default function CalendarPage() {
     let queued = false;
     const read = () => {
       queued = false;
+      setGridWidth(grid.clientWidth);
       const first = Math.max(0, Math.round(grid.scrollLeft / dayWidth));
-      const count = Math.max(
-        1,
-        Math.round((grid.clientWidth - GUTTER_WIDTH_PX) / dayWidth),
-      );
+      const count = Math.max(1, Math.round((grid.clientWidth - GUTTER_WIDTH_PX) / dayWidth));
       if (first === viewRef.current.first && count === viewRef.current.count) return;
       viewRef.current = { first, count };
       setView({ first, count });
@@ -331,12 +360,65 @@ export default function CalendarPage() {
 
   // A zoom changes what a pixel means, so the day on screen has to be put back
   // where it was. Without this, zooming in walks the strip towards the 1st.
-  const zoomedTo = useRef(zoom);
+  const zoomedTo = useRef(shownDays);
   useEffect(() => {
-    if (zoomedTo.current === zoom) return;
-    zoomedTo.current = zoom;
+    if (zoomedTo.current === shownDays) return;
+    zoomedTo.current = shownDays;
     scrollToIndex(viewRef.current.first, "auto");
-  }, [zoom, scrollToIndex]);
+  }, [shownDays, scrollToIndex]);
+
+  // Pinching, for the screens with no room for buttons.
+  //
+  // Two fingers only, and the page is left alone until there are two - a
+  // one-finger drag is still a scroll. The gesture steps a whole day at a time
+  // rather than tracking the fingers, because the zoom is a count of days and
+  // there is nothing in between.
+  useEffect(() => {
+    const grid = weekGridRef.current;
+    if (!grid) return;
+
+    const spread = (touches: TouchList) =>
+      Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY,
+      );
+
+    let from = 0;
+
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length === 2) from = spread(event.touches);
+    };
+
+    const onMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !from) return;
+      event.preventDefault();
+
+      const ratio = spread(event.touches) / from;
+      if (ratio > 1.3) {
+        zoomBy(-1);
+        from = spread(event.touches);
+      } else if (ratio < 0.77) {
+        zoomBy(1);
+        from = spread(event.touches);
+      }
+    };
+
+    const onEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) from = 0;
+    };
+
+    grid.addEventListener("touchstart", onStart, { passive: true });
+    grid.addEventListener("touchmove", onMove, { passive: false });
+    grid.addEventListener("touchend", onEnd, { passive: true });
+    grid.addEventListener("touchcancel", onEnd, { passive: true });
+
+    return () => {
+      grid.removeEventListener("touchstart", onStart);
+      grid.removeEventListener("touchmove", onMove);
+      grid.removeEventListener("touchend", onEnd);
+      grid.removeEventListener("touchcancel", onEnd);
+    };
+  }, [zoomBy]);
 
   const openEvent = (event: CalendarEvent) => {
     router.push(STAGE_ROUTES[event.stage] ?? "/admindashboard/feeds/pending");
@@ -537,24 +619,24 @@ export default function CalendarPage() {
             {isLoading && <span className="text-xs text-slate-500">Loading...</span>}
           </div>
 
-          {/* Stretches the hours. Laying bookings side by side runs out of
-              width before it runs out of bookings, so the other axis has to
-              give. */}
-          <div className="flex items-center gap-1">
+          {/* How many days at once: a week at the widest, one at the closest.
+              Buttons here, where there is room for them; on a touch screen the
+              same thing is a pinch on the grid itself. */}
+          <div className="hidden md:flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setZoom((current) => Math.max(0, current - 1))}
-              disabled={zoom === 0}
-              aria-label="Show more hours at once"
+              onClick={() => zoomBy(1)}
+              disabled={shownDays >= maxDays}
+              aria-label="Show more days at once"
               className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ZoomOut size={16} />
             </button>
             <button
               type="button"
-              onClick={() => setZoom((current) => Math.min(HOUR_HEIGHTS.length - 1, current + 1))}
-              disabled={zoom === HOUR_HEIGHTS.length - 1}
-              aria-label="Give each hour more room"
+              onClick={() => zoomBy(-1)}
+              disabled={shownDays <= MIN_DAYS_VISIBLE}
+              aria-label="Show fewer days, closer up"
               className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ZoomIn size={16} />
