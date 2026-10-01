@@ -509,11 +509,6 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
  * Null for anything that is not a plain YYYY-MM-DD, rather than a guess: a
  * wrong date here would silently decide that a stop was late.
  */
-function scheduleDateIn(notes: string | null | undefined): string | null {
-  const raw = readNote(notes ?? "", "Delivery Schedule").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
-}
-
 export async function createBooking(dto: CreateOrderDto) {
   // 1. Generate Unique Identifiers
   const orderCode = generateOrderCode();
@@ -530,7 +525,7 @@ export async function createBooking(dto: CreateOrderDto) {
         notes: dto.notes || "",
         // Lifted out of the blob the booking form builds, so the column is
         // populated from the first save rather than only when somebody edits.
-        deliverySchedule: scheduleDateIn(dto.notes),
+        deliverySchedule: dto.deliverySchedule,
         isActive: true,
       },
     ])

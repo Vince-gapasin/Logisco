@@ -101,6 +101,8 @@ export interface CreatePickupStopDto {
 
 export interface CreateOrderDto {
   clientID?: string | null;
+  /** The day the delivery is for, as YYYY-MM-DD. Validated, not scraped. */
+  deliverySchedule: string;
   notes?: string;
   items: CreateOrderItemDto[];
   stops: CreateBranchStopDto[];

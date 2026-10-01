@@ -53,3 +53,24 @@ export function formatDateTime(value: string | null | undefined): string {
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: ZONE });
 }
+
+/**
+ * Today, where the trucks are.
+ *
+ * A booking is refused for being in the past, and "the past" has to be read in
+ * Manila: this runs on a server in UTC, where at half past midnight local it is
+ * still yesterday afternoon. Judged against that, every booking made after
+ * eight in the evening would be a booking for tomorrow, and every booking for
+ * today after midnight would be refused as past.
+ *
+ * en-CA because it is the locale that formats a date as YYYY-MM-DD, which is
+ * what the column holds and what sorts correctly as a string.
+ */
+export function todayInManila(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}

@@ -1574,6 +1574,10 @@ export default function AdminDashboardPage() {
 
       const payload = {
         clientID: data.clientID || null,
+        // Sent as its own field. It is still written into the notes above for
+        // the screens that read it from there, but the server validates and
+        // stores this one.
+        deliverySchedule: data.deliverySchedule,
         notes: detailedNotes,
         items: [
           {
