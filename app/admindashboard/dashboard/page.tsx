@@ -18,6 +18,7 @@ import {
   hasDriverAccepted,
   haveHelpersAccepted,
 } from "@/app/lib/enums";
+import { assignableCrew } from "@/app/lib/crewEligibility";
 
 // A trip that has left the yard and has not finished yet.
 const ON_THE_ROAD_STATUSES: string[] = [
@@ -1452,12 +1453,17 @@ export default function AdminDashboardPage() {
       const allTrucks = truckRes.data ?? [];
       setTrucks(allTrucks.filter((truck) => truck.isActive && truck.truckStatus === "Available"));
 
-      const allEmployees = empRes.data ?? [];
-      const free = (employee: Partial<EmployeeRow>, role: string) =>
-        employee.role === role && employee.isActive && employee.availability === "Available";
+      // The fallback lists, used by the booking form before a date is chosen
+      // and if the by-date request fails. Through the same rule the assignment
+      // enforces, so this cannot offer somebody the save will refuse - it used
+      // to ask only for an active employee in the right role, which let
+      // through anybody whose account had never been set up.
+      const allEmployees = (empRes.data ?? []).filter(
+        (employee) => employee.availability === "Available",
+      );
 
-      setDrivers(allEmployees.filter((employee) => free(employee, "Driver")));
-      setHelpers(allEmployees.filter((employee) => free(employee, "Helper")));
+      setDrivers(assignableCrew(allEmployees, "Driver"));
+      setHelpers(assignableCrew(allEmployees, "Helper"));
 
       setSubcontractors(subconRes.data || []);
     } catch (error) {

@@ -16,7 +16,11 @@
 // So the rule lives here, once, and both the list and the assignment use it.
 
 export interface CrewCandidate {
-  employeeID: string;
+  // Every field is optional and nullable so a row read straight from the table
+  // satisfies this without being reshaped first. The rule has to be applied
+  // wherever crew are listed, and a type that only one caller can satisfy is a
+  // rule that gets copied instead of reused.
+  employeeID?: string | null;
   employeeName?: string | null;
   role?: string | null;
   isActive?: boolean | null;
