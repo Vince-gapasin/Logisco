@@ -715,15 +715,16 @@ function calculateMetrics(expected: number, actual: number | null) {
   const sign = diff > 0 ? "+" : "";
   const varianceStr = `${sign}${diff} (${sign}${percentage}%)`;
 
+  // Same +/-5% rule as the Trend Status card, the remarks and the server.
   const ratio = diff / expected;
-  if (ratio > 0.03) {
+  if (ratio > 0.05) {
     return {
       variance: varianceStr,
       varianceVal: diff,
       status: "Above Normal",
       statusClass: "bg-[#dbeafe] text-[#1e40af] border-blue-200",
     };
-  } else if (ratio < -0.03) {
+  } else if (ratio < -0.05) {
     return {
       variance: varianceStr,
       varianceVal: diff,
@@ -872,7 +873,11 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       return forecast.yearly.map((item) => ({
         id: `year-${item.year}`,
         periodStart: `${item.year}-01-01`,
-        period: String(item.year),
+        // The current year only has its completed months so far.
+        period:
+          item.year === new Date().getFullYear()
+            ? `${item.year} (year to date)`
+            : String(item.year),
         expectedVolume: item.expectedVolume,
         actualVolume: item.actualVolume,
         variance: item.variance,
@@ -1050,9 +1055,12 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   // newest period first, and only periods that have already started, so the
   // current year never shows future months/weeks/days. Because this uses
   // today's date, a new month or week appears automatically once it begins.
-  // The yearly view is left as it is.
   const historyRecords = useMemo(() => {
-    if (forecastView === "yearly") return visibleRecords;
+    if (forecastView === "yearly") {
+      return [...visibleRecords].sort((a, b) =>
+        b.periodStart.localeCompare(a.periodStart),
+      );
+    }
 
     const now = new Date();
     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -1833,7 +1841,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         dataKey="period"
                         interval={0}
                         minTickGap={0}
-                        tickFormatter={(period: string) => period.split(" – ")[0]}
+                        tickFormatter={(period: string) => period.split(" – ")[0].split(" (")[0]}
                         tick={{ fontSize: 11, fill: "#64748b" }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />

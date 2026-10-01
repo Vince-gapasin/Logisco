@@ -164,16 +164,23 @@ export function buildForecastFilters(
     // YEARLY
     //
 
+    // Only completed months count toward the yearly totals, so the current
+    // year compares its finished months with the forecast for those same
+    // months (not a full-year forecast against a partial year).
+    const isCompleted = record.actualVolume !== null;
+
     const existingYear =
       yearlyMap.get(year);
 
     if(existingYear){
 
-      existingYear.expectedVolume +=
-        record.expectedVolume;
+      if (isCompleted) {
+        existingYear.expectedVolume +=
+          record.expectedVolume;
 
-      existingYear.actualVolume +=
-        record.actualVolume ?? 0;
+        existingYear.actualVolume +=
+          record.actualVolume ?? 0;
+      }
 
     }
     else {
@@ -183,7 +190,7 @@ export function buildForecastFilters(
         {
           year,
           expectedVolume:
-            record.expectedVolume,
+            isCompleted ? record.expectedVolume : 0,
           actualVolume:
             record.actualVolume ?? 0,
           variance:0,
