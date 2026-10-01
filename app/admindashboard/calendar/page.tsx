@@ -24,6 +24,19 @@ import {
 
 // One hour row is h-16 (64px); events are positioned against that.
 const HOUR_HEIGHT_PX = 64;
+
+// One day column, and the gutter the hours sit in.
+//
+// Fixed rather than a seventh of the screen, because the strip is no longer a
+// week: it runs a year either side of today and is scrolled through, so the
+// columns have to be a known width for the scroll position to mean a date.
+const DAY_WIDTH_PX = 112;
+const GUTTER_WIDTH_PX = 80;
+
+// How far the strip runs. A year each way covers anything anybody is booking
+// against, and at one element per day it costs nothing to have it there.
+const DAYS_BEHIND = 365;
+const DAYS_AHEAD = 365;
 const DEFAULT_EVENT_TIME = "08:00";
 
 // Where a booking at each stage is managed.
@@ -48,14 +61,6 @@ function toIsoDate(date: Date): string {
 }
 
 // Monday of the week containing the given date.
-function startOfWeek(date: Date): Date {
-  const start = new Date(date);
-  const weekday = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - weekday);
-  start.setHours(0, 0, 0, 0);
-  return start;
-}
-
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -101,15 +106,15 @@ function toCalendarEvent(booking: BookingView): CalendarEvent | null {
 export default function CalendarPage() {
   const router = useRouter();
   const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
-
-  // The day the month calendar last pointed at, and the grid it scrolls.
+  // Where the strip is, as an index into the days below.
   //
-  // Seven readable columns are wider than a phone, so picking the 23rd has to
-  // bring the 23rd into view - otherwise the week changes underneath and the
-  // screen still shows Monday.
-  const [focusIso, setFocusIso] = useState<string | null>(null);
+  // The grid used to be a week, and everything - the month in the heading, the
+  // month calendar, which days were highlighted - came from which week was
+  // being shown. There is no week now, so the scroll position is the one source
+  // of truth and these follow it.
+  const [view, setView] = useState({ first: DAYS_BEHIND, count: 7 });
   const weekGridRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef(view);
 
   const [bookings, setBookings] = useState<BookingView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -135,23 +140,37 @@ export default function CalendarPage() {
 
   const todayIso = toIsoDate(new Date());
 
-  const weeklyColumns = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, index) => {
-        const day = addDays(weekStart, index);
-        return {
-          name: day.toLocaleDateString("en-PH", { weekday: "short" }),
-          date: day.getDate(),
-          iso: toIsoDate(day),
-        };
-      }),
-    [weekStart],
+  // Every day the strip runs over, built once. Today sits at DAYS_BEHIND.
+  const days = useMemo(() => {
+    const start = addDays(new Date(), -DAYS_BEHIND);
+    return Array.from({ length: DAYS_BEHIND + DAYS_AHEAD + 1 }, (_, index) => {
+      const day = addDays(start, index);
+      return {
+        name: day.toLocaleDateString("en-PH", { weekday: "short" }),
+        date: day.getDate(),
+        iso: toIsoDate(day),
+        day,
+      };
+    });
+  }, []);
+
+  const anchor = useMemo(
+    () => days[Math.min(view.first, days.length - 1)]?.day ?? new Date(),
+    [days, view.first],
   );
 
   const monthLabel = useMemo(
-    () => weekStart.toLocaleDateString("en-PH", { month: "long", year: "numeric" }),
-    [weekStart],
+    () => anchor.toLocaleDateString("en-PH", { month: "long", year: "numeric" }),
+    [anchor],
   );
+
+  /** Puts a date at the left edge of the strip, behind the hours. */
+  const scrollToIndex = useCallback((index: number, behavior: ScrollBehavior = "smooth") => {
+    const grid = weekGridRef.current;
+    if (!grid) return;
+    const clamped = Math.max(0, Math.min(index, DAYS_BEHIND + DAYS_AHEAD));
+    grid.scrollTo({ left: clamped * DAY_WIDTH_PX, behavior });
+  }, []);
 
   // Events for the visible week, grouped by day.
   const eventsByDate = useMemo(() => {
@@ -172,23 +191,28 @@ export default function CalendarPage() {
 
   const unassignedCount = bookings.filter(isAwaitingAssignment).length;
   const awaitingCrewCount = bookings.filter(isAwaitingCrewConfirmation).length;
-  const unscheduledCount = bookings.filter((booking) => !booking.scheduledDate).length;
 
   // Mini calendar for the month the visible week belongs to.
   const miniWeekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
   const miniMonth = useMemo(() => {
-    const firstOfMonth = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
-    const daysInMonth = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0).getDate();
+    const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
     const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
 
     return {
       leadingBlanks,
       days: Array.from({ length: daysInMonth }, (_, index) => {
-        const day = new Date(weekStart.getFullYear(), weekStart.getMonth(), index + 1);
+        const day = new Date(anchor.getFullYear(), anchor.getMonth(), index + 1);
         return { day: index + 1, iso: toIsoDate(day), date: day };
       }),
     };
-  }, [weekStart]);
+  }, [anchor]);
+
+  /** Which days are on screen, for the month calendar to shade. */
+  const visibleIso = useMemo(
+    () => new Set(days.slice(view.first, view.first + view.count).map((day) => day.iso)),
+    [days, view],
+  );
 
   const hours = Array.from({ length: 24 }, (_, i) => {
     const ampm = i >= 12 ? "PM" : "AM";
@@ -196,16 +220,47 @@ export default function CalendarPage() {
     return `${displayHour} ${ampm}`;
   });
 
+  // Opens on today rather than at the far end of a year of history.
+  useEffect(() => {
+    scrollToIndex(DAYS_BEHIND, "auto");
+  }, [scrollToIndex]);
+
+  // The scroll position, read back as a date range.
+  //
+  // Only written when the leading day actually changes, so dragging across a
+  // column does not re-render a year of them on every frame.
   useEffect(() => {
     const grid = weekGridRef.current;
-    if (!focusIso || !grid) return;
+    if (!grid) return;
 
-    const column = grid.querySelector<HTMLElement>(`[data-day="${focusIso}"]`);
-    if (!column) return;
+    let queued = false;
+    const read = () => {
+      queued = false;
+      const first = Math.max(0, Math.round(grid.scrollLeft / DAY_WIDTH_PX));
+      const count = Math.max(
+        1,
+        Math.round((grid.clientWidth - GUTTER_WIDTH_PX) / DAY_WIDTH_PX),
+      );
+      if (first === viewRef.current.first && count === viewRef.current.count) return;
+      viewRef.current = { first, count };
+      setView({ first, count });
+    };
 
-    // Left of the column, less the time gutter it would otherwise hide behind.
-    grid.scrollTo({ left: Math.max(0, column.offsetLeft - 80), behavior: "smooth" });
-  }, [focusIso, weekStart]);
+    const onScroll = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(read);
+    };
+
+    grid.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    read();
+
+    return () => {
+      grid.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
 
   const openEvent = (event: CalendarEvent) => {
     router.push(STAGE_ROUTES[event.stage] ?? "/admindashboard/feeds/pending");
@@ -268,14 +323,14 @@ export default function CalendarPage() {
             <div className="flex gap-1 text-slate-600">
               <button
                 aria-label="Previous Month"
-                onClick={() => setWeekStart((current) => addDays(current, -28))}
+                onClick={() => scrollToIndex(view.first - 28)}
                 className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 aria-label="Next Month"
-                onClick={() => setWeekStart((current) => addDays(current, 28))}
+                onClick={() => scrollToIndex(view.first + 28)}
                 className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronRight size={16} />
@@ -296,8 +351,8 @@ export default function CalendarPage() {
               <div key={`blank-${index}`} className="p-1.5" />
             ))}
 
-            {miniMonth.days.map(({ day, iso, date }) => {
-              const isInWeek = weeklyColumns.some((column) => column.iso === iso);
+            {miniMonth.days.map(({ day, iso }) => {
+              const isShowing = visibleIso.has(iso);
               const hasEvents = (eventsByDate.get(iso)?.length ?? 0) > 0;
 
               return (
@@ -305,14 +360,14 @@ export default function CalendarPage() {
                   key={day}
                   type="button"
                   onClick={() => {
-                    setWeekStart(startOfWeek(date));
-                    setFocusIso(iso);
+                    const index = days.findIndex((candidate) => candidate.iso === iso);
+                    if (index >= 0) scrollToIndex(index);
                     setIsMiniSidebarOpen(false);
                   }}
                   className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
                     iso === todayIso
                       ? "bg-blue-600 text-white font-semibold shadow-sm"
-                      : isInWeek
+                      : isShowing
                         ? "bg-blue-50 text-blue-700 font-medium"
                         : "text-slate-800 hover:bg-gray-100"
                   }`}
@@ -368,13 +423,6 @@ export default function CalendarPage() {
               </span>
             </div>
           </button>
-
-          {unscheduledCount > 0 && (
-            <p className="text-xs sm:text-[11px] text-slate-500 px-1">
-              {unscheduledCount} booking{unscheduledCount === 1 ? "" : "s"} have no delivery
-              schedule and do not appear on the calendar.
-            </p>
-          )}
         </div>
       </aside>
 
@@ -424,19 +472,20 @@ export default function CalendarPage() {
           ref={weekGridRef}
           className="flex flex-1 flex-col overflow-auto overscroll-x-contain bg-white relative"
         >
-          <div className="min-w-187.5 flex flex-col flex-1">
+          <div className="flex flex-col flex-1 w-max">
             {/* Sticky Days Header */}
             <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20">
               <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50 sticky left-0 z-10"></div>
-              <div className="flex-1 grid grid-cols-7">
-                {weeklyColumns.map((col) => {
+              <div className="flex">
+                {days.map((col) => {
                   const isToday = col.iso === todayIso;
 
                   return (
                     <div
                       key={col.iso}
                       data-day={col.iso}
-                      className={`flex flex-col items-center justify-center py-3 border-r border-gray-100 last:border-r-0 ${
+                      style={{ width: DAY_WIDTH_PX }}
+                      className={`shrink-0 flex flex-col items-center justify-center py-3 border-r border-gray-100 ${
                         isToday ? "bg-blue-50/40" : ""
                       }`}
                     >
@@ -473,20 +522,24 @@ export default function CalendarPage() {
               </div>
 
               {/* 7-Column Grid Canvas */}
-              <div className="flex-1 grid grid-cols-7 relative">
-                {weeklyColumns.map((col) => (
+              {/* The hour lines are drawn, not built. Twenty-four elements in
+                  every one of seven hundred columns is eighteen thousand of
+                  them for a grid that is the same ruled lines all the way
+                  across; a repeating gradient is one. */}
+              <div className="flex relative">
+                {days.map((col) => (
                   <div
                     key={col.iso}
                     data-day={col.iso}
-                    className="relative border-r border-gray-100 last:border-r-0 flex flex-col"
+                    style={{
+                      width: DAY_WIDTH_PX,
+                      height: hours.length * HOUR_HEIGHT_PX,
+                      backgroundImage:
+                        `repeating-linear-gradient(to bottom, transparent 0 ${HOUR_HEIGHT_PX - 1}px,` +
+                        ` rgb(243 244 246) ${HOUR_HEIGHT_PX - 1}px ${HOUR_HEIGHT_PX}px)`,
+                    }}
+                    className="shrink-0 relative border-r border-gray-100"
                   >
-                    {hours.map((_, rowIdx) => (
-                      <div
-                        key={rowIdx}
-                        className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/20 transition-colors"
-                      />
-                    ))}
-
                     {(eventsByDate.get(col.iso) ?? []).map((event) => renderEvent(event, true))}
                   </div>
                 ))}
