@@ -6,7 +6,6 @@ import { Mail, Lock, X, AlertCircle, User, Shield } from "lucide-react";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 import { useToast } from "@/components/Toast";
 import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
-import { updateStoredSession } from "@/app/lib/clientSession";
 
 // ==========================================
 // MAIN COMPONENT
@@ -20,10 +19,6 @@ export default function SharedProfile() {
   // as nobody signed in.
   const user = useSessionUser();
 
-  // The address the account currently answers to. Held separately because this
-  // screen is where it gets changed, and the field has to follow that change
-  // before the stored session does.
-  const [email, setEmail] = useState<string | null>(null);
 
   // Modal states
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -43,7 +38,10 @@ export default function SharedProfile() {
   const [passwordError, setPasswordError] = useState("");
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
-  const shownEmail = email ?? user?.email ?? "";
+  // The address the account answers to today. A requested change does not move
+  // it: the session, and this field, follow the next sign-in with the confirmed
+  // address.
+  const shownEmail = user?.email ?? "";
 
   // Handle Email Update Submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -78,14 +76,14 @@ export default function SharedProfile() {
         body: JSON.stringify({ newEmail, currentPassword: emailPassword }),
       });
 
+      // Nothing has changed yet. The address only moves when the link sent to
+      // it is opened, so the field must not pretend otherwise.
       showToast(response.message, "success");
       
       // Through the session's own writer, which knows which storage holds it.
       // This used to read both, parse by hand, and write back to whichever
       // answered - so a session in sessionStorage could be rewritten into
       // localStorage and outlive the tab it belonged to.
-      updateStoredSession({ email: newEmail });
-      setEmail(newEmail);
 
       setIsEmailModalOpen(false);
       setCurrentEmail("");
