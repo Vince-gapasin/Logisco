@@ -11,6 +11,7 @@ import {
   TRUCK_STATUS,
 } from "@/app/lib/enums";
 import type { AssignDispatchDto } from "@/types/dispatch";
+import { assignableCrew, whyNotAssignable } from "@/app/lib/crewEligibility";
 
 // Re-exported under the existing names; defined once in app/lib/enums.ts.
 // The active list now also covers Start Delivery, In Warehouse and Arrived,
@@ -121,24 +122,31 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
   }
 
   // 2. Validate Driver
-  const { data: driver, error: driverErr } = await supabase
+  const helperIDs = [...new Set([dto.helper1ID, dto.helper2ID].filter((id): id is string => Boolean(id)))];
+
+  // The whole crew in one read. The helpers used to be checked for nothing at
+  // all - any id that arrived became a helper - and the driver for everything
+  // except whether they could sign in.
+  const { data: crew, error: crewErr } = await supabase
     .from("Employee")
-    .select("employeeID, role, isActive")
-    .eq("employeeID", dto.driverID)
-    .maybeSingle();
+    .select("employeeID, employeeName, role, isActive, activation_completed_at")
+    .in("employeeID", [dto.driverID, ...helperIDs]);
 
-  if (driverErr) throw new Error(`Supabase Driver Error: ${driverErr.message}`);
-  if (!driver) throw new Error(`Driver not found for ID: ${dto.driverID}`);
+  if (crewErr) throw new Error(`Supabase Employee Error: ${crewErr.message}`);
 
-  if (driver.isActive === false || driver.role?.trim() !== EMPLOYEE_ROLE.driver) {
-    throw new Error("Selected employee is not an active driver.");
+  const byID = new Map((crew ?? []).map((person) => [person.employeeID, person]));
+
+  const driverProblem = whyNotAssignable(byID.get(dto.driverID), EMPLOYEE_ROLE.driver);
+  if (driverProblem) throw new Error(driverProblem);
+
+  for (const helperID of helperIDs) {
+    const helperProblem = whyNotAssignable(byID.get(helperID), EMPLOYEE_ROLE.helper);
+    if (helperProblem) throw new Error(helperProblem);
   }
 
   if (await findActiveDispatchFor("driverID", dto.driverID)) {
     throw new Error("Selected driver is already assigned to an active dispatch.");
   }
-
-  const helperIDs = [...new Set([dto.helper1ID, dto.helper2ID].filter((id): id is string => Boolean(id)))];
 
   // 3. INSERT the Dispatch Record
   const { data: dispatch, error: assignErr } = await supabase
@@ -431,7 +439,10 @@ export async function getAvailableResources(targetDate: string) {
 
   const { data: allEmployees, error: employeesError } = await supabase
     .from("Employee")
-    .select(EMPLOYEE_PUBLIC_COLUMNS)
+    // activation_completed_at comes too: somebody who has never set up their
+    // login cannot see a delivery, let alone accept one, and the list used to
+    // offer them anyway.
+    .select(`${EMPLOYEE_PUBLIC_COLUMNS}, activation_completed_at`)
     .eq("isActive", true)
     .in("role", [EMPLOYEE_ROLE.driver, EMPLOYEE_ROLE.helper]);
 
@@ -449,13 +460,11 @@ export async function getAvailableResources(targetDate: string) {
   const isFree = (employee: { employeeID: string; availability?: string | null }) =>
     !busyEmployees.has(employee.employeeID) && isAssignable(employee.availability ?? undefined);
 
-  const availableDrivers = (allEmployees ?? []).filter(
-    (employee) => employee.role === EMPLOYEE_ROLE.driver && isFree(employee),
-  );
-
-  const availableHelpers = (allEmployees ?? []).filter(
-    (employee) => employee.role === EMPLOYEE_ROLE.helper && isFree(employee),
-  );
+  // Free to take a trip, and able to be told about one. Filtered through the
+  // same rule the assignment enforces, so the form cannot offer somebody the
+  // save will then refuse.
+  const availableDrivers = assignableCrew(allEmployees ?? [], EMPLOYEE_ROLE.driver).filter(isFree);
+  const availableHelpers = assignableCrew(allEmployees ?? [], EMPLOYEE_ROLE.helper).filter(isFree);
 
   return {
     trucks: availableTrucks,
