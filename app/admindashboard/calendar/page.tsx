@@ -1,7 +1,7 @@
 // File: app/admindashboard/calendar/page.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { useRouter } from "next/navigation";
 import {
@@ -101,8 +101,15 @@ function toCalendarEvent(booking: BookingView): CalendarEvent | null {
 export default function CalendarPage() {
   const router = useRouter();
   const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
+
+  // The day the month calendar last pointed at, and the grid it scrolls.
+  //
+  // Seven readable columns are wider than a phone, so picking the 23rd has to
+  // bring the 23rd into view - otherwise the week changes underneath and the
+  // screen still shows Monday.
+  const [focusIso, setFocusIso] = useState<string | null>(null);
+  const weekGridRef = useRef<HTMLDivElement | null>(null);
 
   const [bookings, setBookings] = useState<BookingView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,27 +196,16 @@ export default function CalendarPage() {
     return `${displayHour} ${ampm}`;
   });
 
-  const handlePrevDay = () => {
-    setSelectedDayIndex((prev) => {
-      if (prev > 0) return prev - 1;
-      setWeekStart((current) => addDays(current, -7));
-      return 6;
-    });
-  };
+  useEffect(() => {
+    const grid = weekGridRef.current;
+    if (!focusIso || !grid) return;
 
-  const handleNextDay = () => {
-    setSelectedDayIndex((prev) => {
-      if (prev < 6) return prev + 1;
-      setWeekStart((current) => addDays(current, 7));
-      return 0;
-    });
-  };
+    const column = grid.querySelector<HTMLElement>(`[data-day="${focusIso}"]`);
+    if (!column) return;
 
-  const goToToday = () => {
-    const now = new Date();
-    setWeekStart(startOfWeek(now));
-    setSelectedDayIndex((now.getDay() + 6) % 7);
-  };
+    // Left of the column, less the time gutter it would otherwise hide behind.
+    grid.scrollTo({ left: Math.max(0, column.offsetLeft - 80), behavior: "smooth" });
+  }, [focusIso, weekStart]);
 
   const openEvent = (event: CalendarEvent) => {
     router.push(STAGE_ROUTES[event.stage] ?? "/admindashboard/feeds/pending");
@@ -310,7 +306,7 @@ export default function CalendarPage() {
                   type="button"
                   onClick={() => {
                     setWeekStart(startOfWeek(date));
-                    setSelectedDayIndex((date.getDay() + 6) % 7);
+                    setFocusIso(iso);
                     setIsMiniSidebarOpen(false);
                   }}
                   className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
@@ -405,28 +401,6 @@ export default function CalendarPage() {
             {isLoading && <span className="text-xs text-slate-500">Loading...</span>}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => setWeekStart((current) => addDays(current, -7))}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-              aria-label="Previous week"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={goToToday}
-              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 sm:px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => setWeekStart((current) => addDays(current, 7))}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-              aria-label="Next week"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
         </div>
 
         {loadError && (
@@ -435,70 +409,25 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* MOBILE VIEW (Single Day View) */}
-        <div className="flex lg:hidden flex-col flex-1">
-          {/* Mobile Day Navigation Bar */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
-            <button
-              onClick={handlePrevDay}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
-              aria-label="Previous Day"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <div className="flex items-center gap-2 font-semibold text-sm text-slate-900">
-              <span className="text-blue-600">
-                {weeklyColumns[selectedDayIndex].name}
-              </span>
-              <span>{weeklyColumns[selectedDayIndex].date}</span>
-            </div>
-            <button
-              onClick={handleNextDay}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-200 text-slate-700"
-              aria-label="Next Day"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
+        {/* ================= THE WEEK =================
+            One grid at every width. It used to be two: seven columns above
+            lg, and below that a single day with its own arrows to step
+            through the week - so a phone showed one seventh of the week and
+            needed two taps to see Wednesday.
 
-          {/* Mobile Hourly Timeline (1 Column) */}
-          <div className="flex-1 bg-white flex">
-            {/* Time Column */}
-            <div className="w-20 shrink-0 flex flex-col border-r border-gray-100 bg-white">
-              {hours.map((hour, idx) => (
-                <div
-                  key={idx}
-                  className="h-16 border-b border-transparent relative"
-                >
-                  <span className="absolute -top-2.5 right-3 text-xs font-medium text-slate-500">
-                    {idx === 0 ? "" : hour}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Selected Single Day Slots */}
-            <div className="flex-1 flex flex-col relative">
-              {hours.map((_, rowIdx) => (
-                <div
-                  key={rowIdx}
-                  className="h-16 border-b border-gray-100 w-full hover:bg-blue-50/25 transition-colors relative"
-                />
-              ))}
-
-              {(eventsByDate.get(weeklyColumns[selectedDayIndex].iso) ?? []).map((event) =>
-                renderEvent(event),
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ================= DESKTOP VIEW (7-Column Weekly Grid with min-width guard) ================= */}
-        <div className="hidden lg:flex flex-1 flex-col overflow-x-auto bg-white relative">
+            It scrolls instead. Seven columns at a readable width is wider
+            than a phone, so the week is swiped through sideways and the
+            hours are scrolled through downwards, which is the gesture people
+            already use on every other calendar. The time column stays put
+            while the days pass under it. */}
+        <div
+          ref={weekGridRef}
+          className="flex flex-1 flex-col overflow-auto overscroll-x-contain bg-white relative"
+        >
           <div className="min-w-187.5 flex flex-col flex-1">
             {/* Sticky Days Header */}
             <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20">
-              <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50"></div>
+              <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50 sticky left-0 z-10"></div>
               <div className="flex-1 grid grid-cols-7">
                 {weeklyColumns.map((col) => {
                   const isToday = col.iso === todayIso;
@@ -506,6 +435,7 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={col.iso}
+                      data-day={col.iso}
                       className={`flex flex-col items-center justify-center py-3 border-r border-gray-100 last:border-r-0 ${
                         isToday ? "bg-blue-50/40" : ""
                       }`}
@@ -547,6 +477,7 @@ export default function CalendarPage() {
                 {weeklyColumns.map((col) => (
                   <div
                     key={col.iso}
+                    data-day={col.iso}
                     className="relative border-r border-gray-100 last:border-r-0 flex flex-col"
                   >
                     {hours.map((_, rowIdx) => (
