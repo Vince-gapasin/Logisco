@@ -13,14 +13,23 @@
 //
 // If the yard moves, this is the only line to change - and it is worth checking
 // against a map when it does, because every booking is measured from it.
+//
+// The coordinates are the centre of the plus code's own cell, so they can be
+// checked without trusting this comment: H2X6+58 Santa Mesa decodes to a square
+// about fourteen metres across, and these are its middle.
 
 import type { Coordinates } from "@/services/geo/geocodingService";
 
-export const BASE_LOCATION: Coordinates & { label: string; address: string } = {
+export const BASE_LOCATION: Coordinates & {
+  label: string;
+  address: string;
+  plusCode: string;
+} = {
   label: "the yard",
-  address: "PUP Mabini Campus, Sta. Mesa, Manila",
-  latitude: 14.5979,
-  longitude: 121.0107,
+  address: "1016 Anonas Street, Sta. Mesa, Manila",
+  plusCode: "H2X6+58 Santa Mesa, Manila",
+  latitude: 14.59794,
+  longitude: 121.01081,
 };
 
 /**
