@@ -19,6 +19,8 @@ import {
   ClientInformation,
 } from "@/components/booking/BookingReadOnly";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
+import { formatDateTime } from "@/app/lib/datetime";
+import { useToast } from "@/components/Toast";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
   TrendingUp,
@@ -33,6 +35,7 @@ import {
   X,
   Search,
   History,
+  Download,
 } from "lucide-react";
 
 // ==========================================
@@ -415,6 +418,7 @@ const MultiSelectDropdown = ({
 
 export default function ReportsForecastingPage() {
   // Delivery records, or the partner trips the coordinator keeps up to date.
+  const showToast = useToast();
   const [view, setView] = useState<"records" | "subcon">("records");
   // ==========================================
   // STATE MANAGEMENT
@@ -711,6 +715,95 @@ export default function ReportsForecastingPage() {
     (r) => r.status === "Foul Trip",
   ).length;
 
+  /**
+   * What the report is of, in the words the filters are set in.
+   *
+   * On the page because a table of records without them is a table of some
+   * records, and the reader of a printed one has no way of knowing which.
+   */
+  const filterSummary = useMemo(() => {
+    const said = [`Period: ${timeframe}`];
+
+    if (timeframe === "Custom Range" && (customStartDate || customEndDate)) {
+      said[0] = `Period: ${customStartDate || "the beginning"} to ${customEndDate || "today"}`;
+    }
+
+    said.push(`Final status: ${status}`);
+    said.push(
+      selectedClients.length > 0 ? `Clients: ${selectedClients.join(", ")}` : "Clients: all",
+    );
+    if (selectedDrivers.length > 0) said.push(`Drivers: ${selectedDrivers.join(", ")}`);
+    if (selectedHelpers.length > 0) said.push(`Helpers: ${selectedHelpers.join(", ")}`);
+
+    return said;
+  }, [timeframe, status, selectedClients, selectedDrivers, selectedHelpers, customStartDate, customEndDate]);
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  /**
+   * The records as a printable report.
+   *
+   * Every row the filters match, not the page of them on screen: pagination is
+   * how a long table is read, not a limit on what was asked for.
+   */
+  const exportRecords = async () => {
+    if (filteredRecords.length === 0) {
+      showToast("There is nothing to export with these filters.", "error");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const { startReport, toFileSlug } = await import("@/app/lib/pdfReport");
+      const generatedAt = formatDateTime(new Date().toISOString());
+
+      const report = await startReport({
+        title: "Delivery Records",
+        // Landscape because six columns of a delivery record do not fit across
+        // a portrait page without cutting the ones that carry the detail.
+        orientation: "landscape",
+        meta: [...filterSummary, `Generated ${generatedAt}`],
+      });
+
+      const delivered = successfulDeliveries;
+      const rate = totalHistorical > 0 ? Math.round((delivered / totalHistorical) * 100) : 0;
+
+      report.figures([
+        { label: "Records", value: String(totalHistorical) },
+        { label: "Delivered", value: String(delivered) },
+        { label: "Foul trips", value: String(foulTrips) },
+        { label: "Delivered rate", value: `${rate}%` },
+      ]);
+
+      report.section("Records", `${totalHistorical} matching this filter`, 24);
+      report.table(
+        [
+          { header: "Date", width: 25 },
+          { header: "Order ID", width: 38 },
+          { header: "Client", width: 55 },
+          { header: "Final status", width: 26 },
+          { header: "Crew", width: 58 },
+          { header: "Remarks", width: 65 },
+        ],
+        filteredRecords.map((record) => [
+          record.date,
+          record.orderId,
+          record.client,
+          record.status,
+          record.crew,
+          record.remarks,
+        ]),
+      );
+
+      report.save(`delivery-records-${toFileSlug(timeframe)}-${toFileSlug(generatedAt)}.pdf`);
+    } catch (error) {
+      console.error("Export failed:", error);
+      showToast("The report could not be built. Try again.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Pagination Math
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -810,15 +903,25 @@ export default function ReportsForecastingPage() {
             </h1>
             </div>
 
-          {/* Action Button: */}
-          <div className="w-full sm:w-auto">
+          {/* Action Buttons */}
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={() => void exportRecords()}
+              disabled={isExporting || view !== "records"}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl shadow-sm transition-all duration-200 text-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>{isExporting ? "Building..." : "Export PDF"}</span>
+            </button>
+
             <Link
-  href="/admindashboard/forecasting"
-  className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
->
-  <TrendingUp className="w-4 h-4 shrink-0" />
-  <span>Forecasting</span>
-</Link>
+              href="/admindashboard/forecasting"
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
+            >
+              <TrendingUp className="w-4 h-4 shrink-0" />
+              <span>Forecasting</span>
+            </Link>
           </div>
         </div>
       </div>
