@@ -24,25 +24,21 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 
-// How tall an hour is drawn, and the sizes the zoom steps through.
+// What the zoom steps through: an hour's height and a day's width together.
 //
-// Several bookings at the same hour used to sit on top of each other, because
-// an event was placed by its time and nothing else: two at 8:00 were two tags
-// in the same place. They are laid out side by side now, which only goes so
-// far - four bookings in one hour on a phone column is four slivers - so the
-// hour itself can be stretched.
+// Both, because bookings at the same time are laid out side by side and a lane
+// is a share of the column. Stretching only the hour made a crowded morning
+// taller and left the tags exactly as narrow - three bookings in a 112px column
+// is three 37px slivers of cropped text, on a phone that cannot pinch its way
+// out of it. At the widest step a lane is wide enough to read.
 const HOUR_HEIGHTS = [40, 64, 104, 168] as const;
+const DAY_WIDTHS = [88, 112, 200, 340] as const;
 const DEFAULT_ZOOM = 1;
 
 // What one event occupies, for working out which ones collide.
 const EVENT_HEIGHT_PX = 42;
 
-// One day column, and the gutter the hours sit in.
-//
-// Fixed rather than a seventh of the screen, because the strip is scrolled
-// rather than paged: the columns have to be a known width for the scroll
-// position to mean a date.
-const DAY_WIDTH_PX = 112;
+// The gutter the hours sit in. The day column is the zoom's business.
 const GUTTER_WIDTH_PX = 80;
 const DEFAULT_EVENT_TIME = "08:00";
 
@@ -174,6 +170,7 @@ export default function CalendarPage() {
   // readable once laying the bookings side by side has run out of width.
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const hourHeight = HOUR_HEIGHTS[zoom];
+  const dayWidth = DAY_WIDTHS[zoom];
 
   // Which days of it are on screen, read back from the scroll position.
   const [view, setView] = useState({ first: 0, count: 7 });
@@ -229,9 +226,9 @@ export default function CalendarPage() {
       const grid = weekGridRef.current;
       if (!grid) return;
       const clamped = Math.max(0, Math.min(index, days.length - 1));
-      grid.scrollTo({ left: clamped * DAY_WIDTH_PX, behavior });
+      grid.scrollTo({ left: clamped * dayWidth, behavior });
     },
-    [days.length],
+    [days.length, dayWidth],
   );
 
   // Events for the visible week, grouped by day.
@@ -306,10 +303,10 @@ export default function CalendarPage() {
     let queued = false;
     const read = () => {
       queued = false;
-      const first = Math.max(0, Math.round(grid.scrollLeft / DAY_WIDTH_PX));
+      const first = Math.max(0, Math.round(grid.scrollLeft / dayWidth));
       const count = Math.max(
         1,
-        Math.round((grid.clientWidth - GUTTER_WIDTH_PX) / DAY_WIDTH_PX),
+        Math.round((grid.clientWidth - GUTTER_WIDTH_PX) / dayWidth),
       );
       if (first === viewRef.current.first && count === viewRef.current.count) return;
       viewRef.current = { first, count };
@@ -330,7 +327,16 @@ export default function CalendarPage() {
       grid.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, []);
+  }, [dayWidth]);
+
+  // A zoom changes what a pixel means, so the day on screen has to be put back
+  // where it was. Without this, zooming in walks the strip towards the 1st.
+  const zoomedTo = useRef(zoom);
+  useEffect(() => {
+    if (zoomedTo.current === zoom) return;
+    zoomedTo.current = zoom;
+    scrollToIndex(viewRef.current.first, "auto");
+  }, [zoom, scrollToIndex]);
 
   const openEvent = (event: CalendarEvent) => {
     router.push(STAGE_ROUTES[event.stage] ?? "/admindashboard/feeds/pending");
@@ -357,7 +363,9 @@ export default function CalendarPage() {
           STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
         }`}
       >
-        <span className="block text-xs sm:text-[11px] font-semibold truncate">
+        {/* Wrapped rather than cropped. A client name is the thing being read
+            here, and "Batangas Beverage Manufac..." in a lane is not it. */}
+        <span className="block text-xs sm:text-[11px] font-semibold leading-tight wrap-break-word line-clamp-2">
           {formatTime(event.time)} {event.clientName}
         </span>
         <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>
@@ -587,7 +595,7 @@ export default function CalendarPage() {
                     <div
                       key={col.iso}
                       data-day={col.iso}
-                      style={{ width: DAY_WIDTH_PX }}
+                      style={{ width: dayWidth }}
                       className={`shrink-0 flex flex-col items-center justify-center py-3 border-r border-gray-100 ${
                         isToday ? "bg-blue-50/40" : ""
                       }`}
@@ -636,7 +644,7 @@ export default function CalendarPage() {
                     key={col.iso}
                     data-day={col.iso}
                     style={{
-                      width: DAY_WIDTH_PX,
+                      width: dayWidth,
                       height: hours.length * hourHeight,
                       backgroundImage:
                         `repeating-linear-gradient(to bottom, transparent 0 ${hourHeight - 1}px,` +
