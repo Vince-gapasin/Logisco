@@ -1,30 +1,29 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
-import { Mail, Lock, X, AlertCircle, User, Shield, Building } from "lucide-react";
+import { Mail, Lock, X, AlertCircle, User, Shield } from "lucide-react";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 import { useToast } from "@/components/Toast";
-
-// ==========================================
-// SESSION & API FETCH
-// ==========================================
-const SESSION_KEY = "logisco_user_session";
-
-
+import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
+import { updateStoredSession } from "@/app/lib/clientSession";
 
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
 export default function SharedProfile() {
   const showToast = useToast();
-  // Session state
-  const [userInfo, setUserInfo] = useState({
-    name: "Loading...",
-    email: "Loading...",
-    role: "Loading...",
-    company: "",
-  });
+
+  // Who is signed in, from the one reader the sidebars use. This had its own
+  // copy that reached past readStoredSession to JSON.parse the raw string, so
+  // a malformed session showed as a person called "Unknown User" rather than
+  // as nobody signed in.
+  const user = useSessionUser();
+
+  // The address the account currently answers to. Held separately because this
+  // screen is where it gets changed, and the field has to follow that change
+  // before the stored session does.
+  const [email, setEmail] = useState<string | null>(null);
 
   // Modal states
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -44,30 +43,7 @@ export default function SharedProfile() {
   const [passwordError, setPasswordError] = useState("");
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
-  // Fetch session data on mount
-  useEffect(() => {
-    const sessionData =
-      localStorage.getItem("logisco_user_session") ||
-      sessionStorage.getItem("logisco_user_session");
-
-    if (sessionData) {
-  // Who is signed in, read out of the stored session.
-  /* eslint-disable react-hooks/set-state-in-effect */
-      try {
-        const parsed = JSON.parse(sessionData);
-        setUserInfo({
-          // Admins/Staff use employeeName, Clients might use contactName
-          name: parsed.employeeName || parsed.contactName || parsed.name || "Unknown User",
-          email: parsed.email || "No email provided",
-          role: parsed.role || "Unassigned",
-          company: parsed.company || "", // Only present for Clients
-        });
-      } catch (error) {
-        console.error("Failed to parse session", error);
-      }
-    }
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  const shownEmail = email ?? user?.email ?? "";
 
   // Handle Email Update Submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -79,7 +55,7 @@ export default function SharedProfile() {
       return;
     }
 
-    if (currentEmail.trim().toLowerCase() !== userInfo.email.trim().toLowerCase()) {
+    if (currentEmail.trim().toLowerCase() !== shownEmail.trim().toLowerCase()) {
       setEmailError("Current email does not match your account.");
       return;
     }
@@ -104,21 +80,12 @@ export default function SharedProfile() {
 
       showToast(response.message, "success");
       
-      // Update local session
-      const sessionData = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData);
-        parsed.email = newEmail;
-        
-        if (localStorage.getItem(SESSION_KEY)) {
-          localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
-        }
-        if (sessionStorage.getItem(SESSION_KEY)) {
-          sessionStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
-        }
-        
-        setUserInfo((prev) => ({ ...prev, email: newEmail }));
-      }
+      // Through the session's own writer, which knows which storage holds it.
+      // This used to read both, parse by hand, and write back to whichever
+      // answered - so a session in sessionStorage could be rewritten into
+      // localStorage and outlive the tab it belonged to.
+      updateStoredSession({ email: newEmail });
+      setEmail(newEmail);
 
       setIsEmailModalOpen(false);
       setCurrentEmail("");
@@ -213,10 +180,10 @@ export default function SharedProfile() {
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight uppercase">
-              {userInfo.name}
+              {user?.name ?? ""}
             </h2>
-            <p className="text-sm text-slate-500 font-medium mt-0.5 capitalize">
-              {userInfo.role}
+            <p className="text-sm text-slate-500 font-medium mt-0.5">
+              {user ? describeRole(user.role) : ""}
             </p>
           </div>
         </div>
@@ -236,40 +203,27 @@ export default function SharedProfile() {
               <input
                 type="text"
                 readOnly
-                value={userInfo.email}
+                value={shownEmail}
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
               />
             </div>
 
-            {/* Conditionally Render Client Company or Employee Role */}
-            {userInfo.role === "client" ? (
-              <div>
-                <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                  Company Name
-                </label>
-                <div className="relative">
-                  <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                  <input
-                    type="text"
-                    readOnly
-                    value={userInfo.company || "Not Provided"}
-                    className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-9 pr-4 py-2.5 focus:outline-none uppercase"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                  System Role
-                </label>
-                <input
-                  type="text"
-                  readOnly
-                  value={userInfo.role.toUpperCase()}
-                  className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
-                />
-              </div>
-            )}
+            {/* There was a Company Name field here for a signed-in client. No
+                client can sign in: the login route reads the Employee table and
+                refuses anything whose role is not one of the five. It was a
+                branch that could not be reached and a column the session has
+                never carried. */}
+            <div>
+              <label className="block text-slate-700 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                System Role
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={user ? describeRole(user.role).toUpperCase() : ""}
+                className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none"
+              />
+            </div>
           </div>
         </div>
       </div>

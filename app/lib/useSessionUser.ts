@@ -25,6 +25,7 @@ import { SESSION_KEY, type AppRole } from "@/app/lib/routeAccess";
 export interface SessionUser {
   name: string;
   role: AppRole;
+  email: string;
 }
 
 // The snapshot has to be the same object while nothing has changed, or
@@ -50,7 +51,9 @@ function getSnapshot(): SessionUser | null {
 
   cachedRaw = raw;
   const session = readStoredSession();
-  cachedUser = session ? { name: session.employeeName, role: session.role } : null;
+  cachedUser = session
+    ? { name: session.employeeName, role: session.role, email: session.email }
+    : null;
   return cachedUser;
 }
 
