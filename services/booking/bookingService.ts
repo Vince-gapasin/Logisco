@@ -538,7 +538,7 @@ async function assessItinerary(
 
   const firstTime = stops[0]?.time;
 
-  return assessFeasibility({
+  const verdict = assessFeasibility({
     times: stops.map((stop) => stop.time),
     travelMinutes: throughStops,
     labels: stops.map((stop) => stop.label),
@@ -546,6 +546,35 @@ async function assessItinerary(
     minutesUntilFirstStop: firstTime ? minutesUntil(scheduledFor, firstTime) : null,
     departureBufferMin: DEPARTURE_BUFFER_MIN,
   });
+
+  // A booking the check could not run on is accepted - refusing a real delivery
+  // because a map service did not answer would be worse - but it no longer goes
+  // through in silence. Silence is indistinguishable from "we checked and it is
+  // fine", and the booking most likely to skip the check is the one with an
+  // address nobody could find, which is also the one most likely to be wrong.
+  if (verdict.verdict === "unknown") {
+    const unplaced = stops.filter((stop) => !stop.at).map((stop) => stop.label);
+
+    if (unplaced.length > 0) {
+      return {
+        ...verdict,
+        message:
+          `The times were not checked: ${unplaced.join(" and ")} could not be found on the map, ` +
+          `so there is no drive to measure. The stop will not appear on the tracking map either.`,
+      };
+    }
+
+    if (!route) {
+      return {
+        ...verdict,
+        message:
+          "The times were not checked: the driving distance could not be worked out just now. " +
+          "Worth confirming the crew can make the first stop.",
+      };
+    }
+  }
+
+  return verdict;
 }
 
 export async function createBooking(dto: CreateOrderDto) {
@@ -714,6 +743,8 @@ export async function createBooking(dto: CreateOrderDto) {
     trackingToken: orderLinkToken,
     // Drivable, but with nothing to spare. Worth saying while the client is
     // still on the phone.
-    warning: feasibility.verdict === "tight" ? feasibility.message : null,
+    // Said while the client is still on the phone: either the itinerary is
+    // drivable with nothing to spare, or it was never checked.
+    warning: feasibility.message,
   };
 }

@@ -184,3 +184,26 @@ describe("reaching the first stop", () => {
     expect(fromYard({ minutesUntilFirstStop: null }).verdict).toBe("fine");
   });
 });
+
+describe("a check that did not run", () => {
+  it("is not the same answer as a check that passed", () => {
+    // Both come back "unknown" from the rules, and the service tells them
+    // apart by why: no coordinates is a different problem from no route, and
+    // both are different from "we looked and it is fine".
+    const noRoute = assessFeasibility({
+      times: ["08:00", "17:00"],
+      travelMinutes: null,
+      fromBaseMinutes: null,
+      minutesUntilFirstStop: 600,
+    });
+    expect(noRoute.verdict).toBe("unknown");
+
+    const checked = assessFeasibility({
+      times: ["08:00", "17:00"],
+      travelMinutes: 120,
+      fromBaseMinutes: 60,
+      minutesUntilFirstStop: 600,
+    });
+    expect(checked.verdict).toBe("fine");
+  });
+});
