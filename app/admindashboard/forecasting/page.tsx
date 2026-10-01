@@ -681,10 +681,7 @@ export default function ForecastingPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Forecasting
                 </h1>
-                <p className="text-sm text-slate-700 mt-1">
-                  Data-driven delivery volume forecasts compared with actual performance.
-                </p>
-              </div>
+                </div>
 
               {/* Action Buttons Container */}
               <div

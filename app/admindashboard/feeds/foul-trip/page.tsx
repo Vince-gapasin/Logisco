@@ -221,10 +221,7 @@ export default function FoulTripFeedPage() {
               <AlertTriangle className="w-6 h-6 text-red-500" />
               Foul Trip Feed
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Trips that could not finish, and what is being done about each.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

@@ -100,6 +100,41 @@ export function checkerWarning(health: CheckerHealth): string | null {
 }
 
 /**
+ * The office being told the checker has stopped, in the notification feed.
+ *
+ * The board already says it, but only to somebody looking at the board - and
+ * the thing that has stopped is precisely what would otherwise put this in the
+ * feed. So the read raises it, which is a rule this file otherwise avoids:
+ * reading a page should not notify anybody. The exception earns itself here
+ * because the alternative is the failure staying invisible, which is the whole
+ * reason this file exists. It is said once a day, not once a poll.
+ */
+export function checkerDownAlert(health: CheckerHealth): { title: string; body: string } | null {
+  if (health.neverRun) {
+    return {
+      title: "Stall alerts have never run",
+      body:
+        "Nothing is watching for trucks that have gone quiet. They will show on the fleet board " +
+        "and nobody will be notified about them.",
+    };
+  }
+
+  if (!health.overdue || health.ranMinutesAgo === null) return null;
+
+  return {
+    title: `Stall alerts stopped ${describe(health.ranMinutesAgo)} ago`,
+    body:
+      `The check that notifies about quiet trucks last ran ${describe(health.ranMinutesAgo)} ago. ` +
+      `Until it runs again, a truck going quiet will colour the fleet board and reach nobody.`,
+  };
+}
+
+/** One per day, so a board left open does not say it every thirty seconds. */
+export function checkerDownDedupeKey(now: Date): string {
+  return `checker-down:${now.toISOString().slice(0, 10)}`;
+}
+
+/**
  * The checker owning up, once it is back.
  *
  * Deliberately says which window to distrust. "It is working now" is no use to

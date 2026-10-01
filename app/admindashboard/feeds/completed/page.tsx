@@ -337,10 +337,7 @@ export default function CompletedFeedPage() {
               <CheckCircle2 className="w-6 h-6 text-green-500" />
               Completed Feed
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Review successfully delivered orders and trip history.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

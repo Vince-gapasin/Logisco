@@ -387,10 +387,7 @@ export default function InTransitFeedPage() {
               <Truck className="w-6 h-6 text-blue-500" />
               In-Transit Feed
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Monitor active deliveries currently on the road.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

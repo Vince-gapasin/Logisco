@@ -848,10 +848,7 @@ export default function FleetStatusPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             Fleet Status
           </h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Monitor and manage fleet availability.
-          </p>
-        </div>
+          </div>
         <button
           onClick={() => {
             setEditingTruck(null);

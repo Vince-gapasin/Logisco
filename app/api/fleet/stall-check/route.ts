@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize } from "@/app/lib/auth";
 import {
+  announceCheckerDown,
   announceRecovery,
   checkForStalledTrips,
   lastCheckRunAt,
@@ -78,6 +79,11 @@ export async function GET(request: Request) {
     // board asks because the board is what the office has open; a second
     // schedule watching the first is two things that can die quietly.
     const checker = checkerHealth(await lastCheckRunAt(), now);
+
+    // And told once a day in the feed, not only on this page. A banner reaches
+    // whoever is looking at the board; the thing that has stopped is what would
+    // otherwise have put it in the bell.
+    await announceCheckerDown(checker, now);
 
     return NextResponse.json(
       { data: { ...summarise(trips), checker } },

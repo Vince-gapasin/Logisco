@@ -185,10 +185,7 @@ export default function UnassignedBookingsPage() {
               <Inbox className="w-6 h-6 text-orange-500" />
               Unassigned Bookings
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Review and assign pending delivery schedules to available fleets.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

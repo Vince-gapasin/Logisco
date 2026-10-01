@@ -1905,10 +1905,7 @@ export default function ClientsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Clients & Partners
           </h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Manage your client directories and partner relationships.
-          </p>
-        </div>
+          </div>
 
         <div className="flex justify-center sm:justify-start w-full sm:w-auto">
           {activeTab === "Clients" && (

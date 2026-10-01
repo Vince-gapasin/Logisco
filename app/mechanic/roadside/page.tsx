@@ -242,8 +242,7 @@ export default function RoadsideJobsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Wrench className="w-6 h-6 text-blue-600" /> Roadside Jobs
           </h1>
-          <p className="text-sm text-slate-600 mt-1">Trucks that broke down on a delivery, waiting for you.</p>
-        </div>
+          </div>
         <button
           type="button"
           onClick={() => void load()}

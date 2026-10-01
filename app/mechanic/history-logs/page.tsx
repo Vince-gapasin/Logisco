@@ -818,8 +818,7 @@ export default function MechanicHistoryLogsPage() {
         <>
           <div className="mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
-            <p className="text-sm text-slate-700 mt-1">View and manage past truck maintenance and repair records.</p>
-          </div>
+            </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">

@@ -193,10 +193,7 @@ export default function AwaitingConfirmationPage() {
               <Clock className="w-6 h-6 text-blue-500" />
               Awaiting Crew Confirmation
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Monitor individual crew responses for upcoming delivery schedules.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

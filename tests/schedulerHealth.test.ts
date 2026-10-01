@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CHECKER_OVERDUE_AFTER_MIN,
+  checkerDownAlert,
+  checkerDownDedupeKey,
   checkerHealth,
   checkerRecoveredAlert,
   checkerRecoveredDedupeKey,
@@ -103,5 +105,43 @@ describe("the checker owning up once it is back", () => {
     const gapStart = minutesAgo(200);
     expect(checkerRecoveredDedupeKey(gapStart)).toBe(checkerRecoveredDedupeKey(gapStart));
     expect(checkerRecoveredDedupeKey(gapStart)).not.toBe(checkerRecoveredDedupeKey(minutesAgo(5)));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Saying it in the feed, not only on the board
+// ---------------------------------------------------------------------------
+// A banner reaches whoever is looking at the fleet board. The thing that has
+// stopped is precisely what would otherwise have put this in the bell, so the
+// board's read raises it instead - once a day, not once a poll.
+
+describe("what the office is told when nothing is watching", () => {
+  it("says nothing while the checker is keeping up", () => {
+    expect(checkerDownAlert(checkerHealth(minutesAgo(9), NOW))).toBeNull();
+  });
+
+  it("names the consequence, in the same words as the board", () => {
+    const alert = checkerDownAlert(checkerHealth(minutesAgo(200), NOW));
+    expect(alert?.title).toMatch(/stopped 3 hours ago/i);
+    expect(alert?.body).toMatch(/reach nobody/i);
+    expect(alert?.body).not.toMatch(/cron|401|vault/i);
+  });
+
+  it("tells never having run from having stopped", () => {
+    // One is a system being set up, the other is one that has failed. Both mean
+    // nothing is watching, which is why both are said.
+    const never = checkerDownAlert(checkerHealth(null, NOW));
+    expect(never?.title).toMatch(/never run/i);
+    expect(never?.body).toMatch(/nobody will be notified/i);
+  });
+
+  it("is keyed by the day, so a board left open says it once", () => {
+    const morning = new Date("2026-10-01T01:00:00.000Z");
+    const evening = new Date("2026-10-01T22:00:00.000Z");
+    const tomorrow = new Date("2026-10-02T01:00:00.000Z");
+
+    expect(checkerDownDedupeKey(morning)).toBe(checkerDownDedupeKey(evening));
+    // Still down tomorrow is worth saying again.
+    expect(checkerDownDedupeKey(morning)).not.toBe(checkerDownDedupeKey(tomorrow));
   });
 });

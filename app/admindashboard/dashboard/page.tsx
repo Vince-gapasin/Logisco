@@ -1777,11 +1777,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 relative">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
-          <p className="text-sm text-slate-700 mt-1">
-            Track pending bookings, in-transit deliveries, completed trips, and
-            foul trips at a glance.
-          </p>
-        </div>
+          </div>
 
         {/* Buttons Flex Container */}
         <div className="grid grid-cols-5 sm:flex sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto relative z-10">

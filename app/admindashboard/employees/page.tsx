@@ -2233,11 +2233,7 @@ export default function EmployeesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Employee Directory
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Manage your staff listings, employee profiles, and directory
-            records.
-          </p>
-        </div>
+          </div>
 
         {canCreate && (
           <div className="flex justify-center sm:justify-start w-full sm:w-auto">

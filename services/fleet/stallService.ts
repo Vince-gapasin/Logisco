@@ -30,9 +30,12 @@ import {
 import { expectedAt } from "@/app/lib/performance";
 import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import {
+  checkerDownAlert,
+  checkerDownDedupeKey,
   checkerHealth,
   checkerRecoveredAlert,
   checkerRecoveredDedupeKey,
+  type CheckerHealth,
 } from "@/app/lib/schedulerHealth";
 import { getAllWaypoints } from "@/services/fleet/routePlanService";
 
@@ -712,6 +715,46 @@ export async function announceRecovery(
     severity: "action",
     roles: OFFICE,
     dedupeKey: checkerRecoveredDedupeKey(previousRunAt),
+    link: "/admindashboard/fleet-tracking",
+  });
+
+  return told > 0;
+}
+
+/**
+ * Telling the office, in the feed, that nothing is watching the trucks.
+ *
+ * Raised by the board's read rather than by the schedule, because the schedule
+ * is the thing that has stopped. That makes it the one notification in this
+ * system sent from a GET, which is a rule worth breaking exactly here: the
+ * alternative is a failure whose only symptom is silence, and this has now
+ * happened twice.
+ *
+ * Guarded twice over. A module-level day stamp keeps a board left open from
+ * attempting an insert every thirty seconds, and the dedupe key makes it once a
+ * day however many instances are running.
+ */
+let announcedDownOn: string | null = null;
+
+export async function announceCheckerDown(
+  health: CheckerHealth,
+  now: Date,
+): Promise<boolean> {
+  const alert = checkerDownAlert(health);
+  if (!alert) return false;
+
+  const today = now.toISOString().slice(0, 10);
+  if (announcedDownOn === today) return false;
+  announcedDownOn = today;
+
+  const told = await notify({
+    event: "STALL_CHECK_DOWN",
+    title: alert.title,
+    body: alert.body,
+    // Nothing is watching the fleet. There is no quieter way to put that.
+    severity: "urgent",
+    roles: OFFICE,
+    dedupeKey: checkerDownDedupeKey(now),
     link: "/admindashboard/fleet-tracking",
   });
 

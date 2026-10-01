@@ -2650,12 +2650,7 @@ export default function MechanicFleetStatusPage({
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                 {showArchived ? "Archived Trucks" : "Fleet Status"}
               </h1>
-              <p className="text-sm text-slate-700 mt-1">
-                {showArchived
-                  ? "View and manage disabled or retired trucks."
-                  : "Monitor truck diagnostic health, asset availability, and maintenance conditions."}
-              </p>
-            </div>
+              </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
               <button
                 onClick={() => {

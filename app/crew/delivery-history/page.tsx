@@ -505,10 +505,7 @@ export default function DeliveryHistoryPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Delivery History
           </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            View all past delivery history records.
-          </p>
-        </div>
+          </div>
       </div>
 
       {/* Data Container Card */}

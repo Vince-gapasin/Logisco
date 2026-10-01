@@ -1055,10 +1055,7 @@ export default function PendingBookingPage() {
               <CalendarDays className="w-6 h-6 text-blue-500" />
               Pending Bookings
             </h1>
-            <p className="text-sm text-slate-600 mt-1">
-              Review and manage unfulfilled delivery schedules and assignments.
-            </p>
-          </div>
+            </div>
         </div>
       </div>
 

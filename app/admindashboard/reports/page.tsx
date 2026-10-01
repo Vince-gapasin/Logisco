@@ -808,10 +808,7 @@ export default function ReportsForecastingPage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Reports Dashboard
             </h1>
-            <p className="text-sm text-slate-700 mt-1">
-              View delivery performance reports and analyze historical records.
-            </p>
-          </div>
+            </div>
 
           {/* Action Button: */}
           <div className="w-full sm:w-auto">
