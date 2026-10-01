@@ -27,16 +27,11 @@ const HOUR_HEIGHT_PX = 64;
 
 // One day column, and the gutter the hours sit in.
 //
-// Fixed rather than a seventh of the screen, because the strip is no longer a
-// week: it runs a year either side of today and is scrolled through, so the
-// columns have to be a known width for the scroll position to mean a date.
+// Fixed rather than a seventh of the screen, because the strip is scrolled
+// rather than paged: the columns have to be a known width for the scroll
+// position to mean a date.
 const DAY_WIDTH_PX = 112;
 const GUTTER_WIDTH_PX = 80;
-
-// How far the strip runs. A year each way covers anything anybody is booking
-// against, and at one element per day it costs nothing to have it there.
-const DAYS_BEHIND = 365;
-const DAYS_AHEAD = 365;
 const DEFAULT_EVENT_TIME = "08:00";
 
 // Where a booking at each stage is managed.
@@ -61,12 +56,6 @@ function toIsoDate(date: Date): string {
 }
 
 // Monday of the week containing the given date.
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
 interface CalendarEvent {
   id: string;
   orderId: string;
@@ -106,13 +95,20 @@ function toCalendarEvent(booking: BookingView): CalendarEvent | null {
 export default function CalendarPage() {
   const router = useRouter();
   const [isMiniSidebarOpen, setIsMiniSidebarOpen] = useState(false);
-  // Where the strip is, as an index into the days below.
+  // The month on screen. The strip runs its length and stops there.
   //
-  // The grid used to be a week, and everything - the month in the heading, the
-  // month calendar, which days were highlighted - came from which week was
-  // being shown. There is no week now, so the scroll position is the one source
-  // of truth and these follow it.
-  const [view, setView] = useState({ first: DAYS_BEHIND, count: 7 });
+  // It used to be a week, so reaching the 12th from the 3rd meant paging the
+  // week along; then it ran a year either way, which scrolled past the month
+  // without ever saying so. A month is the unit the heading and the calendar
+  // beside it already speak in, so it is the unit the strip covers: scroll
+  // within it, and click a month to leave it.
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  // Which days of it are on screen, read back from the scroll position.
+  const [view, setView] = useState({ first: 0, count: 7 });
   const weekGridRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef(view);
 
@@ -140,11 +136,11 @@ export default function CalendarPage() {
 
   const todayIso = toIsoDate(new Date());
 
-  // Every day the strip runs over, built once. Today sits at DAYS_BEHIND.
+  // Every day of the month on screen, and nothing either side of it.
   const days = useMemo(() => {
-    const start = addDays(new Date(), -DAYS_BEHIND);
-    return Array.from({ length: DAYS_BEHIND + DAYS_AHEAD + 1 }, (_, index) => {
-      const day = addDays(start, index);
+    const length = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    return Array.from({ length }, (_, index) => {
+      const day = new Date(month.getFullYear(), month.getMonth(), index + 1);
       return {
         name: day.toLocaleDateString("en-PH", { weekday: "short" }),
         date: day.getDate(),
@@ -152,25 +148,23 @@ export default function CalendarPage() {
         day,
       };
     });
-  }, []);
-
-  const anchor = useMemo(
-    () => days[Math.min(view.first, days.length - 1)]?.day ?? new Date(),
-    [days, view.first],
-  );
+  }, [month]);
 
   const monthLabel = useMemo(
-    () => anchor.toLocaleDateString("en-PH", { month: "long", year: "numeric" }),
-    [anchor],
+    () => month.toLocaleDateString("en-PH", { month: "long", year: "numeric" }),
+    [month],
   );
 
-  /** Puts a date at the left edge of the strip, behind the hours. */
-  const scrollToIndex = useCallback((index: number, behavior: ScrollBehavior = "smooth") => {
-    const grid = weekGridRef.current;
-    if (!grid) return;
-    const clamped = Math.max(0, Math.min(index, DAYS_BEHIND + DAYS_AHEAD));
-    grid.scrollTo({ left: clamped * DAY_WIDTH_PX, behavior });
-  }, []);
+  /** Puts a day of this month at the left edge, behind the hours. */
+  const scrollToIndex = useCallback(
+    (index: number, behavior: ScrollBehavior = "smooth") => {
+      const grid = weekGridRef.current;
+      if (!grid) return;
+      const clamped = Math.max(0, Math.min(index, days.length - 1));
+      grid.scrollTo({ left: clamped * DAY_WIDTH_PX, behavior });
+    },
+    [days.length],
+  );
 
   // Events for the visible week, grouped by day.
   const eventsByDate = useMemo(() => {
@@ -195,18 +189,15 @@ export default function CalendarPage() {
   // Mini calendar for the month the visible week belongs to.
   const miniWeekDays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
   const miniMonth = useMemo(() => {
-    const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-    const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
-    const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
+    const leadingBlanks = (month.getDay() + 6) % 7;
 
     return {
       leadingBlanks,
-      days: Array.from({ length: daysInMonth }, (_, index) => {
-        const day = new Date(anchor.getFullYear(), anchor.getMonth(), index + 1);
-        return { day: index + 1, iso: toIsoDate(day), date: day };
-      }),
+      // The same days the strip shows, so clicking one always has somewhere to
+      // go and the two cannot disagree about which month this is.
+      days: days.map(({ date, iso }) => ({ day: date, iso })),
     };
-  }, [anchor]);
+  }, [month, days]);
 
   /** Which days are on screen, for the month calendar to shade. */
   const visibleIso = useMemo(
@@ -220,10 +211,13 @@ export default function CalendarPage() {
     return `${displayHour} ${ampm}`;
   });
 
-  // Opens on today rather than at the far end of a year of history.
+  // Opens on today, and on the first of any other month moved to.
   useEffect(() => {
-    scrollToIndex(DAYS_BEHIND, "auto");
-  }, [scrollToIndex]);
+    const now = new Date();
+    const isThisMonth =
+      now.getFullYear() === month.getFullYear() && now.getMonth() === month.getMonth();
+    scrollToIndex(isThisMonth ? now.getDate() - 1 : 0, "auto");
+  }, [month, scrollToIndex]);
 
   // The scroll position, read back as a date range.
   //
@@ -323,14 +317,14 @@ export default function CalendarPage() {
             <div className="flex gap-1 text-slate-600">
               <button
                 aria-label="Previous Month"
-                onClick={() => scrollToIndex(view.first - 28)}
+                onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
                 className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 aria-label="Next Month"
-                onClick={() => scrollToIndex(view.first + 28)}
+                onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
                 className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronRight size={16} />
@@ -360,8 +354,7 @@ export default function CalendarPage() {
                   key={day}
                   type="button"
                   onClick={() => {
-                    const index = days.findIndex((candidate) => candidate.iso === iso);
-                    if (index >= 0) scrollToIndex(index);
+                    scrollToIndex(day - 1);
                     setIsMiniSidebarOpen(false);
                   }}
                   className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
