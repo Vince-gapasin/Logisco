@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { todayInManila } from "@/app/lib/datetime";
-import { MIN_QUANTITY, normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import {
+  CLOCK_RULE,
+  isValidClockTime,
+  MIN_QUANTITY,
+  normalizePhone,
+  PHONE_RULE,
+} from "@/app/lib/bookingRules";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
 const phone = z
@@ -55,12 +61,10 @@ const isoDate = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-05")
   .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00`)), "That date does not exist");
 
-const clockTime = z
-  .string()
-  .trim()
-  // Seconds are allowed because the database returns "08:00:00" and an edit
-  // round-trips what it was given.
-  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Use a time like 08:00");
+// Seconds are allowed because the database returns "08:00:00" and an edit
+// round-trips what it was given. The rule itself lives in bookingRules, so the
+// booking form and this schema cannot drift apart about what a time is.
+const clockTime = z.string().trim().refine(isValidClockTime, CLOCK_RULE);
 
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();

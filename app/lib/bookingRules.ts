@@ -30,6 +30,19 @@ export function sanitizePhoneInput(value: string): string {
 
 // ---------------------------------------------------------------- quantity
 
+// A clock on a stop, checked the same way on the form and at the server.
+//
+// Defined once because the two used to disagree: the form asked only whether
+// the field had anything in it, and the server asked nothing at all - so a
+// time was whatever reached it, and the only real check was the browser's own
+// <input type="time">.
+export const CLOCK_RULE = "Needs a valid time";
+const CLOCK_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+export function isValidClockTime(value: string | null | undefined): boolean {
+  return CLOCK_PATTERN.test((value ?? "").trim());
+}
+
 export const MIN_QUANTITY = 1;
 
 /** Keeps a quantity box to whole, positive numbers while typing. */

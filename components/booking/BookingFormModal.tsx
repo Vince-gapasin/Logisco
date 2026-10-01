@@ -13,7 +13,9 @@ import type {
 } from "@/types/database";
 import {
   addressKey,
+  CLOCK_RULE,
   findAddressClashes,
+  isValidClockTime,
   normalizePhone,
   parseQuantity,
   PHONE_RULE,
@@ -407,7 +409,7 @@ function BookingForm({
       if (!p.warehouseAddress.trim()) next[`pickup_${i}_warehouseAddress`] = "Required";
       if (!p.contactPerson.trim()) next[`pickup_${i}_contactPerson`] = "Required";
       phone(`pickup_${i}_contactNumber`, p.contactNumber);
-      if (!p.pickupTime) next[`pickup_${i}_pickupTime`] = "Required";
+      if (!isValidClockTime(p.pickupTime)) next[`pickup_${i}_pickupTime`] = CLOCK_RULE;
       quantity(`pickup_${i}_quantity`, p.quantity);
     });
     deliveryList.forEach((d, i) => {
@@ -415,7 +417,7 @@ function BookingForm({
       if (!d.deliveryAddress.trim()) next[`delivery_${i}_deliveryAddress`] = "Required";
       if (!d.contactPerson.trim()) next[`delivery_${i}_contactPerson`] = "Required";
       phone(`delivery_${i}_contactNumber`, d.contactNumber);
-      if (!d.deliveryTime) next[`delivery_${i}_deliveryTime`] = "Required";
+      if (!isValidClockTime(d.deliveryTime)) next[`delivery_${i}_deliveryTime`] = CLOCK_RULE;
       quantity(`delivery_${i}_quantity`, d.quantity);
     });
 
@@ -700,8 +702,10 @@ function BookingForm({
                             type="time"
                             value={row.pickupTime}
                             onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)}
+                            aria-invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
                             className={cellClass(Boolean(errors[`pickup_${idx}_pickupTime`]))}
                           />
+                          <CellError message={errors[`pickup_${idx}_pickupTime`]} />
                         </td>
                         <td className="p-2 border-r border-slate-200">
                           <QuantityInput
@@ -818,8 +822,10 @@ function BookingForm({
                             type="time"
                             value={row.deliveryTime}
                             onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)}
+                            aria-invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
                             className={cellClass(Boolean(errors[`delivery_${idx}_deliveryTime`]))}
                           />
+                          <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
                         </td>
                         <td className="p-2 border-r border-slate-200">
                           <QuantityInput

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
+import { CLOCK_RULE } from "@/app/lib/bookingRules";
 
 // What the server will accept as a delivery date and a stop time.
 //
@@ -93,6 +94,16 @@ describe("the time a stop is expected", () => {
     expect(stopWith("23:59").success).toBe(true);
     // What the database hands back when a time is read and sent again.
     expect(stopWith("08:00:00").success).toBe(true);
+  });
+
+  it("says the same words the booking form says", () => {
+    // One rule, imported by both, so a time the form accepted cannot be
+    // refused by the server with different wording - or at all.
+    at(NOW);
+    const result = stopWith("banana");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].message).toBe(CLOCK_RULE);
   });
 
   it("refuses what is not one", () => {
