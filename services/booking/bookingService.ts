@@ -1,5 +1,7 @@
 import { supabase } from "@/app/lib/supabase";
-import { geocodeAddresses } from "@/services/geo/geocodingService";
+import { geocodeAddresses, type Coordinates } from "@/services/geo/geocodingService";
+import { getRouteGeometry } from "@/services/geo/routingService";
+import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -503,13 +505,68 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   };
 }
 
+/** Refused because the itinerary promises the truck will be in two places. */
+export class BookingNotPossible extends Error {}
+
 /**
- * The delivery date out of a notes blob, as a date the column will accept.
+ * The drive through an itinerary, and what that says about its times.
  *
- * Null for anything that is not a plain YYYY-MM-DD, rather than a guess: a
- * wrong date here would silently decide that a stop was late.
+ * Routed once, here, at the only moment the whole itinerary is in hand. It is
+ * never routed again for this: a Directions request per check per booking is
+ * the bill this system has already learned not to pay.
  */
+async function assessItinerary(
+  stops: { label: string; time?: string | null; at?: Coordinates }[],
+): Promise<Feasibility> {
+  const points = stops.map((stop) => stop.at).filter((at): at is Coordinates => Boolean(at));
+
+  // Every stop has to be placed, or the drive between them is a guess with a
+  // hole in it. Better to say nothing than to refuse on a partial route.
+  const route =
+    points.length === stops.length && points.length >= 2 ? await getRouteGeometry(points) : null;
+
+  return assessFeasibility({
+    times: stops.map((stop) => stop.time),
+    travelMinutes: route?.minutes ?? null,
+    labels: stops.map((stop) => stop.label),
+  });
+}
+
 export async function createBooking(dto: CreateOrderDto) {
+  // 0. Can this itinerary be driven in the window it promises?
+  //
+  // Checked before anything is written, so a booking that cannot be kept is
+  // refused rather than created and rolled back. The addresses have to be
+  // resolved to do it, so they are resolved once here and the inserts below
+  // reuse what this found - they each used to geocode again, separately.
+  const pickups = (dto.pickups ?? []).filter((pickup) => pickup.warehouseName?.trim());
+
+  const [stopCoordinates, pickupCoordinates] = await Promise.all([
+    geocodeAddresses(dto.stops.map((stop) => stop.deliveryAddress || "").filter(Boolean)),
+    geocodeAddresses(pickups.map((pickup) => pickup.pickupAddress || "").filter(Boolean)),
+  ]);
+
+  const feasibility = await assessItinerary([
+    ...pickups.map((pickup) => ({
+      label: pickup.warehouseName.trim(),
+      time: pickup.expectedTime,
+      at: pickup.pickupAddress?.trim()
+        ? pickupCoordinates.get(pickup.pickupAddress.trim())
+        : undefined,
+    })),
+    ...dto.stops.map((stop) => ({
+      label: stop.branchName,
+      time: stop.expectedTime,
+      at: stop.deliveryAddress?.trim()
+        ? stopCoordinates.get(stop.deliveryAddress.trim())
+        : undefined,
+    })),
+  ]);
+
+  if (feasibility.verdict === "impossible") {
+    throw new BookingNotPossible(feasibility.message ?? "This itinerary cannot be driven in time.");
+  }
+
   // 1. Generate Unique Identifiers
   const orderCode = generateOrderCode();
   const orderLinkToken = crypto.randomUUID(); 
@@ -562,12 +619,9 @@ export async function createBooking(dto: CreateOrderDto) {
 
   // 4. Insert the Itinerary (BranchStops)
   if (dto.stops && dto.stops.length > 0) {
-    // Resolve stop addresses to coordinates so the stop can be drawn on the
-    // live map and the customer tracking page. Best-effort: stops without a
-    // usable address keep the 0/0 placeholder and simply are not plotted.
-    const coordinatesByAddress = await geocodeAddresses(
-      dto.stops.map((stop) => stop.deliveryAddress || "").filter(Boolean),
-    );
+    // Resolved above, where the itinerary was checked. Stops without a usable
+    // address keep the 0/0 placeholder and simply are not plotted.
+    const coordinatesByAddress = stopCoordinates;
 
     const formattedStops = dto.stops.map((stop, index) => {
       const coordinates = stop.deliveryAddress
@@ -604,13 +658,7 @@ export async function createBooking(dto: CreateOrderDto) {
   }
 
   // 5. Insert the collection points (PickupStops)
-  const pickups = (dto.pickups ?? []).filter((pickup) => pickup.warehouseName?.trim());
-
   if (pickups.length > 0) {
-    const pickupCoordinates = await geocodeAddresses(
-      pickups.map((pickup) => pickup.pickupAddress || "").filter(Boolean),
-    );
-
     const formattedPickups = pickups.map((pickup, index) => {
       const address = pickup.pickupAddress?.trim() || "";
       const coordinates = address ? pickupCoordinates.get(address) : undefined;
@@ -648,5 +696,8 @@ export async function createBooking(dto: CreateOrderDto) {
     orderID: newOrderID,
     orderCode: orderCode,
     trackingToken: orderLinkToken,
+    // Drivable, but with nothing to spare. Worth saying while the client is
+    // still on the phone.
+    warning: feasibility.verdict === "tight" ? feasibility.message : null,
   };
 }

@@ -1604,11 +1604,20 @@ export default function AdminDashboardPage() {
           })),
       };
 
-      const res = await apiFetch<{ orderCode?: string; trackingToken?: string; orderID?: string }>("/api/bookings", {
+      const res = await apiFetch<{
+        orderCode?: string;
+        trackingToken?: string;
+        orderID?: string;
+        warning?: string | null;
+      }>("/api/bookings", {
         method: "POST",
         body: JSON.stringify(payload),
       });
       const newOrderID = res.orderID;
+
+      // Drivable, but with nothing to spare. Said now, while the client is
+      // still on the phone and the times can still be moved.
+      if (res.warning) showToast(res.warning, "info");
 
       if (data.subconPartner) {
         try {
