@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  ZoomIn,
+  ZoomOut,
   Inbox,
   Clock,
   Calendar as CalendarIcon,
@@ -22,8 +24,18 @@ import {
   type OrderWithRelations,
 } from "@/app/lib/bookingView";
 
-// One hour row is h-16 (64px); events are positioned against that.
-const HOUR_HEIGHT_PX = 64;
+// How tall an hour is drawn, and the sizes the zoom steps through.
+//
+// Several bookings at the same hour used to sit on top of each other, because
+// an event was placed by its time and nothing else: two at 8:00 were two tags
+// in the same place. They are laid out side by side now, which only goes so
+// far - four bookings in one hour on a phone column is four slivers - so the
+// hour itself can be stretched.
+const HOUR_HEIGHTS = [40, 64, 104, 168] as const;
+const DEFAULT_ZOOM = 1;
+
+// What one event occupies, for working out which ones collide.
+const EVENT_HEIGHT_PX = 42;
 
 // One day column, and the gutter the hours sit in.
 //
@@ -63,7 +75,58 @@ interface CalendarEvent {
   stage: string;
   time: string;
   isoDate: string;
-  topPx: number;
+  /** Hours past midnight, so the zoom can decide what that is in pixels. */
+  atHours: number;
+}
+
+/** An event with its place among the ones it overlaps. */
+interface PlacedEvent extends CalendarEvent {
+  /** Which of the side-by-side lanes it sits in, and how many there are. */
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Side by side, for the ones that would otherwise be on top of each other.
+ *
+ * Events are grouped into runs that overlap, and each run is given as many
+ * lanes as its busiest moment needs. A lane is reused the moment it is free,
+ * so one early booking does not halve the width of everything after it.
+ */
+function placeEvents(events: CalendarEvent[], hourHeight: number): PlacedEvent[] {
+  const spanHours = EVENT_HEIGHT_PX / hourHeight;
+  const sorted = [...events].sort((a, b) => a.atHours - b.atHours);
+
+  const placed: PlacedEvent[] = [];
+  let run: PlacedEvent[] = [];
+  let laneEnds: number[] = [];
+  let runEnd = -Infinity;
+
+  const closeRun = () => {
+    for (const event of run) event.lanes = laneEnds.length;
+    placed.push(...run);
+    run = [];
+    laneEnds = [];
+    runEnd = -Infinity;
+  };
+
+  for (const event of sorted) {
+    if (event.atHours >= runEnd) closeRun();
+
+    let lane = laneEnds.findIndex((end) => end <= event.atHours);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(0);
+    }
+
+    const end = event.atHours + spanHours;
+    laneEnds[lane] = end;
+    runEnd = Math.max(runEnd, end);
+    run.push({ ...event, lane, lanes: 1 });
+  }
+
+  closeRun();
+  return placed;
 }
 
 // The scheduled time comes from the first stop; fall back to a sane default.
@@ -88,7 +151,7 @@ function toCalendarEvent(booking: BookingView): CalendarEvent | null {
     stage: booking.status,
     time,
     isoDate: toIsoDate(parsed),
-    topPx: ((hours || 0) + (minutes || 0) / 60) * HOUR_HEIGHT_PX,
+    atHours: (hours || 0) + (minutes || 0) / 60,
   };
 }
 
@@ -106,6 +169,11 @@ export default function CalendarPage() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+
+  // How tall an hour is drawn. Stretching it is what makes a crowded morning
+  // readable once laying the bookings side by side has run out of width.
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const hourHeight = HOUR_HEIGHTS[zoom];
 
   // Which days of it are on screen, read back from the scroll position.
   const [view, setView] = useState({ first: 0, count: 7 });
@@ -182,6 +250,14 @@ export default function CalendarPage() {
     for (const list of grouped.values()) list.sort((a, b) => a.time.localeCompare(b.time));
     return grouped;
   }, [bookings]);
+
+  // The same events, each given a lane among the ones it overlaps. Redone when
+  // the hour is stretched, because that changes what overlaps what.
+  const placedByDate = useMemo(() => {
+    const placed = new Map<string, PlacedEvent[]>();
+    for (const [iso, list] of eventsByDate) placed.set(iso, placeEvents(list, hourHeight));
+    return placed;
+  }, [eventsByDate, hourHeight]);
 
   const unassignedCount = bookings.filter(isAwaitingAssignment).length;
   const awaitingCrewCount = bookings.filter(isAwaitingCrewConfirmation).length;
@@ -260,26 +336,37 @@ export default function CalendarPage() {
     router.push(STAGE_ROUTES[event.stage] ?? "/admindashboard/feeds/pending");
   };
 
-  const renderEvent = (event: CalendarEvent, compact = false) => (
-    <button
-      key={event.id}
-      type="button"
-      onClick={() => openEvent(event)}
-      style={{ top: `${event.topPx}px` }}
-      title={`${event.orderId} - ${event.clientName} (${event.stage})`}
-      className={`min-h-tap md:min-h-0 inline-flex items-center justify-start absolute left-1 right-1 z-10 rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
-        STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
-      }`}
-    >
-      <span className="block text-xs sm:text-[11px] font-semibold truncate">
-        {formatTime(event.time)} {event.clientName}
-      </span>
-      {!compact && <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>}
-    </button>
-  );
+  const renderEvent = (event: PlacedEvent) => {
+    // Its share of the column, and where in it. One booking takes the whole
+    // width; three at the same hour take a third each.
+    const width = 100 / event.lanes;
+
+    return (
+      <button
+        key={event.id}
+        type="button"
+        onClick={() => openEvent(event)}
+        style={{
+          top: `${event.atHours * hourHeight}px`,
+          left: `calc(${event.lane * width}% + 2px)`,
+          width: `calc(${width}% - 4px)`,
+          minHeight: EVENT_HEIGHT_PX - 4,
+        }}
+        title={`${event.orderId} - ${event.clientName} (${event.stage})`}
+        className={`absolute z-10 flex flex-col justify-center overflow-hidden rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
+          STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
+        }`}
+      >
+        <span className="block text-xs sm:text-[11px] font-semibold truncate">
+          {formatTime(event.time)} {event.clientName}
+        </span>
+        <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>
+      </button>
+    );
+  };
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] w-full bg-white text-slate-800 font-sans relative">
+    <div className="flex h-[calc(100dvh-4rem)] w-full bg-white text-slate-800 font-sans relative overflow-hidden">
       {/* Mobile Backdrop for Mini-Calendar Drawer */}
       {isMiniSidebarOpen && (
         <div
@@ -422,7 +509,7 @@ export default function CalendarPage() {
       {/* ========================================== */}
       {/* 2. MAIN CALENDAR VIEW CANVAS               */}
       {/* ========================================== */}
-      <main className="flex flex-col flex-1 min-w-0 bg-white relative">
+      <main className="flex flex-col flex-1 min-w-0 min-h-0 bg-white relative">
         {/* Calendar Toolbar / Controls */}
         <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-gray-200 bg-white shrink-0">
           <div className="flex items-center gap-3">
@@ -442,6 +529,29 @@ export default function CalendarPage() {
             {isLoading && <span className="text-xs text-slate-500">Loading...</span>}
           </div>
 
+          {/* Stretches the hours. Laying bookings side by side runs out of
+              width before it runs out of bookings, so the other axis has to
+              give. */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.max(0, current - 1))}
+              disabled={zoom === 0}
+              aria-label="Show more hours at once"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((current) => Math.min(HOUR_HEIGHTS.length - 1, current + 1))}
+              disabled={zoom === HOUR_HEIGHTS.length - 1}
+              aria-label="Give each hour more room"
+              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ZoomIn size={16} />
+            </button>
+          </div>
         </div>
 
         {loadError && (
@@ -467,8 +577,8 @@ export default function CalendarPage() {
         >
           <div className="flex flex-col flex-1 w-max">
             {/* Sticky Days Header */}
-            <div className="flex border-b border-gray-200 bg-white sticky top-0 z-20">
-              <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50 sticky left-0 z-10"></div>
+            <div className="flex border-b border-gray-200 bg-white sticky top-0 z-30">
+              <div className="w-20 shrink-0 border-r border-gray-100 bg-gray-50/50 sticky left-0 z-40"></div>
               <div className="flex">
                 {days.map((col) => {
                   const isToday = col.iso === todayIso;
@@ -501,11 +611,12 @@ export default function CalendarPage() {
             {/* Scrollable Time Grid Body */}
             <div className="flex flex-1 bg-white relative">
               {/* Left Time Markers Column */}
-              <div className="w-20 shrink-0 flex flex-col bg-white border-r border-gray-100 z-10 sticky left-0">
+              <div className="w-20 shrink-0 flex flex-col bg-white border-r border-gray-100 z-20 sticky left-0">
                 {hours.map((hour, idx) => (
                   <div
                     key={idx}
-                    className="h-16 border-b border-transparent relative"
+                    style={{ height: hourHeight }}
+                    className="border-b border-transparent relative"
                   >
                     <span className="absolute -top-2.5 right-3 text-xs font-medium text-slate-500">
                       {idx === 0 ? "" : hour}
@@ -526,14 +637,14 @@ export default function CalendarPage() {
                     data-day={col.iso}
                     style={{
                       width: DAY_WIDTH_PX,
-                      height: hours.length * HOUR_HEIGHT_PX,
+                      height: hours.length * hourHeight,
                       backgroundImage:
-                        `repeating-linear-gradient(to bottom, transparent 0 ${HOUR_HEIGHT_PX - 1}px,` +
-                        ` rgb(243 244 246) ${HOUR_HEIGHT_PX - 1}px ${HOUR_HEIGHT_PX}px)`,
+                        `repeating-linear-gradient(to bottom, transparent 0 ${hourHeight - 1}px,` +
+                        ` rgb(243 244 246) ${hourHeight - 1}px ${hourHeight}px)`,
                     }}
                     className="shrink-0 relative border-r border-gray-100"
                   >
-                    {(eventsByDate.get(col.iso) ?? []).map((event) => renderEvent(event, true))}
+                    {(placedByDate.get(col.iso) ?? []).map((event) => renderEvent(event))}
                   </div>
                 ))}
               </div>
