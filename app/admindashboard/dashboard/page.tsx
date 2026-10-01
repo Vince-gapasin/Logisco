@@ -1530,7 +1530,7 @@ export default function AdminDashboardPage() {
     void fetchOrders();
   };
 
-  const handleModalSubmit = async (data: BookingFormResult) => {
+  const handleModalSubmit = async (data: BookingFormResult): Promise<string | null> => {
     try {
       let detailedNotes = "";
       if (!data.clientID) {
@@ -1662,9 +1662,13 @@ export default function AdminDashboardPage() {
       setGeneratedOrderID(res.orderID || "");
       setIsSuccessModalOpen(true);
       await fetchOrders();
+      return null;
     } catch (err) {
       console.error(err);
-      showToast(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`, "error");
+      // Handed back to the form, which stays open holding everything that was
+      // typed. It used to be thrown over the dashboard as a toast, with the
+      // form already closed behind it and the work gone.
+      return err instanceof Error ? err.message : "The booking could not be saved.";
     }
   };
 

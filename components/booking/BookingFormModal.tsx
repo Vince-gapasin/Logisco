@@ -88,7 +88,8 @@ interface BookingFormModalProps {
   helpers: Partial<EmployeeRow>[];
   subcontractors: Partial<SubContractorRow>[];
   preSelectedClientID?: string;
-  onSubmitSuccess: (data: BookingFormResult) => void;
+  /** Returns a message when the booking was refused, so the form can stay up. */
+  onSubmitSuccess: (data: BookingFormResult) => void | Promise<string | null>;
 }
 
 const TITLES: Record<BookingFormVariant, string> = {
@@ -223,6 +224,11 @@ function BookingForm({
   const [pickupList, setPickupList] = useState<PickupRow[]>([emptyPickup()]);
   const [deliveryList, setDeliveryList] = useState<DeliveryRow[]>([emptyDelivery()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // A refusal from the server, kept on the form rather than thrown over the
+  // dashboard behind it, and whether the save is still in flight.
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [confirmUnassigned, setConfirmUnassigned] = useState<BookingFormResult | null>(null);
 
   const availableTrucks = useMemo(() => freeCrew?.trucks ?? (trucks ?? []).map(toTruck), [freeCrew, trucks]);
@@ -385,7 +391,7 @@ function BookingForm({
     ["branchName", "deliveryAddress", "contactPerson", "contactNumber"].forEach((f) => clearError(`delivery_${index}_${f}`));
   };
 
-  const validateAndSubmit = (e: React.FormEvent) => {
+  const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: Record<string, string> = {};
     const phone = (key: string, value: string) => {
@@ -429,6 +435,23 @@ function BookingForm({
       next[key] = clash.message;
     }
 
+    // The stops in the order the truck drives them: collections first, then
+    // drops. A time earlier than the stop before it is a promise nothing about
+    // the road can keep, and the server refuses it - but it is plain arithmetic
+    // on what is already on this screen, so it is caught here, on the fields
+    // that are wrong, instead of coming back as a sentence over the dashboard
+    // with the form closed and everything typed into it gone.
+    const inRouteOrder = [
+      ...pickupList.map((row, i) => ({ time: row.pickupTime, key: `pickup_${i}_pickupTime` })),
+      ...deliveryList.map((row, i) => ({ time: row.deliveryTime, key: `delivery_${i}_deliveryTime` })),
+    ].filter((stop) => isValidClockTime(stop.time));
+
+    for (let i = 1; i < inRouteOrder.length; i += 1) {
+      if (inRouteOrder[i].time < inRouteOrder[i - 1].time) {
+        next[inRouteOrder[i].key] = "Must be after the stop before it";
+      }
+    }
+
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
     if (isSubconMode && formData.partnerContact.trim() && !normalizePhone(formData.partnerContact)) next.partnerContact = PHONE_RULE;
 
@@ -470,8 +493,21 @@ function BookingForm({
       setConfirmUnassigned(result);
       return;
     }
-    onSubmitSuccess(result);
-    onClose();
+    // Closed only once the booking is actually made. It used to close here and
+    // let the request run on behind it, so anything the server refused took the
+    // whole form with it and the coordinator typed it again from memory.
+    setSubmitError(null);
+    setSaving(true);
+    try {
+      const refused = await onSubmitSuccess(result);
+      if (refused) {
+        setSubmitError(refused);
+        return;
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   // By id: the trip is linked to the partner. A new partner is added under
@@ -527,6 +563,18 @@ function BookingForm({
           </div>
 
           <form onSubmit={validateAndSubmit} noValidate className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
+            {/* What the server refused, said here rather than over the
+                dashboard - the form is still open and still holds everything
+                that was typed into it. */}
+            {submitError && (
+              <div
+                role="alert"
+                className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-xs text-red-800"
+              >
+                {submitError}
+              </div>
+            )}
+
             {/* Client Info */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex justify-between">
@@ -1002,7 +1050,11 @@ function BookingForm({
               <button type="button" onClick={onClose} className="px-6 py-2.5 bg-slate-200 text-slate-800 font-semibold rounded-xl text-sm">
                 Cancel
               </button>
-              <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 Generate Booking
               </button>
             </div>
