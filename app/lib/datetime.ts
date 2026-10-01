@@ -74,3 +74,32 @@ export function todayInManila(now = new Date()): string {
     day: "2-digit",
   }).format(now);
 }
+
+/**
+ * How long until a stop, in whole minutes, read in Manila.
+ *
+ * Both halves of the answer live in different places - the day on the order,
+ * the clock on the stop - and the sum has to be read where the trucks are. A
+ * server in UTC comparing "now" against "08:00 on the 5th" is eight hours out,
+ * which is the difference between a delivery that can be reached and one that
+ * cannot.
+ *
+ * Negative when the time has already gone, so the caller can tell "in forty
+ * minutes" from "forty minutes ago".
+ */
+export function minutesUntil(
+  dateIso: string,
+  clock: string,
+  now = new Date(),
+): number | null {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso.trim());
+  const time = /^([01]\d|2[0-3]):([0-5]\d)/.exec(clock.trim());
+  if (!date || !time) return null;
+
+  // The stop, as an instant, by saying which offset it is written in. +08:00 is
+  // fixed all year here: the Philippines has kept no daylight saving since 1978.
+  const at = Date.parse(`${dateIso}T${time[1]}:${time[2]}:00+08:00`);
+  if (Number.isNaN(at)) return null;
+
+  return Math.round((at - now.getTime()) / 60_000);
+}

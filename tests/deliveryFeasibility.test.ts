@@ -116,3 +116,71 @@ describe("what it deliberately does not judge", () => {
     expect(assessFeasibility(sameAnswer).verdict).toBe("fine");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Getting there in the first place
+// ---------------------------------------------------------------------------
+// Every truck starts from the same yard, which makes the other half checkable:
+// how long it takes to reach the first stop is known, so a booking whose first
+// stop is sooner than that drive is one nobody can make however early they
+// leave. This is the real version of "give us three hours' notice" - the same
+// intent, measured against the road instead of a number somebody picked.
+
+describe("reaching the first stop", () => {
+  const fromYard = (over: Record<string, unknown> = {}) =>
+    assessFeasibility({
+      times: ["08:00", "12:00"],
+      travelMinutes: 60,
+      labels: [warehouse, branch],
+      fromBaseMinutes: 120,
+      minutesUntilFirstStop: 300,
+      departureBufferMin: 30,
+      ...over,
+    });
+
+  it("refuses a stop nearer in time than it is in distance", () => {
+    const result = fromYard({ minutesUntilFirstStop: 45 });
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/45 minutes away/);
+    expect(result.message).toMatch(/2 hours from the yard/);
+    expect(result.message).toMatch(/however early it leaves/);
+  });
+
+  it("refuses a first stop whose time has gone", () => {
+    const result = fromYard({ minutesUntilFirstStop: -20 });
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/already gone/);
+  });
+
+  it("says when the truck has to be out of the yard", () => {
+    // Five hours until the stop, two of them driving, half an hour to get
+    // moving: two and a half hours of slack.
+    expect(fromYard().leaveInMinutes).toBe(150);
+  });
+
+  it("warns when that moment has passed but the drive still fits", () => {
+    // Two hours and ten minutes out from a two-hour drive: reachable, but only
+    // by leaving now rather than in the half hour nobody schedules.
+    const result = fromYard({ minutesUntilFirstStop: 130 });
+    expect(result.verdict).toBe("tight");
+    expect(result.message).toMatch(/out of the yard now/);
+    expect(result.leaveInMinutes).toBeLessThan(0);
+  });
+
+  it("is checked before the itinerary, because it fails earlier", () => {
+    // Unreachable first stop and an impossible window. The one worth saying is
+    // the one that happens first.
+    const result = fromYard({ minutesUntilFirstStop: 10, travelMinutes: 600 });
+    expect(result.message).toMatch(/from the yard/);
+  });
+
+  it("stays quiet when there is no yard distance to go on", () => {
+    const result = fromYard({ fromBaseMinutes: null });
+    expect(result.verdict).toBe("fine");
+    expect(result.leaveInMinutes).toBeNull();
+  });
+
+  it("stays quiet about a booking with no date to count from", () => {
+    expect(fromYard({ minutesUntilFirstStop: null }).verdict).toBe("fine");
+  });
+});

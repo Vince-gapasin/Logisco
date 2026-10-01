@@ -2,6 +2,8 @@ import { supabase } from "@/app/lib/supabase";
 import { geocodeAddresses, type Coordinates } from "@/services/geo/geocodingService";
 import { getRouteGeometry } from "@/services/geo/routingService";
 import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
+import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
+import { minutesUntil } from "@/app/lib/datetime";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -517,18 +519,32 @@ export class BookingNotPossible extends Error {}
  */
 async function assessItinerary(
   stops: { label: string; time?: string | null; at?: Coordinates }[],
+  scheduledFor: string,
 ): Promise<Feasibility> {
   const points = stops.map((stop) => stop.at).filter((at): at is Coordinates => Boolean(at));
 
   // Every stop has to be placed, or the drive between them is a guess with a
   // hole in it. Better to say nothing than to refuse on a partial route.
-  const route =
-    points.length === stops.length && points.length >= 2 ? await getRouteGeometry(points) : null;
+  const placed = points.length === stops.length && points.length >= 2;
+
+  // One request, from the yard through the whole itinerary. The first leg is
+  // the drive out to the first stop, which is the one that decides whether the
+  // crew can be there at the hour it was promised for; the rest is the route
+  // they drive once they have started.
+  const route = placed ? await getRouteGeometry([BASE_LOCATION, ...points]) : null;
+  const legs = route?.legMinutes ?? [];
+  const fromBase = legs.length > 0 ? legs[0] : null;
+  const throughStops = legs.length > 1 ? legs.slice(1).reduce((a, b) => a + b, 0) : null;
+
+  const firstTime = stops[0]?.time;
 
   return assessFeasibility({
     times: stops.map((stop) => stop.time),
-    travelMinutes: route?.minutes ?? null,
+    travelMinutes: throughStops,
     labels: stops.map((stop) => stop.label),
+    fromBaseMinutes: fromBase,
+    minutesUntilFirstStop: firstTime ? minutesUntil(scheduledFor, firstTime) : null,
+    departureBufferMin: DEPARTURE_BUFFER_MIN,
   });
 }
 
@@ -561,7 +577,7 @@ export async function createBooking(dto: CreateOrderDto) {
         ? stopCoordinates.get(stop.deliveryAddress.trim())
         : undefined,
     })),
-  ]);
+  ], dto.deliverySchedule);
 
   if (feasibility.verdict === "impossible") {
     throw new BookingNotPossible(feasibility.message ?? "This itinerary cannot be driven in time.");

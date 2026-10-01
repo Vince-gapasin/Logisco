@@ -16,13 +16,14 @@
 // drive, the booking is promising the truck will be in two places at once, and
 // no amount of notice fixes that.
 //
-// WHAT IT CANNOT CHECK
+// AND GETTING THERE IN THE FIRST PLACE
 //
-// Getting to the first stop. The truck could be at the yard, at a client's
-// gate, or halfway through another delivery, and at booking time none of that
-// is known. So this is the irreducible part of the job - from the moment they
-// are at the first stop - and it stays silent about the rest rather than
-// inventing a depot to measure from.
+// Every truck starts from the same yard, which makes the other half checkable
+// too: how long it takes to reach the first stop is known, so a booking whose
+// first stop is sooner than that drive is one nobody can make, however early
+// they leave. That is the real version of "give us three hours' notice" - the
+// same intent, measured against the road rather than against a number someone
+// picked.
 
 /** How long a stop takes once the truck is there, for everything but the last. */
 export const STOP_ALLOWANCE_MIN = 20;
@@ -37,6 +38,11 @@ export interface Feasibility {
   windowMinutes: number | null;
   /** Driving time through the itinerary, when it could be worked out. */
   travelMinutes: number | null;
+  /**
+   * Minutes from now by which the truck has to leave the yard, when that can
+   * be worked out. Negative means the moment has gone.
+   */
+  leaveInMinutes?: number | null;
 }
 
 export interface FeasibilityInput {
@@ -46,6 +52,15 @@ export interface FeasibilityInput {
   travelMinutes: number | null;
   /** Names in the same order, for saying which stop is the problem. */
   labels?: string[];
+  /** Driving time from the yard to the first stop, when it is known. */
+  fromBaseMinutes?: number | null;
+  /**
+   * Minutes from now until the first stop. Negative when it has gone, null
+   * when there is no date to measure from.
+   */
+  minutesUntilFirstStop?: number | null;
+  /** Getting the truck out of the yard, on top of the drive. */
+  departureBufferMin?: number;
 }
 
 function minutesOf(clock: string | null | undefined): number | null {
@@ -105,7 +120,49 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
   }
 
   const windowMinutes = clock[clock.length - 1] - clock[0];
-  if (travelMinutes === null) return { ...nothing, windowMinutes };
+
+  // Can the truck get to the first stop at all?
+  //
+  // Checked before the itinerary itself, because it is the earlier failure and
+  // the more common one: a delivery booked for this afternoon at a warehouse
+  // three hours away is refused however well the rest of the route fits.
+  const { fromBaseMinutes = null, minutesUntilFirstStop = null } = input;
+  const buffer = input.departureBufferMin ?? 0;
+  const leaveInMinutes =
+    fromBaseMinutes !== null && minutesUntilFirstStop !== null
+      ? minutesUntilFirstStop - fromBaseMinutes - buffer
+      : null;
+
+  if (fromBaseMinutes !== null && minutesUntilFirstStop !== null) {
+    const first = labels[0] ?? "the first stop";
+
+    if (minutesUntilFirstStop < 0) {
+      return {
+        verdict: "impossible",
+        message: `${first} is booked for a time that has already gone.`,
+        windowMinutes,
+        travelMinutes,
+        leaveInMinutes,
+      };
+    }
+
+    if (minutesUntilFirstStop < fromBaseMinutes) {
+      return {
+        verdict: "impossible",
+        message:
+          `${first} is ${describe(minutesUntilFirstStop)} away and it is ` +
+          `${describe(fromBaseMinutes)} from the yard. The truck cannot get there in time, ` +
+          `however early it leaves.`,
+        windowMinutes,
+        travelMinutes,
+        leaveInMinutes,
+      };
+    }
+  }
+
+  if (travelMinutes === null) {
+    return { ...nothing, windowMinutes, leaveInMinutes };
+  }
 
   const working = STOP_ALLOWANCE_MIN * (clock.length - 1);
   const needed = travelMinutes + working;
@@ -118,6 +175,7 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
         `and the drive alone is ${describe(travelMinutes)}. The truck cannot be in both places.`,
       windowMinutes,
       travelMinutes,
+      leaveInMinutes,
     };
   }
 
@@ -129,8 +187,21 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
         `${describe(working)} at the stops along the way. It can be driven, with nothing to spare.`,
       windowMinutes,
       travelMinutes,
+      leaveInMinutes,
     };
   }
 
-  return { verdict: "fine", message: null, windowMinutes, travelMinutes };
+  // Drivable, and leaving late is the only way to miss it.
+  if (leaveInMinutes !== null && leaveInMinutes < 0) {
+    return {
+      verdict: "tight",
+      message:
+        `The truck has to be out of the yard now to make ${labels[0] ?? "the first stop"}.`,
+      windowMinutes,
+      travelMinutes,
+      leaveInMinutes,
+    };
+  }
+
+  return { verdict: "fine", message: null, windowMinutes, travelMinutes, leaveInMinutes };
 }

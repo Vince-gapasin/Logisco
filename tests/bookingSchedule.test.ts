@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
 import { CLOCK_RULE } from "@/app/lib/bookingRules";
+import { minutesUntil } from "@/app/lib/datetime";
 
 // What the server will accept as a delivery date and a stop time.
 //
@@ -135,5 +136,27 @@ describe("rescheduling", () => {
     at(NOW);
     expect(updateOrderSchema.safeParse({ deliverySchedule: "2025-01-01" }).success).toBe(false);
     expect(updateOrderSchema.safeParse({ deliverySchedule: "2026-10-09" }).success).toBe(true);
+  });
+});
+
+describe("counting the minutes to a stop", () => {
+  it("reads the gap in Manila, not in UTC", () => {
+    // 08:00 on the 5th in Manila is midnight UTC. A server comparing its own
+    // clock against the wall clock on the stop is eight hours out, which is the
+    // difference between a delivery that can be reached and one that cannot.
+    const now = new Date("2026-10-05T00:00:00.000Z"); // 08:00 in Manila
+    expect(minutesUntil("2026-10-05", "08:00", now)).toBe(0);
+    expect(minutesUntil("2026-10-05", "11:30", now)).toBe(210);
+    expect(minutesUntil("2026-10-06", "08:00", now)).toBe(1440);
+  });
+
+  it("goes negative for a time that has gone", () => {
+    const now = new Date("2026-10-05T02:00:00.000Z"); // 10:00 in Manila
+    expect(minutesUntil("2026-10-05", "08:00", now)).toBe(-120);
+  });
+
+  it("gives nothing for something that is not a date and a time", () => {
+    expect(minutesUntil("not-a-date", "08:00")).toBeNull();
+    expect(minutesUntil("2026-10-05", "banana")).toBeNull();
   });
 });
