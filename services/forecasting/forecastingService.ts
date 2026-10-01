@@ -1,5 +1,16 @@
 import { supabase } from "@/app/lib/supabase";
 
+import { buildForecastFilters } from "./forecastingAggregation";
+
+import {
+  getForecastSourceData,
+  buildDailyDispatchVolume,
+  buildMonthlyDispatchVolume,
+  attachFuelPricesToDaily,
+  attachWeatherToDaily,
+  buildWeeklyDispatchVolume,
+} from "@/services/forecasting/forecastDataService";
+
 interface MonthlyData {
   periodStart: string;
   actualVolume: number | null;
@@ -30,16 +41,70 @@ export interface ForecastRecord {
   };
 }
 
+export interface YearlyForecastData {
+  year: number;
+  expectedVolume: number;
+  actualVolume: number;
+  variance: number;
+  variancePercentage: number | null;
+}
+
+
+export interface MonthlyForecastData {
+  periodStart: string;
+  year: number;
+  month: number;
+  monthName: string;
+  expectedVolume: number;
+  actualVolume: number;
+  variance: number;
+  variancePercentage: number | null;
+}
+
+
+export interface WeeklyForecastData {
+  periodStart: string;
+  periodEnd: string;
+  weekOfMonth: number;
+  expectedVolume: number;
+  actualVolume: number | null;
+  variance: number | null;
+  variancePercentage: number | null;
+}
+
+export interface DailyForecastRecord {
+  periodStart: string;
+  weekStart: string;
+  expectedVolume: number;
+  actualVolume: number | null;
+  variance: number | null;
+  variancePercentage: number | null;
+}
+
 type RidgeModelName =
   | "ridge_history_seasonality"
   | "ridge_history_weather"
   | "ridge_history_fuel"
   | "ridge_all";
 
-type ModelName =
+type BaselineModelName =
   | "seasonal_naive"
-  | "moving_average_3"
-  | RidgeModelName;
+  | "seasonal_naive_level"
+  | "seasonal_index_level"
+  | "moving_average_3";
+
+type ModelName = BaselineModelName | RidgeModelName;
+
+const BASELINE_MODELS: BaselineModelName[] = [
+  "seasonal_naive",
+  "seasonal_naive_level",
+  "seasonal_index_level",
+  "moving_average_3",
+];
+
+function isBaselineModel(name: ModelName): name is BaselineModelName {
+  return (BASELINE_MODELS as ModelName[]).includes(name);
+}
 
 type FeatureName =
   | "trend"
@@ -92,6 +157,8 @@ const RIDGE_PENALTIES = [0.01, 0.1, 1, 10, 100];
 
 const MODEL_LABELS: Record<ModelName, string> = {
   seasonal_naive: "Seasonal Naive",
+  seasonal_naive_level: "Seasonal Naive with Recent Trend",
+  seasonal_index_level: "Seasonal Pattern with Recent Level",
   moving_average_3: "Three-Month Moving Average",
   ridge_history_seasonality: "Ridge Regression: History and Seasonality",
   ridge_history_weather: "Ridge Regression: History, Seasonality, and Weather",
@@ -332,8 +399,92 @@ function recentAverage(
   return values.length > 0 ? average(values) : fallback;
 }
 
+/*
+  Same month last year, scaled by how the last `months` months compare with
+  the same months a year earlier. Keeps the seasonal shape (e.g. the Nov-Dec
+  peak) but follows the current volume level, so a busier or quieter year is
+  not simply copied forward.
+*/
+function seasonalNaiveWithLevel(
+  periodStart: string,
+  history: Map<string, number>,
+  fallback: number,
+  months = 3
+): number {
+  const lastYear = history.get(shiftPeriod(periodStart, -12));
+  if (lastYear === undefined) {
+    return recentAverage(periodStart, 3, history, fallback);
+  }
+
+  let recent = 0;
+  let yearBefore = 0;
+  for (let offset = 1; offset <= months; offset++) {
+    const now = history.get(shiftPeriod(periodStart, -offset));
+    const then = history.get(shiftPeriod(periodStart, -12 - offset));
+    if (now === undefined || then === undefined) return lastYear;
+    recent += now;
+    yearBefore += then;
+  }
+
+  return yearBefore === 0 ? lastYear : lastYear * (recent / yearBefore);
+}
+
+/*
+  Seasonal pattern x recent level. Each calendar month gets an index
+  (its share of a typical month) from complete years BEFORE the period, and
+  the current level is the last `months` months with that pattern removed.
+*/
+function seasonalIndexWithLevel(
+  periodStart: string,
+  history: Map<string, number>,
+  fallback: number,
+  months = 6
+): number {
+  const ratios: number[][] = Array.from({ length: 12 }, () => []);
+  const years = new Set(
+    [...history.keys()]
+      .filter((period) => period < periodStart)
+      .map((period) => period.slice(0, 4))
+  );
+
+  for (const year of years) {
+    const values = Array.from({ length: 12 }, (_, index) =>
+      history.get(`${year}-${String(index + 1).padStart(2, "0")}-01`)
+    );
+    const lastMonthOfYear = `${year}-12-01`;
+    if (
+      lastMonthOfYear >= periodStart ||
+      values.some((value) => value === undefined)
+    ) {
+      continue;
+    }
+    const yearMean = (values as number[]).reduce((sum, value) => sum + value, 0) / 12;
+    if (yearMean === 0) continue;
+    values.forEach((value, index) => ratios[index].push((value as number) / yearMean));
+  }
+
+  if (ratios.some((monthRatios) => monthRatios.length === 0)) {
+    return seasonalNaiveWithLevel(periodStart, history, fallback);
+  }
+
+  const seasonalIndex = ratios.map((monthRatios) => average(monthRatios));
+  const levels: number[] = [];
+
+  for (let offset = 1; offset <= months; offset++) {
+    const period = shiftPeriod(periodStart, -offset);
+    const value = history.get(period);
+    const index = seasonalIndex[getMonthNumber(period) - 1];
+    if (value === undefined || index === 0) {
+      return seasonalNaiveWithLevel(periodStart, history, fallback);
+    }
+    levels.push(value / index);
+  }
+
+  return average(levels) * seasonalIndex[getMonthNumber(periodStart) - 1];
+}
+
 function baselinePrediction(
-  name: "seasonal_naive" | "moving_average_3",
+  name: BaselineModelName,
   row: MonthlyData,
   history: Map<string, number>,
   fallback: number
@@ -343,6 +494,14 @@ function baselinePrediction(
       history.get(shiftPeriod(row.periodStart, -12)) ??
       recentAverage(row.periodStart, 3, history, fallback)
     );
+  }
+
+  if (name === "seasonal_naive_level") {
+    return seasonalNaiveWithLevel(row.periodStart, history, fallback);
+  }
+
+  if (name === "seasonal_index_level") {
+    return seasonalIndexWithLevel(row.periodStart, history, fallback);
   }
 
   return recentAverage(row.periodStart, 3, history, fallback);
@@ -507,10 +666,11 @@ function selectBestModel(trainingRows: MonthlyData[]): {
   const actual = validationRows.map((row) => row.actualVolume ?? 0);
   const candidates: CandidateResult[] = [];
 
-  for (const name of ["seasonal_naive", "moving_average_3"] as const) {
+  for (const name of BASELINE_MODELS) {
     const predicted = validationRows.map((row) =>
       Math.max(0, baselinePrediction(name, row, history, historyFallback))
     );
+
     candidates.push({
       name,
       label: MODEL_LABELS[name],
@@ -532,6 +692,7 @@ function selectBestModel(trainingRows: MonthlyData[]): {
         historyFallback,
         defaults
       );
+
       const predicted = validationRows.map((row) =>
         Math.max(
           0,
@@ -555,19 +716,20 @@ function selectBestModel(trainingRows: MonthlyData[]): {
     }
   }
 
-candidates.sort((a, b) => a.mae - b.mae || a.rmse - b.rmse);
+  // Sort by accuracy
+  // Lowest MAE wins, if same then lowest RMSE wins
+  candidates.sort(
+    (a, b) => a.mae - b.mae || a.rmse - b.rmse
+  );
 
-const selectedMlr = candidates.find((candidate) =>
-  candidate.name.startsWith("ridge_")
-);
+  const selected = candidates[0];
 
-if (!selectedMlr) {
-  throw new Error("No valid MLR model was produced.");
-}
-
+  if (!selected) {
+    throw new Error("No valid forecasting model was produced.");
+  }
 
   return {
-    selected: selectedMlr,
+    selected,
     candidates,
     fitMonths: fitRows.length,
     validationMonths: validationRows.length,
@@ -699,16 +861,92 @@ function generateRecentRemarks(records: ForecastRecord[]): string[] {
 }
 
 export async function generateForecast() {
-  const { data, error } = await supabase
-    .from("ForecastingMonthlyData")
-    .select("*")
-    .order("periodStart", { ascending: true });
 
-  if (error) throw error;
+  const sourceData = await getForecastSourceData();
+    console.log("Forecast source:", {
+    dispatches: sourceData.dispatches.length,
+    weather: sourceData.weather.length,
+    fuel: sourceData.fuel.length,
+  });
 
-  const allRows = ((data ?? []) as MonthlyData[]).sort((a, b) =>
-    a.periodStart.localeCompare(b.periodStart)
+  const daily = buildDailyDispatchVolume(
+    sourceData.dispatches
   );
+
+  const monthly = buildMonthlyDispatchVolume(
+    daily
+  );
+
+  const weekly = buildWeeklyDispatchVolume(
+    daily
+  );
+
+  const enrichedDaily = attachFuelPricesToDaily(
+    daily,
+    sourceData.fuel
+  );
+
+  const finalDaily = attachWeatherToDaily(
+    enrichedDaily,
+    sourceData.weather
+  );
+
+  const allRows: MonthlyData[] = monthly.map((month) => {
+
+    const monthDays = finalDaily.filter((day) =>
+      day.periodStart.startsWith(
+        month.periodStart.slice(0, 7)
+      )
+    );
+
+    return {
+      periodStart: month.periodStart,
+      actualVolume: month.actualVolume,
+
+      averageTemperature: average(
+        monthDays.map(
+          (day) => day.weather?.temperatureC ?? null
+        )
+      ),
+
+      totalRainfall: monthDays.reduce(
+        (sum, day) =>
+          sum + (day.weather?.rainfallMm ?? 0),
+        0
+      ),
+
+      rainyDays: monthDays.filter(
+        (day) =>
+          (day.weather?.rainfallMm ?? 0) > 0
+      ).length,
+
+      averageWindSpeed: average(
+        monthDays.map(
+          (day) => day.weather?.windSpeedKmh ?? null
+        )
+      ),
+
+      // Trucks run on diesel, so only the Diesel price is used here, not
+      // an average across gasoline, LPG and the other fuel types.
+      averageDieselPrice: average(
+        monthDays.flatMap(
+          (day) =>
+            day.fuelPrices
+              ?.filter((fuel) => fuel.fuelType.toLowerCase() === "diesel")
+              .map((fuel) => fuel.pricePerUnit) ?? []
+        )
+      ),
+
+      averageFuelAdjustment: average(
+        monthDays.flatMap(
+          (day) =>
+            day.fuelPrices
+              ?.filter((fuel) => fuel.fuelType.toLowerCase() === "diesel")
+              .map((fuel) => fuel.weeklyAdjustment) ?? []
+        )
+      ),
+    };
+  });
   const currentMonth = new Date();
   currentMonth.setUTCDate(1);
   currentMonth.setUTCHours(0, 0, 0, 0);
@@ -808,7 +1046,7 @@ export async function generateForecast() {
   for (const row of outputRows) {
     let rawPrediction: number;
 
-    if (selected.name === "seasonal_naive" || selected.name === "moving_average_3") {
+    if (isBaselineModel(selected.name)) {
       rawPrediction = baselinePrediction(
         selected.name,
         row,
@@ -899,11 +1137,19 @@ export async function generateForecast() {
     })
   );
 
-  return {
-    model: selected.label,
-    generatedAt: new Date().toISOString(),
-    trainingMonths: trainingRows.length,
-    summary: {
+  const filters = buildForecastFilters(records, daily);
+
+    return {
+      model: selected.label,
+      generatedAt: new Date().toISOString(),
+      trainingMonths: trainingRows.length,
+
+      yearly: filters.yearly,
+      monthly: filters.monthly,
+      weekly: filters.weekly,
+      daily: filters.daily,
+
+  summary: {
       expectedVolume: expectedTotal,
       actualVolume: actualTotal,
       totalVariance,

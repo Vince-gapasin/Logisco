@@ -284,7 +284,7 @@ export interface FuelPriceHistoryRow {
   effectiveDate: string;
   fuelType: string;
   region: string;
-  pricePerLiter: number | null;
+  pricePerUnit: number | null;
   source: string;
   sourceUrl: string | null;
   retrievedAt: string;

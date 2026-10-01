@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/forecasting",
       "schedule": "0 1 2 * *"
+    },
+    {
+      "path": "/api/cron/fuel-prices",
+      "schedule": "0 2 * * 3,5"
     }
   ]
 }

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         message: result.alreadySynchronized
           ? "Latest DOE fuel price was already synchronized."
           : "Latest DOE fuel price synchronized successfully.",
-        data: result.record,
+        data: result.records,
       },
       { status: 200 },
     );
