@@ -131,7 +131,15 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
             ) : (
               (entries ?? []).map((entry, index) => (
                 <tr key={entry.id} className="border-b border-slate-200 font-medium text-slate-700">
-                  <td className="p-2 border-r border-slate-200 text-center bg-slate-50">{index + 1}</td>
+                  {/* Counted from the bottom, where the booking was created.
+                      The rows are newest first, so numbering them downwards
+                      made the newest thing #1 and the creation of the booking
+                      the highest number - the opposite of the order it
+                      happened in. Now #1 is where it started and the number
+                      at the top is how many things have happened since. */}
+                  <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                    {(entries ?? []).length - index}
+                  </td>
                   <td className="p-2 border-r border-slate-200 bg-slate-50 whitespace-nowrap">{entry.dateTime}</td>
                   <td className="p-2 border-r border-slate-200 bg-slate-50">
                     <span className="font-semibold text-slate-900">{entry.title}</span>

@@ -53,3 +53,53 @@ export function formatDateTime(value: string | null | undefined): string {
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: ZONE });
 }
+
+/**
+ * Today, where the trucks are.
+ *
+ * A booking is refused for being in the past, and "the past" has to be read in
+ * Manila: this runs on a server in UTC, where at half past midnight local it is
+ * still yesterday afternoon. Judged against that, every booking made after
+ * eight in the evening would be a booking for tomorrow, and every booking for
+ * today after midnight would be refused as past.
+ *
+ * en-CA because it is the locale that formats a date as YYYY-MM-DD, which is
+ * what the column holds and what sorts correctly as a string.
+ */
+export function todayInManila(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * How long until a stop, in whole minutes, read in Manila.
+ *
+ * Both halves of the answer live in different places - the day on the order,
+ * the clock on the stop - and the sum has to be read where the trucks are. A
+ * server in UTC comparing "now" against "08:00 on the 5th" is eight hours out,
+ * which is the difference between a delivery that can be reached and one that
+ * cannot.
+ *
+ * Negative when the time has already gone, so the caller can tell "in forty
+ * minutes" from "forty minutes ago".
+ */
+export function minutesUntil(
+  dateIso: string,
+  clock: string,
+  now = new Date(),
+): number | null {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso.trim());
+  const time = /^([01]\d|2[0-3]):([0-5]\d)/.exec(clock.trim());
+  if (!date || !time) return null;
+
+  // The stop, as an instant, by saying which offset it is written in. +08:00 is
+  // fixed all year here: the Philippines has kept no daylight saving since 1978.
+  const at = Date.parse(`${dateIso}T${time[1]}:${time[2]}:00+08:00`);
+  if (Number.isNaN(at)) return null;
+
+  return Math.round((at - now.getTime()) / 60_000);
+}

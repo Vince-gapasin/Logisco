@@ -77,6 +77,12 @@ INSERT INTO "FuelType" ("name", "unit", "sortOrder") VALUES
   ('Gasoline RON 91',  'litre', 20),
   ('Gasoline RON 95',  'litre', 30),
   ('Gasoline RON 97',  'litre', 40),
+  -- Auto-LPG was seeded here too, and removed again by
+  -- 20261002000000_remove_auto_lpg.sql: it is the one fuel on this list the DOE
+  -- sync cannot price, so a truck recorded as burning it had a fuel type and no
+  -- fuel price for ever. Left in place rather than edited out, because this
+  -- file has already run and a migration that changes after it has run is a
+  -- migration nobody can trust.
   ('Auto-LPG',         'litre', 50)
 ON CONFLICT ("name") DO NOTHING;
 

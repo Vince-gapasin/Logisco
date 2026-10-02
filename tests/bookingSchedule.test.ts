@@ -1,0 +1,162 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
+import { CLOCK_RULE } from "@/app/lib/bookingRules";
+import { minutesUntil } from "@/app/lib/datetime";
+
+// What the server will accept as a delivery date and a stop time.
+//
+// It accepted almost anything. expectedTime was z.string().min(1), so "banana"
+// was a valid delivery time and the form's own <input type="time"> was the only
+// thing enforcing a clock - which holds for the form and for nothing else that
+// posts here. The schedule was not a field at all: it arrived inside the notes
+// blob and was scraped back out with a regex that quietly produced null when it
+// did not match, so a booking with an unreadable date was stored with no date
+// and never appeared on the calendar.
+
+// Mid-morning in Manila, which is 02:00 UTC on the same day.
+const NOW = new Date("2026-10-05T02:00:00.000Z");
+
+const booking = (over: Record<string, unknown> = {}) => ({
+  clientID: null,
+  deliverySchedule: "2026-10-06",
+  notes: "",
+  items: [{ productName: "Buns", productType: "General", quantity: 10, weightPerItem: 1 }],
+  stops: [
+    {
+      branchName: "Makati Branch",
+      contactPerson: "Trisha Molina",
+      contactNum: "09281112013",
+      expectedTime: "08:00",
+      quantity: 10,
+    },
+  ],
+  ...over,
+});
+
+const stopWith = (expectedTime: unknown) =>
+  createOrderSchema.safeParse(
+    booking({ stops: [{ ...booking().stops[0], expectedTime }] }),
+  );
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const at = (now: Date) => {
+  vi.useFakeTimers();
+  vi.setSystemTime(now);
+};
+
+describe("the day a delivery is for", () => {
+  it("is a field the server checks, not a line in the notes", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking()).success).toBe(true);
+    // Without it there is no booking, rather than a booking with no date.
+    const missing = booking();
+    delete (missing as Record<string, unknown>).deliverySchedule;
+    expect(createOrderSchema.safeParse(missing).success).toBe(false);
+  });
+
+  it("refuses a day that has gone", () => {
+    at(NOW);
+    const result = createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-04" }));
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].message).toMatch(/already passed/i);
+  });
+
+  it("allows today, because most deliveries are for today", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05" })).success).toBe(true);
+  });
+
+  it("reads today in Manila, not in UTC", () => {
+    // Half past midnight on the 6th in Manila is still 16:30 on the 5th in UTC.
+    // Judged against UTC, a booking for the 6th made now would be "tomorrow"
+    // and one for the 5th would be refused as past - both wrong where the
+    // trucks are.
+    at(new Date("2026-10-05T16:30:00.000Z"));
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06" })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05" })).success).toBe(false);
+  });
+
+  it("refuses a date that is the right shape and not a date", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-13-45" })).success).toBe(false);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "06/10/2026" })).success).toBe(false);
+  });
+});
+
+describe("the time a stop is expected", () => {
+  it("has to be a clock", () => {
+    at(NOW);
+    expect(stopWith("08:00").success).toBe(true);
+    expect(stopWith("23:59").success).toBe(true);
+    // What the database hands back when a time is read and sent again.
+    expect(stopWith("08:00:00").success).toBe(true);
+  });
+
+  it("says the same words the booking form says", () => {
+    // One rule, imported by both, so a time the form accepted cannot be
+    // refused by the server with different wording - or at all.
+    at(NOW);
+    const result = stopWith("banana");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].message).toBe(CLOCK_RULE);
+  });
+
+  it("refuses what is not one", () => {
+    at(NOW);
+    for (const nonsense of ["banana", "8", "8am", "25:00", "08:60", "", "  "]) {
+      expect(stopWith(nonsense).success, `accepted ${JSON.stringify(nonsense)}`).toBe(false);
+    }
+  });
+
+  it("is still optional on a pickup, and still checked when given", () => {
+    at(NOW);
+    const pickup = (expectedTime: unknown) =>
+      createOrderSchema.safeParse(
+        booking({ pickups: [{ warehouseName: "Valenzuela", quantity: 10, expectedTime }] }),
+      );
+
+    expect(pickup(undefined).success).toBe(true);
+    // The form sends an empty string for a pickup time nobody filled in.
+    expect(pickup("").success).toBe(true);
+    expect(pickup("06:30").success).toBe(true);
+    expect(pickup("whenever").success).toBe(false);
+  });
+});
+
+describe("rescheduling", () => {
+  it("cannot move a booking into the past either", () => {
+    // Checked for shape but not for sense, so a delivery could be rescheduled
+    // into last year.
+    at(NOW);
+    expect(updateOrderSchema.safeParse({ deliverySchedule: "2025-01-01" }).success).toBe(false);
+    expect(updateOrderSchema.safeParse({ deliverySchedule: "2026-10-09" }).success).toBe(true);
+  });
+});
+
+describe("counting the minutes to a stop", () => {
+  it("reads the gap in Manila, not in UTC", () => {
+    // 08:00 on the 5th in Manila is midnight UTC. A server comparing its own
+    // clock against the wall clock on the stop is eight hours out, which is the
+    // difference between a delivery that can be reached and one that cannot.
+    const now = new Date("2026-10-05T00:00:00.000Z"); // 08:00 in Manila
+    expect(minutesUntil("2026-10-05", "08:00", now)).toBe(0);
+    expect(minutesUntil("2026-10-05", "11:30", now)).toBe(210);
+    expect(minutesUntil("2026-10-06", "08:00", now)).toBe(1440);
+  });
+
+  it("goes negative for a time that has gone", () => {
+    const now = new Date("2026-10-05T02:00:00.000Z"); // 10:00 in Manila
+    expect(minutesUntil("2026-10-05", "08:00", now)).toBe(-120);
+  });
+
+  it("gives nothing for something that is not a date and a time", () => {
+    expect(minutesUntil("not-a-date", "08:00")).toBeNull();
+    expect(minutesUntil("2026-10-05", "banana")).toBeNull();
+  });
+});

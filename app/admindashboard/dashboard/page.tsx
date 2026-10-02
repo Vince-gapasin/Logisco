@@ -18,6 +18,7 @@ import {
   hasDriverAccepted,
   haveHelpersAccepted,
 } from "@/app/lib/enums";
+import { assignableCrew } from "@/app/lib/crewEligibility";
 
 // A trip that has left the yard and has not finished yet.
 const ON_THE_ROAD_STATUSES: string[] = [
@@ -1452,12 +1453,17 @@ export default function AdminDashboardPage() {
       const allTrucks = truckRes.data ?? [];
       setTrucks(allTrucks.filter((truck) => truck.isActive && truck.truckStatus === "Available"));
 
-      const allEmployees = empRes.data ?? [];
-      const free = (employee: Partial<EmployeeRow>, role: string) =>
-        employee.role === role && employee.isActive && employee.availability === "Available";
+      // The fallback lists, used by the booking form before a date is chosen
+      // and if the by-date request fails. Through the same rule the assignment
+      // enforces, so this cannot offer somebody the save will refuse - it used
+      // to ask only for an active employee in the right role, which let
+      // through anybody whose account had never been set up.
+      const allEmployees = (empRes.data ?? []).filter(
+        (employee) => employee.availability === "Available",
+      );
 
-      setDrivers(allEmployees.filter((employee) => free(employee, "Driver")));
-      setHelpers(allEmployees.filter((employee) => free(employee, "Helper")));
+      setDrivers(assignableCrew(allEmployees, "Driver"));
+      setHelpers(assignableCrew(allEmployees, "Helper"));
 
       setSubcontractors(subconRes.data || []);
     } catch (error) {
@@ -1530,7 +1536,7 @@ export default function AdminDashboardPage() {
     void fetchOrders();
   };
 
-  const handleModalSubmit = async (data: BookingFormResult) => {
+  const handleModalSubmit = async (data: BookingFormResult): Promise<string | null> => {
     try {
       let detailedNotes = "";
       if (!data.clientID) {
@@ -1574,6 +1580,10 @@ export default function AdminDashboardPage() {
 
       const payload = {
         clientID: data.clientID || null,
+        // Sent as its own field. It is still written into the notes above for
+        // the screens that read it from there, but the server validates and
+        // stores this one.
+        deliverySchedule: data.deliverySchedule,
         notes: detailedNotes,
         items: [
           {
@@ -1600,11 +1610,20 @@ export default function AdminDashboardPage() {
           })),
       };
 
-      const res = await apiFetch<{ orderCode?: string; trackingToken?: string; orderID?: string }>("/api/bookings", {
+      const res = await apiFetch<{
+        orderCode?: string;
+        trackingToken?: string;
+        orderID?: string;
+        warning?: string | null;
+      }>("/api/bookings", {
         method: "POST",
         body: JSON.stringify(payload),
       });
       const newOrderID = res.orderID;
+
+      // Drivable, but with nothing to spare. Said now, while the client is
+      // still on the phone and the times can still be moved.
+      if (res.warning) showToast(res.warning, "info");
 
       if (data.subconPartner) {
         try {
@@ -1649,9 +1668,13 @@ export default function AdminDashboardPage() {
       setGeneratedOrderID(res.orderID || "");
       setIsSuccessModalOpen(true);
       await fetchOrders();
+      return null;
     } catch (err) {
       console.error(err);
-      showToast(`🚨 FAILED 🚨\n\nReason: ${err instanceof Error ? err.message : err}`, "error");
+      // Handed back to the form, which stays open holding everything that was
+      // typed. It used to be thrown over the dashboard as a toast, with the
+      // form already closed behind it and the work gone.
+      return err instanceof Error ? err.message : "The booking could not be saved.";
     }
   };
 

@@ -5,6 +5,7 @@ import { notify, OFFICE } from "@/services/notifications/notify";
 import { sendBookingTrackingLink } from "@/services/email/bookingEmail";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
+import { BookingNotPossible } from "@/services/booking/bookingService";
 
 // ============================================
 // GET ALL BOOKINGS
@@ -80,7 +81,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const newBookingResponse = await createBooking(validation.data);
+    let newBookingResponse;
+    try {
+      newBookingResponse = await createBooking(validation.data);
+    } catch (error) {
+      // An itinerary that cannot be driven is the coordinator's to fix, not a
+      // fault. It is told apart from a real failure so it does not read as one.
+      if (error instanceof BookingNotPossible) {
+        return NextResponse.json({ message: error.message }, { status: 422 });
+      }
+      throw error;
+    }
 
     await recordAudit({
       table: "Order",
