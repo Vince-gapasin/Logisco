@@ -63,11 +63,85 @@ export interface FeasibilityInput {
   departureBufferMin?: number;
 }
 
-function minutesOf(clock: string | null | undefined): number | null {
+const DAY_MIN = 24 * 60;
+
+export interface Itinerary {
+  /**
+   * Each stop as minutes from midnight on the day the first one falls, so a
+   * stop after midnight reads as 1505 rather than 65. Never decreases.
+   */
+  absolute: number[];
+  /** Stop indexes that fall on a later day than the one before them. */
+  crossings: number[];
+  /** First stop to last, in minutes. */
+  spanMinutes: number;
+}
+
+/**
+ * The stops laid out on one continuous clock.
+ *
+ * WHY A CLOCK TIME ALONE IS NOT ENOUGH
+ *
+ * A stop carries a time and no date; the date lives once, on the order. So a
+ * pickup at 21:05 followed by a drop at 03:05 is ambiguous on its face - it is
+ * either six hours later or eighteen hours earlier, and nothing in the record
+ * says which.
+ *
+ * This read it as earlier and refused the booking as out of order. That is the
+ * wrong half of the ambiguity to believe. An overnight run is ordinary work:
+ * collect at the end of one day, deliver at the start of the next. Reading it
+ * as a mistake made a whole shift of normal deliveries impossible to book, and
+ * the field went red on a time that was perfectly correct.
+ *
+ * So a stop earlier than the one before it rolls to the next day. Each stop is
+ * placed at the first moment that time occurs at or after the previous stop.
+ *
+ * WHAT THAT GIVES UP, AND WHAT CATCHES IT INSTEAD
+ *
+ * A genuine typo - 03:05 for 15:05 - now goes through this step. It has to:
+ * the two cases are indistinguishable from the record, and refusing both
+ * refuses the real one. What still catches a bad time is the drive, which is
+ * measured either way, and the note the coordinator is shown saying the
+ * itinerary was read as running overnight.
+ *
+ * One midnight is all a booking can hold, because it carries one date. Two
+ * means the times cannot be read as a single run however they are placed, and
+ * that is a real contradiction rather than an ambiguity.
+ */
+export function buildItinerary(clock: number[]): Itinerary {
+  const absolute: number[] = clock.length > 0 ? [clock[0]] : [];
+  const crossings: number[] = [];
+  let days = 0;
+
+  for (let index = 1; index < clock.length; index += 1) {
+    const previous = absolute[index - 1];
+    // Same time as the stop before it is not a new day. Only going backwards
+    // on the clock is, and a stop can only cross one midnight at a time.
+    if (clock[index] + days * DAY_MIN < previous) {
+      days += 1;
+      crossings.push(index);
+    }
+    absolute.push(clock[index] + days * DAY_MIN);
+  }
+
+  return {
+    absolute,
+    crossings,
+    spanMinutes: absolute.length > 1 ? absolute[absolute.length - 1] - absolute[0] : 0,
+  };
+}
+
+/** HH:MM as minutes from midnight, or null when it is not a time. */
+export function clockMinutes(clock: string | null | undefined): number | null {
   if (!clock) return null;
   const match = /^([01]\d|2[0-3]):([0-5]\d)/.exec(clock.trim());
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);
+}
+
+/** Two things worth saying, as one thing to read. */
+function join(...parts: (string | null)[]): string {
+  return parts.filter(Boolean).join(" ");
 }
 
 function describe(minutes: number): string {
@@ -97,29 +171,43 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
     travelMinutes,
   };
 
-  const times = input.times.map(minutesOf);
+  const times = input.times.map(clockMinutes);
   if (times.length < 2 || times.some((time) => time === null)) return nothing;
 
   const clock = times as number[];
 
-  // Promised out of order: a later stop earlier in the day than one before it.
-  // Nothing about the road makes that work, and it is almost always a typo.
-  for (let index = 1; index < clock.length; index += 1) {
-    if (clock[index] < clock[index - 1]) {
-      const later = labels[index] ?? `stop ${index + 1}`;
-      const earlier = labels[index - 1] ?? `stop ${index}`;
-      return {
-        verdict: "impossible",
-        message:
-          `${later} is promised before ${earlier}, which comes before it on the route. ` +
-          `Check the times on those two stops.`,
-        windowMinutes: null,
-        travelMinutes,
-      };
-    }
+  // Laid out on one continuous clock, so a run that goes past midnight reads as
+  // one that goes past midnight rather than as one promised backwards.
+  const itinerary = buildItinerary(clock);
+
+  // Two midnights cannot be a single day's work, and the booking holds one
+  // date. This is the contradiction the old out-of-order check was reaching
+  // for, stated as the thing that is actually wrong.
+  if (itinerary.crossings.length > 1) {
+    const second = itinerary.crossings[1];
+    const later = labels[second] ?? `stop ${second + 1}`;
+    const earlier = labels[second - 1] ?? `stop ${second}`;
+    return {
+      verdict: "impossible",
+      message:
+        `These times cannot be one run. ${later} would fall two days after the first stop ` +
+        `to come after ${earlier}. Check the times on those two stops.`,
+      windowMinutes: null,
+      travelMinutes,
+    };
   }
 
-  const windowMinutes = clock[clock.length - 1] - clock[0];
+  const windowMinutes = itinerary.spanMinutes;
+  const overnight = itinerary.crossings.length === 1;
+
+  // Said on every verdict that is not a refusal, because the system resolved an
+  // ambiguity the coordinator did not know was there. Silence would read as
+  // agreement with whichever reading they had in mind.
+  const overnightNote = overnight
+    ? `Read as an overnight run: ${labels[itinerary.crossings[0]] ?? "a later stop"} is the ` +
+      `following day, ${describe(windowMinutes)} after ${labels[0] ?? "the first stop"}. ` +
+      `Change the times if that is not what was meant.`
+    : null;
 
   // Can the truck get to the first stop at all?
   //
@@ -161,7 +249,7 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
   }
 
   if (travelMinutes === null) {
-    return { ...nothing, windowMinutes, leaveInMinutes };
+    return { ...nothing, windowMinutes, leaveInMinutes, message: overnightNote };
   }
 
   const working = STOP_ALLOWANCE_MIN * (clock.length - 1);
@@ -182,9 +270,11 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
   if (windowMinutes < needed) {
     return {
       verdict: "tight",
-      message:
+      message: join(
         `This leaves ${describe(windowMinutes)} for a ${describe(travelMinutes)} drive plus ` +
-        `${describe(working)} at the stops along the way. It can be driven, with nothing to spare.`,
+          `${describe(working)} at the stops along the way. It can be driven, with nothing to spare.`,
+        overnightNote,
+      ),
       windowMinutes,
       travelMinutes,
       leaveInMinutes,
@@ -195,13 +285,21 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
   if (leaveInMinutes !== null && leaveInMinutes < 0) {
     return {
       verdict: "tight",
-      message:
+      message: join(
         `The truck has to be out of the yard now to make ${labels[0] ?? "the first stop"}.`,
+        overnightNote,
+      ),
       windowMinutes,
       travelMinutes,
       leaveInMinutes,
     };
   }
 
-  return { verdict: "fine", message: null, windowMinutes, travelMinutes, leaveInMinutes };
+  return {
+    verdict: "fine",
+    message: overnightNote,
+    windowMinutes,
+    travelMinutes,
+    leaveInMinutes,
+  };
 }

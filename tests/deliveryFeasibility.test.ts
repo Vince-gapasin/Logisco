@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { assessFeasibility, STOP_ALLOWANCE_MIN } from "@/app/lib/deliveryFeasibility";
+import {
+  assessFeasibility,
+  buildItinerary,
+  clockMinutes,
+  STOP_ALLOWANCE_MIN,
+} from "@/app/lib/deliveryFeasibility";
 
 // Whether a booking promises something a truck could do.
 //
@@ -30,25 +35,107 @@ describe("a promise the road cannot keep", () => {
     expect(result.message).toMatch(/3 hours/);
   });
 
-  it("refuses stops promised out of order", () => {
-    // Almost always a typo, and nothing about the road makes it work.
+  it("refuses times that cannot be one run however they are read", () => {
+    // Three stops going backwards need two midnights to be put in order, and
+    // the booking carries one date. This is the real contradiction - not a stop
+    // whose clock time is simply lower than the one before it.
     const result = assessFeasibility({
-      times: ["10:00", "08:00"],
+      times: ["22:00", "21:00", "20:00"],
       travelMinutes: 30,
-      labels: [warehouse, branch],
+      labels: [warehouse, "Makati", branch],
     });
 
     expect(result.verdict).toBe("impossible");
-    expect(result.message).toMatch(/Batangas Main Plant is promised before Valenzuela Warehouse/);
+    expect(result.message).toMatch(/cannot be one run/);
   });
 
   it("says which stops, so there is something to go and fix", () => {
     const result = assessFeasibility({
-      times: ["06:00", "07:00", "06:30"],
+      times: ["06:00", "05:00", "04:00"],
       travelMinutes: 30,
       labels: ["Pickup", "Makati", "Pasig"],
     });
-    expect(result.message).toMatch(/Pasig is promised before Makati/);
+    expect(result.message).toMatch(/Pasig would fall two days after the first stop/);
+  });
+});
+
+describe("a run that goes past midnight", () => {
+  // The bug this was written for: a pickup at 9:05 PM and a drop at 3:05 AM,
+  // which is six hours of ordinary overnight work. The times were compared as
+  // text, so "03:05" sorted below "21:05" and the booking was refused as
+  // promised backwards - on a delivery time that was correct.
+  const overnight = { times: ["21:05", "03:05"], labels: [warehouse, branch] };
+
+  it("is six hours, not minus eighteen", () => {
+    const result = assessFeasibility({ ...overnight, travelMinutes: 120 });
+    expect(result.windowMinutes).toBe(360);
+  });
+
+  it("is allowed, where the drive fits in it", () => {
+    const result = assessFeasibility({ ...overnight, travelMinutes: 120 });
+    expect(result.verdict).toBe("fine");
+  });
+
+  it("says it was read as overnight, rather than assuming agreement", () => {
+    // The record cannot distinguish 03:05 tomorrow from 15:05 mistyped, so the
+    // reading it chose is stated instead of applied in silence.
+    const result = assessFeasibility({ ...overnight, travelMinutes: 120 });
+    expect(result.message).toMatch(/Read as an overnight run/);
+    expect(result.message).toMatch(/Batangas Main Plant is the following day/);
+    expect(result.message).toMatch(/6 hours after Valenzuela Warehouse/);
+  });
+
+  it("still refuses one where the drive does not fit", () => {
+    // Crossing midnight buys six hours, not a free pass.
+    const result = assessFeasibility({ ...overnight, travelMinutes: 500 });
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/cannot be in both places/);
+  });
+
+  it("carries the note on a tight verdict too", () => {
+    const result = assessFeasibility({ ...overnight, travelMinutes: 350 });
+    expect(result.verdict).toBe("tight");
+    expect(result.message).toMatch(/nothing to spare/);
+    expect(result.message).toMatch(/Read as an overnight run/);
+  });
+});
+
+describe("laying the stops on one clock", () => {
+  const at = (...times: string[]) =>
+    buildItinerary(times.map((time) => clockMinutes(time) as number));
+
+  it("leaves a run inside one day alone", () => {
+    const line = at("08:00", "10:00", "14:00");
+    expect(line.absolute).toEqual([480, 600, 840]);
+    expect(line.crossings).toEqual([]);
+    expect(line.spanMinutes).toBe(360);
+  });
+
+  it("rolls a stop past midnight onto the next day", () => {
+    const line = at("21:05", "03:05");
+    // 03:05 the next day is 1625 minutes after midnight on the first day.
+    expect(line.absolute).toEqual([1265, 1625]);
+    expect(line.crossings).toEqual([1]);
+  });
+
+  it("treats two stops at the same time as the same day", () => {
+    // A stop is only a new day when the clock goes backwards, not when it
+    // stands still. Two drops booked for the same minute is odd, and it is the
+    // drive that should say so, not a phantom midnight.
+    const line = at("09:00", "09:00");
+    expect(line.crossings).toEqual([]);
+    expect(line.spanMinutes).toBe(0);
+  });
+
+  it("crosses only once per stop, however far back the clock goes", () => {
+    const line = at("23:50", "00:05", "01:00");
+    expect(line.crossings).toEqual([1]);
+    expect(line.spanMinutes).toBe(70);
+  });
+
+  it("records every crossing, so a second one can be refused", () => {
+    const line = at("22:00", "21:00", "20:00");
+    expect(line.crossings).toEqual([1, 2]);
   });
 });
 

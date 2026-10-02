@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Plus, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { buildItinerary, clockMinutes } from "@/app/lib/deliveryFeasibility";
 import type {
   BranchRow,
   ClientRow,
@@ -436,20 +437,29 @@ function BookingForm({
     }
 
     // The stops in the order the truck drives them: collections first, then
-    // drops. A time earlier than the stop before it is a promise nothing about
-    // the road can keep, and the server refuses it - but it is plain arithmetic
-    // on what is already on this screen, so it is caught here, on the fields
-    // that are wrong, instead of coming back as a sentence over the dashboard
-    // with the form closed and everything typed into it gone.
+    // drops. Checked here, on the fields that are wrong, rather than coming
+    // back as a sentence over the dashboard with the form closed and everything
+    // typed into it gone - but checked by the same rule the server uses, from
+    // the same function, because two copies of a rule this subtle drift.
+    //
+    // It used to compare the times as text, so "03:05" sorted before "21:05"
+    // and a pickup at 9:05 PM with a drop at 3:05 AM - an ordinary overnight
+    // run - turned the delivery field red on a time that was right. A stop
+    // earlier than the one before it now reads as the next day, which is what
+    // it almost always means. Only a second midnight is refused, because the
+    // booking carries one date and cannot span two of them.
     const inRouteOrder = [
       ...pickupList.map((row, i) => ({ time: row.pickupTime, key: `pickup_${i}_pickupTime` })),
       ...deliveryList.map((row, i) => ({ time: row.deliveryTime, key: `delivery_${i}_deliveryTime` })),
-    ].filter((stop) => isValidClockTime(stop.time));
+    ].flatMap((stop) => {
+      const minutes = clockMinutes(stop.time);
+      return minutes === null ? [] : [{ ...stop, minutes }];
+    });
 
-    for (let i = 1; i < inRouteOrder.length; i += 1) {
-      if (inRouteOrder[i].time < inRouteOrder[i - 1].time) {
-        next[inRouteOrder[i].key] = "Must be after the stop before it";
-      }
+    const { crossings } = buildItinerary(inRouteOrder.map((stop) => stop.minutes));
+
+    for (const index of crossings.slice(1)) {
+      next[inRouteOrder[index].key] = "More than a day after the first stop";
     }
 
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
