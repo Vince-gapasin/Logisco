@@ -1,3 +1,4 @@
+import { sendEmail } from "@/services/email/emailService";
 import { supabase } from "@/app/lib/supabase";
 // EMPLOYEE_LOGIN_ACCESS_V3
 
@@ -16,6 +17,42 @@ import type {
 
 const TABLE = "Employee";
 const ACTIVATION_COOLDOWN_MS = 15 * 60 * 1000;
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+function activationEmailMessage(employeeName: string | null, link: string) {
+  const greeting = employeeName ? `Hello ${employeeName},` : "Hello,";
+  const text = [
+    greeting,
+    "",
+    "Your LOGISCO account is ready. Open the link below to set your password and activate your login:",
+    link,
+    "",
+    "The link can be used once and expires after a short time. If it has expired, ask your administrator to resend it.",
+    "",
+    "Logisco",
+  ].join("\n");
+
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#0f172a;line-height:1.55;max-width:560px">
+  <h2 style="margin:0 0 12px">Activate your LOGISCO account</h2>
+  <p>${escapeHtml(greeting)}</p>
+  <p>Your LOGISCO account is ready. Set your password to activate your login.</p>
+  <p style="margin:24px 0">
+    <a href="${escapeHtml(link)}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;display:inline-block;font-weight:bold">
+      Activate account
+    </a>
+  </p>
+  <p style="color:#475569;font-size:13px">The link can be used once and expires after a short time. If it has expired, ask your administrator to resend it.</p>
+  <p style="color:#475569;font-size:13px">Logisco</p>
+</div>`;
+
+  return { subject: "Activate your LOGISCO account", text, html };
+}
 
 // Only return fields required by the directory table. The complete record is
 // fetched by getEmployeeById when the user opens an employee.
@@ -186,18 +223,43 @@ export async function activateEmployeeAccount(
   let authId: string;
 
   if (employee.auth_id) {
-    // The invited Auth user already exists. Send a password/recovery link that
-    // returns to the same set-password page instead of creating another user.
-    const { error: resendError } = await supabase.auth.resetPasswordForEmail(
-      employee.emailAddress,
-      { redirectTo: `${appUrl}/set-password` },
-    );
+    // The Auth user already exists, so Supabase cannot send another invite.
+    // A one-time sign-in link is generated instead and sent as an activation
+    // email. "?activation=1" tells /set-password this is an activation, not a
+    // password reset (both arrive as Supabase "recovery" links).
+    const activationRedirect = `${appUrl}/set-password?activation=1`;
 
-    if (resendError) {
-      console.error("Supabase activation resend error:", resendError);
-      throw new Error(
-        resendError.message || "Failed to resend activation email",
+    const { data: linkData, error: linkError } =
+      await supabase.auth.admin.generateLink({
+        type: "recovery",
+        email: employee.emailAddress,
+        options: { redirectTo: activationRedirect },
+      });
+
+    const actionLink = linkData?.properties?.action_link;
+    const sentOurOwn =
+      !linkError &&
+      !!actionLink &&
+      (await sendEmail({
+        to: employee.emailAddress,
+        ...activationEmailMessage(employee.employeeName ?? null, actionLink),
+      }));
+
+    if (!sentOurOwn) {
+      // No SMTP configured (or it failed): fall back to Supabase's own email.
+      // Its wording comes from the "Reset Password" template, but the link
+      // still opens the activation page.
+      const { error: resendError } = await supabase.auth.resetPasswordForEmail(
+        employee.emailAddress,
+        { redirectTo: activationRedirect },
       );
+
+      if (resendError) {
+        console.error("Supabase activation resend error:", resendError);
+        throw new Error(
+          resendError.message || "Failed to resend activation email",
+        );
+      }
     }
 
     authId = employee.auth_id;

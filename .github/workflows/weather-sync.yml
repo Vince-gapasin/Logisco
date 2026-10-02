@@ -1,0 +1,52 @@
+name: Sync weather
+
+# Asks the deployment to fetch recent daily weather (Open-Meteo archive) for
+# the forecasting model. Like the fuel sync, nothing used to call it, so the
+# weather data stopped on the last day someone ran it by hand.
+#
+# Daily, because the archive fills in a few days behind real time. Each run
+# re-reads the last 45 days, so a missed run is caught up by the next one.
+# Same arrangement as the stall check and fuel sync: GitHub rather than
+# Vercel cron.
+
+on:
+  schedule:
+    # 10:15 Manila (02:15 UTC), every day.
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: weather-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ask the deployment
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://logisco-system.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::No CRON_SECRET secret, so the scheduled sync cannot authenticate. Add it in Settings > Secrets > Actions, with the same value as the deployment's."
+            exit 0
+          fi
+
+          response=$(curl -sS -X POST -H "Content-Length: 0" -w '\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/external-factors/weather/sync")
+
+          status=$(printf '%s' "$response" | tail -n 1)
+          body=$(printf '%s' "$response" | sed '$d')
+
+          echo "$body"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::The weather sync answered $status"
+            exit 1
+          fi
+
+          printf '%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"

@@ -29,6 +29,34 @@ type ProtectedPortalProps = {
   children: ReactNode;
 };
 
+// How often an open portal re-checks that the account still exists and is
+// active. Deleting or deactivating a staff member signs them out within this
+// window (plus the server's 30-second verification cache).
+const RECHECK_INTERVAL_MS = 30_000;
+
+/** Shown on the login page after a forced sign-out. */
+export const LOGOUT_REASON_KEY = "logisco_logout_reason";
+
+/*
+  "ended": the server refused the session (deleted, deactivated or invalid).
+  "unknown": no answer (offline, server error) - never a reason to sign out.
+*/
+async function checkSessionStillValid(token: string): Promise<"valid" | "ended" | "unknown"> {
+  try {
+    const response = await fetch("/api/auth/validate", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (response.ok) return "valid";
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
+      return "ended";
+    }
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 export default function ProtectedPortal({ children }: ProtectedPortalProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -38,8 +66,12 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
   useEffect(() => {
     let isActive = true;
     let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+    let recheckTimer: ReturnType<typeof setInterval> | null = null;
+    let isEnding = false;
 
     const redirectToLogin = async () => {
+      if (isEnding) return;
+      isEnding = true;
       await releasePushToken();
       clearStoredSession();
       await signOutBrowserSession();
@@ -141,12 +173,52 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
       }
     });
 
+    // Re-check regularly, and whenever the tab or app comes back into view,
+    // so a deleted or deactivated account is signed out without a refresh.
+    const recheck = async () => {
+      if (isEnding || document.visibilityState === "hidden") return;
+
+      if (!readStoredSession()) return;
+
+      // getSession() refreshes an expired access token first, so a token that
+      // simply aged out (laptop asleep, app in the background) is never
+      // mistaken for a removed account.
+      const { data, error } = await supabaseBrowser.auth.getSession();
+      if (error) return;
+      if (!data.session) {
+        await redirectToLogin();
+        return;
+      }
+
+      if ((await checkSessionStillValid(data.session.access_token)) === "ended") {
+        try {
+          window.sessionStorage.setItem(
+            LOGOUT_REASON_KEY,
+            "You have been signed out because your account was removed or deactivated. Please contact your administrator.",
+          );
+        } catch {
+          // Storage unavailable: the sign-out still happens.
+        }
+        await redirectToLogin();
+      }
+    };
+
+    const recheckWhenVisible = () => {
+      if (document.visibilityState === "visible") void recheck();
+    };
+
     void initializeGuard();
+    recheckTimer = setInterval(() => void recheck(), RECHECK_INTERVAL_MS);
+    document.addEventListener("visibilitychange", recheckWhenVisible);
+    window.addEventListener("focus", recheckWhenVisible);
 
     return () => {
       isActive = false;
       subscription.unsubscribe();
       if (expiryTimer) clearTimeout(expiryTimer);
+      if (recheckTimer) clearInterval(recheckTimer);
+      document.removeEventListener("visibilitychange", recheckWhenVisible);
+      window.removeEventListener("focus", recheckWhenVisible);
     };
   }, [router]);
 

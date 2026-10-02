@@ -31,6 +31,7 @@ import {
   authenticateUser,
   signOutBrowserSession,
   validateSession,
+  LoginRejectedError,
 } from "@/services/authService";
 
 // ==========================================
@@ -104,6 +105,19 @@ export default function LoginPage() {
   // EMAIL NEXT
   // ==========================================
 
+  // Explain a forced sign-out (account removed or deactivated) once.
+  useEffect(() => {
+    try {
+      const reason = window.sessionStorage.getItem("logisco_logout_reason");
+      if (reason) {
+        window.sessionStorage.removeItem("logisco_logout_reason");
+        setError(reason);
+      }
+    } catch {
+      // Storage unavailable: nothing to show.
+    }
+  }, []);
+
   const handleEmailNext = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -166,6 +180,10 @@ export default function LoginPage() {
       router.push(user.route);
 
     } catch (error) {
+      if (error instanceof LoginRejectedError) {
+        setError(error.message);
+        return;
+      }
       console.error("Login error:", error);
       setError("An unexpected authentication error occurred.");
     } finally {
@@ -192,13 +210,20 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // The emailed link opens /set-password, which handles "recovery" links.
-      const { error: resetError } = await supabaseBrowser.auth.resetPasswordForEmail(
-        email.trim(),
-        { redirectTo: `${window.location.origin}/set-password` },
-      );
+      // Sent from the server so the emailed link works on any device and
+      // opens /reset-password (not the activation page).
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
 
-      if (resetError) throw resetError;
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { message?: string };
+        setError(result.message ?? "Failed to send password reset request.");
+        return;
+      }
+
       setResetSuccess(true);
     } catch (error) {
       console.error("Password reset error:", error);

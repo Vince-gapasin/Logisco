@@ -33,6 +33,14 @@ type LoginApiResponse = {
   route?: string;
 };
 
+/** A sign-in the server refused, carrying the server's reason. */
+export class LoginRejectedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LoginRejectedError";
+  }
+}
+
 export const authenticateUser = async (
   emailInput: string,
   passwordInput: string,
@@ -50,7 +58,16 @@ export const authenticateUser = async (
       cache: "no-store",
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // Keep the server's reason (e.g. "not been activated", "inactive")
+      // instead of reporting every refusal as a wrong password.
+      const body = (await response.json().catch(() => ({}))) as { message?: string };
+      throw new LoginRejectedError(
+        response.status === 401 || !body.message
+          ? "Invalid email or password credentials."
+          : body.message,
+      );
+    }
 
     const data = (await response.json()) as LoginApiResponse;
     const role = normalizeRole(data.role);
@@ -92,6 +109,7 @@ export const authenticateUser = async (
         null,
     };
   } catch (error) {
+    if (error instanceof LoginRejectedError) throw error;
     console.error("Auth Service Error:", error);
     return null;
   }

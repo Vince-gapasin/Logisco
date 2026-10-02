@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { supabaseBrowser } from "@/app/lib/supabase-browser";
+import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 
 // ==========================================
 // PASSWORD REQUIREMENT COMPONENT
@@ -101,8 +102,9 @@ export default function SetPasswordPage() {
       number:
         /[0-9]/.test(password),
 
+      // Same rule as app/lib/passwordPolicy.ts (used by the server).
       special:
-        /[!@#$%^&*(),.?":{}|<>_\-\\[\]/`~';&+<=>]/.test(
+        /[!@#$%^&*(),.?":{}|<>_\-\\[\]/`~';&+=]/.test(
           password
         ),
     }),
@@ -136,6 +138,23 @@ export default function SetPasswordPage() {
       // ======================================
 
       const hash = window.location.hash;
+
+      // Password-reset links belong on /reset-password. Reset emails sent
+      // before that page existed still point here, so forward them.
+      const resetParams = new URLSearchParams(window.location.search);
+      // Activation re-sends are also "recovery" links; they carry
+      // ?activation=1 and must stay on this page.
+      const isActivation = resetParams.get("activation") === "1";
+      if (
+        !isActivation &&
+        (new URLSearchParams(hash.substring(1)).get("type") === "recovery" ||
+          resetParams.get("type") === "recovery")
+      ) {
+        window.location.replace(
+          `/reset-password${window.location.search}${hash}`,
+        );
+        return;
+      }
 
       if (hash) {
         const params = new URLSearchParams(
@@ -302,9 +321,10 @@ const handleSubmit = async (
   // 1. VALIDATE PASSWORD
   // ==========================================
 
-  if (!isPasswordValid) {
+  const policyError = getPasswordPolicyError(password);
+  if (!isPasswordValid || policyError) {
     setSubmitError(
-      "Please meet all password requirements."
+      policyError ?? "Please meet all password requirements."
     );
 
     return;
@@ -363,7 +383,15 @@ const handleSubmit = async (
         password,
       });
 
-    if (passwordError) {
+    // "Should be different from the old password" means the account
+    // already has exactly this password. For an activation that is fine:
+    // the email link proved who they are, so carry on and activate.
+    const alreadyThisPassword =
+      !!passwordError &&
+      (passwordError.code === "same_password" ||
+        /different from the old password/i.test(passwordError.message));
+
+    if (passwordError && !alreadyThisPassword) {
       console.error(
         "Password update error:",
         passwordError

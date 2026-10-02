@@ -17,15 +17,34 @@ function formatDate(date: Date) {
   return date.toISOString().split("T")[0];
 }
 
+const FULL_HISTORY_START = "2022-01-01";
+// A scheduled run only needs the recent weeks; re-reading them also fills any
+// day an earlier run missed.
+const SCHEDULED_LOOKBACK_DAYS = 45;
+
+/**
+ * The daily schedule (.github/workflows/weather-sync.yml), with the same
+ * shared secret the stall check and fuel sync use.
+ */
+function fromTheSchedule(request: Request): boolean {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) return false;
+  return request.headers.get("authorization") === `Bearer ${secret}`;
+}
+
 export async function POST(request: Request) {
   try {
-    const auth = await requireAuth(request);
+    const scheduled = fromTheSchedule(request);
 
-    if ("error" in auth) {
-      return NextResponse.json(
-        { message: auth.error },
-        { status: auth.status },
-      );
+    if (!scheduled) {
+      const auth = await requireAuth(request);
+
+      if ("error" in auth) {
+        return NextResponse.json(
+          { message: auth.error },
+          { status: auth.status },
+        );
+      }
     }
 
     const locationCode =
@@ -53,10 +72,15 @@ export async function POST(request: Request) {
     const endDate = new Date();
     endDate.setUTCDate(endDate.getUTCDate() - 5);
 
+    // Scheduled runs fetch only recent weeks; a manual run rebuilds it all.
+    const startDateValue = new Date(endDate);
+    startDateValue.setUTCDate(startDateValue.getUTCDate() - SCHEDULED_LOOKBACK_DAYS);
+    const startDate = scheduled ? formatDate(startDateValue) : FULL_HISTORY_START;
+
     const params = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),
-      start_date: "2022-01-01",
+      start_date: startDate,
       end_date: formatDate(endDate),
       daily: [
         "temperature_2m_mean",
@@ -132,7 +156,7 @@ export async function POST(request: Request) {
       {
         message: "Historical weather synchronized successfully.",
         locationCode,
-        startDate: "2022-01-01",
+        startDate,
         endDate: formatDate(endDate),
         importedRecords,
       },
@@ -151,4 +175,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+}
