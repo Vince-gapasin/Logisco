@@ -31,6 +31,7 @@ export type TrackingStepKind =
   | "booked"
   | "assigned"
   | "confirmed"
+  | "collection"
   | "departed"
   | "stop"
   | "completed"
@@ -106,6 +107,33 @@ export interface TrackingStop {
   receivedBy: string | null;
 }
 
+/**
+ * The collection the crew have to make before any of this can be delivered.
+ *
+ * Warehouses are otherwise kept off this page, and the reasoning held while the
+ * only question it answered was "where is my delivery". It stopped holding for
+ * "what happens next": a booking that collects at 9:14 PM and drops at 3:14 AM
+ * had this page announce 3:14 AM as the next stop while the truck had not yet
+ * been to the warehouse. The time was right about the delivery and wrong about
+ * the truck, and the line above it said "Next stop" - which was the customer's
+ * own branch, hours and one other stop away.
+ *
+ * So the collection is named here, and nothing else about it is: no address, no
+ * contact, no quantity. The route drawn on the map already runs through it.
+ */
+export interface TrackingCollection {
+  /** Where it is collected from, as the booking named it. */
+  name: string;
+  /** When it is due, already readable: "9:14 PM". Null when none was given. */
+  expectedTime: string | null;
+  /** Every collection on this booking is finished. */
+  done: boolean;
+  /** The crew are at a collection point now and have not finished there. */
+  arrived: boolean;
+  /** When the last one finished, for the timeline entry. */
+  at: string | null;
+}
+
 export interface TrackingPayload {
   found: true;
   isExpired: boolean;
@@ -116,10 +144,19 @@ export interface TrackingPayload {
   clientContact: string | null;
   deliveryStatus: string;
   isCompleted: boolean;
+  /** When the truck is due at whatever it is driving to next. */
   estimatedArrival: string | null;
+  /**
+   * When this client's own delivery is due, whatever the truck is doing first.
+   * Kept separate from estimatedArrival so the page can promise a collection
+   * time without the customer reading it as their delivery time.
+   */
+  deliveryArrival: string | null;
   /** Live driving estimate to the next stop, when both positions are known. */
   liveEta: { minutes: number; distanceKm: number; arrivalTime: string } | null;
   nextStopName: string | null;
+  /** Whether that next stop is this client's delivery or a collection first. */
+  nextStopKind: "collection" | "delivery";
   plateNumber: string | null;
   truckModel: string | null;
   driverName: string | null;
@@ -174,6 +211,41 @@ function isStopDone(status: string | null): boolean {
   return COMPLETED_STOP.test(status ?? "");
 }
 
+interface TrackedPickup {
+  warehouseName?: string | null;
+  expectedTime?: string | null;
+  stopStatus?: string | null;
+  sequence?: number | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+}
+
+/**
+ * The booking's collections, as the one thing the customer needs to know about
+ * them: whether the truck still has to make one, and when.
+ *
+ * Several collections are reported as one step rather than a list. The customer
+ * is not waiting at any of them, and which warehouse of three the crew are at
+ * does not change anything they can do; that the order is not yet picked up
+ * does. The one named is the one being driven to.
+ */
+export function buildCollection(rows: TrackedPickup[]): TrackingCollection | null {
+  if (rows.length === 0) return null;
+
+  const inOrder = [...rows].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const outstanding = inOrder.filter((row) => !isStopDone(row.stopStatus ?? null));
+  // The one being driven to - or, once they are all made, the last of them.
+  const current = outstanding[0] ?? inOrder[inOrder.length - 1];
+
+  return {
+    name: current.warehouseName?.trim() || "the collection point",
+    expectedTime: formatExpectedTime(current.expectedTime ?? null),
+    done: outstanding.length === 0,
+    arrived: outstanding.length > 0 && Boolean(current.arrivedAt),
+    at: latestOf(...inOrder.map((row) => row.completedAt ?? null)),
+  };
+}
+
 // The customer-facing progress list. Timestamps per status change are not
 // stored, so each step is described by its stage rather than a clock time.
 /** The later of two times, ignoring the ones that are not there. */
@@ -188,6 +260,57 @@ function lastDeliveredAt(stops: TrackingStop[]): string | null {
   return latestOf(...stops.map((stop) => stop.deliveredAt));
 }
 
+/**
+ * Where the truck is going next, which is not always where this customer is.
+ *
+ * A booking is collected before it is delivered, so until that is done the
+ * truck's next stop is a warehouse. This page used to answer "next stop" with
+ * the customer's own branch regardless, and headline the time promised there:
+ * on a run collecting at 9:14 PM and dropping at 3:14 AM, it named a stop the
+ * truck had another stop to make before reaching, and a time six hours out, as
+ * the next thing that would happen.
+ *
+ * The delivery time is not given up for it - it is the one thing the customer
+ * came here for - it is carried alongside, so the page can say both without
+ * either standing in for the other.
+ */
+export function nextStopAhead(
+  collection: TrackingCollection | null,
+  delivery: TrackingStop | null,
+  isCompleted: boolean,
+  /** The crew have reported reaching this customer's own stop. */
+  atDelivery: boolean,
+): {
+  name: string | null;
+  kind: "collection" | "delivery";
+  /** When the truck is due wherever it is driving to now. */
+  estimatedArrival: string | null;
+  /** When this customer's own delivery is due, whatever comes before it. */
+  deliveryArrival: string | null;
+} {
+  // Once the crew are standing at the stop, nothing counts down to it any more.
+  // The page used to go back to announcing the booked time the moment the trip
+  // left In Transit for Arrived, so a truck at the door read as three hours out.
+  const deliveryArrival =
+    isCompleted || atDelivery ? null : formatExpectedTime(delivery?.expectedTime ?? null);
+
+  if (collection && !collection.done && !isCompleted) {
+    return {
+      name: collection.name,
+      kind: "collection",
+      estimatedArrival: collection.expectedTime,
+      deliveryArrival,
+    };
+  }
+
+  return {
+    name: delivery?.branchName ?? null,
+    kind: "delivery",
+    estimatedArrival: deliveryArrival,
+    deliveryArrival,
+  };
+}
+
 export { buildSteps as buildTrackingSteps };
 
 function buildSteps(
@@ -200,6 +323,7 @@ function buildSteps(
   heldUp: HeldUp[] = [],
   pickupProgressAt: string | null = null,
   crew: CrewConfirmation | null = null,
+  collection: TrackingCollection | null = null,
 ): TrackingStep[] {
   const hasDispatch = Boolean(dispatchStatus);
   // Named status lists, not literals. These used to be spelled out here, so
@@ -248,6 +372,33 @@ function buildSteps(
   ];
 
   let markedCurrent = false;
+
+  // Before any of the customer's own stops, because the truck gets there first.
+  //
+  // Without it the ladder went from "On the road" straight to "Delivery to your
+  // branch", so an overnight run - collect at 9:14 PM, drop at 3:14 AM - read
+  // as though the only thing between the truck and the customer was the drive.
+  if (collection) {
+    const current = !collection.done && (collection.arrived || inTransit);
+    if (current) markedCurrent = true;
+
+    steps.push({
+      title: collection.done ? `Collected from ${collection.name}` : `Collection from ${collection.name}`,
+      detail: collection.done
+        ? "Your order has been picked up."
+        : collection.arrived
+          ? "Our crew are collecting your order now."
+          : collection.expectedTime
+            ? `${inTransit ? "On the way to collect it." : "Not collected yet."} Expected by ${collection.expectedTime}.`
+            : inTransit
+              ? "On the way to collect it."
+              : "Not collected yet.",
+      stage: collection.done ? "completed" : current ? "current" : "upcoming",
+      kind: "collection",
+      at: collection.done ? collection.at : null,
+    });
+  }
+
   for (const stop of stops) {
     const done = isStopDone(stop.status);
     let stage: TrackingStage = "upcoming";
@@ -677,6 +828,7 @@ export async function getTrackingByToken(
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
          POD ( receiverName, deliveredAt ) ),
+       PickupStops ( pickupID, warehouseName, expectedTime, stopStatus, sequence, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
          Truck ( plateNumber, model ),
@@ -755,6 +907,7 @@ export async function getTrackingByToken(
   const client = first(order.Client as { company?: string | null; emailAdd?: string | null; contact?: string | null } | null);
 
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
+  const collection = buildCollection((order.PickupStops as TrackedPickup[] | null) ?? []);
 
   // The crew have reported reaching this customer's own stop.
   //
@@ -765,8 +918,7 @@ export async function getTrackingByToken(
   // booked time. A truck standing at the door was reported as arriving in three
   // hours, above a timeline saying the crew were at the stop now.
   const atNextStop = Boolean(nextStop?.arrivedAt);
-  const estimatedArrival =
-    isCompleted || atNextStop ? null : formatExpectedTime(nextStop?.expectedTime ?? null);
+  const ahead = nextStopAhead(collection, nextStop ?? null, isCompleted, atNextStop);
 
   // Driving time to this client's stop, read off the route already worked out
   // above rather than asked for separately.
@@ -862,9 +1014,11 @@ export async function getTrackingByToken(
     clientContact: maskPhone(client?.contact),
     deliveryStatus,
     isCompleted,
-    estimatedArrival,
+    estimatedArrival: ahead.estimatedArrival,
+    deliveryArrival: ahead.deliveryArrival,
     liveEta,
-    nextStopName: nextStop?.branchName ?? null,
+    nextStopName: ahead.name,
+    nextStopKind: ahead.kind,
     plateNumber: truck?.plateNumber ?? dispatch?.partnerPlate ?? null,
     truckModel: truck?.model ?? null,
     driverName: driver?.employeeName ?? dispatch?.partnerDriver ?? null,
@@ -885,6 +1039,7 @@ export async function getTrackingByToken(
       heldUp,
       pickupProgressAt,
       crewConfirmation,
+      collection,
     ),
   };
 }

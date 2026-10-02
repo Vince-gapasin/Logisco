@@ -45,6 +45,7 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
   booked: ClipboardCheck,
   assigned: Truck,
   confirmed: UserCheck,
+  collection: Package,
   departed: Navigation,
   stop: MapPin,
   completed: Flag,
@@ -93,8 +94,10 @@ interface TrackingData {
   deliveryStatus: string;
   isCompleted: boolean;
   estimatedArrival: string | null;
+  deliveryArrival: string | null;
   liveEta: { minutes: number; distanceKm: number; arrivalTime: string } | null;
   nextStopName: string | null;
+  nextStopKind: "collection" | "delivery";
   plateNumber: string | null;
   truckModel: string | null;
   driverName: string | null;
@@ -275,12 +278,18 @@ function ClientTrackerView() {
   // same one. A live estimate is where the truck actually is; the booked time is
   // what was promised when the delivery was arranged, and saying "estimated"
   // about it invited the reading that somebody had just worked it out.
+  // And not always about this customer's own stop. Until the order has been
+  // picked up the truck is driving to a warehouse, and a time headlined as an
+  // arrival while that is still ahead of it is a time for somewhere else.
+  const collecting = data.nextStopKind === "collection";
   const headline = data.isCompleted
     ? "Delivery Completed"
     : data.liveEta
       ? `Arriving in about ${data.liveEta.minutes} min (${data.liveEta.arrivalTime})`
       : data.estimatedArrival
-        ? `Scheduled arrival by ${data.estimatedArrival}`
+        ? collecting
+          ? `Scheduled collection by ${data.estimatedArrival}`
+          : `Scheduled arrival by ${data.estimatedArrival}`
         : data.deliveryStatus;
 
   return (
@@ -329,7 +338,18 @@ function ClientTrackerView() {
             {!data.isCompleted && data.nextStopName && (
               <p className="text-sm text-slate-600 mt-1">
                 Next stop: {data.nextStopName}
-                {data.liveEta ? ` - ${data.liveEta.distanceKm} km away` : ""}
+                {/* The distance is to this customer's own stop, so it is only
+                    said beside this customer's own stop. */}
+                {data.liveEta && !collecting ? ` - ${data.liveEta.distanceKm} km away` : ""}
+              </p>
+            )}
+            {/* Said when the headline above is about the collection instead, so
+                the one thing the customer opened this page for is never missing
+                from the top of it. Not beside a live estimate, which is already
+                a time for this stop and would only be repeated. */}
+            {!data.isCompleted && collecting && !data.liveEta && data.deliveryArrival && (
+              <p className="text-sm text-slate-600">
+                Your delivery is expected by {data.deliveryArrival}.
               </p>
             )}
           </div>
