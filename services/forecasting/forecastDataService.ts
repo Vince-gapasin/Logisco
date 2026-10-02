@@ -1,9 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
 
-import {
-  buildForecastFilters,
-} from "./forecastingAggregation";
-
 export interface ForecastSourceData {
   dispatches: {
     dispatchID: string;
@@ -308,4 +304,4 @@ export async function getForecastSourceData(): Promise<ForecastSourceData> {
     weather: weatherResult.data ?? [],
     fuel: fuelResult.data ?? [],
   };
-}
+}

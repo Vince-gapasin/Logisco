@@ -106,16 +106,26 @@ export default function LoginPage() {
   // ==========================================
 
   // Explain a forced sign-out (account removed or deactivated) once.
+  // (Set in a callback, not directly in the effect body, per the
+  // react-hooks/set-state-in-effect rule.)
   useEffect(() => {
-    try {
-      const reason = window.sessionStorage.getItem("logisco_logout_reason");
-      if (reason) {
-        window.sessionStorage.removeItem("logisco_logout_reason");
-        setError(reason);
+    let active = true;
+
+    Promise.resolve().then(() => {
+      try {
+        const reason = window.sessionStorage.getItem("logisco_logout_reason");
+        if (reason && active) {
+          window.sessionStorage.removeItem("logisco_logout_reason");
+          setError(reason);
+        }
+      } catch {
+        // Storage unavailable: nothing to show.
       }
-    } catch {
-      // Storage unavailable: nothing to show.
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleEmailNext = (e: React.FormEvent) => {

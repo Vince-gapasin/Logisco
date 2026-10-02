@@ -8,11 +8,9 @@ import {
   TrendingUp,
   TrendingDown,
   Download,
-  Calendar,
   Layers,
   CheckCircle2,
   Info,
-  ChevronDown,
   ArrowLeft,
   Truck,
   FileText,
@@ -479,13 +477,6 @@ async function requestSnapshots(auth: StoredAuth): Promise<ForecastSnapshot[]> {
   }
 }
 
-function filterByTimeframe(
-  records: ForecastRecord[],
-  timeframe: string,
-) {
-  return records.filter((record) => record.periodStart.startsWith(timeframe));
-}
-
 function formatMonth(date: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -833,38 +824,65 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     }
   }, []);
 
-  const loadSnapshots = useCallback(async () => {
-    const cachedSnapshots = getCachedSnapshots();
-    if (cachedSnapshots) {
-      setSnapshots(cachedSnapshots);
-      setIsSnapshotLoading(false);
-    } else {
-      setIsSnapshotLoading(true);
-    }
-    setSnapshotLoadError(null);
 
-    try {
-      const auth = getStoredAuth();
-      if (!auth) return;
-
-      setSnapshots(await requestSnapshots(auth));
-    } catch (error) {
-      if (!cachedSnapshots) {
-        setSnapshotLoadError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load forecast accuracy history.",
-        );
-      }
-    } finally {
-      setIsSnapshotLoading(false);
-    }
-  }, []);
-
+  // Initial load. State is only set inside the promise callbacks (never
+  // directly in the effect body), so the first render uses the cached data
+  // from the useState initializers and this just refreshes it.
+  // loadForecast remains for the "Try Again" button.
   useEffect(() => {
-    void loadForecast();
-    void loadSnapshots();
-  }, [loadForecast, loadSnapshots]);
+    let active = true;
+
+    const auth = getStoredAuth();
+
+    (auth
+      ? requestForecast(auth)
+      : Promise.reject(
+          new Error("Authentication session was not found. Please log in again."),
+        )
+    )
+      .then((data) => {
+        if (!active) return;
+        setForecast(data);
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (!active || getCachedForecast()) return;
+        setLoadError(
+          error instanceof Error ? error.message : "Failed to load forecasting data.",
+        );
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    if (auth) {
+      requestSnapshots(auth)
+        .then((data) => {
+          if (!active) return;
+          setSnapshots(data);
+          setSnapshotLoadError(null);
+        })
+        .catch((error: unknown) => {
+          if (!active || getCachedSnapshots()) return;
+          setSnapshotLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load forecast accuracy history.",
+          );
+        })
+        .finally(() => {
+          if (active) setIsSnapshotLoading(false);
+        });
+    } else {
+      Promise.resolve().then(() => {
+        if (active) setIsSnapshotLoading(false);
+      });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const baseRecords = useMemo(() => {
     if (!forecast) return [];

@@ -1,5 +1,3 @@
-import { supabase } from "@/app/lib/supabase";
-
 import { buildForecastFilters } from "./forecastingAggregation";
 
 import {
@@ -8,7 +6,6 @@ import {
   buildMonthlyDispatchVolume,
   attachFuelPricesToDaily,
   attachWeatherToDaily,
-  buildWeeklyDispatchVolume,
 } from "@/services/forecasting/forecastDataService";
 
 interface MonthlyData {
@@ -874,10 +871,6 @@ export async function generateForecast() {
   );
 
   const monthly = buildMonthlyDispatchVolume(
-    daily
-  );
-
-  const weekly = buildWeeklyDispatchVolume(
     daily
   );
 
