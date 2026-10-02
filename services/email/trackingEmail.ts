@@ -74,7 +74,7 @@ export function trackingUrl(token: string): string {
   const base =
     (!configured || isLocal) && deployed
       ? `https://${deployed}`
-      : configured || "https://logisco-system.vercel.app";
+      : configured || "https://logisco.company";
 
   return `${base.replace(/\/$/, "")}/client-view?token=${token}`;
 }

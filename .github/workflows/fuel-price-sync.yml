@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: Ask the deployment
         env:
-          APP_URL: ${{ secrets.APP_URL || 'https://logisco-system.vercel.app' }}
+          APP_URL: ${{ secrets.APP_URL || 'https://logisco.company' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
@@ -42,6 +42,9 @@ jobs:
             exit 0
           fi
 
+          # Not -L, for the reason spelled out in stall-check.yml: following a
+          # redirect to another host drops the Authorization header, so a moved
+          # address comes back as 401 rather than as the 307 it really is.
           response=$(curl -sS -X POST -H "Content-Length: 0" -w '\n%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/external-factors/fuel/sync")
@@ -53,6 +56,13 @@ jobs:
 
           if [ "$status" != "200" ]; then
             echo "::error::The fuel sync answered $status"
+
+            if [ "$status" = "307" ] || [ "$status" = "308" ]; then
+              echo "::error::A redirect, not a refusal: $APP_URL is not where the site answers any more."
+            elif [ "$status" = "401" ]; then
+              echo "::error::Either CRON_SECRET has drifted from Vercel, or APP_URL redirects elsewhere and the header was dropped. Check the address first."
+            fi
+
             exit 1
           fi
 

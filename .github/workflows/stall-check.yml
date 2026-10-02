@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Ask the deployment
         env:
-          APP_URL: ${{ secrets.APP_URL || 'https://logisco-system.vercel.app' }}
+          APP_URL: ${{ secrets.APP_URL || 'https://logisco.company' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
@@ -49,6 +49,14 @@ jobs:
 
           # POST, not GET: the GET is the board's read-only view and notifies
           # nobody. This method is the only one that tells anyone.
+          #
+          # Deliberately not -L. The address has moved once already, and
+          # following a redirect to another host drops the Authorization header
+          # on the way - curl will not carry credentials across hosts without
+          # --location-trusted, and neither does pg_net. So -L does not rescue a
+          # moved address here; it converts a 307 that says exactly what is
+          # wrong into a 401 that says the secret has drifted. It has not. This
+          # is how the database schedule lost four runs before anyone noticed.
           response=$(curl -sS -X POST -H "Content-Length: 0" -w '\n%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/fleet/stall-check")
@@ -60,6 +68,15 @@ jobs:
 
           if [ "$status" != "200" ]; then
             echo "::error::The stall check answered $status"
+
+            # Naming the two that have actually happened, because neither code
+            # means what it first looks like it means here.
+            if [ "$status" = "307" ] || [ "$status" = "308" ]; then
+              echo "::error::That is a redirect, not a refusal: $APP_URL is not where the site answers any more. Update the APP_URL secret, capacitor.config.ts and the pg_cron job."
+            elif [ "$status" = "401" ]; then
+              echo "::error::Either CRON_SECRET here and in Vercel have drifted apart, or APP_URL redirects to another host and the Authorization header was dropped on the way. Check the address before touching the secret."
+            fi
+
             exit 1
           fi
 
