@@ -28,12 +28,19 @@ export async function createSubcontractor(payload: Record<string, unknown>) {
   }
   const contactNumber = partnerPhone(payload.contactNumber);
 
+  // Everything the form collects. This saved the name, contact and phone only,
+  // so a partner's contract type, email and address were lost the moment it
+  // was added - and the edit form then showed them blank.
   const { data, error } = await supabase
     .from("SubContractor")
-    .insert([{ 
-      companyName, 
+    .insert([{
+      companyName,
       contactName: contactPerson, // Maps JSON to DB 'contactName' just like your Express route
-      contactNumber 
+      contactNumber,
+      contractType: payload.contractType || null,
+      emailAddress: payload.emailAddress || null,
+      businessAddress: payload.businessAddress || null,
+      isActive: true,
     }])
     .select()
     .single();
@@ -61,8 +68,12 @@ export async function updateSubcontractor(id: string, payload: Record<string, un
   return data;
 }
 
+// Deactivates rather than deletes, as a client is. A partner's trips point at
+// it with ON DELETE SET NULL, so removing the row erased which partner had
+// carried every one of them - and the Sub-con Trips report with it. Inactive,
+// it stops being offered for new bookings and its history stays whole.
 export async function deleteSubcontractor(id: string) {
-  const { error } = await supabase.from("SubContractor").delete().eq("subConID", id);
+  const { error } = await supabase.from("SubContractor").update({ isActive: false }).eq("subConID", id);
   if (error) throw new Error(error.message);
   return true;
 }

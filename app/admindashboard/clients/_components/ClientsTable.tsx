@@ -22,9 +22,12 @@ export function ClientsTable({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // Back to the first page when the list itself changes - a search, a tab.
+  // Keyed on the array, this reset whenever anything on the page re-rendered,
+  // because the filtered list is a new array every time.
   useEffect(() => {
     setCurrentPage(1);
-  }, [currentData, activeTab]);
+  }, [currentData.length, activeTab]);
 
   const totalPages = Math.ceil(currentData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;

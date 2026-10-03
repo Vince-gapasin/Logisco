@@ -13,7 +13,8 @@ import type { PartnerRecord } from "./types";
 interface PartnerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (record: PartnerRecord) => void;
+  /** Saves it. Resolves false when the save was refused, so the form stays open. */
+  onSubmitSuccess: (record: PartnerRecord) => Promise<boolean>;
   editData?: PartnerRecord | null;
 }
 
@@ -70,7 +71,7 @@ export function PartnerModal({
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
@@ -105,7 +106,8 @@ export function PartnerModal({
       businessAddress: formData.businessAddress,
     };
 
-    onSubmitSuccess(newRecord);
+    // Closed once it has saved, not before.
+    if (!(await onSubmitSuccess(newRecord))) return;
     setFormData(initialPartnerState);
     setErrors({});
     setIsContractDropdownOpen(false);

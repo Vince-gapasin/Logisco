@@ -347,57 +347,15 @@ export async function deleteEmployee(id: string): Promise<Employee | null> {
   if (lookupError) throw lookupError;
   if (!existingEmployee) return null;
 
-  // Unlink the employee first so the Employee.auth_id foreign key does not
-  // prevent Supabase Auth from deleting the linked user.
-  if (existingEmployee.auth_id) {
-    const { error: unlinkError } = await supabase
-      .from(TABLE)
-      .update({
-        auth_id: null,
-        activation_sent_at: null,
-        activation_completed_at: null,
-      })
-      .eq("employeeID", id);
-
-    if (unlinkError) {
-      console.error("Failed to unlink employee Auth account:", unlinkError);
-      throw new Error(
-        "Failed to unlink employee login access. The employee was not deleted.",
-      );
-    }
-
-    const { error: authDeleteError } =
-      await supabase.auth.admin.deleteUser(existingEmployee.auth_id);
-
-    if (authDeleteError) {
-      const authMessage = authDeleteError.message.toLowerCase();
-      const authUserAlreadyMissing =
-        authDeleteError.status === 404 || authMessage.includes("user not found");
-
-      if (!authUserAlreadyMissing) {
-        console.error("Failed to delete Auth user:", authDeleteError);
-
-        // Restore the employee's login link because Auth deletion failed.
-        const { error: restoreError } = await supabase
-          .from(TABLE)
-          .update({
-            auth_id: existingEmployee.auth_id,
-            activation_sent_at: existingEmployee.activation_sent_at,
-            activation_completed_at: existingEmployee.activation_completed_at,
-          })
-          .eq("employeeID", id);
-
-        if (restoreError) {
-          console.error("Failed to restore employee Auth link:", restoreError);
-        }
-
-        throw new Error(
-          "Failed to remove employee login access. The employee was not deleted.",
-        );
-      }
-    }
-  }
-
+  // The record goes first, and the login only once it has.
+  //
+  // This used to remove the login first and the record second. An employee who
+  // has driven, helped or repaired anything is still referenced by those trips
+  // and logs, so the record refused to go - after their login already had. They
+  // were left on the list with no way to sign in, and the delete reported as a
+  // failure. Deleting the record first fails before anything is touched. The
+  // record points at the login, not the other way round, so nothing stands in
+  // the way of removing it first.
   const { data, error } = await supabase
     .from(TABLE)
     .delete()
@@ -406,7 +364,32 @@ export async function deleteEmployee(id: string): Promise<Employee | null> {
     .maybeSingle();
 
   if (error) {
+    // 23503: something still refers to this employee - their trips, their
+    // maintenance logs. That history is the reason to keep the record.
+    if ((error as { code?: string }).code === "23503") {
+      throw new Error(
+        "This employee has work on record (trips or maintenance logs), so they cannot be deleted. Disable them instead - they will not be able to sign in or be assigned.",
+      );
+    }
     throw error;
+  }
+
+  if (existingEmployee.auth_id) {
+    const { error: authDeleteError } =
+      await supabase.auth.admin.deleteUser(existingEmployee.auth_id);
+
+    if (authDeleteError) {
+      const authMessage = authDeleteError.message.toLowerCase();
+      const authUserAlreadyMissing =
+        authDeleteError.status === 404 || authMessage.includes("user not found");
+
+      // The employee is gone, which is what was asked for. A login left behind
+      // with no employee behind it cannot reach anything: every route looks the
+      // employee up and refuses when there is none.
+      if (!authUserAlreadyMissing) {
+        console.error("Employee deleted, but their login could not be removed:", authDeleteError);
+      }
+    }
   }
 
   return data as Employee | null;

@@ -286,8 +286,9 @@ export function RecordDetailView({
             </h3>
             <p className="text-sm text-slate-600 mb-6">
               Are you sure you want to delete{" "}
-              <strong className="text-slate-900">{record.name}</strong>? This
-              will permanently remove the record from the database.
+              <strong className="text-slate-900">{record.name}</strong>? It can
+              no longer be chosen for new bookings. Past bookings keep their
+              record of it.
             </p>
             <div className="flex items-center gap-3">
               <button

@@ -17,7 +17,8 @@ import type { ClientRecord, DeliveryAddress, PickupAddress } from "./types";
 interface ClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmitSuccess: (record: ClientRecord) => void;
+  /** Saves it. Resolves false when the save was refused, so the form stays open. */
+  onSubmitSuccess: (record: ClientRecord) => Promise<boolean>;
   editData?: ClientRecord | null;
 }
 
@@ -197,7 +198,7 @@ export function ClientModal({
     setDeleteConfirm((prev) => ({ ...prev, [`delivery-${index}`]: false }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
@@ -271,8 +272,9 @@ export function ClientModal({
         .map((d) => ({ ...d, contactNumber: normalizePhone(d.contactNumber) ?? d.contactNumber })),
     };
 
-    onSubmitSuccess(newRecord);
-    handleCloseModal();
+    // Closed once it has saved. It used to close first, so a save the server
+    // refused took everything that had been typed with it.
+    if (await onSubmitSuccess(newRecord)) handleCloseModal();
   };
 
   return (

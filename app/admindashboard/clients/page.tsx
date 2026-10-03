@@ -115,13 +115,13 @@ export default function ClientsPage() {
     return JSON.stringify(original) === JSON.stringify(updated);
   };
 
-  const handleClientSubmit = async (newRecord: ClientRecord) => {
+  const handleClientSubmit = async (newRecord: ClientRecord): Promise<boolean> => {
     try {
       if (editingRecord) {
         if (checkNoChanges(editingRecord, newRecord)) {
           showToast("No changes were made.", "info");
           setEditingRecord(null);
-          return;
+          return true;
         }
 
         const payload = {
@@ -163,13 +163,15 @@ export default function ClientsPage() {
       setEditingRecord(null);
       await fetchClientsAndPartners();
       if (editingRecord) setSelectedRecord(newRecord);
+      return true;
     } catch (error) {
       console.error("Failed to save client to Database:", error);
       showToast(error instanceof Error ? error.message : "Error saving record.", "error");
+      return false;
     }
   };
 
-  const handlePartnerSubmit = async (newRecord: PartnerRecord) => {
+  const handlePartnerSubmit = async (newRecord: PartnerRecord): Promise<boolean> => {
     try {
       // Structure explicitly formatted to match what POST /api/subcontractors expects
       const payload = {
@@ -185,7 +187,7 @@ export default function ClientsPage() {
         if (checkNoChanges(editingRecord, newRecord)) {
           showToast("No changes were made.", "info");
           setEditingRecord(null);
-          return;
+          return true;
         }
 
         await apiFetch(`/api/subcontractors/${newRecord.id}`, {
@@ -204,9 +206,11 @@ export default function ClientsPage() {
       setEditingRecord(null);
       await fetchClientsAndPartners();
       if (editingRecord) setSelectedRecord(newRecord);
+      return true;
     } catch (error) {
       console.error("Failed to save partner to Database:", error);
       showToast(error instanceof Error ? error.message : "Error saving record.", "error");
+      return false;
     }
   };
 
