@@ -80,6 +80,20 @@ jobs:
       - name: Sync the native project
         run: npx cap sync android
 
+      # Firebase config for push notifications, kept out of the repo and
+      # written from a secret. Without it build.gradle skips the
+      # google-services plugin: the APK still builds and runs, but push
+      # notifications never arrive - so that is a warning, not a failure.
+      - name: Write out the Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::warning::No GOOGLE_SERVICES_JSON secret. This APK will not receive push notifications."
+            exit 0
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: Show what the APK will point at
         run: cat android/app/src/main/assets/capacitor.config.json
 

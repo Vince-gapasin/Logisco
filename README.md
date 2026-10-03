@@ -1,36 +1,131 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Logisco
 
-## Getting Started
+Dispatch and delivery tracking for a trucking operation. One web app serves
+three kinds of staff, plus the customer:
 
-First, run the development server:
+| Who | Where | What they do |
+|---|---|---|
+| Admin, Coordinator | `/admindashboard` | Bookings, calendar, dispatch, clients, employees, fleet, foul trips, forecasting, reports, system health |
+| Driver, Helper | `/crew` | Accept assigned trips, check in at stops, report issues, upload proof of delivery |
+| Mechanic | `/mechanic` | Fleet status, maintenance history, roadside assistance |
+| Customer | `/client-view?token=…` | Public tracking page sent by email, and delivery feedback |
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The Android app (`android/`, Capacitor) is a shell around the deployed site. It
+adds background location and push notifications; it does not bundle the web app.
+
+## Stack
+
+- Next.js 16 (App Router), React 19, Tailwind 4. **This Next.js has breaking
+  changes from older versions** - read `node_modules/next/dist/docs/` before
+  writing Next-specific code (see `AGENTS.md`).
+- Supabase: Postgres, auth, storage for delivery proofs, and `pg_cron` for the
+  stalled-truck check.
+- Mapbox for maps, geocoding and routing; Recharts; jsPDF for reports;
+  nodemailer for email; Zod for request validation.
+- Vitest for tests.
+
+## Layout
+
+```
+app/
+  admindashboard/ crew/ mechanic/   screens, one folder per portal
+  api/                              route handlers - thin: authorize, validate, call a service
+  lib/                              shared rules and helpers (stall rules, feasibility, auth...)
+  schemas/                          Zod schemas for request bodies
+components/                         shared UI, grouped by area
+services/                           business logic and database access, grouped by area
+types/                              shared types; types/database.ts is generated
+supabase/migrations/                schema changes, applied in filename order
+scripts/                            one-off backfills and diagnostics (see each file's header)
+tests/                              Vitest; tests/support/supabaseDouble.ts fakes the client
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### How requests are authorized
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The browser only uses Supabase to sign in. Everything else goes through
+`/api/*`, and every route starts with `authorize(request, roles)` from
+`app/lib/auth.ts`, which verifies the bearer token, loads the caller's
+`Employee` row, rejects inactive accounts and checks the role. Route handlers
+then use the service-role client in `app/lib/supabase.ts`, which bypasses Row
+Level Security - so a route that skips `authorize` is open to anyone.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The exceptions are deliberate: sign-in, forgot-password, the email-change
+confirmation link, the public tracking endpoints (`/api/track/[token]`, keyed by
+a random UUID), and scheduled jobs, which check `CRON_SECRET`.
 
-## Learn More
+## Getting started
 
-To learn more about Next.js, take a look at the following resources:
+Needs Node 20.9 or newer (CI uses 24).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Create `.env` with at least the Supabase settings:
 
-## Deploy on Vercel
+| Variable | Needed for |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Server-side database access (required) |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sign-in from the browser (required) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN`, `MAPBOX_TOKEN` | Maps in the browser; geocoding and routing on the server |
+| `APP_URL` | Links in activation and tracking emails (must be the public address in production) |
+| `NEXT_PUBLIC_SITE_URL` | Email-change confirmation links (falls back to the request host) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Sending email |
+| `CRON_SECRET` | Authorizing scheduled jobs (Vercel cron, GitHub Actions, `pg_cron`) |
+| `FIREBASE_SERVICE_ACCOUNT` | Sending push notifications (JSON of a Firebase service account) |
+| `WEATHER_LATITUDE`, `WEATHER_LONGITUDE`, `WEATHER_LOCATION_CODE` | Weather sync for forecasting (defaults to Manila) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Admin → System health checks most of these against the running deployment.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts
+
+```bash
+npm run dev         # development server
+npm run build       # production build
+npm test            # Vitest, once
+npm run typecheck   # tsc --noEmit
+npm run lint        # ESLint
+```
+
+Regenerate `types/database.ts` after a schema change:
+
+```bash
+npx tsx --env-file=.env scripts/generateDatabaseTypes.ts
+```
+
+## Database changes
+
+Add a file to `supabase/migrations/` named `YYYYMMDDHHMMSS_description.sql` and
+apply it with the Supabase CLI (`supabase db push`) or the SQL editor. Then
+regenerate the types as above.
+
+## Deployment and automation
+
+- **Web:** Vercel, at https://logisco.company. `vercel.json` schedules the
+  monthly forecasting job and the twice-weekly fuel price sync.
+- **Stalled-truck check:** `pg_cron`, every minute, from inside the database
+  (`supabase/migrations/20260929000000_stall_check_schedule.sql`).
+- **CI** (`.github/workflows/ci.yml`): typecheck, tests, build and lint on every
+  push to `main` and `monorepo-copy` and on pull requests. Any lint error fails it.
+- **Android APK** (`.github/workflows/android.yml`): built when the native
+  project or Capacitor config changes, or on demand. It needs these repository
+  secrets:
+  - `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+    `ANDROID_KEY_PASSWORD` - the release signing key, so builds install over
+    each other.
+  - `GOOGLE_SERVICES_JSON` - the contents of `google-services.json` from the
+    Firebase console. Without it the APK builds but gets no push notifications.
+
+### Android locally
+
+`android/app/google-services.json` is not in the repository. Download it from
+the Firebase console (project settings → your Android app) and put it there.
+
+```bash
+npx cap sync android
+```
+
+Then open `android/` in Android Studio. To point a build at a local dev server,
+set `CAPACITOR_SERVER_URL` to your machine's LAN address (not `localhost` - on a
+phone that is the phone).
