@@ -218,7 +218,9 @@ export default function EmployeesPage() {
 
       if (editData) {
         const updatePayload = {
-          employeeName: `${formData.firstName} ${formData.lastName}`.trim(),
+          employeeName: `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim(),
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
           middleName: formData.middleName || null,
           suffix: formData.suffix || null,
           role: formData.role,
@@ -257,8 +259,8 @@ export default function EmployeesPage() {
             (MANUAL_AVAILABILITY.includes(editData.availability as (typeof MANUAL_AVAILABILITY)[number])
               ? editData.availability
               : AVAILABILITY.available) ||
-          updatePayload.employeeName !==
-            `${editData.firstName} ${editData.lastName}`.trim() ||
+          updatePayload.firstName !== editData.firstName.trim() ||
+          updatePayload.lastName !== editData.lastName.trim() ||
           updatePayload.middleName !== (editData.middleName || null) ||
           updatePayload.suffix !== (editData.suffix || null) ||
           updatePayload.role !== editData.role ||
@@ -321,7 +323,9 @@ export default function EmployeesPage() {
       } else {
         const createPayload = {
           employeeID: crypto.randomUUID(),
-          employeeName: `${formData.firstName} ${formData.lastName}`.trim(),
+          employeeName: `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim(),
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
           middleName: formData.middleName || null,
           suffix: formData.suffix || null,
           role: formData.role,

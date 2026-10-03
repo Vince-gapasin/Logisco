@@ -105,6 +105,9 @@ export interface ApiEmployee {
   employeeCode: string | null;
 
   employeeName: string;
+  /** As typed on the form. employeeName is "First Last", kept for every screen that reads it. */
+  firstName?: string | null;
+  lastName?: string | null;
 
   role: RoleType;
   availability: string;

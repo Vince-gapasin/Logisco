@@ -3,6 +3,9 @@ export interface Employee {
   employeeID: string;
   employeeCode: string | null;
   employeeName: string;
+  /** As typed on the form. employeeName is "First Last", kept for every screen that reads it. */
+  firstName?: string | null;
+  lastName?: string | null;
   role: string;
   availability: string;
   healthStatus: string;

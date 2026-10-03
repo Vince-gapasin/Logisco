@@ -55,12 +55,21 @@ export function getErrorMessage(error: unknown): string {
 // ==========================================
 
 export function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
+  // The first and last names as they were typed. Splitting employeeName on its
+  // first space - which is all there was before they had columns - turned a
+  // first name of two words into part of the last name. Kept only as the
+  // fallback for a record saved before then.
   const nameParts =
     employee.employeeName?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const hasStoredNames = Boolean(employee.firstName?.trim() || employee.lastName?.trim());
 
-  const firstName = nameParts[0] || "Unknown";
+  const firstName = hasStoredNames
+    ? employee.firstName?.trim() || ""
+    : nameParts[0] || "Unknown";
 
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const lastName = hasStoredNames
+    ? employee.lastName?.trim() || ""
+    : nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
   return {
     id: employee.employeeID,

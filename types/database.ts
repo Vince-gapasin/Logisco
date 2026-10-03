@@ -152,6 +152,9 @@ export interface EmployeeRow {
   employeeID: string;
   employeeCode: string | null;
   employeeName: string;
+  /** As typed on the form. employeeName is "First Last", kept for every screen that reads it. */
+  firstName: string | null;
+  lastName: string | null;
   role: string;
   /** What an admin set: Available, On Leave or Unavailable. Booked and In Transit are calculated from live dispatches, never stored. */
   availability: string;

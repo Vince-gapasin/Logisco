@@ -98,7 +98,9 @@ export const createEmployeeSchema = z
     isActive: z.boolean().nullable().optional(),
 
     birthdate: z.string().nullable().optional(),
+    firstName: z.string().trim().nullable().optional(),
     middleName: z.string().nullable().optional(),
+    lastName: z.string().trim().nullable().optional(),
     suffix: z.string().nullable().optional(),
     gender: z.string().nullable().optional(),
     bloodType: z.string().nullable().optional(),
