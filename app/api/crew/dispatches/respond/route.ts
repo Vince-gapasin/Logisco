@@ -11,8 +11,15 @@ import {
   releaseDispatchResources,
 } from "@/services/dispatch/dispatchService";
 
-// Statuses in which the driver can still accept or decline a dispatch.
+// Statuses in which the driver can still accept a dispatch.
 const RESPONDABLE_STATUSES: string[] = [DELIVERY_STATUS.pending, DELIVERY_STATUS.assigned];
+
+// ...and in which anybody on it can still back out. Accepting is not final:
+// until the trip starts, a driver or helper who can no longer make it can
+// withdraw, with a reason, and the office is told so it can send somebody else.
+// It used to be final from the moment of the tap, which left a crew member who
+// fell ill the night before with no way to say so but a phone call.
+const WITHDRAWABLE_STATUSES: string[] = [...RESPONDABLE_STATUSES, DELIVERY_STATUS.accepted];
 
 // The last yes is worth telling the rest of the crew about.
 //
@@ -84,12 +91,19 @@ export async function POST(request: Request) {
 
     if (assignment.isDriver) {
       // USER IS THE DRIVER: accept or reject the whole dispatch
-      if (!RESPONDABLE_STATUSES.includes(assignment.dispatch.status)) {
+      const allowed = action === "accept" ? RESPONDABLE_STATUSES : WITHDRAWABLE_STATUSES;
+      if (!allowed.includes(assignment.dispatch.status)) {
         return NextResponse.json(
-          { message: `This dispatch is already ${assignment.dispatch.status}.` },
+          {
+            message:
+              action === "decline" && assignment.dispatch.status !== DELIVERY_STATUS.rejected
+                ? "This delivery has already started. Report a problem from the trip instead."
+                : `This dispatch is already ${assignment.dispatch.status}.`,
+          },
           { status: 409 },
         );
       }
+      const withdrawing = action === "decline" && assignment.dispatch.status === DELIVERY_STATUS.accepted;
 
       // Column is lowercase in the database: rejectionreason.
       const updateData =
@@ -101,7 +115,7 @@ export async function POST(request: Request) {
         .from("DispatchOrder")
         .update(updateData)
         .eq("dispatchID", dispatchID)
-        .in("status", RESPONDABLE_STATUSES);
+        .in("status", allowed);
 
       if (updateErr) throw updateErr;
 
@@ -113,7 +127,7 @@ export async function POST(request: Request) {
       await recordAudit({
         table: "DispatchOrder",
         recordID: dispatchID,
-        action: action === "accept" ? "CREW_ACCEPT" : "CREW_DECLINE",
+        action: action === "accept" ? "CREW_ACCEPT" : withdrawing ? "CREW_WITHDRAW" : "CREW_DECLINE",
         actor: auditActor(auth),
         before: { status: assignment.dispatch.status },
         after: { ...updateData, as: "driver" },
@@ -122,8 +136,8 @@ export async function POST(request: Request) {
       if (action === "decline") {
         await notify({
           event: "CREW_DECLINED",
-          title: "Driver declined a delivery",
-          body: `${auth.employee.employeeName} declined ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."} It needs another crew.`,
+          title: withdrawing ? "Driver withdrew from a delivery" : "Driver declined a delivery",
+          body: `${auth.employee.employeeName} ${withdrawing ? "withdrew from" : "declined"} ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."} It needs another crew.`,
           severity: "action",
           roles: OFFICE,
           entity: { table: "DispatchOrder", id: dispatchID },
@@ -139,13 +153,29 @@ export async function POST(request: Request) {
         });
       }
 
-      return NextResponse.json({ message: `Dispatch ${action}ed successfully.` });
+      return NextResponse.json({ message: withdrawing ? "You have withdrawn from this delivery." : `Dispatch ${action}ed successfully.` });
     }
 
     // USER IS A HELPER: update only their own assignment
     const helper = assignment.helper!;
-    if (helper.status && helper.status !== HELPER_STATUS.pending) {
-      return NextResponse.json({ message: `You have already ${helper.status.toLowerCase()} this assignment.` }, { status: 409 });
+    const helperStatus = helper.status ?? HELPER_STATUS.pending;
+    // Accepting is for an assignment not yet answered. Declining is that, or
+    // withdrawing an acceptance - but only while the trip has not started.
+    const helperWithdrawing = action === "decline" && helperStatus === HELPER_STATUS.accepted;
+    const helperCanRespond =
+      action === "accept"
+        ? helperStatus === HELPER_STATUS.pending
+        : helperStatus === HELPER_STATUS.pending ||
+          (helperWithdrawing && WITHDRAWABLE_STATUSES.includes(assignment.dispatch.status));
+    if (!helperCanRespond) {
+      return NextResponse.json(
+        {
+          message: helperWithdrawing
+            ? "This delivery has already started. Report a problem from the trip instead."
+            : `You have already ${helperStatus.toLowerCase()} this assignment.`,
+        },
+        { status: 409 },
+      );
     }
 
     // Column is lowercase in the database: declinereason.
@@ -173,7 +203,7 @@ export async function POST(request: Request) {
     await recordAudit({
       table: "DispatchHelper",
       recordID: helper.dhID,
-      action: action === "accept" ? "CREW_ACCEPT" : "CREW_DECLINE",
+      action: action === "accept" ? "CREW_ACCEPT" : helperWithdrawing ? "CREW_WITHDRAW" : "CREW_DECLINE",
       actor: auditActor(auth),
       before: { status: helper.status },
       after: { ...updateData, dispatchID, as: "helper" },
@@ -182,8 +212,8 @@ export async function POST(request: Request) {
     if (action === "decline") {
       await notify({
         event: "CREW_DECLINED",
-        title: "Helper declined a delivery",
-        body: `${auth.employee.employeeName} declined to help on ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."}`,
+        title: helperWithdrawing ? "Helper withdrew from a delivery" : "Helper declined a delivery",
+        body: `${auth.employee.employeeName} ${helperWithdrawing ? "withdrew from helping on" : "declined to help on"} ${(await tripLabel(dispatchID)) ?? "a delivery"}${reason ? `: ${reason}` : "."}`,
         severity: "action",
         roles: OFFICE,
         entity: { table: "DispatchOrder", id: dispatchID },
@@ -199,7 +229,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ message: `Assignment ${action}ed successfully.` });
+    return NextResponse.json({ message: helperWithdrawing ? "You have withdrawn from this delivery." : `Assignment ${action}ed successfully.` });
   } catch (error) {
     console.error("Dispatch response error:", error);
     return NextResponse.json({ message: "Failed to process response" }, { status: 500 });

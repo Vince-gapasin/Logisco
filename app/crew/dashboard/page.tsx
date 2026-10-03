@@ -821,7 +821,11 @@ export default function CrewDashboardPage({
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to update status");
+      if (!response.ok) {
+        const refusal = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(refusal?.message || "Failed to update status");
+      }
+      const withdrew = action === "decline" && selectedDelivery.status?.toLowerCase() === "accepted";
 
       setDeliveryList((prev) =>
         prev.map((d) => d.id === selectedDelivery.id ? { ...d, status: action === "accept" ? "Accepted" : "Declined", localUpdatedAt: Date.now() } : d)
@@ -831,7 +835,7 @@ export default function CrewDashboardPage({
       setShowDeclineConfirmModal(false);
       setShowDetailsModal(false);
       setDeclineReason("");
-      showToast(`Assignment ${action}ed successfully.`, "success");
+      showToast(withdrew ? "You have withdrawn. The office has been told." : `Assignment ${action}ed successfully.`, "success");
     } catch (error) {
       // String() rather than the bare value: a catch gives back unknown, and
       // alert() used to accept that and show the driver "[object Object]"
@@ -890,6 +894,17 @@ export default function CrewDashboardPage({
     }
     
     if (selectedDelivery.status?.toLowerCase() === "accepted" && (selectedDelivery.current_step || 0) === 0) {
+      // Accepting is not final: until the trip starts, somebody who can no
+      // longer make it can withdraw, with a reason, and the office is told.
+      const withdraw = (
+        <button
+          onClick={() => setShowDeclineConfirmModal(true)}
+          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+        >
+          Withdraw
+        </button>
+      );
+
       // Everybody assigned has to accept before the truck leaves. The server
       // refuses it either way; saying so here means the crew find out from the
       // screen rather than from a failed tap, and find out who they are
@@ -897,6 +912,8 @@ export default function CrewDashboardPage({
       const blocked = selectedDelivery.startBlockedReason;
       if (blocked) {
         return (
+          <>
+          {withdraw}
           <div className="w-full sm:w-72">
             <button
               type="button"
@@ -910,16 +927,20 @@ export default function CrewDashboardPage({
               {blocked}
             </p>
           </div>
+          </>
         );
       }
 
       return (
-        <button
-          onClick={() => setShowStartConfirmModal(true)}
-          className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
-        >
-          Start Delivery
-        </button>
+        <>
+          {withdraw}
+          <button
+            onClick={() => setShowStartConfirmModal(true)}
+            className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          >
+            Start Delivery
+          </button>
+        </>
       );
     }
     
@@ -1707,8 +1728,17 @@ export default function CrewDashboardPage({
       {showDeclineConfirmModal && selectedDelivery && (
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
-            <p className="text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
+            {selectedDelivery.status?.toLowerCase() === "accepted" ? (
+              <>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Withdraw from Delivery</h3>
+                <p className="text-sm text-slate-600 mb-4">You accepted this delivery. If you can no longer do it, say why - the office will be told so they can send someone else.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Decline Assignment</h3>
+                <p className="text-sm text-slate-600 mb-4">Are you sure you want to decline this dispatch? You must provide a valid reason.</p>
+              </>
+            )}
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">What is the reason?</label>
             <select
               value={declineCode}
@@ -1733,7 +1763,11 @@ export default function CrewDashboardPage({
             <div className="flex items-center gap-3">
               <button onClick={() => { setShowDeclineConfirmModal(false); setDeclineReason(""); setDeclineCode(""); }} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
               <button onClick={() => handleDispatchResponse("decline")} disabled={isSubmittingResponse || !declineReason.trim() || !declineCode} className="flex-1 min-h-tap sm:min-h-0 py-2.5 bg-red-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-red-700">
-                {isSubmittingResponse ? "Submitting..." : "Submit Decline"}
+                {isSubmittingResponse
+                  ? "Submitting..."
+                  : selectedDelivery.status?.toLowerCase() === "accepted"
+                    ? "Withdraw"
+                    : "Submit Decline"}
               </button>
             </div>
           </div>
