@@ -60,8 +60,11 @@ export function EmployeeDetailView({
   const isAdmin = currentRole.toLowerCase() === "admin";
   const canEdit = isAdmin;
 
-  // Drivers and helpers run deliveries, so a delivery record describes them.
-  const showsPerformance = ["driver", "helper"].includes((employee.role ?? "").toLowerCase());
+  // Every role is rated now, each on its own work: the crew on their trips,
+  // mechanics on their repairs, the office on running the deliveries.
+  const showsPerformance = ["driver", "helper", "mechanic", "coordinator", "admin"].includes(
+    (employee.role ?? "").trim().toLowerCase(),
+  );
 
   const accountActivated = Boolean(employee.activation_completed_at);
   const activationCooldownMs = 15 * 60 * 1000;

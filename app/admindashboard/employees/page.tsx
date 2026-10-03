@@ -21,6 +21,7 @@ import { AVAILABILITY, MANUAL_AVAILABILITY } from "@/app/lib/enums";
 import {
   Search,
   UserPlus,
+  Trophy,
   FileText,
   Filter,
   ChevronDown,
@@ -36,6 +37,7 @@ import type {
 } from "./_components/types";
 import { getAuthSession, getErrorMessage, mapApiEmployee } from "./_components/helpers";
 import { EmployeeDetailView } from "./_components/EmployeeDetailView";
+import { RankingsView } from "./_components/RankingsView";
 import { EmployeeModal } from "./_components/EmployeeModal";
 
 
@@ -66,6 +68,8 @@ export default function EmployeesPage() {
 
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeRecord | null>(null);
+  // The rankings view, in place of the directory.
+  const [showRankings, setShowRankings] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(
     null,
   );
@@ -563,11 +567,22 @@ export default function EmployeesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-            Employee Directory
+            {showRankings ? "Performance Rankings" : "Employee Directory"}
           </h1>
           </div>
 
-        {canCreate && (
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Every role's ranking, beside the directory it is drawn from. */}
+          <button
+            type="button"
+            onClick={() => setShowRankings((shown) => !shown)}
+            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-colors duration-200 border border-slate-300 whitespace-nowrap cursor-pointer"
+          >
+            <Trophy className="w-4 h-4 shrink-0" />
+            <span>{showRankings ? "Directory" : "Rankings"}</span>
+          </button>
+
+        {canCreate && !showRankings && (
           <div className="flex justify-center sm:justify-start w-full sm:w-auto">
             <button
               onClick={() => {
@@ -581,7 +596,12 @@ export default function EmployeesPage() {
             </button>
           </div>
         )}
+        </div>
       </div>
+
+      {showRankings ? (
+        <RankingsView onOpen={(id) => void handleRowClick(id)} />
+      ) : (
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         {/* FILTERS */}
@@ -798,6 +818,7 @@ export default function EmployeesPage() {
           </div>
         </div>
       </div>
+      )}
 
       <EmployeeModal
         isOpen={isModalOpen}

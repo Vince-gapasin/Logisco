@@ -62,6 +62,8 @@ interface PerformanceData {
       feedbackResponses: number;
     };
   } | null;
+  /** A mechanic's, coordinator's or admin's rating; null for the crew. */
+  roleRating: RoleRating | null;
   notRatedBecause: string | null;
   viewerCanExcuse: boolean;
   reported: {
@@ -92,6 +94,17 @@ interface PerformanceData {
     submittedAt: string;
   }[];
   company: { feedbackAverage: number; feedbackResponses: number; notComparable: string[] };
+}
+
+interface RoleRating {
+  kind: "mechanic" | "office";
+  measures: (ScoreComponent & { kind: "share" | "time" })[];
+  rating: number | null;
+  ratingRange: { low: number; high: number } | null;
+  withheld: string | null;
+  coverage: number;
+  shown: { label: string; value: string; note?: string }[];
+  evidence: string;
 }
 
 // Mirrors services/employee/delayExcuseService.ts, which mirrors the table.
@@ -269,6 +282,173 @@ function LateStopRow({
   );
 }
 
+/** The period switch both views share. */
+function PeriodToggle({ allTime, onChange }: { allTime: boolean; onChange: (allTime: boolean) => void }) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-slate-200 p-0.5">
+      {[
+        [false, "Last 180 days"],
+        [true, "All time"],
+      ].map(([value, label]) => (
+        <button
+          key={String(value)}
+          type="button"
+          onClick={() => onChange(value as boolean)}
+          className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          {label as string}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A mechanic's, coordinator's or admin's record, laid out as the crew's is:
+ * the number, every measure behind it with its counts and share, and what is
+ * recorded but not scored.
+ */
+function RoleRatingView({
+  data,
+  role,
+  allTime,
+  onPeriod,
+}: {
+  data: PerformanceData;
+  role: RoleRating;
+  allTime: boolean;
+  onPeriod: (allTime: boolean) => void;
+}) {
+  const { rating, ratingRange, withheld, measures, shown, coverage } = role;
+  const tone = rating === null ? null : ratingTone(rating);
+
+  return (
+    <div className="space-y-5 text-sm">
+      {/* ---- The headline ---- */}
+      <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {rating !== null && tone ? (
+              <div className={`flex flex-col items-center justify-center h-20 w-20 rounded-2xl ring-4 ${tone.ring} ${tone.bg} shrink-0`}>
+                <span className={`text-3xl font-bold leading-none ${tone.text}`}>{rating.toFixed(1)}</span>
+                <span className="text-[10px] font-medium text-slate-500 mt-0.5">out of 5</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-20 w-20 rounded-2xl bg-slate-50 ring-4 ring-slate-100 shrink-0">
+                <span className="text-2xl font-bold text-slate-300">--</span>
+              </div>
+            )}
+
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-slate-900">{data.employeeName}</div>
+              <div className="text-xs text-slate-500">
+                {data.role} · {data.window.label}
+              </div>
+              {withheld && <p className="text-xs font-medium text-amber-700 mt-1.5">{withheld}</p>}
+              {rating !== null && ratingRange && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Somewhere between{" "}
+                  <span className="font-semibold text-slate-700">
+                    {ratingRange.low.toFixed(1)} and {ratingRange.high.toFixed(1)}
+                  </span>{" "}
+                  on this much evidence.
+                </p>
+              )}
+              {rating !== null && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Based on {percent(coverage)} of the intended measures
+                  {coverage < 1 ? " - the rest are not counted, and say why below" : ""}.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <PeriodToggle allTime={allTime} onChange={onPeriod} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-100 pt-4">
+          {shown.map((fact) => (
+            <div key={fact.label}>
+              <div className="text-lg font-bold text-slate-900">{fact.value}</div>
+              <div className="text-xs text-slate-500">{fact.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ---- How the number was reached ---- */}
+      <Section
+        title="How this number was reached"
+        icon={ShieldCheck}
+        note={
+          role.kind === "mechanic"
+            ? "Rated on the quality and care of their repairs and how quickly they get to a truck. Every figure is shown with the counts behind it and the share of the rating it carries."
+            : "Rated on how they run the deliveries" +
+              (data.role.toLowerCase() === "admin" ? " and set up new staff" : "") +
+              ", from what the system records them doing. Every figure is shown with the counts behind it and the share of the rating it carries."
+        }
+      >
+        <div className="space-y-4">
+          {measures.map((measure) => (
+            <div key={measure.key} className={measure.scored ? "" : "opacity-70"}>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="font-medium text-slate-900">{measure.label}</span>
+                <span className="flex items-baseline gap-2">
+                  <span className={`font-semibold ${measure.scored ? "text-slate-900" : "text-slate-500"}`}>
+                    {measure.rate === null ? "No data" : percent(measure.rate)}
+                  </span>
+                  {measure.scored && rating !== null && (
+                    <span className="text-xs text-slate-500">{percent(measure.weight)} of the rating</span>
+                  )}
+                </span>
+              </div>
+
+              <div className="mt-1.5">
+                <Bar rate={measure.rate} scored={measure.scored} />
+              </div>
+
+              <div className="mt-1 text-xs text-slate-500">
+                {measure.denominator > 0 && (
+                  <span>
+                    {measure.kind === "time"
+                      ? `${measure.denominator} measured - ${measure.basis}`
+                      : `${measure.numerator} of ${measure.denominator} ${measure.basis}`}
+                  </span>
+                )}
+                {measure.detail && <span className="block mt-0.5">{measure.detail}</span>}
+                {measure.why && (
+                  <span className={measure.denominator > 0 ? "block mt-0.5" : ""}>{measure.why}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ---- Recorded, never scored ---- */}
+      <Section
+        title="Recorded, but never scored"
+        icon={Info}
+        note="Shown so the number has its context. None of this changes the rating."
+      >
+        <ul className="space-y-2">
+          {shown.map((fact) => (
+            <li key={fact.label} className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
+              <span className="text-slate-700">
+                {fact.label}
+                {fact.note && <span className="block text-slate-500">{fact.note}</span>}
+              </span>
+              <span className="font-semibold text-slate-900">{fact.value}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
 export default function PerformancePanel({ employeeID }: { employeeID: string }) {
   const [data, setData] = useState<PerformanceData | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -328,7 +508,12 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
     );
   }
 
-  // A role this does not describe - an admin, a coordinator, a mechanic.
+  // A mechanic, a coordinator or an admin: rated on their own work.
+  if (!data.performance && data.roleRating) {
+    return <RoleRatingView data={data} role={data.roleRating} allTime={allTime} onPeriod={setAllTime} />;
+  }
+
+  // A role there are no measures for.
   if (!data.performance) {
     return (
       <div className="border border-slate-200 rounded-xl p-6 bg-slate-50 text-center">
@@ -391,23 +576,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
             </div>
           </div>
 
-          <div className="flex gap-1 rounded-lg border border-slate-200 p-0.5">
-            {[
-              [false, "Last 180 days"],
-              [true, "All time"],
-            ].map(([value, label]) => (
-              <button
-                key={String(value)}
-                type="button"
-                onClick={() => setAllTime(value as boolean)}
-                className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {label as string}
-              </button>
-            ))}
-          </div>
+          <PeriodToggle allTime={allTime} onChange={setAllTime} />
         </div>
 
         {data.window.widenedBecause && (
