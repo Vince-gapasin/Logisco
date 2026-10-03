@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type User } from "@supabase/supabase-js";
 import { supabase } from "@/app/lib/supabase";
 import { supabaseAuth } from "@/app/lib/supabaseAuth";
 import { EMPLOYEE_ROLE, type EmployeeRole } from "@/app/lib/enums";
@@ -27,60 +27,56 @@ export const OFFICE_ROLES: UserRole[] = [EMPLOYEE_ROLE.admin, EMPLOYEE_ROLE.coor
 // ==========================================
 
 // ==========================================
-// VERIFIED SESSION CACHE
+// VERIFIED TOKEN CACHE
 // ==========================================
-// Verifying a bearer token costs two network calls: one to Supabase Auth and
-// one for the Employee row. Both are repeated on every request, including the
-// burst of calls a single page makes. Results are cached for a short window,
-// per server instance, keyed by the token itself.
+// Verifying a bearer token is a network call to Supabase Auth, repeated on
+// every request, including the burst of calls a single page makes. The result
+// - which auth user the token belongs to - is cached for a short window, per
+// server instance, keyed by the token itself.
 //
-// The window is deliberately small: deactivating an employee takes effect
-// within it, rather than immediately.
+// The Employee row is NOT cached. It is read on every request, so
+// deactivating an employee or changing their role takes effect on their very
+// next request. It used to be cached with the token, which left a deactivated
+// employee working for up to 30 seconds - on every server instance that had
+// seen them, and there was no way to clear it from another instance.
+//
+// What the window still delays is Supabase noticing a revoked token (a
+// sign-out elsewhere); that is bounded by the TTL.
 
-const SESSION_CACHE_TTL_MS = 30_000;
-const SESSION_CACHE_MAX_ENTRIES = 500;
+const TOKEN_CACHE_TTL_MS = 30_000;
+const TOKEN_CACHE_MAX_ENTRIES = 500;
 
-type VerifiedSession = {
-  user: { id: string; email?: string };
-  employee: {
-    employeeID: string;
-    employeeName: string;
-    role: string;
-    isActive?: boolean;
-  };
-};
+const verifiedTokens = new Map<string, { user: User; expiresAt: number }>();
 
-const verifiedSessions = new Map<string, { session: VerifiedSession; expiresAt: number }>();
-
-function readCachedSession(token: string): VerifiedSession | null {
-  const entry = verifiedSessions.get(token);
+function readCachedUser(token: string): User | null {
+  const entry = verifiedTokens.get(token);
   if (!entry) return null;
 
   if (entry.expiresAt <= Date.now()) {
-    verifiedSessions.delete(token);
+    verifiedTokens.delete(token);
     return null;
   }
 
-  return entry.session;
+  return entry.user;
 }
 
-function cacheSession(token: string, session: VerifiedSession): void {
+function cacheUser(token: string, user: User): void {
   // Bound the map so a long-lived instance cannot grow without limit.
-  if (verifiedSessions.size >= SESSION_CACHE_MAX_ENTRIES) {
-    for (const [key, entry] of verifiedSessions) {
-      if (entry.expiresAt <= Date.now()) verifiedSessions.delete(key);
+  if (verifiedTokens.size >= TOKEN_CACHE_MAX_ENTRIES) {
+    for (const [key, entry] of verifiedTokens) {
+      if (entry.expiresAt <= Date.now()) verifiedTokens.delete(key);
     }
-    if (verifiedSessions.size >= SESSION_CACHE_MAX_ENTRIES) {
-      verifiedSessions.clear();
+    if (verifiedTokens.size >= TOKEN_CACHE_MAX_ENTRIES) {
+      verifiedTokens.clear();
     }
   }
 
-  verifiedSessions.set(token, { session, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
+  verifiedTokens.set(token, { user, expiresAt: Date.now() + TOKEN_CACHE_TTL_MS });
 }
 
-// Drops a token's cached verification, so a credential change takes effect now.
+// Drops a token's cached verification on this server instance.
 export function invalidateCachedSession(token: string): void {
-  verifiedSessions.delete(token);
+  verifiedTokens.delete(token);
 }
 
 export async function requireAuth(request: Request) {
@@ -99,19 +95,23 @@ export async function requireAuth(request: Request) {
 
   const token = authorization.substring(7);
 
-  const cached = readCachedSession(token);
-  if (cached) return cached;
+  let user = readCachedUser(token);
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabaseAuth.auth.getUser(token);
+  if (!user) {
+    const {
+      data: { user: verifiedUser },
+      error: authError,
+    } = await supabaseAuth.auth.getUser(token);
 
-  if (authError || !user) {
-    return {
-      error: "Invalid or expired token",
-      status: 401,
-    };
+    if (authError || !verifiedUser) {
+      return {
+        error: "Invalid or expired token",
+        status: 401,
+      };
+    }
+
+    user = verifiedUser;
+    cacheUser(token, user);
   }
 
   const {
@@ -144,10 +144,7 @@ export async function requireAuth(request: Request) {
     };
   }
 
-  const session = { user, employee } as VerifiedSession;
-  cacheSession(token, session);
-
-  return session;
+  return { user, employee };
 }
 
 // ==========================================
