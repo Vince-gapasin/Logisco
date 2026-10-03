@@ -1,5 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
-import { TRUCK_STATUS } from "@/app/lib/enums";
+import { ACTIVE_DELIVERY_STATUSES, TRUCK_STATUS } from "@/app/lib/enums";
 import type { Truck, CreateTruckDto, UpdateTruckDto } from "@/types/truck";
 
 const TABLE = "Truck";
@@ -191,6 +191,55 @@ export async function getFleet({ archived = false }: { archived?: boolean } = {}
 
   if (error) throw error;
   return (data ?? []).map(withFuelType);
+}
+
+/** The booking a truck is on, as the fleet screens show it. */
+export interface TruckTrip {
+  dispatchID: string;
+  status: string;
+  orderID: string | null;
+  orderCode: string | null;
+  clientName: string | null;
+  deliverySchedule: string | null;
+  driverName: string | null;
+}
+
+/**
+ * The trip holding this truck, if one is: assigned, accepted or on the road.
+ *
+ * "On Delivery" is the truck's side of a trip and is set by dispatch, not by
+ * hand. So the fleet screens show which booking it is rather than offering it
+ * as a choice, and a status change while a trip holds the truck is refused -
+ * see tripHoldingTruck in the route.
+ */
+export async function getCurrentTrip(truckID: string): Promise<TruckTrip | null> {
+  const { data, error } = await supabase
+    .from("DispatchOrder")
+    .select("dispatchID, status, Order ( orderID, orderCode, notes, Client ( company ) ), Driver:Employee!driverID ( employeeName )")
+    .eq("truckID", truckID)
+    .in("status", ACTIVE_DELIVERY_STATUSES)
+    .order("dispatchID", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const one = <T,>(value: T | T[] | null | undefined): T | null =>
+    Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+  const order = one(data.Order as unknown as { orderID: string; orderCode: string; notes: string | null; Client: unknown } | null);
+  const client = one(order?.Client as { company: string | null } | null);
+  const driver = one(data.Driver as unknown as { employeeName: string | null } | null);
+
+  return {
+    dispatchID: data.dispatchID as string,
+    status: data.status as string,
+    orderID: order?.orderID ?? null,
+    orderCode: order?.orderCode ?? null,
+    clientName: client?.company ?? null,
+    deliverySchedule: /Delivery Schedule:\s*([^\n]+)/.exec(order?.notes ?? "")?.[1]?.trim() ?? null,
+    driverName: driver?.employeeName ?? null,
+  };
 }
 
 /**

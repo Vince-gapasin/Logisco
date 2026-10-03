@@ -24,10 +24,14 @@ import React, { useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { TRUCK_STATUS, type TruckStatus } from "@/app/lib/enums";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import type { TruckTrip } from "@/services/truck/truckService";
+import TruckTripCard from "@/components/truck/TruckTripCard";
 
+// On Delivery is not among them. It is the truck's side of a trip - set when
+// the truck is assigned to a booking, cleared when the trip ends - and picking
+// it by hand made a truck unbookable with no trip behind it.
 const CHOICES: TruckStatus[] = [
   TRUCK_STATUS.available,
-  TRUCK_STATUS.onDelivery,
   TRUCK_STATUS.onMaintenance,
   TRUCK_STATUS.outOfService,
 ];
@@ -50,11 +54,14 @@ export function needsReason(from: string, to: string): boolean {
 export default function TruckStatusControl({
   plateNumber,
   current,
+  trip,
   onChange,
   onClose,
 }: {
   plateNumber: string;
   current: string;
+  /** The booking holding the truck. While there is one, its status is not changed here. */
+  trip?: TruckTrip | null;
   /** Saves it. Returns a message when it was refused. */
   onChange: (status: TruckStatus, reason: string) => Promise<string | null>;
   onClose: () => void;
@@ -107,6 +114,16 @@ export default function TruckStatusControl({
           </button>
         </div>
 
+        {trip ? (
+          <div className="p-5 space-y-4">
+            <TruckTripCard trip={trip} />
+            <p className="text-sm text-slate-600">
+              This truck&apos;s status follows its booking, so it cannot be changed here. If the
+              truck has broken down, report a foul trip; to stop or close the delivery, use the
+              booking&apos;s override.
+            </p>
+          </div>
+        ) : (
         <div className="p-5 space-y-4">
           <div>
             <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
@@ -184,6 +201,7 @@ export default function TruckStatusControl({
             </p>
           )}
         </div>
+        )}
 
         <div className="px-5 py-4 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3">
           <button
@@ -191,8 +209,9 @@ export default function TruckStatusControl({
             onClick={onClose}
             className="min-h-tap sm:min-h-0 px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
-            Cancel
+            {trip ? "Close" : "Cancel"}
           </button>
+          {!trip && (
           <button
             type="button"
             onClick={() => void save()}
@@ -201,6 +220,7 @@ export default function TruckStatusControl({
           >
             {saving ? "Saving..." : "Change status"}
           </button>
+          )}
         </div>
       </div>
     </div>

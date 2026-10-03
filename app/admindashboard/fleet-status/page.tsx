@@ -11,6 +11,8 @@ import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import RowOpenButton from "@/components/RowOpenButton";
 import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
+import TruckTripCard from "@/components/truck/TruckTripCard";
+import type { TruckTrip } from "@/services/truck/truckService";
 import {
   Search,
   Truck,
@@ -20,7 +22,8 @@ import {
   History as HistoryIcon,
   Edit3,
   Wrench,
-  Trash2,
+  Archive,
+  RotateCcw,
   AlertTriangle,
   Loader2,
   ChevronDown,
@@ -30,8 +33,6 @@ import type {
   Truck as ApiTruck,
   TruckStatus,
   TruckType,
-  CreateTruckDto,
-  UpdateTruckDto,
 } from "@/types/truck";
 
 // ==========================================
@@ -70,9 +71,11 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
   if (!truck) return {} as TruckRecord; // Safety guard
   return {
     id: truck.truckID,
-    plateNumber: truck.plateNumber || "N/A",
-    truckType: truck.truckType || "N/A",
-    truckModel: truck.model || "N/A",
+    // Blank rather than "N/A": these are the values the edit form is seeded
+    // with, and a placeholder put here was saved back as the truck's model.
+    plateNumber: truck.plateNumber || "",
+    truckType: truck.truckType || "",
+    truckModel: truck.model || "",
     capacity: truck.capacity ? String(truck.capacity) : "",
     lastChecked: truck.lastChecked ? truck.lastChecked.split("T")[0] : "",
     status: truck.truckStatus || "Available",
@@ -127,7 +130,8 @@ function TruckModal({
     "Trailer Truck",
     "Tanker Truck",
     "Pickup Truck",
-    "Others",
+    // The same word the mechanic's form uses, so one truck is not filed two ways.
+    "Other",
   ];
 
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -439,9 +443,15 @@ function TruckModal({
 
 interface TruckDetailViewProps {
   truck: TruckRecord;
+  /** The booking it is on, if any. */
+  trip: TruckTrip | null;
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
+  /** Retires it: the server's soft delete, which keeps its history. */
   onDelete: (id: string) => Promise<void>;
+  /** Opened from the archive, where the only action is to bring it back. */
+  isArchived: boolean;
+  onRestore: (id: string) => Promise<void>;
   /** Opens this truck's repair history, as the mechanic's module does. */
   onHistory: () => void;
   /** Takes it off the road or puts it back, when the mechanic cannot. */
@@ -450,9 +460,12 @@ interface TruckDetailViewProps {
 
 function TruckDetailView({
   truck,
+  trip,
   onBack,
   onEdit,
   onDelete,
+  isArchived,
+  onRestore,
   onHistory,
   onStatus,
 }: TruckDetailViewProps) {
@@ -523,33 +536,46 @@ function TruckDetailView({
           {/* Taking a truck off the road is not the same job as editing its
               plate or its capacity, and it was only reachable through the form
               that does those - which had no status field in it at all. */}
-          <button
-            onClick={onStatus}
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
-          >
-            <Wrench className="w-4 h-4 shrink-0" />
-            <span>Status</span>
-          </button>
+          {isArchived ? (
+            <button
+              onClick={() => void onRestore(truck.id)}
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4 shrink-0" />
+              <span>Restore Truck</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onStatus}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+              >
+                <Wrench className="w-4 h-4 shrink-0" />
+                <span>Status</span>
+              </button>
 
-          <button
-            onClick={() => onEdit(truck)}
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
-          >
-            <Edit3 className="w-4 h-4 shrink-0" />
-            <span>Edit Truck</span>
-          </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4 shrink-0" />
-            <span>Delete</span>
-          </button>
+              <button
+                onClick={() => onEdit(truck)}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4 shrink-0" />
+                <span>Edit Truck</span>
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+              >
+                <Archive className="w-4 h-4 shrink-0" />
+                <span>Archive</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
         <div className="space-y-6 text-sm text-slate-900">
+          {trip && <TruckTripCard trip={trip} />}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Truck Information
@@ -584,7 +610,7 @@ function TruckDetailView({
               Truck Model
             </label>
             <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-              {truck.truckModel}
+              {truck.truckModel || "N/A"}
             </div>
           </div>
           <div>
@@ -592,7 +618,7 @@ function TruckDetailView({
               Capacity
             </label>
             <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-              {truck.capacity}
+              {truck.capacity ? `${truck.capacity} kg` : "N/A"}
             </div>
           </div>
               <div>
@@ -614,11 +640,12 @@ function TruckDetailView({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
             <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete Truck Record
+              Archive Truck
             </h3>
             <p className="text-sm text-slate-600 mb-6">
-              Are you sure you want to delete{" "}
-              <strong className="text-slate-900">{truck.plateNumber}</strong>?
+              <strong className="text-slate-900">{truck.plateNumber}</strong> will
+              leave the fleet and can no longer be booked. Its history is kept,
+              and it can be restored from Archived Trucks.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -634,7 +661,7 @@ function TruckDetailView({
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm flex justify-center gap-2"
               >
                 {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Confirm Delete
+                Archive
               </button>
             </div>
           </div>
@@ -676,6 +703,7 @@ export default function FleetStatusPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
+  const [selectedTrip, setSelectedTrip] = useState<TruckTrip | null>(null);
   /** Whether the selected truck's repair history is the screen being shown. */
   const [showTruckHistory, setShowTruckHistory] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
@@ -693,30 +721,32 @@ export default function FleetStatusPage() {
     if (!selectedTruck) return "No truck is selected.";
 
     try {
+      // Only the status and why. This sent the whole truck as the screen last
+      // saw it, so a blank model went back as the "N/A" the screen shows for it.
       await apiFetch(`/api/fleet-status/${selectedTruck.id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          plateNumber: selectedTruck.plateNumber,
-          truckType: selectedTruck.truckType,
-          model: selectedTruck.truckModel,
-          capacity: selectedTruck.capacity,
-          truckStatus: status,
-          lastChecked: selectedTruck.lastChecked,
-          fuelTypeID: selectedTruck.fuelTypeID || null,
-          reason,
-        }),
+        body: JSON.stringify({ truckStatus: status, reason }),
       });
 
       // Read back rather than patched in place, so the row, the detail and the
       // counts along the top all come from the same answer.
       await fetchTrucks();
-      setSelectedTruck((current) => (current ? { ...current, status } : current));
+      await handleRowClick(selectedTruck.id);
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : "The status could not be changed.";
     }
   };
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  // A message reads once and goes, rather than sitting over the screen until
+  // the next one replaces it.
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = window.setTimeout(() => setSuccessMessage(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
 
   useEffect(() => {
     // Back to page one whenever the search or the filter changes.
@@ -728,7 +758,9 @@ export default function FleetStatusPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const response = await apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>("/api/fleet-status");
+      const response = await apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>(
+        showArchived ? "/api/fleet-status?archived=true" : "/api/fleet-status",
+      );
       // Safety fix: handle array natively or wrapped in .data
       const trucksArray = Array.isArray(response) ? response : (response.data || []);
       setTruckList(trucksArray.map(mapApiTruck));
@@ -738,7 +770,7 @@ export default function FleetStatusPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     // The rows land in a network callback, not in the effect body.
@@ -749,10 +781,11 @@ export default function FleetStatusPage() {
   const handleRowClick = async (id: string) => {
     try {
       setErrorMessage("");
-      const response = await apiFetch<{ data?: ApiTruck } & ApiTruck>(`/api/fleet-status/${id}`);
+      const response = await apiFetch<{ data?: ApiTruck; currentTrip?: TruckTrip | null } & ApiTruck>(`/api/fleet-status/${id}`);
       // Safety fix: handle object natively or wrapped in .data
       const truckData = response.data || response;
       setSelectedTruck(mapApiTruck(truckData));
+      setSelectedTrip(response.currentTrip ?? null);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     }
@@ -766,38 +799,33 @@ export default function FleetStatusPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
-      if (editData) {
-        const payload: UpdateTruckDto = {
-          plateNumber: formData.plateNumber,
-          truckType: formData.truckType as TruckType,
-          model: formData.truckModel,
-          capacity: Number(formData.capacity),
-          lastChecked: formData.lastChecked || null,
-          truckStatus: formData.status as TruckStatus,
-          fuelTypeID: formData.fuelTypeID || null,
-        };
+      // Capacity goes as typed: the server keeps the number in it, so "5000 kg"
+      // is 5000. Number("5000 kg") here was NaN, which arrived as null - an edit
+      // quietly ignored it and adding a truck was refused for having none.
+      const details = {
+        plateNumber: formData.plateNumber.trim(),
+        truckType: formData.truckType as TruckType,
+        model: formData.truckModel.trim(),
+        capacity: formData.capacity,
+        lastChecked: formData.lastChecked || null,
+        fuelTypeID: formData.fuelTypeID || null,
+      };
 
+      if (editData) {
+        // PUT, which is what the route answers; this sent PATCH, which it does
+        // not, so every edit from this screen failed. The status is left out:
+        // it is changed through Status, and the form's copy could be stale.
         await apiFetch<unknown>(`/api/fleet-status/${editData.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
+          method: "PUT",
+          body: JSON.stringify(details),
         });
 
         setSuccessMessage("Truck updated successfully.");
         if (selectedTruck) await handleRowClick(editData.id);
       } else {
-        const payload: CreateTruckDto = {
-          plateNumber: formData.plateNumber,
-          truckType: formData.truckType as TruckType,
-          model: formData.truckModel,
-          capacity: Number(formData.capacity),
-          lastChecked: formData.lastChecked || null,
-          truckStatus: "Available",
-          fuelTypeID: formData.fuelTypeID || null,
-        };
-
         await apiFetch<unknown>("/api/fleet-status", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...details, truckStatus: "Available" }),
         });
 
         setSuccessMessage("Truck added successfully.");
@@ -815,11 +843,26 @@ export default function FleetStatusPage() {
     try {
       await apiFetch(`/api/fleet-status/${id}`, { method: "DELETE" });
       setSelectedTruck(null);
-      setSuccessMessage("Truck deactivated successfully.");
+      setSuccessMessage("Truck archived. It can be restored from Archived Trucks.");
       await fetchTrucks();
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       throw error;
+    }
+  };
+
+  const handleRestoreTruck = async (id: string) => {
+    try {
+      setErrorMessage("");
+      await apiFetch(`/api/fleet-status/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ restore: true }),
+      });
+      setSelectedTruck(null);
+      setSuccessMessage("Truck restored as Out of Service. Set it to Available when it is ready.");
+      await fetchTrucks();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
     }
   };
 
@@ -874,6 +917,7 @@ export default function FleetStatusPage() {
         )}
         <TruckDetailView
           truck={selectedTruck}
+          trip={selectedTrip}
           onBack={() => setSelectedTruck(null)}
           onHistory={() => setShowTruckHistory(true)}
           onStatus={() => setChangingStatus(true)}
@@ -882,11 +926,14 @@ export default function FleetStatusPage() {
             setIsModalOpen(true);
           }}
           onDelete={handleDeleteTruck}
+          isArchived={showArchived}
+          onRestore={handleRestoreTruck}
         />
         {changingStatus && (
           <TruckStatusControl
             plateNumber={selectedTruck.plateNumber}
             current={selectedTruck.status}
+            trip={selectedTrip}
             onChange={changeTruckStatus}
             onClose={() => setChangingStatus(false)}
           />
@@ -910,19 +957,34 @@ export default function FleetStatusPage() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-            Fleet Status
+            {showArchived ? "Archived Trucks" : "Fleet Status"}
           </h1>
           </div>
-        <button
-          onClick={() => {
-            setEditingTruck(null);
-            setIsModalOpen(true);
-          }}
-          className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer"
-        >
-          <Truck className="w-4 h-4 shrink-0" />
-          <span>Add Truck</span>
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+          <button
+            onClick={() => {
+              setShowArchived(!showArchived);
+              setSelectedFilter("All");
+              setCurrentPage(1);
+            }}
+            className="w-full sm:w-44 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer"
+          >
+            <Archive className="w-4 h-4 shrink-0" />
+            <span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
+          </button>
+          {!showArchived && (
+            <button
+              onClick={() => {
+                setEditingTruck(null);
+                setIsModalOpen(true);
+              }}
+              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer"
+            >
+              <Truck className="w-4 h-4 shrink-0" />
+              <span>Add Truck</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {successMessage && (

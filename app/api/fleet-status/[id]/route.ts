@@ -5,6 +5,7 @@ import { TRUCK_STATUS } from "@/app/lib/enums";
 import {
   announceTruckStatus,
   deleteTruck,
+  getCurrentTrip,
   getTruckById,
   restoreTruck,
   toTruckPayload,
@@ -25,7 +26,9 @@ export async function GET(request: Request, { params }: RouteContext) {
     if (!truck) {
       return NextResponse.json({ message: "Truck not found" }, { status: 404 });
     }
-    return NextResponse.json(truck);
+    // Which booking holds it, so the screen can say rather than just "On Delivery".
+    const currentTrip = await getCurrentTrip(id);
+    return NextResponse.json({ ...truck, currentTrip });
   } catch (error) {
     console.error("GET truck error:", error);
     return NextResponse.json({ message: "Failed to fetch truck details" }, { status: 500 });
@@ -76,6 +79,31 @@ export async function PUT(request: Request, { params }: RouteContext) {
   try {
     const { id } = await params;
     const before = await getTruckById(id);
+
+    // The status is dispatch's while a trip holds the truck. "On Delivery" is
+    // only ever set by assigning a trip; and a truck on one cannot be put back
+    // to Available or grounded by hand - that is a foul trip, or the booking
+    // override, which deal with the trip as well as the truck.
+    const status = (payload as { truckStatus?: string }).truckStatus;
+    if (status && status !== before?.truckStatus) {
+      if (status === TRUCK_STATUS.onDelivery) {
+        return NextResponse.json(
+          { message: "A truck goes On Delivery when it is assigned to a booking, not by hand." },
+          { status: 409 },
+        );
+      }
+      const trip = await getCurrentTrip(id);
+      if (trip) {
+        return NextResponse.json(
+          {
+            message: `This truck is on booking ${trip.orderCode ?? ""} (${trip.status}). Its status follows that trip - report a foul trip or use the booking override instead.`,
+            currentTrip: trip,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const truck = await updateTruck(id, payload);
 
     if (!truck) {
@@ -98,7 +126,6 @@ export async function PUT(request: Request, { params }: RouteContext) {
     // setting a truck to On Delivery told every mechanic "Truck back in service"
     // - where the shared one speaks only when a truck leaves the road or returns
     // to it.
-    const status = (payload as { truckStatus?: string }).truckStatus;
     if (status && before) {
       // Why, when whoever changed it said why. It becomes the report that opens
       // the maintenance log, which is what an office override actually is: not

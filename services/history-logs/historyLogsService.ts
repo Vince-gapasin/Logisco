@@ -112,7 +112,8 @@ export async function getHistoryLogs() {
       statusBefore: log.statusBefore,
       statusAfter: log.statusAfter,
       primaryMechanicID: primaryMech?.employeeID,
-      mechanicName: primaryMech?.Employee?.employeeName || "Unknown",
+      // Blank when nobody is on it yet, so each screen can say so its own way.
+      mechanicName: primaryMech?.Employee?.employeeName || "",
       additionalMechanicID: addMech?.employeeID,
       additionalMechanic: addMech?.Employee?.employeeName || "",
       driversReport: prelimNote?.issue,
