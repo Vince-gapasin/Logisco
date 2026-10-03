@@ -27,6 +27,8 @@ import {
   type DeliveryStatus,
 } from "@/app/lib/enums";
 import { readNote } from "@/app/lib/bookingNotes";
+import { assessMechanic, assessOffice, type RoleAssessment } from "@/app/lib/rolePerformance";
+import { gatherMechanicFacts, gatherOfficeFacts } from "@/services/employee/rolePerformanceService";
 import {
   assessPerformance,
   EMPTY_FACTS,
@@ -118,8 +120,13 @@ export interface EmployeePerformance {
   employeeName: string;
   role: string;
   window: PerformanceWindow;
-  /** Null for a role this does not describe - an admin, a coordinator. */
+  /** The crew's rating. Null for the roles rated by roleRating instead. */
   performance: Performance | null;
+  /**
+   * The rating for the work that is not on the trucks: a mechanic's repairs, a
+   * coordinator's or admin's running of the deliveries. Null for the crew.
+   */
+  roleRating: RoleAssessment | null;
   notRatedBecause: string | null;
   /**
    * Recorded and shown, never scored. Somebody who reports a breakdown is
@@ -529,6 +536,7 @@ export async function getEmployeePerformance(
     role: employee.role,
     window: { days: null, from: null, label: "All time", widenedBecause: null },
     performance: null,
+    roleRating: null,
     notRatedBecause: null,
     reported: { breakdowns: [], stallAlerts: 0, declines: [], excusedStops: [], lateStops: [] },
     comments: [],
@@ -536,9 +544,26 @@ export async function getEmployeePerformance(
   };
 
   if (!RATED_ROLES.includes(employee.role)) {
+    // Everybody else is rated on their own work, by their own measures - and
+    // only ever compared with their own role.
+    const asked = options.windowDays === undefined ? DEFAULT_WINDOW_DAYS : options.windowDays;
+    const window: PerformanceWindow =
+      asked === null
+        ? { days: null, from: null, label: "All time", widenedBecause: null }
+        : { days: asked, from: new Date(Date.now() - asked * 864e5).toISOString(), label: `Last ${asked} days`, widenedBecause: null };
+
+    const role = employee.role.trim();
+    if (role === EMPLOYEE_ROLE.mechanic) {
+      return { ...empty, window, roleRating: assessMechanic(await gatherMechanicFacts(employee.employeeID, window.from)) };
+    }
+    if (role === EMPLOYEE_ROLE.coordinator || role === EMPLOYEE_ROLE.admin) {
+      const includeStaff = role === EMPLOYEE_ROLE.admin;
+      const facts = await gatherOfficeFacts(employee.employeeID, window.from, { includeStaff });
+      return { ...empty, window, roleRating: assessOffice(facts, { includeStaff }) };
+    }
     return {
       ...empty,
-      notRatedBecause: `This measures the crew who run deliveries. ${employee.role} work is not what it describes, and a number that does not mean anything is worse than none.`,
+      notRatedBecause: `There are no measures for ${employee.role} work yet, and a number that does not mean anything is worse than none.`,
     };
   }
 
