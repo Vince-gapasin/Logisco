@@ -7,244 +7,56 @@ import RowOpenButton from "@/components/RowOpenButton";
 import { useToast } from "@/components/Toast";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { formatTime } from "@/app/lib/datetime";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { usePolling } from "@/app/lib/usePolling";
 import { apiFetch, authFetch } from "@/app/lib/apiClient";
-import { FileText, CheckCircle2, Clock, Eye, ArrowLeft, Truck, Camera, X, AlertTriangle, Navigation, Search, Archive, TrafficCone, MapPin } from "lucide-react";
-import { registerPlugin, Capacitor } from '@capacitor/core';
+import {
+  FileText,
+  CheckCircle2,
+  Clock,
+  Eye,
+  ArrowLeft,
+  Truck,
+  Camera,
+  X,
+  AlertTriangle,
+  Navigation,
+  Search,
+  Archive,
+  TrafficCone,
+  MapPin,
+} from "lucide-react";
 import dynamic from "next/dynamic";
-import { getAccessToken } from "@/app/lib/apiClient";
 import type { MapPoint } from "@/components/LiveRouteMap";
+import { compressImage } from "@/app/lib/imageCompression";
+import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
+import OpenIssueNotice from "@/components/crew/OpenIssueNotice";
+import {
+  DECLINE_CODES,
+  DECLINE_CODES_NOT_COUNTED,
+  STOP_STATUS,
+  type DeclineCode,
+} from "@/app/lib/enums";
+import type { DeliveryRecord, RouteStop } from "./_components/types";
+import {
+  type PositionFix,
+  isLiveTracking,
+  setPositionListener,
+  startLiveTracking,
+  stopLiveTracking,
+} from "./_components/liveTracking";
+import { formatDispatchNote, generateDynamicStops, stopName } from "./_components/stops";
+
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
   loading: () => <div className="h-80 sm:h-100 md:h-120 w-full animate-pulse bg-slate-100" />,
 });
-import { compressImage } from "@/app/lib/imageCompression";
-import { markPing, markMovement } from "@/app/lib/trackingPulse";
-import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
-import OpenIssueNotice from "@/components/crew/OpenIssueNotice";
-import { DECLINE_CODES, DECLINE_CODES_NOT_COUNTED, STOP_STATUS, type DeclineCode } from "@/app/lib/enums";
-
-// Background Geolocation Setup
-// The Capacitor community plugin, as much of it as this screen uses.
-interface BackgroundLocation {
-  latitude: number;
-  longitude: number;
-  speed?: number | null;
-  bearing?: number | null;
-}
-
-interface BackgroundGeolocationPlugin {
-  addWatcher(
-    options: Record<string, unknown>,
-    callback: (location: BackgroundLocation | null, error: unknown) => void,
-  ): Promise<string>;
-  removeWatcher(options: { id: string }): Promise<void>;
-}
-
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
-let activeTrackingId: string | null = null;
-
-// The tracking watchers live outside React; this lets the open screen show the
-// driver's own position without waiting for a round trip through the server.
-type PositionFix = { latitude: number; longitude: number };
-let onPositionUpdate: ((fix: PositionFix) => void) | null = null;
-
-// Browser geolocation can fire several times a second; one fix every 10s is
-// plenty for the fleet map and keeps mobile data use low.
-const WEB_PING_INTERVAL_MS = 10_000;
-let lastWebPingAt = 0;
-
-// ---------------------------------------------------------------- heartbeat
-//
-// The watchers above only fire when the truck moves, so a stopped truck and a
-// dead phone have always sent the same thing: nothing. This re-sends the last
-// known position on a timer whether or not anything has changed, which lets the
-// office tell the two apart - the server records the last contact and the last
-// actual movement separately, and decides for itself which a ping was.
-//
-// Every three minutes. Often enough that ten minutes of silence means something,
-// rare enough to be nothing on a data plan: one small request, twenty times an
-// hour, only while a trip is open.
-const HEARTBEAT_MS = 3 * 60_000;
-
-let heartbeat: ReturnType<typeof setInterval> | null = null;
-let lastFix: { latitude: number; longitude: number; speed?: number | null; heading?: number | null } | null = null;
-
-function startHeartbeat(dispatchId: string | number) {
-  stopHeartbeat();
-
-  heartbeat = setInterval(() => {
-    // Nothing to re-send until the first real fix has arrived.
-    if (!lastFix) return;
-    void postLocation(dispatchId, lastFix);
-  }, HEARTBEAT_MS);
-}
-
-function stopHeartbeat() {
-  if (heartbeat !== null) {
-    clearInterval(heartbeat);
-    heartbeat = null;
-  }
-}
-
-// Sends one GPS fix. The token is read per ping so tracking survives token
-// refreshes. Returns false once the server reports the trip is closed.
-async function postLocation(
-  dispatchId: string | number,
-  fix: { latitude: number; longitude: number; speed?: number | null; heading?: number | null },
-): Promise<boolean> {
-  const token = getAccessToken();
-  if (!token) return true;
-
-  lastFix = fix;
-
-  try {
-    const response = await fetch("/api/crew/dispatches/location", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ dispatch_id: dispatchId, ...fix }),
-    });
-
-    // The app is the only thing that knows it is still in touch with the
-    // server. The check-in prompt reads this to decide whether the silence the
-    // office is seeing is real.
-    if (response.ok) {
-      markPing(dispatchId);
-
-      // And when the truck was last somewhere else. The server works that out by
-      // comparing coordinates - the app cannot, because a parked heartbeat and a
-      // driving one are both just a post that succeeded - and hands the answer
-      // back. Without it the prompt waits on a clock the heartbeat keeps
-      // resetting, and never asks anything.
-      const body = (await response.json().catch(() => null)) as { movedAt?: string } | null;
-      const movedAt = body?.movedAt ? Date.parse(body.movedAt) : NaN;
-      if (Number.isFinite(movedAt)) markMovement(dispatchId, movedAt);
-    }
-
-    return response.status !== 409;
-  } catch {
-    // Offline: drop this fix, the next one will update the pin.
-    return true;
-  }
-}
-
-async function stopLiveTracking() {
-  stopHeartbeat();
-
-  if (activeTrackingId) {
-    if (Capacitor.getPlatform() === 'web') {
-      navigator.geolocation.clearWatch(parseInt(activeTrackingId));
-    } else {
-      await BackgroundGeolocation.removeWatcher({ id: activeTrackingId });
-    }
-    activeTrackingId = null;
-    console.log("Live tracking stopped.");
-  }
-}
-
-const startLiveTracking = async (dispatchId: string | number) => {
-  try {
-    // Never run two watchers at once.
-    await stopLiveTracking();
-
-    // === WEB BROWSER FALLBACK FOR TESTING ===
-    if (Capacitor.getPlatform() === 'web') {
-      console.log("Web platform detected. Using browser HTML5 GPS for testing.");
-
-      const watchId = navigator.geolocation.watchPosition(
-        async (position) => {
-          const now = Date.now();
-          if (now - lastWebPingAt < WEB_PING_INTERVAL_MS) return;
-          lastWebPingAt = now;
-
-          onPositionUpdate?.({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-
-          const stillOpen = await postLocation(dispatchId, {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            speed: position.coords.speed || 0,
-            heading: position.coords.heading || 0,
-          });
-          if (!stillOpen) void stopLiveTracking();
-        },
-        (err) => console.warn("Web GPS Error:", err),
-        { enableHighAccuracy: true }
-      );
-
-      activeTrackingId = watchId.toString();
-      startHeartbeat(dispatchId);
-      return;
-    }
-
-    // === NATIVE MOBILE TRACKING (ANDROID/IOS) ===
-    activeTrackingId = await BackgroundGeolocation.addWatcher(
-      {
-        backgroundMessage: "Tracking active delivery route.",
-        backgroundTitle: "Logisco Live GPS",
-        requestPermissions: true,
-        stale: false,
-        distanceFilter: 15, // Pings every 15 meters of movement
-      },
-      async (location: BackgroundLocation | null, error: unknown) => {
-        if (error || !location) return;
-
-        onPositionUpdate?.({
-          latitude: location.latitude,
-          longitude: location.longitude,
-        });
-
-        const stillOpen = await postLocation(dispatchId, {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          speed: location.speed,
-          heading: location.bearing,
-        });
-        if (!stillOpen) void stopLiveTracking();
-      }
-    );
-
-    startHeartbeat(dispatchId);
-  } catch (err) {
-    console.warn("Tracking initialization failed:", err);
-  }
-};
-
-export interface PickupRecord {
-  // Present for pickups that came from the PickupStops table. Bookings made
-  // before that table existed have no id, and the crew app falls back to the
-  // single pickup line the booking notes carry.
-  pickupID?: number;
-  warehouse: string;
-  address: string;
-  contactPerson: string;
-  contactNumber: string;
-  pickupTime: string;
-  quantity: string;
-  status?: string;
-  latitude?: number | null;
-  longitude?: number | null;
-}
-
-export interface DeliveryDestinationRecord {
-  branchID?: number;
-  branch: string;
-  address: string;
-  contactPerson: string;
-  contactNumber: string;
-  deliveryTime: string;
-  quantity: string;
-  status?: string;
-  latitude?: number | null;
-  longitude?: number | null;
-}
 
 // Why a delivery stopped, and what happened when it did not. The office
 // reads these to decide what to do, so they are chosen rather than typed.
@@ -266,44 +78,6 @@ const CONTINUING_REASONS = [
   "Other",
 ];
 
-export interface DeliveryRecord {
-  id: string | number;
-  clientName: string;
-  clientEmail?: string;
-  bookingId: string;
-  address: string;
-  dateTime: string;
-  status: string; 
-  current_step?: number; 
-  pickupCompletedAt?: string | null;
-  scheduledDate: string;
-  pickupTime: string;
-  deliveryTime: string;
-  pickupAddress: string;
-  deliveryAddress: string;
-  contactPerson: string;
-  contactNumber: string;
-  driver: string;
-  helper: string;
-  helper2?: string;
-  assignedVehicle: string;
-  product: string;
-  quantity?: string;
-  priorityLevel?: string;
-  notes: string;
-  confirmBy?: string;
-  dispatchNote?: string; 
-  pod_url?: string;      
-  multiplePickups?: PickupRecord[];
-  multipleDeliveries?: DeliveryDestinationRecord[];
-  localUpdatedAt?: number;
-  /**
-   * Why this trip cannot start yet, when it cannot: somebody assigned to it has
-   * not accepted. Worded by the server for whoever is reading it.
-   */
-  startBlockedReason?: string | null;
-}
-
 interface CrewDashboardProps {
   isOpen?: boolean;
   setIsOpen?: (open: boolean) => void;
@@ -311,93 +85,6 @@ interface CrewDashboardProps {
 
 type ViewMode = "list" | "update-status";
 type TabFilter = "Active" | "Assigned" | "Completed";
-
-export interface RouteStop {
-  title: string;
-  type: "base" | "pickup" | "delivery";
-  reqPod: boolean;
-  /** The pickup or delivery row behind it, when this step has one. */
-  data?: PickupRecord | DeliveryDestinationRecord;
-}
-
-// A step's own name, whichever kind of stop it is.
-function stopName(stop?: PickupRecord | DeliveryDestinationRecord): string {
-  if (!stop) return "";
-  return "warehouse" in stop ? stop.warehouse : stop.branch;
-}
-
-const generateDynamicStops = (delivery: DeliveryRecord): RouteStop[] => {
-  const stops: RouteStop[] = [];
-  stops.push({ title: "Start Delivery", type: "base", reqPod: false });
-
-  if (delivery.multiplePickups && delivery.multiplePickups.length > 0) {
-    delivery.multiplePickups.forEach((p) => {
-      stops.push({ title: `Pickup: ${p.warehouse}`, type: "pickup", reqPod: true, data: p });
-    });
-  } else {
-    stops.push({ title: `Pickup: ${delivery.pickupAddress?.split(',')[0] || 'Pickup point'}`, type: "pickup", reqPod: true });
-  }
-
-  if (delivery.multipleDeliveries && delivery.multipleDeliveries.length > 0) {
-    delivery.multipleDeliveries.forEach((d) => {
-      stops.push({ title: `Dropoff: ${d.branch}`, type: "delivery", reqPod: true, data: d });
-    });
-  } else {
-    stops.push({ title: `Dropoff: ${delivery.clientName}`, type: "delivery", reqPod: true });
-  }
-
-  stops.push({ title: "Returned", type: "base", reqPod: false });
-  return stops;
-};
-
-// Smart filter that strips out the redundant system-generated text
-const formatDispatchNote = (note?: string, delivery?: DeliveryRecord) => {
-  if (!note) return "No final remarks logged.";
-  
-  const formatted = note
-    .replace(/\[DELIVERY DETAILS\]/gi, '\n[DELIVERY DETAILS]\n')
-    .replace(/\[ASSIGNED CREW\]/gi, '\n[ASSIGNED CREW]\n')
-    .replace(/(Priority:|Request Date:|Delivery Schedule:|Pickup:|Truck:|Driver:|Helper 1:|Helper 2:)/gi, '\n$1');
-
-  return (
-    <div className="space-y-1.5">
-      {formatted.split('\n').map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) return null;
-
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-          return (
-            <div key={idx} className="font-bold text-emerald-800 text-xs tracking-wider uppercase mt-4 mb-2 border-b border-emerald-200/50 pb-1 first:mt-0">
-              {trimmed.replace(/\[|\]/g, '')}
-            </div>
-          );
-        }
-
-        const colonIdx = trimmed.indexOf(':');
-        if (colonIdx > -1) {
-          const label = trimmed.substring(0, colonIdx + 1);
-          let value = trimmed.substring(colonIdx + 1).trim();
-
-          if (delivery) {
-            if (label === 'Truck:' && delivery.assignedVehicle) value = delivery.assignedVehicle;
-            if (label === 'Driver:' && delivery.driver) value = delivery.driver;
-            if (label === 'Helper 1:' && delivery.helper) value = delivery.helper;
-            if (label === 'Helper 2:' && delivery.helper2) value = delivery.helper2;
-          }
-
-          return (
-            <div key={idx} className="text-xs text-slate-700 pl-2 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-              <span className="font-semibold text-slate-900 shrink-0 sm:w-32">{label}</span>
-              <span className="break-words text-slate-600">{value}</span>
-            </div>
-          );
-        }
-
-        return <div key={idx} className="text-xs text-slate-700 pl-2">{trimmed}</div>;
-      })}
-    </div>
-  );
-};
 
 export default function CrewDashboardPage({
   isOpen,
@@ -687,9 +374,9 @@ export default function CrewDashboardPage({
 
   // Show the driver's position on the map as tracking reports it.
   useEffect(() => {
-    onPositionUpdate = (fix) => setDriverPosition(fix);
+    setPositionListener((fix) => setDriverPosition(fix));
     return () => {
-      onPositionUpdate = null;
+      setPositionListener(null);
     };
   }, []);
 
@@ -1243,7 +930,7 @@ export default function CrewDashboardPage({
           setDynamicStops(calculatedStops);
           setCurrentStepIndex(selectedDelivery.current_step || 0);
           // Resume GPS after an app restart or reload mid-trip.
-          if (!activeTrackingId && selectedDelivery.status?.toLowerCase() === "in transit") {
+          if (!isLiveTracking() && selectedDelivery.status?.toLowerCase() === "in transit") {
             void startLiveTracking(selectedDelivery.id);
           }
           setShowDetailsModal(false);
