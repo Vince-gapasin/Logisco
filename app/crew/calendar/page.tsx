@@ -23,7 +23,8 @@ export interface DeliveryEvent {
   clientName: string;
   bookingId: string;
   timeWindow: string;
-  status: "Completed" | "Pending";
+  /** Stopped: a foul trip or a cancelled delivery, which is not still to come. */
+  status: "Completed" | "Pending" | "Stopped";
   startTime: string;
 }
 
@@ -71,7 +72,14 @@ function toDeliveryEvent(record: CrewDispatchRecord): DeliveryEvent | null {
     clientName: record.clientName || "Unknown Client",
     bookingId: record.bookingId || "",
     timeWindow: record.timeWindow || "Time to be confirmed",
-    status: status === "completed" ? "Completed" : "Pending",
+    // A trip that broke down or was cancelled used to show as Pending on its
+    // day for ever, as if it were still to be done.
+    status:
+      status === "completed"
+        ? "Completed"
+        : status === "foul trip" || status === "cancelled"
+          ? "Stopped"
+          : "Pending",
     startTime: firstStopTime ? String(firstStopTime).slice(0, 5) : DEFAULT_EVENT_TIME,
   };
 }
@@ -231,7 +239,9 @@ export default function CrewCalendarPage() {
         className={`min-h-tap md:min-h-0 inline-flex items-center justify-start absolute left-1 right-1 z-10 rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
           delivery.status === "Completed"
             ? "bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200"
-            : "bg-orange-100 border-orange-300 text-orange-900 hover:bg-orange-200"
+            : delivery.status === "Stopped"
+              ? "bg-red-100 border-red-300 text-red-900 hover:bg-red-200"
+              : "bg-orange-100 border-orange-300 text-orange-900 hover:bg-orange-200"
         }`}
       >
         <span className="block text-xs font-semibold truncate">
@@ -374,7 +384,7 @@ export default function CrewCalendarPage() {
                 className="flex items-start gap-3 p-3.5 bg-[#1e1b4b] rounded-xl text-white cursor-pointer hover:bg-opacity-95 transition-all shadow-sm group"
               >
                 <div className="pt-1">
-                  <div className={`w-3.5 h-3.5 rounded-full shadow-sm ${delivery.status === "Completed" ? "bg-[#90EE90]" : "bg-orange-400"}`}></div>
+                  <div className={`w-3.5 h-3.5 rounded-full shadow-sm ${delivery.status === "Completed" ? "bg-[#90EE90]" : delivery.status === "Stopped" ? "bg-red-400" : "bg-orange-400"}`}></div>
                 </div>
                 <div className="flex-1">
                   <h4 className="font-semibold text-xs leading-tight tracking-wide">{delivery.clientName}</h4>

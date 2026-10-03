@@ -290,9 +290,17 @@ export default function CrewDashboardPage({
     
     const currentStep = delivery.current_step || 0;
     if (delivery.status?.toLowerCase() === "accepted" && currentStep === 0) return "Accepted - Awaiting Start";
-    if (currentStep === 1) return "Heading to Warehouse"; 
-    if (currentStep > 1) return "Products Loaded - Delivering"; 
-    
+
+    // Read off the trip's own steps. This was "Heading to Warehouse" for step 1
+    // and "Products Loaded - Delivering" for everything after, so a second
+    // collection read as delivering, and so did the drive back to base.
+    const step = generateDynamicStops(delivery)[currentStep];
+    const here = delivery.status?.toLowerCase() === "arrived";
+    const place = step?.title.replace(/^(Pickup|Dropoff):\s*/i, "") ?? "";
+    if (step?.type === "pickup") return here ? `Loading at ${place}` : `Heading to pickup: ${place}`;
+    if (step?.type === "delivery") return here ? `At ${place}` : `Delivering to ${place}`;
+    if (step?.title === "Returned") return "Returning to base";
+
     return delivery.status;
   };
 
@@ -575,13 +583,17 @@ export default function CrewDashboardPage({
         void stopLiveTracking();
         setShowTripReportModal(true);
       } else {
-        showToast(`Successfully arrived and updated: ${dynamicStops[currentStepIndex]?.title || 'Location'}`, "success");
-        setViewMode("list");
-        setSelectedDelivery(null);
+        // On to the next stop, on the same screen. This went back to the list
+        // after every stop, so the crew reopened the trip and tapped Update
+        // Status at each one - and the screen that follows the shared trip, and
+        // moves a helper on when the driver finishes a stop, was closed.
+        showToast(`Done: ${dynamicStops[currentStepIndex]?.title || 'Location'}. On to the next stop.`, "success");
+        setCurrentStepIndex(nextStep);
+        if (selectedImage) URL.revokeObjectURL(selectedImage);
         setSelectedImage(null);
         setSelectedFile(null);
         setRemarks("");
-        setReceiverName(""); 
+        setReceiverName("");
       }
     } catch (error) {
       showToast(`Status update failed: ${error instanceof Error ? error.message : error}`, "error");
