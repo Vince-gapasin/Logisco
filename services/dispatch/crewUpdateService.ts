@@ -143,16 +143,22 @@ export async function announceTripReport(
   hasVehicleIssues: boolean,
   actor: Actor,
   at: string,
+  /** Sent from the crew's history as a problem with a finished delivery. */
+  isProblem = false,
 ): Promise<void> {
-  if (!hasVehicleIssues) return;
+  // A report that is a problem is always worth a line; ordinary end-of-trip
+  // remarks are kept on the booking's history without one.
+  if (!hasVehicleIssues && !isProblem) return;
 
   await tell({
     dispatchID,
     event: "TRIP_REPORT_FILED",
-    title: "Trip report notes a truck problem",
-    body:
-      `${actor.employeeName} finished ${(await tripLabel(dispatchID)) ?? "a delivery"} and ` +
-      `reported a problem with the truck. Worth reading before it goes out again.`,
+    title: hasVehicleIssues ? "Trip report notes a truck problem" : "Crew reported a problem with a delivery",
+    body: hasVehicleIssues
+      ? `${actor.employeeName} finished ${(await tripLabel(dispatchID)) ?? "a delivery"} and ` +
+        `reported a problem with the truck. Worth reading before it goes out again.`
+      : `${actor.employeeName} reported a problem with ${(await tripLabel(dispatchID)) ?? "a delivery"}. ` +
+        `It is on the booking's history.`,
     severity: "action",
     dedupeKey: `trip-report:${dispatchID}:${at}`,
     actor,

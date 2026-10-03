@@ -93,6 +93,26 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
         detail: reason ? `Reason: ${reason}` : "No reason given.",
       };
     }
+    case "DispatchOrder/CREW_WITHDRAW":
+    case "DispatchHelper/CREW_WITHDRAW": {
+      const reason = text(data.rejectionreason) || text(data.declinereason) || text(data.reason);
+      return {
+        title: `Withdrawn by the ${as}`,
+        detail: `They had accepted, then backed out before the trip started.${reason ? ` Reason: ${reason}` : ""}`,
+      };
+    }
+    // What the crew wrote at the end of a trip, or reported about it later from
+    // their history. It was saved to a table no screen reads, so the office was
+    // told to go and read a report it had nowhere to find.
+    case "DispatchOrder/TRIP_REPORT": {
+      const remarks = text(data.tripRemarks);
+      const vehicle = text(data.vehicleIssues);
+      return {
+        title: data.kind === "problem" ? "Crew reported a problem" : "Crew trip report",
+        detail:
+          [remarks, vehicle ? `Truck: ${vehicle}` : ""].filter(Boolean).join(" ") || "Nothing to report.",
+      };
+    }
     case "DispatchOrder/TRIP_PROGRESS": {
       const status = text(data.status) || "Updated";
       // data.stop is an object - { branchID } or { pickupID } - which text()

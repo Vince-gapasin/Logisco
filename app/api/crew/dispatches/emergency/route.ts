@@ -145,9 +145,11 @@ export async function POST(request: Request) {
     }
 
     // 4. Kept for the reports screen, which reads it.
+    // Filed under what the trip became: a foul trip when it stopped, and its
+    // own status when it is carrying on - a delay is not a foul trip.
     const { error: reportErr } = await supabase.from("Reports").insert({
       dispatchID,
-      status: DELIVERY_STATUS.foulTrip,
+      status: blocking ? DELIVERY_STATUS.foulTrip : current.status,
       finalRemarks: `${blocking ? "EMERGENCY ALERT" : "ISSUE REPORTED"}\nType: ${issueType}\nReported by: ${auth.employee.employeeName}\nDetails: ${details || "None provided"}`,
     });
     if (reportErr) console.error("[Emergency API] Report insert failed:", reportErr.message);

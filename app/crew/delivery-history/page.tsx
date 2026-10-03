@@ -7,7 +7,7 @@ import type { CrewDispatchRecord } from "@/types/crew";
 import React, { useCallback, useEffect, useState } from "react";
 import { formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
-import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle, Camera } from "lucide-react";
+import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/Toast";
 
 export interface PickupRecord {
@@ -66,8 +66,7 @@ export default function DeliveryHistoryPage() {
   const [reportCategory, setReportCategory] = useState<string>("Delivery Delay");
   const [reportDetails, setReportDetails] = useState<string>("");
   const [otherReason, setOtherReason] = useState<string>("");
-  const [reportImage, setReportImage] = useState<string | null>(null);
-  const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
+const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,13 +130,6 @@ export default function DeliveryHistoryPage() {
     setSelectedDelivery(delivery);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setReportImage(imageUrl);
-    }
-  };
 
   const handleSendReport = async () => {
     if (!selectedDelivery) return;
@@ -152,6 +144,9 @@ export default function DeliveryHistoryPage() {
           dispatchID: selectedDelivery.id,
           tripRemarks: `[${category}] ${reportDetails}`.trim(),
           vehicleIssues: isVehicleIssue ? reportDetails : "",
+          // A problem with a finished delivery: the office is told about it,
+          // and it goes on the booking's history.
+          kind: "problem",
         }),
       });
 
@@ -161,8 +156,7 @@ export default function DeliveryHistoryPage() {
         setShowReportModal(false);
         setReportDetails("");
         setOtherReason("");
-        setReportImage(null);
-      }, 2000);
+}, 2000);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to send report.", "error");
     }
@@ -450,25 +444,6 @@ export default function DeliveryHistoryPage() {
                       placeholder="Please describe the issue or provide additional information..."
                       className="w-full border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 min-h-22.5"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">Attach Image for Proof</label>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition-colors w-full">
-                        <Camera className="w-4 h-4 text-slate-500" />
-                        <span>{reportImage ? "Change Image" : "Upload Image"}</span>
-                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                      </label>
-                    </div>
-                    {reportImage && (
-                      <div className="relative mt-2 w-20 h-20 rounded-xl overflow-hidden border border-slate-200">
-                        <img src={reportImage} alt="Proof preview" className="w-full h-full object-cover" />
-                        <button onClick={() => setReportImage(null)} className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-8 h-8 sm:w-auto sm:h-auto flex items-center justify-center bg-slate-900/70 text-white rounded-full p-0 sm:p-0.5 hover:bg-slate-900">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex items-center gap-3 pt-2">
