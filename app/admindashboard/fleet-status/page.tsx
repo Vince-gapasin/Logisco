@@ -10,10 +10,9 @@ import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import { bookingSummary, shownTruckStatus } from "@/app/lib/truckBooking";
 import RowOpenButton from "@/components/RowOpenButton";
-import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
+import TruckHistory from "@/components/truck/TruckHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
 import TruckTripCard from "@/components/truck/TruckTripCard";
-import TruckChangeHistory from "@/components/truck/TruckChangeHistory";
 import type { TruckTrip } from "@/services/truck/truckService";
 import {
   Search,
@@ -640,10 +639,6 @@ function TruckDetailView({
               </div>
             </div>
           </div>
-
-          {/* Who changed this truck's record - an admin, a coordinator or a
-              mechanic - and what they changed. */}
-          <TruckChangeHistory truckID={truck.id} refreshKey={truck} />
         </div>
       </div>
 
@@ -903,10 +898,11 @@ export default function FleetStatusPage() {
   );
 
   // The history is its own screen rather than a panel inside the detail, which is
-  // how the mechanic's module does it and what the office asked to match.
+  // how the mechanic's module does it and what the office asked to match. It
+  // holds every update - repairs and record changes - and opens each one.
   if (selectedTruck && showTruckHistory) {
     return (
-      <TruckMaintenanceHistory
+      <TruckHistory
         truckID={selectedTruck.id}
         plateNumber={selectedTruck.plateNumber}
         onBack={() => setShowTruckHistory(false)}

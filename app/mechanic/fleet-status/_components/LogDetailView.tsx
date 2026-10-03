@@ -22,6 +22,8 @@ interface LogDetailViewProps {
   onEdit: (logRecord: HistoryLogRecord) => void;
   onDelete: (id: string | number) => void;
   currentUserId: string; // <-- ADD THIS
+  /** The office reads a repair record; it never edits or deletes one. */
+  readOnly?: boolean;
 }
 
 export function LogDetailView({
@@ -31,6 +33,7 @@ export function LogDetailView({
   onEdit,
   onDelete,
   currentUserId,
+  readOnly = false,
 }: LogDetailViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -147,7 +150,7 @@ export function LogDetailView({
         </div>
 
         {/* UPDATED: Only show Edit/Delete if authorized mechanic */}
-        {hasMechanicAccess && (
+        {!readOnly && hasMechanicAccess && (
           <div className="flex items-center gap-3">
             <button
               onClick={() => onEdit(log)}
