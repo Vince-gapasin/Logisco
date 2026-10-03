@@ -30,7 +30,14 @@ function tripStage(status: string): string {
   }
 }
 
-export default function TruckTripCard({ trip }: { trip: TruckTrip }) {
+export default function TruckTripCard({
+  trip,
+  showLink = true,
+}: {
+  trip: TruckTrip;
+  /** The link goes to the office's booking feeds, which a mechanic cannot open. */
+  showLink?: boolean;
+}) {
   return (
     <div className="border border-blue-200 bg-blue-50/60 rounded-xl p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -59,7 +66,7 @@ export default function TruckTripCard({ trip }: { trip: TruckTrip }) {
           <dd>{trip.driverName ?? "No driver"}</dd>
         </div>
       </dl>
-      {trip.orderCode && (
+      {showLink && trip.orderCode && (
         <Link
           href={`/admindashboard/feeds/${["In Transit", "Arrived", "Start Delivery", "In Warehouse"].includes(trip.status) ? "in-transit" : "pending"}?open=${encodeURIComponent(trip.orderCode)}`}
           className="mt-3 inline-block text-xs font-semibold text-blue-700 hover:underline"

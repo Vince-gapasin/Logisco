@@ -4,12 +4,14 @@
 "use client";
 
 import type { EmployeeRow, TruckRow } from "@/types/database";
+import type { TruckTrip } from "@/services/truck/truckService";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/Toast";
 import RowOpenButton from "@/components/RowOpenButton";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import { bookingSummary, shownTruckStatus } from "@/app/lib/truckBooking";
 import {
   Search,
   Truck,
@@ -83,7 +85,7 @@ export default function MechanicFleetStatusPage({
   }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "On Delivery" | "Out of Service">("All");
+  const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "Already Booked" | "On Delivery" | "Out of Service">("All");
   const [showArchived, setShowArchived] = useState(false);
 
   const [isSavingTruck, setIsSavingTruck] = useState(false);
@@ -142,7 +144,7 @@ export default function MechanicFleetStatusPage({
 
   const [archivedList, setArchivedList] = useState<TruckRecord[]>([]);
 
-  const toTruckRecord = (truck: Partial<TruckRow>): TruckRecord => ({
+  const toTruckRecord = (truck: Partial<TruckRow> & { currentTrip?: TruckTrip | null }): TruckRecord => ({
     id: truck.truckID ?? "",
     // Carried so an edit keeps the code the truck has, rather than the form
     // inventing a new one from the plate.
@@ -153,6 +155,7 @@ export default function MechanicFleetStatusPage({
     capacity: truck.capacity === null || truck.capacity === undefined ? "" : String(truck.capacity),
     lastChecked: truck.lastChecked ?? "",
     status: truck.truckStatus || "Available",
+    booking: truck.currentTrip ?? null,
   });
 
   // Kept in the order the server sends: most recently checked first. This used
@@ -434,10 +437,10 @@ export default function MechanicFleetStatusPage({
       if (editingTruck) {
         // The details as saved; the status stays whatever it already is.
         setFleetList((prev) =>
-          prev.map((t) => (String(t.id) === String(record.id) ? { ...record, status: t.status } : t)),
+          prev.map((t) => (String(t.id) === String(record.id) ? { ...record, status: t.status, booking: t.booking } : t)),
         );
         if (selectedTruck && String(selectedTruck.id) === String(record.id))
-          setSelectedTruck((prev) => (prev ? { ...record, status: prev.status } : prev));
+          setSelectedTruck((prev) => (prev ? { ...record, status: prev.status, booking: prev.booking } : prev));
       } else {
         const newTruck: TruckRecord = {
           ...record,
@@ -602,19 +605,26 @@ export default function MechanicFleetStatusPage({
     }
   };
 
-  // "Disabled" and "Already Booked" were statuses here that the server never
-  // stores (it has four: Available, On Delivery, On Maintenance, Out of
-  // Service), so their tab always read 0 and the archive was always empty.
-  // Retired trucks come from their own request now.
+  // "Disabled" was a status here that the server never stores (it has four:
+  // Available, On Delivery, On Maintenance, Out of Service), so the archive was
+  // always empty. Retired trucks come from their own request now.
+  //
+  // "Already Booked" is not stored either: a truck on a booking is "On
+  // Delivery" on its record, and this list calls it booked until the crew
+  // starts the trip.
   const activeFleet = fleetList;
   const disabledFleet = archivedList;
+  const shownStatus = (t: TruckRecord) => shownTruckStatus(t.status, t.booking);
 
   const totalCount = activeFleet.length;
   const operationalCount = activeFleet.filter(
     (t) => t.status === "Available",
   ).length;
+  const bookedCount = activeFleet.filter(
+    (t) => shownStatus(t) === "Already Booked",
+  ).length;
   const deliveryCount = activeFleet.filter(
-    (t) => t.status === "On Delivery",
+    (t) => shownStatus(t) === "On Delivery",
   ).length;
   const maintenanceCount = activeFleet.filter(
     (t) => t.status === "On Maintenance",
@@ -628,12 +638,15 @@ export default function MechanicFleetStatusPage({
   const baseFleet = showArchived ? disabledFleet : activeFleet;
 
   const filteredFleet = baseFleet.filter((truck) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      truck.plateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      truck.truckType.toLowerCase().includes(searchTerm.toLowerCase());
+      truck.plateNumber.toLowerCase().includes(term) ||
+      truck.truckType.toLowerCase().includes(term) ||
+      (truck.booking?.orderCode ?? "").toLowerCase().includes(term) ||
+      (truck.booking?.clientName ?? "").toLowerCase().includes(term);
     const matchesTab =
       selectedFilter === "All" ||
-      truck.status.toLowerCase() === selectedFilter.toLowerCase();
+      shownStatus(truck).toLowerCase() === selectedFilter.toLowerCase();
     return matchesSearch && matchesTab;
   });
 
@@ -797,6 +810,12 @@ export default function MechanicFleetStatusPage({
                       Available ({operationalCount})
                     </button>
                     <button
+                      onClick={() => setSelectedFilter("Already Booked")}
+                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
+                    >
+                      Already Booked ({bookedCount})
+                    </button>
+                    <button
                       onClick={() => setSelectedFilter("On Delivery")}
                       className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "On Delivery" ? getStatusStyles("On Delivery").tabActive : getStatusStyles("On Delivery").bgLight}`}
                     >
@@ -816,7 +835,7 @@ export default function MechanicFleetStatusPage({
                 <UrlSearchSync onQuery={setSearchTerm} />
                 <input
                   type="text"
-                  placeholder="Search by Plate No or Type..."
+                  placeholder="Search by Plate No, Type or Booking..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
@@ -862,7 +881,7 @@ export default function MechanicFleetStatusPage({
                     </tr>
                   ) : (
                     paginatedFleet.map((truck, index) => {
-                      const currentStyles = getStatusStyles(truck.status);
+                      const currentStyles = getStatusStyles(shownStatus(truck));
                       return (
                         <tr
                           key={truck.id || `truck-row-${index}`}
@@ -886,13 +905,18 @@ export default function MechanicFleetStatusPage({
                               Last Checked:{" "}
                               {formatDisplayDate(truck.lastChecked)}
                             </div>
+                            {truck.booking && !showArchived && (
+                              <div className="text-xs text-blue-700 mt-1 break-words">
+                                {bookingSummary(truck.booking)}
+                              </div>
+                            )}
                           </td>
                           <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                             <div className="relative inline-block text-right z-10">
                               <div
                                 className={`w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
                               >
-                                <span>{truck.status}</span>
+                                <span>{shownStatus(truck)}</span>
                               </div>
                             </div>
                           </td>

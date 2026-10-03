@@ -212,10 +212,31 @@ export interface TruckTrip {
  * as a choice, and a status change while a trip holds the truck is refused -
  * see tripHoldingTruck in the route.
  */
+const TRIP_COLUMNS =
+  "dispatchID, truckID, status, Order ( orderID, orderCode, notes, Client ( company ) ), Driver:Employee!driverID ( employeeName )";
+
+function toTruckTrip(row: Record<string, unknown>): TruckTrip {
+  const one = <T,>(value: T | T[] | null | undefined): T | null =>
+    Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+  const order = one(row.Order as unknown as { orderID: string; orderCode: string; notes: string | null; Client: unknown } | null);
+  const client = one(order?.Client as { company: string | null } | null);
+  const driver = one(row.Driver as unknown as { employeeName: string | null } | null);
+
+  return {
+    dispatchID: row.dispatchID as string,
+    status: row.status as string,
+    orderID: order?.orderID ?? null,
+    orderCode: order?.orderCode ?? null,
+    clientName: client?.company ?? null,
+    deliverySchedule: /Delivery Schedule:\s*([^\n]+)/.exec(order?.notes ?? "")?.[1]?.trim() ?? null,
+    driverName: driver?.employeeName ?? null,
+  };
+}
+
 export async function getCurrentTrip(truckID: string): Promise<TruckTrip | null> {
   const { data, error } = await supabase
     .from("DispatchOrder")
-    .select("dispatchID, status, Order ( orderID, orderCode, notes, Client ( company ) ), Driver:Employee!driverID ( employeeName )")
+    .select(TRIP_COLUMNS)
     .eq("truckID", truckID)
     .in("status", ACTIVE_DELIVERY_STATUSES)
     .order("dispatchID", { ascending: false })
@@ -223,23 +244,30 @@ export async function getCurrentTrip(truckID: string): Promise<TruckTrip | null>
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) return null;
+  return data ? toTruckTrip(data as Record<string, unknown>) : null;
+}
 
-  const one = <T,>(value: T | T[] | null | undefined): T | null =>
-    Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
-  const order = one(data.Order as unknown as { orderID: string; orderCode: string; notes: string | null; Client: unknown } | null);
-  const client = one(order?.Client as { company: string | null } | null);
-  const driver = one(data.Driver as unknown as { employeeName: string | null } | null);
+/**
+ * The trip holding each truck, for a whole list at once - so the fleet list can
+ * tell a truck that is booked and waiting from one out on the road, and say
+ * which booking it is, without asking once per truck.
+ */
+export async function getCurrentTrips(truckIDs: string[]): Promise<Map<string, TruckTrip>> {
+  const trips = new Map<string, TruckTrip>();
+  if (truckIDs.length === 0) return trips;
 
-  return {
-    dispatchID: data.dispatchID as string,
-    status: data.status as string,
-    orderID: order?.orderID ?? null,
-    orderCode: order?.orderCode ?? null,
-    clientName: client?.company ?? null,
-    deliverySchedule: /Delivery Schedule:\s*([^\n]+)/.exec(order?.notes ?? "")?.[1]?.trim() ?? null,
-    driverName: driver?.employeeName ?? null,
-  };
+  const { data, error } = await supabase
+    .from("DispatchOrder")
+    .select(TRIP_COLUMNS)
+    .in("truckID", truckIDs)
+    .in("status", ACTIVE_DELIVERY_STATUSES);
+
+  if (error) throw error;
+  for (const row of (data ?? []) as Record<string, unknown>[]) {
+    const truckID = row.truckID as string;
+    if (!trips.has(truckID)) trips.set(truckID, toTruckTrip(row));
+  }
+  return trips;
 }
 
 /** One change to a truck's record, as its history shows it. */

@@ -1,4 +1,6 @@
 
+import type { TruckTrip } from "@/services/truck/truckService";
+
 export interface TruckRecord {
   id: string | number;
   truckCode?: string;
@@ -8,6 +10,8 @@ export interface TruckRecord {
   capacity: string;
   lastChecked: string;
   status: string;
+  /** The booking it is on, when the fleet list sent one. */
+  booking?: TruckTrip | null;
 }
 
 // What the maintenance endpoints hand back, before this screen flattens a log

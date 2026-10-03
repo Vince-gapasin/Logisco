@@ -3,6 +3,7 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import {
   createFleetTruck,
+  getCurrentTrips,
   getFleet,
   toTruckPayload,
   validateTruckPayload,
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
   const archived = new URL(request.url).searchParams.get("archived") === "true";
 
   try {
-    const data = await getFleet({ archived });
+    const fleet = await getFleet({ archived });
+    // The booking each truck is on, so the list can tell booked from on the road.
+    const trips = archived ? new Map() : await getCurrentTrips(fleet.map((truck) => truck.truckID));
+    const data = fleet.map((truck) => ({ ...truck, currentTrip: trips.get(truck.truckID) ?? null }));
     return NextResponse.json({ data });
   } catch (error) {
     console.error("GET fleet error:", error);

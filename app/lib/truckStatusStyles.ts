@@ -34,9 +34,8 @@ export function getStatusStyles(status: string): TruckStatusStyle {
         badgeBg: "bg-blue-500",
         pill: "bg-blue-600 hover:bg-blue-700 text-white border-blue-600",
       };
-    // Nothing in the system writes this one today - the service validates
-    // against the four in TRUCK_STATUS - but both mechanic screens already
-    // colour it, so it is kept rather than quietly dropped.
+    // Never stored: the fleet lists show it for an "On Delivery" truck whose
+    // trip the crew has not started yet (see app/lib/truckBooking.ts).
     case "Already Booked":
       return {
         bgLight: "bg-indigo-50 text-indigo-700 border-indigo-200/50",

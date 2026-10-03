@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import { shownTruckStatus } from "@/app/lib/truckBooking";
+import TruckTripCard from "@/components/truck/TruckTripCard";
 import {
   Truck,
   ArrowLeft,
@@ -47,7 +49,8 @@ export function TruckDetailView({
   onLogMaintenanceClick,
   currentUserId,
 }: TruckDetailViewProps) {
-  const styles = getStatusStyles(truck.status);
+  const shownStatus = shownTruckStatus(truck.status, truck.booking);
+  const styles = getStatusStyles(shownStatus);
 
   // --- NEW: Dropdown State ---
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -187,7 +190,7 @@ export function TruckDetailView({
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium ${styles.bgLight.split(" border")[0]}`}
             >
-              {truck.status}
+              {shownStatus}
             </span>
           </div>
         </div>
@@ -293,6 +296,7 @@ export function TruckDetailView({
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-6">
         <div className="space-y-6 text-sm text-slate-900">
+          {!isArchived && truck.booking && <TruckTripCard trip={truck.booking} showLink={false} />}
           <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
             <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
               1. Truck Information

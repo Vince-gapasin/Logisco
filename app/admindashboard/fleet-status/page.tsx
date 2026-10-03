@@ -8,6 +8,7 @@ import UrlSearchSync from "@/components/UrlSearchSync";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import { bookingSummary, shownTruckStatus } from "@/app/lib/truckBooking";
 import RowOpenButton from "@/components/RowOpenButton";
 import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
@@ -66,9 +67,13 @@ export interface TruckRecord {
   fuelTypeID: string;
   /** Resolved name, so a list does not have to look up 36 ids. */
   fuelTypeName: string;
+  /** The booking it is on, when the list sent one. */
+  booking: TruckTrip | null;
+  /** "Already Booked" or the stored status - what the list and filters go by. */
+  shownStatus: string;
 }
 
-function mapApiTruck(truck: ApiTruck): TruckRecord {
+function mapApiTruck(truck: ApiTruck & { currentTrip?: TruckTrip | null }): TruckRecord {
   if (!truck) return {} as TruckRecord; // Safety guard
   return {
     id: truck.truckID,
@@ -85,6 +90,8 @@ function mapApiTruck(truck: ApiTruck): TruckRecord {
     // fuel a truck burns decides which price series its cost is drawn from,
     // and a guess there is a wrong number that looks right.
     fuelTypeName: truck.fuelType?.name || "",
+    booking: truck.currentTrip ?? null,
+    shownStatus: shownTruckStatus(truck.truckStatus || "Available", truck.currentTrip),
   };
 }
 
@@ -473,7 +480,8 @@ function TruckDetailView({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const styles = getStatusStyles(truck.status);
+  const shownStatus = shownTruckStatus(truck.status, trip);
+  const styles = getStatusStyles(shownStatus);
 
   const confirmDelete = async () => {
     try {
@@ -511,7 +519,7 @@ function TruckDetailView({
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium ${styles.bgLight.split(" border")[0]}`}
             >
-              {truck.status}
+              {shownStatus}
             </span>
             {truck.fuelTypeName && (
               <span className="px-2.5 py-0.5 rounded-full text-xs sm:text-[10px] font-medium bg-amber-100 text-amber-800">
@@ -679,18 +687,16 @@ function TruckDetailView({
 // MAIN PAGE
 // ==========================================
 
-// The statuses a filter pill is offered for.
+// The statuses a filter pill is offered for, in the order an office reads them:
+// what can go out today, what is booked, what is out, what is being fixed, what
+// is not coming back soon. The mechanic's copy of this list leads with On
+// Maintenance, which is the right order for a mechanic and the wrong one here.
 //
-// The four the service will actually store, in the order an office reads them:
-// what can go out today, what is out, what is being fixed, what is not coming
-// back soon. The mechanic's copy of this list leads with On Maintenance, which
-// is the right order for a mechanic and the wrong one here.
-//
-// It also carries an "Already Booked" pill. Nothing in the system writes that
-// status - the truck service validates against TRUCK_STATUS, which has four -
-// so that pill can only ever read (0), and it is not repeated here.
+// "Already Booked" is not stored. A truck on a booking is "On Delivery" on its
+// record; the list calls it booked until the crew starts the trip.
 const STATUS_FILTERS = [
   "Available",
+  "Already Booked",
   "On Delivery",
   "On Maintenance",
   "Out of Service",
@@ -873,16 +879,18 @@ export default function FleetStatusPage() {
   // Counted off the whole list rather than the filtered one, so the pills keep
   // saying how big the fleet is while you are looking at one part of it.
   const statusCounts = truckList.reduce<Record<string, number>>((tally, truck) => {
-    tally[truck.status] = (tally[truck.status] ?? 0) + 1;
+    tally[truck.shownStatus] = (tally[truck.shownStatus] ?? 0) + 1;
     return tally;
   }, {});
 
   const filteredTrucks = truckList.filter((truck) => {
-    if (selectedFilter !== "All" && truck.status !== selectedFilter) return false;
+    if (selectedFilter !== "All" && truck.shownStatus !== selectedFilter) return false;
     const term = searchTerm.toLowerCase();
     return (
       truck.plateNumber.toLowerCase().includes(term) ||
-      truck.status.toLowerCase().includes(term) ||
+      truck.shownStatus.toLowerCase().includes(term) ||
+      (truck.booking?.orderCode ?? "").toLowerCase().includes(term) ||
+      (truck.booking?.clientName ?? "").toLowerCase().includes(term) ||
       truck.truckType.toLowerCase().includes(term)
     );
   });
@@ -1031,7 +1039,7 @@ export default function FleetStatusPage() {
             <UrlSearchSync onQuery={setSearchTerm} />
             <input
               type="text"
-              placeholder="Search by Plate No or Type..."
+              placeholder="Search by Plate No, Type or Booking..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
@@ -1064,7 +1072,7 @@ export default function FleetStatusPage() {
                 </tr>
               ) : currentTrucks.length > 0 ? (
                 currentTrucks.map((truck) => {
-                  const currentStyles = getStatusStyles(truck.status);
+                  const currentStyles = getStatusStyles(truck.shownStatus);
                   return (
                     <tr
                       key={truck.id}
@@ -1091,13 +1099,18 @@ export default function FleetStatusPage() {
                         <div className="text-xs text-slate-500 mt-1">
                           Last Checked: {truck.lastChecked || "N/A"}
                         </div>
+                        {truck.booking && (
+                          <div className="text-xs text-blue-700 mt-1 break-words">
+                            {bookingSummary(truck.booking)}
+                          </div>
+                        )}
                       </td>
                       <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                         <div className="relative inline-block text-right z-10">
                           <div
                             className={`w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
                           >
-                            <span>{truck.status}</span>
+                            <span>{truck.shownStatus}</span>
                           </div>
                         </div>
                       </td>
