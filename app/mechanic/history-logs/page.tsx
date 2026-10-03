@@ -371,14 +371,29 @@ export default function MechanicHistoryLogsPage() {
             </div>
           </div>
 
-          {/* The way into every maintenance record this truck has. */}
-          <button
-            onClick={() => setShowTruckHistory(true)}
-            className="inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
-          >
-            <HistoryIcon className="w-4 h-4 shrink-0" />
-            History ({truckLogs.length})
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            {/* The record the latest update belongs to, in full. */}
+            {latest && (
+              <button
+                onClick={() => setSelectedLogID(String(latest.id))}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                {/* Short on a phone, so it sits beside History on one line. */}
+                <span className="sm:hidden">Full record</span>
+                <span className="hidden sm:inline">Open the full maintenance record</span>
+              </button>
+            )}
+
+            {/* The way into every maintenance record this truck has. */}
+            <button
+              onClick={() => setShowTruckHistory(true)}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+            >
+              <HistoryIcon className="w-4 h-4 shrink-0" />
+              History ({truckLogs.length})
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
@@ -393,7 +408,6 @@ export default function MechanicHistoryLogsPage() {
                 ["Type of Truck", selectedTruck.truckType],
                 ["Truck Model", selectedTruck.truckModel],
                 ["Capacity", selectedTruck.capacity ? `${selectedTruck.capacity} kg` : ""],
-                ["Status", selectedTruck.archived ? "Archived" : selectedTruck.status],
                 ["Last Checked", selectedTruck.lastChecked ? formatDisplayDate(selectedTruck.lastChecked) : ""],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
@@ -463,13 +477,6 @@ export default function MechanicHistoryLogsPage() {
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedLogID(String(latest.id))}
-                  className="text-sm font-semibold text-blue-700 hover:underline cursor-pointer"
-                >
-                  Open the full maintenance record
-                </button>
               </div>
             ) : (
               <p className="text-sm text-slate-500">No maintenance has been logged for this truck yet.</p>
