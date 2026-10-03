@@ -3,24 +3,36 @@
 // ==========================================
 // Public page opened from the tracking link handed to a customer:
 //   /client-view?token=<Order.orderLinkToken>
+//
+// Laid out for the one question a customer opens it with - where is my
+// delivery, and when will it get here - answered first, in plain words, before
+// anything they have to read closely: a headline, the day and time, and how far
+// along it is. The map, the crew and the full timeline follow for whoever wants
+// the detail.
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  CalendarDays,
   Check,
+  CheckCircle2,
   ClipboardCheck,
   Clock,
   Flag,
+  Link2Off,
   MapPin,
   Navigation,
   Package,
+  Phone,
+  RefreshCw,
   Truck,
   User,
   UserCheck,
   Users,
+  XCircle,
 } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
@@ -34,11 +46,10 @@ import type {
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
-  loading: () => <div className="h-65 sm:h-87.5 md:h-100 w-full animate-pulse bg-slate-100" />,
+  loading: () => <div className="h-64 sm:h-80 w-full animate-pulse bg-slate-100" />,
 });
 
 const REFRESH_INTERVAL_MS = 30_000;
-
 
 // What each step is about, so the line can be read without reading it.
 const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
@@ -61,7 +72,7 @@ const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
 // man in twelve cannot rely on the colour alone.
 const STAGE_MARKS: Record<TrackingStage, string> = {
   completed: "bg-emerald-500 text-white ring-2 ring-white",
-  current: "bg-blue-600 text-white ring-4 ring-blue-100 animate-pulse",
+  current: "bg-blue-600 text-white ring-4 ring-blue-100",
   upcoming: "bg-white text-slate-500 ring-2 ring-slate-200",
   problem: "bg-red-600 text-white ring-2 ring-white",
 };
@@ -93,6 +104,7 @@ interface TrackingData {
   clientContact: string | null;
   deliveryStatus: string;
   isCompleted: boolean;
+  deliveryDate: string | null;
   estimatedArrival: string | null;
   deliveryArrival: string | null;
   liveEta: { minutes: number; distanceKm: number; arrivalTime: string } | null;
@@ -111,33 +123,174 @@ interface TrackingData {
   feedback: FeedbackInvitation;
 }
 
-type LoadState = "loading" | "ready" | "expired" | "missing" | "error";
+type LoadState = "loading" | "ready" | "ended" | "cancelled" | "missing" | "error";
 
-function Shell({ children }: { children: React.ReactNode }) {
+// ------------------------------------------------------------------ helpers
+
+/** "Friday, 5 October" - the day, said the way people say it. */
+function formatDeliveryDay(isoDate: string | null): string | null {
+  if (!isoDate) return null;
+  const date = new Date(`${isoDate}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-PH", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Manila",
+  }).format(date);
+}
+
+/** Today, tomorrow, or nothing - the words that save a customer working it out. */
+function relativeDay(isoDate: string | null): string | null {
+  if (!isoDate) return null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  const tomorrow = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(
+    new Date(Date.now() + 864e5),
+  );
+  if (isoDate === today) return "Today";
+  if (isoDate === tomorrow) return "Tomorrow";
+  return null;
+}
+
+/** "just now", "40 sec ago", "3 min ago". */
+function ago(at: number, now: number): string {
+  const seconds = Math.max(0, Math.round((now - at) / 1000));
+  if (seconds < 10) return "just now";
+  if (seconds < 60) return `${seconds} sec ago`;
+  return `${Math.round(seconds / 60)} min ago`;
+}
+
+// The five things a customer understands about a delivery, in order. The
+// timeline underneath says everything; this says how far along it is.
+const MILESTONES = ["Booked", "Crew assigned", "On the road", "At your stop", "Delivered"] as const;
+
+function milestoneIndex(data: TrackingData): number {
+  if (data.isCompleted) return 4;
+  if (/at your stop/i.test(data.deliveryStatus)) return 3;
+  const done = (kind: TrackingStepKind) => data.steps.some((step) => step.kind === kind && step.stage === "completed");
+  if (done("departed") || data.liveEta || /in transit/i.test(data.deliveryStatus)) return 2;
+  if (done("assigned") || data.driverName) return 1;
+  return 0;
+}
+
+type Tone = "neutral" | "active" | "good" | "warning";
+
+/** The headline, in the customer's words rather than the system's. */
+function describe(data: TrackingData): { headline: string; tone: Tone } {
+  const status = data.deliveryStatus;
+  if (data.isCompleted) return { headline: "Your delivery is complete", tone: "good" };
+  if (/interrupt|delayed/i.test(status)) return { headline: status.replace(/^Delayed:\s*/i, "Delayed - "), tone: "warning" };
+  if (/at your stop/i.test(status)) return { headline: "Our crew is at your stop", tone: "active" };
+  if (/partner/i.test(status)) return { headline: status, tone: "active" };
+  if (data.nextStopKind === "collection" && /in transit/i.test(status)) {
+    return { headline: "Picking up your order", tone: "active" };
+  }
+  if (/in transit/i.test(status)) return { headline: "On the way to you", tone: "active" };
+  if (/confirmed/i.test(status)) return { headline: "Your crew is ready", tone: "neutral" };
+  if (/crew assigned/i.test(status)) return { headline: "A crew has been assigned", tone: "neutral" };
+  return { headline: "Your delivery is booked", tone: "neutral" };
+}
+
+const TONE_STYLES: Record<Tone, { card: string; icon: string; Icon: typeof Truck }> = {
+  neutral: { card: "bg-white border-slate-200", icon: "bg-slate-100 text-slate-700", Icon: ClipboardCheck },
+  active: { card: "bg-blue-50/70 border-blue-200", icon: "bg-blue-600 text-white", Icon: Truck },
+  good: { card: "bg-emerald-50/70 border-emerald-200", icon: "bg-emerald-600 text-white", Icon: CheckCircle2 },
+  warning: { card: "bg-amber-50 border-amber-200", icon: "bg-amber-500 text-white", Icon: AlertTriangle },
+};
+
+// ------------------------------------------------------------------ pieces
+
+function Page({ children }: { children: React.ReactNode }) {
   return (
-    <div className="p-4 sm:p-6 md:p-8 pt-[calc(1rem+var(--safe-top))] pb-[calc(1rem+var(--safe-bottom))] w-full max-w-7xl mx-auto min-h-[100dvh] bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
-      <div className="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        {children}
-      </div>
+    <div className="min-h-[100dvh] bg-slate-100 pt-[var(--safe-top)] pb-[var(--safe-bottom)] font-sans text-slate-900">
+      <div className="w-full max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-8 flex flex-col gap-4 sm:gap-5">{children}</div>
     </div>
   );
 }
 
-function Notice({ title, subtitle }: { title: string; subtitle: string }) {
+function Brand({ orderNumber }: { orderNumber?: string }) {
   return (
-    <div className="flex-1 bg-white flex flex-col items-center justify-center p-8 sm:p-12 min-h-100 text-center">
-      <div className="bg-black text-white px-6 py-4 rounded-xl shadow-md max-w-md w-full flex flex-col gap-1 items-center">
-        <p className="text-sm sm:text-base font-semibold tracking-tight">{title}</p>
-        <p className="text-xs text-slate-500">{subtitle}</p>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-[#000c31] text-white flex items-center justify-center">
+          <Truck className="h-4 w-4" />
+        </div>
+        <div className="leading-tight">
+          <p className="text-sm font-bold text-slate-900">Logisco</p>
+          <p className="text-xs text-slate-500">Delivery tracking</p>
+        </div>
       </div>
+      {orderNumber && (
+        <span className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-full px-3 py-1">
+          {orderNumber}
+        </span>
+      )}
     </div>
   );
 }
+
+function Notice({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: typeof Truck;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <Page>
+      <Brand />
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 sm:p-12 text-center">
+        <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+          <Icon className="h-6 w-6" />
+        </div>
+        <p className="text-base sm:text-lg font-semibold text-slate-900">{title}</p>
+        <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">{subtitle}</p>
+      </div>
+    </Page>
+  );
+}
+
+function Card({
+  title,
+  icon: Icon,
+  children,
+  aside,
+  className = "",
+}: {
+  title: string;
+  icon: typeof Truck;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden ${className}`}>
+      <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Icon className="h-4 w-4 text-slate-500" />
+          {title}
+        </h2>
+        {aside}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ view
 
 function ClientTrackerView() {
   const token = useSearchParams().get("token");
   const [data, setData] = useState<TrackingData | null>(null);
   const [state, setState] = useState<LoadState>("loading");
+  // When the page last heard from the server, and whether the last try failed.
+  // A failed refresh used to replace the whole page with an error, so a phone
+  // dropping signal for a moment wiped out what the customer was looking at.
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const hasData = useRef(false);
 
   const loadTracking = useCallback(async () => {
     if (!token) return;
@@ -149,21 +302,24 @@ function ClientTrackerView() {
         setState("missing");
         return;
       }
-      if (!response.ok) {
-        setState("error");
-        return;
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const result = await response.json();
       if (result.isExpired) {
-        setState("expired");
+        setState(result.reason === "cancelled" ? "cancelled" : "ended");
         return;
       }
 
       setData(result as TrackingData);
+      hasData.current = true;
+      setUpdatedAt(Date.now());
+      setRefreshFailed(false);
       setState("ready");
     } catch {
-      setState("error");
+      // Keep what is on screen and say the refresh failed; only a first load
+      // with nothing to show is an error page.
+      if (hasData.current) setRefreshFailed(true);
+      else setState("error");
     }
   }, [token]);
 
@@ -180,64 +336,88 @@ function ClientTrackerView() {
     immediate: false,
   });
 
-  // No token in the URL at all: nothing to look up.
-  if (!token) {
+  // The "updated 20 sec ago" line counts on its own between refreshes.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  if (!token || state === "missing") {
     return (
-      <Shell>
-        <Notice
-          title="This tracking link is not valid."
-          subtitle="Please check the link, or contact your coordinator for a new one."
-        />
-      </Shell>
+      <Notice
+        icon={Link2Off}
+        title="This tracking link is not valid"
+        subtitle="Please check that the whole link was copied, or ask your coordinator to send it again."
+      />
     );
   }
 
   if (state === "loading") {
     return (
-      <Shell>
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-12 min-h-100 text-slate-600">
+      <Page>
+        <Brand />
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 flex flex-col items-center gap-3 text-slate-600">
           <div className="h-9 w-9 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
           <p className="text-sm font-medium">Loading your delivery...</p>
         </div>
-      </Shell>
+      </Page>
     );
   }
 
-  if (state === "missing") {
+  if (state === "cancelled") {
     return (
-      <Shell>
-        <Notice
-          title="This tracking link is not valid."
-          subtitle="Please check the link, or contact your coordinator for a new one."
-        />
-      </Shell>
+      <Notice
+        icon={XCircle}
+        title="This delivery was cancelled"
+        subtitle="It will not go ahead as booked. Please contact your coordinator if you were not expecting this or want to rebook."
+      />
     );
   }
 
-  if (state === "expired") {
+  if (state === "ended") {
     return (
-      <Shell>
-        <Notice
-          title="Oops, this link has expired."
-          subtitle="You might want to contact the coordinator"
-        />
-      </Shell>
+      <Notice
+        icon={CheckCircle2}
+        title="Tracking for this delivery has ended"
+        subtitle="This delivery was completed more than a week ago. Contact your coordinator if you need its details."
+      />
     );
   }
 
   if (state === "error" || !data) {
     return (
-      <Shell>
-        <Notice
-          title="We could not load this delivery right now."
-          subtitle="Please refresh the page in a moment."
-        />
-      </Shell>
+      <Notice
+        icon={RefreshCw}
+        title="We could not load your delivery right now"
+        subtitle="This is usually a weak connection. Please refresh the page in a moment."
+      />
     );
   }
 
   // The trip stopped: every stop still waiting is affected, not just one.
   const interrupted = /interrupt/i.test(data.deliveryStatus);
+  const { headline, tone } = describe(data);
+  const toneStyle = TONE_STYLES[tone];
+  const step = milestoneIndex(data);
+  const collecting = data.nextStopKind === "collection";
+  const day = formatDeliveryDay(data.deliveryDate);
+  const dayWord = relativeDay(data.deliveryDate);
+
+  // The one time worth saying under the headline. A live estimate is where the
+  // truck actually is; the booked time is what was promised. They used to be
+  // worded alike, which invited the reading that somebody had just worked the
+  // booked one out. And while the order is still to be collected, the booked
+  // time ahead is the collection's - so the customer's own time is said too.
+  const timeLine = data.isCompleted
+    ? null
+    : data.liveEta
+      ? `Arriving in about ${data.liveEta.minutes} min - around ${data.liveEta.arrivalTime}`
+      : collecting && data.estimatedArrival
+        ? `Collection by ${data.estimatedArrival}${data.deliveryArrival ? `, delivery expected by ${data.deliveryArrival}` : ""}`
+        : data.estimatedArrival
+          ? `Expected by ${data.estimatedArrival}`
+          : null;
 
   const mapPoints: MapPoint[] = [
     ...(data.currentLocation
@@ -266,307 +446,302 @@ function ClientTrackerView() {
       })),
   ];
 
-  // Newest first is what people ask for here, but the list below is a
-  // progress ladder and reads backwards upside down. The latest is said once,
-  // at the top, and the ladder stays in order.
-  const latest = [...data.steps].reverse().find((step) => step.stage === "problem" || step.stage === "current")
-    ?? [...data.steps].reverse().find((step) => step.stage === "completed");
+  // The latest thing that happened, said once at the top of the timeline.
+  const latest = [...data.steps].reverse().find((s) => s.stage === "problem" || s.stage === "current")
+    ?? [...data.steps].reverse().find((s) => s.stage === "completed");
 
-  // Prefer the live driving estimate; fall back to the booked window.
-  //
-  // The two are different claims and used to be worded as though they were the
-  // same one. A live estimate is where the truck actually is; the booked time is
-  // what was promised when the delivery was arranged, and saying "estimated"
-  // about it invited the reading that somebody had just worked it out.
-  // And not always about this customer's own stop. Until the order has been
-  // picked up the truck is driving to a warehouse, and a time headlined as an
-  // arrival while that is still ahead of it is a time for somewhere else.
-  const collecting = data.nextStopKind === "collection";
-  const headline = data.isCompleted
-    ? "Delivery Completed"
-    : data.liveEta
-      ? `Arriving in about ${data.liveEta.minutes} min (${data.liveEta.arrivalTime})`
-      : data.estimatedArrival
-        ? collecting
-          ? `Scheduled collection by ${data.estimatedArrival}`
-          : `Scheduled arrival by ${data.estimatedArrival}`
-        : data.deliveryStatus;
+  const helpers = data.crewHelpers ?? [];
 
   return (
-    <Shell>
-      <div className="flex flex-col flex-1 bg-white">
-        {/* Live Route / Map Section */}
-        <div className="bg-slate-100 border-b border-slate-200 overflow-hidden flex flex-col">
-          <div className="bg-white px-4 sm:px-6 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10">
-            <div className="flex items-center gap-2">
-              <MapPin className={`w-4 h-4 text-blue-600 ${data.isCompleted ? "" : "animate-pulse"}`} />
-              <span className="text-sm font-bold text-slate-900">
-                Live Route Tracking — {data.orderNumber}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-              <span className="font-semibold text-slate-600">
-                Status: <strong className="text-blue-600">{data.deliveryStatus}</strong>
-              </span>
-              {data.plateNumber && (
-                <span className="flex items-center gap-1.5 font-bold text-blue-600">
-                  <Truck className="w-3.5 h-3.5" /> Unit: {data.plateNumber}
-                </span>
+    <Page>
+      <Brand orderNumber={data.orderNumber} />
+
+      {/* ---------------------------------------------------- status first */}
+      <section className={`rounded-2xl border shadow-sm p-5 sm:p-6 ${toneStyle.card}`}>
+        <div className="flex items-start gap-4">
+          <div className={`h-11 w-11 shrink-0 rounded-xl flex items-center justify-center ${toneStyle.icon}`}>
+            <toneStyle.Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{headline}</h1>
+
+            <div className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
+              {day && (
+                <p className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span>
+                    {dayWord ? <strong>{dayWord}, </strong> : null}
+                    {day}
+                  </span>
+                </p>
+              )}
+              {timeLine && (
+                <p className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span>{timeLine}</span>
+                </p>
+              )}
+              {!data.isCompleted && data.nextStopName && (
+                <p className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span>
+                    {collecting ? "Collecting from" : step < 2 ? "Delivering to" : "Next stop"}: {data.nextStopName}
+                  </span>
+                </p>
               )}
             </div>
           </div>
+        </div>
 
-          <div className="relative w-full h-65 sm:h-87.5 md:h-100">
+        {/* How far along it is, in five steps anyone can read. */}
+        <ol className="mt-6 grid grid-cols-5 gap-1" aria-label="Delivery progress">
+          {MILESTONES.map((label, index) => {
+            const reached = index <= step;
+            const isNow = index === step && !data.isCompleted;
+            // Amber for a trip that has stopped or is held up, whichever it is.
+            const stopped = tone === "warning" && isNow;
+            return (
+              <li key={label} className="flex flex-col items-center text-center gap-1.5">
+                <div className="flex w-full items-center">
+                  <div className={`h-1 flex-1 rounded-full ${index === 0 ? "invisible" : reached ? "bg-emerald-500" : "bg-slate-200"}`} />
+                  <div
+                    className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${
+                      stopped
+                        ? "bg-amber-500 text-white"
+                        : isNow
+                          ? "bg-blue-600 text-white ring-4 ring-blue-100"
+                          : reached
+                            ? "bg-emerald-500 text-white"
+                            : "bg-white text-slate-400 ring-2 ring-slate-200"
+                    }`}
+                    aria-current={isNow ? "step" : undefined}
+                  >
+                    {reached && !isNow ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : index + 1}
+                  </div>
+                  <div className={`h-1 flex-1 rounded-full ${index === MILESTONES.length - 1 ? "invisible" : index < step ? "bg-emerald-500" : "bg-slate-200"}`} />
+                </div>
+                <span className={`text-[11px] sm:text-xs leading-tight ${isNow ? "font-semibold text-slate-900" : reached ? "text-slate-700" : "text-slate-400"}`}>
+                  {label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* That the page is live, and when it last heard. */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+          {data.isCompleted ? (
+            <span>Final status.</span>
+          ) : refreshFailed ? (
+            <span className="flex items-center gap-1.5 text-amber-700">
+              <RefreshCw className="h-3.5 w-3.5" /> Could not refresh - showing the last update. Trying again...
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Live - updated {updatedAt ? ago(updatedAt, now) : "just now"}. This page refreshes on its own.
+            </span>
+          )}
+        </div>
+      </section>
+
+      {/* Asked only once the delivery is finished, and only once. */}
+      {data.feedback?.invited && (
+        <DeliveryFeedbackCard token={token} invitation={data.feedback} onSaved={() => void loadTracking()} />
+      )}
+
+      {/* Two columns on a wide screen. On a phone the columns dissolve
+          (display: contents) so the cards can be ordered by what a customer
+          reaches for first: who is coming and when, then the map, then the
+          full history - rather than scrolling past the history to find the
+          driver's number. */}
+      <div className="flex flex-col gap-4 sm:gap-5 lg:grid lg:grid-cols-5">
+        <div className="contents lg:flex lg:flex-col lg:col-span-3 lg:gap-5">
+          {/* ------------------------------------------------------- map */}
+          <section className="order-3 lg:order-none bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Navigation className="h-4 w-4 text-slate-500" />
+                Live map
+              </h2>
+              {data.currentLocation?.updatedAt && !data.isCompleted && (
+                <span className="text-xs text-slate-500">Truck seen {formatTime(data.currentLocation.updatedAt)}</span>
+              )}
+            </div>
             <LiveRouteMap
               points={mapPoints}
               trail={data.trail ?? []}
               plannedRoute={data.plannedRoute ?? []}
-              heightClass="h-65 sm:h-87.5 md:h-100"
+              heightClass="h-64 sm:h-80"
               emptyMessage={
                 data.isCompleted
                   ? "This delivery is complete. Live tracking has ended."
-                  : "Live tracking will appear here once the driver starts the trip."
+                  : "The truck will appear here once the driver starts the trip."
               }
             />
-          </div>
+          </section>
+
+          {/* --------------------------------------------------- timeline */}
+          <Card title="What has happened so far" icon={Clock} className="order-4 lg:order-none">
+            {latest && (
+              <div
+                className={`mb-5 rounded-xl border p-3.5 ${
+                  latest.stage === "problem" ? "border-red-200 bg-red-50" : "border-blue-100 bg-blue-50/60"
+                }`}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Latest update</p>
+                <p className={`text-sm font-semibold ${latest.stage === "problem" ? "text-red-800" : "text-slate-900"}`}>
+                  {latest.title}
+                </p>
+                <p className="text-xs text-slate-600">
+                  {latest.detail}
+                  {latest.at ? ` · ${formatDateTime(latest.at)}` : ""}
+                </p>
+              </div>
+            )}
+
+            <ol className="relative flex flex-col gap-4 pl-1">
+              <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-slate-200" aria-hidden />
+              {data.steps.map((item, index) => {
+                // A finished step is ticked; the rest show what they are.
+                const Icon = item.stage === "completed" ? Check : STEP_ICONS[item.kind];
+                return (
+                  <li key={index} className="relative flex items-start gap-3.5">
+                    <div className={`mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center shadow-xs ${STAGE_MARKS[item.stage]}`}>
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </div>
+                    <div className="min-w-0 pt-0.5">
+                      <p className={`text-sm font-medium ${STAGE_TITLES[item.stage]}`}>{item.title}</p>
+                      <p className={`text-xs mt-0.5 ${item.stage === "current" ? "font-medium text-slate-800" : "text-slate-600"}`}>
+                        {item.detail}
+                      </p>
+                      {item.at && <p className="mt-0.5 text-[11px] text-slate-500">{formatDateTime(item.at)}</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </Card>
         </div>
 
-        {/* Content Container */}
-        <div className="flex flex-col p-4 sm:p-6 md:p-8 gap-5 bg-slate-50/50 flex-1">
-          <div className="w-full">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{headline}</h1>
-            {!data.isCompleted && data.nextStopName && (
-              <p className="text-sm text-slate-600 mt-1">
-                Next stop: {data.nextStopName}
-                {/* The distance is to this customer's own stop, so it is only
-                    said beside this customer's own stop. */}
-                {data.liveEta && !collecting ? ` - ${data.liveEta.distanceKm} km away` : ""}
-              </p>
-            )}
-            {/* Said when the headline above is about the collection instead, so
-                the one thing the customer opened this page for is never missing
-                from the top of it. Not beside a live estimate, which is already
-                a time for this stop and would only be repeated. */}
-            {!data.isCompleted && collecting && !data.liveEta && data.deliveryArrival && (
+        <div className="contents lg:flex lg:flex-col lg:col-span-2 lg:gap-5">
+          {/* --------------------------------------------------- the crew */}
+          <Card title="Your delivery team" icon={Users} className="order-1 lg:order-none">
+            {data.driverName ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center">
+                    <User className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-slate-500">Driver</p>
+                    <p className="text-sm font-semibold text-slate-900">{data.driverName}</p>
+                    {helpers.length > 0 && (
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        With {helpers.length === 1 ? "helper" : "helpers"} {helpers.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* The driver is the one to ring, from a page most often opened
+                    on a phone - so the number is a button, not text. */}
+                {data.driverContact && !data.isCompleted && (
+                  <a
+                    href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors"
+                  >
+                    <Phone className="h-4 w-4" /> Call the driver
+                  </a>
+                )}
+
+                <div className="flex items-start gap-3 border-t border-slate-100 pt-4">
+                  <div className="h-10 w-10 shrink-0 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center">
+                    <Truck className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    {/* The plate leads: it is what somebody at the gate matches
+                        against the truck in front of them. */}
+                    <p className="text-xs font-medium text-slate-500">Truck</p>
+                    <p className="text-sm font-semibold text-slate-900">{data.plateNumber ?? "To be confirmed"}</p>
+                    {data.plateNumber && data.truckModel && <p className="text-xs text-slate-600">{data.truckModel}</p>}
+                  </div>
+                </div>
+              </div>
+            ) : (
               <p className="text-sm text-slate-600">
-                Your delivery is expected by {data.deliveryArrival}.
+                We are arranging the truck and crew for this delivery. Their names will appear here once they are assigned.
               </p>
             )}
-          </div>
+          </Card>
 
-          {/* Asked only once the delivery is finished, and only once. */}
-          {data.feedback?.invited && (
-            <DeliveryFeedbackCard
-              token={token}
-              invitation={data.feedback}
-              onSaved={() => void loadTracking()}
-            />
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Booking Details Card */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col gap-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-sm font-semibold text-slate-900">Booking Details</span>
-                <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">
-                  {data.orderNumber}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3.5 pt-0.5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
-                    <Truck className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-slate-500">Truck / Plate No.</div>
-                    {/* The plate leads. It is what somebody at the gate matches
-                        against the truck in front of them; the model is how they
-                        know which one to look for. They used to be one line
-                        joined by a dash, which reads as a single name. */}
-                    <div className="text-sm font-medium text-slate-900">
-                      {data.plateNumber ?? "Not yet assigned"}
-                    </div>
-                    {data.plateNumber && data.truckModel ? (
-                      <div className="text-xs text-slate-600">{data.truckModel}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-medium text-slate-500">Driver</div>
-                    <div className="text-sm font-medium text-slate-900">
-                      {data.driverName ?? "Not yet assigned"}
-                    </div>
-                    {/* Its own line, and dialable. "Audrey Valencia - 09242450563"
-                        reads as one run of text and cannot be tapped, on a page
-                        most often opened on a phone by somebody who wants to
-                        ring the driver. */}
-                    {data.driverName && data.driverContact ? (
-                      <a
-                        href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
-                        className="text-xs font-medium text-blue-600 hover:underline"
-                      >
-                        {data.driverContact}
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* Who else is coming. Named so the customer can recognise
-                    whoever gets out of the truck, which is why the driver is
-                    named too - and with no number, because the driver is the one
-                    to ring and a second number on a public page is a second
-                    number on a public page. */}
-                {(data.crewHelpers ?? []).length > 0 && (
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-500">
-                        {(data.crewHelpers ?? []).length === 1 ? "Helper" : "Helpers"}
-                      </div>
-                      <div className="text-sm font-medium text-slate-900">
-                        {(data.crewHelpers ?? []).join(", ")}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {(data.clientEmail || data.clientContact) && (
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-500">Booked by</div>
-                      <div className="text-sm font-medium text-slate-900 truncate">{data.clientName ?? "-"}</div>
-                      <div className="text-xs text-slate-600">
-                        {[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        Partly hidden. Contact your coordinator if these are not yours.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {data.stops.length > 0 && (
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 rounded-lg bg-slate-100 text-slate-700 shrink-0 mt-0.5">
-                      <Package className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium text-slate-500">
-                        Delivery stops ({data.stops.length})
-                      </div>
-                      <ul className="text-sm font-medium text-slate-900 mt-0.5 space-y-1.5">
-                        {data.stops.map((stop) => {
-                          const delivered = /complete|delivered/i.test(stop.status);
-                          return (
-                            <li key={stop.branchID} className="flex items-start gap-2">
-                              <span
-                                className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
-                                  delivered ? "bg-emerald-500" : interrupted ? "bg-red-500" : "bg-slate-300"
-                                }`}
-                              />
-                              <span className="min-w-0">
-                                <span className="block truncate">{stop.branchName}</span>
-                                <span className="block text-xs font-normal text-slate-500">
-                                  {delivered
-                                    ? [
-                                        stop.deliveredAt ? `Delivered ${formatDateTime(stop.deliveredAt)}` : "Delivered",
-                                        stop.receivedBy ? `received by ${stop.receivedBy}` : null,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(", ")
-                                    : interrupted
-                                      ? "Waiting - the trip was interrupted"
-                                      : stop.expectedTime
-                                        ? `Expected by ${formatTime(stop.expectedTime)}`
-                                        : "Scheduled"}
-                                </span>
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Latest Updates Timeline Card */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-col gap-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Clock className="w-4 h-4 text-slate-700" />
-                <span className="text-sm font-semibold text-slate-900">Latest Updates</span>
-              </div>
-
-              {latest && (
-                <div
-                  className={`rounded-lg border p-3 ${
-                    latest.stage === "problem" ? "border-red-200 bg-red-50" : "border-blue-100 bg-blue-50/60"
-                  }`}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest</p>
-                  <p className={`text-sm font-semibold ${latest.stage === "problem" ? "text-red-800" : "text-slate-900"}`}>
-                    {latest.title}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {latest.detail}
-                    {latest.at ? ` · ${formatDateTime(latest.at)}` : ""}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex flex-col pl-2.5 pt-1 space-y-4 relative">
-                <div className="absolute left-5.5 top-4 bottom-4 w-0.5 bg-slate-200 z-0"></div>
-
-                {data.steps.map((step, index) => {
-                  // A finished step is ticked; the rest show what they are.
-                  const Icon = step.stage === "completed" ? Check : STEP_ICONS[step.kind];
-
+          {/* ------------------------------------------------- your stops */}
+          {data.stops.length > 0 && (
+            <Card
+              title={data.stops.length === 1 ? "Your delivery stop" : `Your delivery stops (${data.stops.length})`}
+              icon={Package}
+              className="order-2 lg:order-none"
+            >
+              <ul className="flex flex-col gap-3">
+                {data.stops.map((stop) => {
+                  const delivered = /complete|delivered/i.test(stop.status);
+                  const here = !delivered && Boolean(stop.arrivedAt);
+                  const chip = delivered
+                    ? { text: "Delivered", style: "bg-emerald-100 text-emerald-800" }
+                    : interrupted
+                      ? { text: "On hold", style: "bg-amber-100 text-amber-800" }
+                      : here
+                        ? { text: "Crew here", style: "bg-blue-100 text-blue-800" }
+                        : { text: "Coming", style: "bg-slate-100 text-slate-700" };
                   return (
-                    <div key={index} className="flex items-start gap-3.5 relative z-10">
-                      <div className="mt-0.5 shrink-0">
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full shadow-xs ${STAGE_MARKS[step.stage]}`}
-                        >
-                          <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
-                        </div>
+                    <li key={stop.branchID} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{stop.branchName}</p>
+                        <p className="text-xs text-slate-600">
+                          {delivered
+                            ? [
+                                stop.deliveredAt ? `Delivered ${formatDateTime(stop.deliveredAt)}` : "Delivered",
+                                stop.receivedBy ? `received by ${stop.receivedBy}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")
+                            : interrupted
+                              ? "Waiting while the trip is sorted out"
+                              : here
+                                ? `Arrived ${formatTime(stop.arrivedAt as string)}`
+                                : stop.expectedTime
+                                  ? `Expected by ${formatTime(stop.expectedTime)}`
+                                  : "Scheduled"}
+                        </p>
                       </div>
-
-                      <div className="flex flex-col text-sm pt-0.5">
-                        <span className={`text-sm font-medium ${STAGE_TITLES[step.stage]}`}>{step.title}</span>
-                        <span
-                          className={`text-xs mt-0.5 ${
-                            step.stage === "current" ? "font-semibold text-slate-900" : "text-slate-600"
-                          }`}
-                        >
-                          {step.detail}
-                        </span>
-                        {step.at && (
-                          <span className="mt-0.5 text-xs sm:text-[11px] text-slate-500">
-                            {formatDateTime(step.at)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${chip.style}`}>{chip.text}</span>
+                    </li>
                   );
                 })}
-              </div>
-            </div>
-          </div>
+              </ul>
+            </Card>
+          )}
+
+          {/* ------------------------------------------------- booked by */}
+          {(data.clientEmail || data.clientContact) && (
+            <Card title="Booked by" icon={ClipboardCheck} className="order-5 lg:order-none">
+              <p className="text-sm font-medium text-slate-900">{data.clientName ?? "-"}</p>
+              <p className="text-xs text-slate-600">{[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Partly hidden for your privacy. Contact your coordinator if these are not yours.
+              </p>
+            </Card>
+          )}
         </div>
       </div>
-    </Shell>
+
+      <p className="text-center text-xs text-slate-500 pb-2">
+        Questions about this delivery? Contact your Logisco coordinator and mention {data.orderNumber}.
+      </p>
+    </Page>
   );
 }
 
@@ -574,11 +749,11 @@ export default function ClientTrackerPage() {
   return (
     <Suspense
       fallback={
-        <Shell>
-          <div className="flex-1 flex items-center justify-center p-12 min-h-100 text-sm text-slate-600">
+        <Page>
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-sm text-slate-600">
             Loading your delivery...
           </div>
-        </Shell>
+        </Page>
       }
     >
       <ClientTrackerView />

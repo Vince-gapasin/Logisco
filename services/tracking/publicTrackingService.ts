@@ -12,6 +12,7 @@ import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlan
 import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { toArrivalLabel } from "@/services/geo/routingService";
 import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedback/deliveryFeedbackService";
+import { liveDispatchOf } from "@/app/lib/bookingView";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
 // capability URL - anyone holding it can read this - so the payload is limited
@@ -144,6 +145,11 @@ export interface TrackingPayload {
   clientContact: string | null;
   deliveryStatus: string;
   isCompleted: boolean;
+  /**
+   * The day the delivery is booked for, YYYY-MM-DD. The page showed only a
+   * time, so a delivery booked for Friday read as though it were today's.
+   */
+  deliveryDate: string | null;
   /** When the truck is due at whatever it is driving to next. */
   estimatedArrival: string | null;
   /**
@@ -820,11 +826,17 @@ export function legsUpTo(route: DispatchRoute, branchID: number): number | null 
 
 export async function getTrackingByToken(
   token: string,
-): Promise<TrackingPayload | { found: false } | { found: true; isExpired: true }> {
+): Promise<
+  | TrackingPayload
+  | { found: false }
+  // Why the page has nothing to show: the delivery was cancelled, or it
+  // finished long enough ago that tracking has ended.
+  | { found: true; isExpired: true; reason: "cancelled" | "ended" }
+> {
   const { data: order, error } = await supabase
     .from("Order")
     .select(
-      `orderID, orderCode, createdAt, isActive,
+      `orderID, orderCode, createdAt, isActive, notes,
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
          POD ( receiverName, deliveredAt ) ),
@@ -841,18 +853,33 @@ export async function getTrackingByToken(
   if (error) throw new Error(`Supabase tracking error: ${error.message}`);
   if (!order) return { found: false };
 
-  // The most recent dispatch is the live one for this order.
   const dispatches = (
     Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [order.DispatchOrder]
   ).filter(Boolean) as TrackedDispatch[];
-  const dispatch = dispatches[dispatches.length - 1] ?? null;
+
+  // The trip the booking is on now, by the rule every other screen uses: the
+  // one still open, else the latest. This took the last one the query happened
+  // to return, which for a booking with a declined or broken-down trip could be
+  // the old one.
+  //
+  // A trip the crew declined is not one the customer is waiting on. With no
+  // replacement yet, the booking is waiting for a crew - it used to say "Crew
+  // assigned" about a crew who had said no.
+  const live = liveDispatchOf(dispatches);
+  const dispatch = live && live.status !== DELIVERY_STATUS.rejected ? live : null;
 
   const isCompleted = dispatch?.status === DELIVERY_STATUS.completed;
   const completedAt = dispatch?.completedAt ? new Date(dispatch.completedAt).getTime() : null;
   const expiredByAge = completedAt !== null && Date.now() - completedAt > LINK_LIFETIME_AFTER_COMPLETION_MS;
 
-  if (order.isActive === false || expiredByAge) {
-    return { found: true, isExpired: true };
+  // A cancelled booking used to land on "this link has expired", which tells
+  // the customer nothing about their delivery. Both ways a booking becomes
+  // inactive are cancellations, and the page now says so.
+  if (order.isActive === false || dispatch?.status === DELIVERY_STATUS.cancelled) {
+    return { found: true, isExpired: true, reason: "cancelled" };
+  }
+  if (expiredByAge) {
+    return { found: true, isExpired: true, reason: "ended" };
   }
 
   const stops: TrackingStop[] = ((order.BranchStops as TrackedStop[] | null) ?? [])
@@ -1014,6 +1041,7 @@ export async function getTrackingByToken(
     clientContact: maskPhone(client?.contact),
     deliveryStatus,
     isCompleted,
+    deliveryDate: /Delivery Schedule:\s*(\d{4}-\d{2}-\d{2})/.exec((order.notes as string | null) ?? "")?.[1] ?? null,
     estimatedArrival: ahead.estimatedArrival,
     deliveryArrival: ahead.deliveryArrival,
     liveEta,
