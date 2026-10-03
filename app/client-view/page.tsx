@@ -191,11 +191,13 @@ function describe(data: TrackingData): { headline: string; tone: Tone } {
   return { headline: "Your delivery is booked", tone: "neutral" };
 }
 
-const TONE_STYLES: Record<Tone, { card: string; icon: string; Icon: typeof Truck }> = {
-  neutral: { card: "bg-white border-slate-200", icon: "bg-slate-100 text-slate-700", Icon: ClipboardCheck },
-  active: { card: "bg-blue-50/70 border-blue-200", icon: "bg-blue-600 text-white", Icon: Truck },
-  good: { card: "bg-emerald-50/70 border-emerald-200", icon: "bg-emerald-600 text-white", Icon: CheckCircle2 },
-  warning: { card: "bg-amber-50 border-amber-200", icon: "bg-amber-500 text-white", Icon: AlertTriangle },
+// "bar" is the same tint, solid: the slim bar at the top of a phone sits over
+// the map and the cards as they scroll under it.
+const TONE_STYLES: Record<Tone, { card: string; bar: string; icon: string; Icon: typeof Truck }> = {
+  neutral: { card: "bg-white border-slate-200", bar: "bg-white border-slate-200", icon: "bg-slate-100 text-slate-700", Icon: ClipboardCheck },
+  active: { card: "bg-blue-50/70 border-blue-200", bar: "bg-blue-50 border-blue-200", icon: "bg-blue-600 text-white", Icon: Truck },
+  good: { card: "bg-emerald-50/70 border-emerald-200", bar: "bg-emerald-50 border-emerald-200", icon: "bg-emerald-600 text-white", Icon: CheckCircle2 },
+  warning: { card: "bg-amber-50 border-amber-200", bar: "bg-amber-50 border-amber-200", icon: "bg-amber-500 text-white", Icon: AlertTriangle },
 };
 
 // ------------------------------------------------------------------ pieces
@@ -203,7 +205,7 @@ const TONE_STYLES: Record<Tone, { card: string; icon: string; Icon: typeof Truck
 function Page({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-slate-100 pt-[var(--safe-top)] pb-[var(--safe-bottom)] font-sans text-slate-900">
-      <div className="w-full max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-8 flex flex-col gap-4 sm:gap-5">{children}</div>
+      <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto px-3 py-4 min-[360px]:px-4 sm:px-6 sm:py-8 flex flex-col gap-4 sm:gap-5">{children}</div>
     </div>
   );
 }
@@ -336,6 +338,24 @@ function ClientTrackerView() {
     immediate: false,
   });
 
+  // On a phone the status card scrolls away under the map and the history;
+  // once it has, a slim bar takes its place at the top so the answer stays in
+  // view. Watched rather than measured, so it follows the card wherever the
+  // layout puts it.
+  const heroRef = useRef<HTMLElement | null>(null);
+  const [heroVisible, setHeroVisible] = useState(true);
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setHeroVisible(entry.isIntersecting), { threshold: 0 });
+    observer.observe(hero);
+    return () => observer.disconnect();
+  }, [state]);
+
+  // On a phone the history starts at where things are now; the steps that are
+  // long done are a tap away. A wide screen has the room and shows them all.
+  const [showAllSteps, setShowAllSteps] = useState(false);
+
   // The "updated 20 sec ago" line counts on its own between refreshes.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -446,6 +466,21 @@ function ClientTrackerView() {
       })),
   ];
 
+  // Where the collapsed history starts: the last finished step, for context,
+  // then everything still happening or to come.
+  const firstOpen = data.steps.findIndex((s) => s.stage !== "completed");
+  const historyFrom = firstOpen <= 0 ? 0 : firstOpen - 1;
+  const hiddenSteps = showAllSteps ? 0 : historyFrom;
+
+  // The short form of the time, for the bar that stays at the top on a phone.
+  const shortTime = data.isCompleted
+    ? null
+    : data.liveEta
+      ? `~${data.liveEta.minutes} min`
+      : data.estimatedArrival
+        ? `by ${data.estimatedArrival}`
+        : null;
+
   // The latest thing that happened, said once at the top of the timeline.
   const latest = [...data.steps].reverse().find((s) => s.stage === "problem" || s.stage === "current")
     ?? [...data.steps].reverse().find((s) => s.stage === "completed");
@@ -454,16 +489,49 @@ function ClientTrackerView() {
 
   return (
     <Page>
+      {/* Phones and tablets: the status, kept at the top once the card above
+          has scrolled away. Hidden on a wide screen, where the card stays in
+          sight beside everything else. */}
+      <div
+        aria-hidden={heroVisible}
+        className={`lg:hidden fixed inset-x-0 top-0 z-40 pt-[var(--safe-top)] transition-transform duration-200 ${
+          heroVisible ? "-translate-y-full" : "translate-y-0"
+        }`}
+      >
+        <div className={`mx-auto max-w-5xl border-b shadow-md px-4 py-2.5 flex items-center gap-3 ${toneStyle.bar}`}>
+          <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${toneStyle.icon}`}>
+            <toneStyle.Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-900 truncate">{headline}</p>
+            <p className="text-xs text-slate-600 truncate">
+              {[MILESTONES[step], shortTime].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          {data.driverContact && data.driverName && !data.isCompleted && (
+            <a
+              href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
+              aria-label={`Call ${data.driverName}`}
+              className="h-9 w-9 shrink-0 rounded-full bg-blue-600 text-white flex items-center justify-center"
+            >
+              <Phone className="h-4 w-4" />
+            </a>
+          )}
+        </div>
+      </div>
+
       <Brand orderNumber={data.orderNumber} />
 
       {/* ---------------------------------------------------- status first */}
-      <section className={`rounded-2xl border shadow-sm p-5 sm:p-6 ${toneStyle.card}`}>
+      <section ref={heroRef} className={`rounded-2xl border shadow-sm p-4 min-[360px]:p-5 sm:p-6 ${toneStyle.card}`}>
         <div className="flex items-start gap-4">
-          <div className={`h-11 w-11 shrink-0 rounded-xl flex items-center justify-center ${toneStyle.icon}`}>
+          {/* The icon gives way on a small phone, so the headline and the
+              time have the whole width rather than wrapping a word a line. */}
+          <div className={`hidden min-[400px]:flex h-11 w-11 shrink-0 rounded-xl items-center justify-center ${toneStyle.icon}`}>
             <toneStyle.Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{headline}</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-[1.7rem] font-bold tracking-tight text-slate-900">{headline}</h1>
 
             <div className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
               {day && (
@@ -558,10 +626,12 @@ function ClientTrackerView() {
           reaches for first: who is coming and when, then the map, then the
           full history - rather than scrolling past the history to find the
           driver's number. */}
-      <div className="flex flex-col gap-4 sm:gap-5 lg:grid lg:grid-cols-5">
+      {/* Tablets: the crew and the stops side by side, the map and the
+          history full width beneath. */}
+      <div className="flex flex-col gap-4 sm:gap-5 md:grid md:grid-cols-2 lg:grid-cols-5 lg:items-start">
         <div className="contents lg:flex lg:flex-col lg:col-span-3 lg:gap-5">
           {/* ------------------------------------------------------- map */}
-          <section className="order-3 lg:order-none bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <section className="order-3 md:col-span-2 lg:order-none bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
             <div className="flex items-center justify-between gap-2 px-5 py-3.5 border-b border-slate-100">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <Navigation className="h-4 w-4 text-slate-500" />
@@ -575,7 +645,7 @@ function ClientTrackerView() {
               points={mapPoints}
               trail={data.trail ?? []}
               plannedRoute={data.plannedRoute ?? []}
-              heightClass="h-64 sm:h-80"
+              heightClass="h-60 min-[400px]:h-64 sm:h-80 lg:h-96"
               emptyMessage={
                 data.isCompleted
                   ? "This delivery is complete. Live tracking has ended."
@@ -585,7 +655,7 @@ function ClientTrackerView() {
           </section>
 
           {/* --------------------------------------------------- timeline */}
-          <Card title="What has happened so far" icon={Clock} className="order-4 lg:order-none">
+          <Card title="What has happened so far" icon={Clock} className="order-4 md:col-span-2 lg:order-none">
             {latest && (
               <div
                 className={`mb-5 rounded-xl border p-3.5 ${
@@ -605,11 +675,28 @@ function ClientTrackerView() {
 
             <ol className="relative flex flex-col gap-4 pl-1">
               <div className="absolute left-4 top-3 bottom-3 w-0.5 bg-slate-200" aria-hidden />
+              {hiddenSteps > 0 && (
+                <li className="relative flex items-center gap-3.5 lg:hidden">
+                  <div className="h-7 w-7 shrink-0 rounded-full bg-emerald-500 text-white ring-2 ring-white flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSteps(true)}
+                    className="min-h-tap text-sm font-semibold text-blue-700 hover:underline"
+                  >
+                    Show {hiddenSteps} earlier {hiddenSteps === 1 ? "update" : "updates"}
+                  </button>
+                </li>
+              )}
               {data.steps.map((item, index) => {
                 // A finished step is ticked; the rest show what they are.
                 const Icon = item.stage === "completed" ? Check : STEP_ICONS[item.kind];
                 return (
-                  <li key={index} className="relative flex items-start gap-3.5">
+                  <li
+                    key={index}
+                    className={`relative items-start gap-3.5 ${index < hiddenSteps ? "hidden lg:flex" : "flex"}`}
+                  >
                     <div className={`mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center shadow-xs ${STAGE_MARKS[item.stage]}`}>
                       <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
                     </div>
@@ -627,7 +714,9 @@ function ClientTrackerView() {
           </Card>
         </div>
 
-        <div className="contents lg:flex lg:flex-col lg:col-span-2 lg:gap-5">
+        {/* Stays in view on a wide screen while the history beside it is
+            scrolled, so the crew and the stops are never a scroll away. */}
+        <div className="contents lg:flex lg:flex-col lg:col-span-2 lg:gap-5 lg:sticky lg:top-6">
           {/* --------------------------------------------------- the crew */}
           <Card title="Your delivery team" icon={Users} className="order-1 lg:order-none">
             {data.driverName ? (
@@ -699,7 +788,7 @@ function ClientTrackerView() {
                   return (
                     <li key={stop.branchID} className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{stop.branchName}</p>
+                        <p className="text-sm font-medium text-slate-900 break-words">{stop.branchName}</p>
                         <p className="text-xs text-slate-600">
                           {delivered
                             ? [
@@ -727,7 +816,7 @@ function ClientTrackerView() {
 
           {/* ------------------------------------------------- booked by */}
           {(data.clientEmail || data.clientContact) && (
-            <Card title="Booked by" icon={ClipboardCheck} className="order-5 lg:order-none">
+            <Card title="Booked by" icon={ClipboardCheck} className="order-5 md:col-span-2 lg:order-none">
               <p className="text-sm font-medium text-slate-900">{data.clientName ?? "-"}</p>
               <p className="text-xs text-slate-600">{[data.clientEmail, data.clientContact].filter(Boolean).join(" · ")}</p>
               <p className="mt-2 text-xs text-slate-500">
