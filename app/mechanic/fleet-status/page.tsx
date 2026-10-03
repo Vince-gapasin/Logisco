@@ -6,8 +6,7 @@
 import type { EmployeeRow, TruckRow } from "@/types/database";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
-import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/components/Toast";
 import RowOpenButton from "@/components/RowOpenButton";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
@@ -26,6 +25,7 @@ import { TruckDetailView } from "./_components/TruckDetailView";
 import { formatDisplayDate } from "./_components/dates";
 import { TruckModal } from "./_components/TruckModal";
 import { LogMaintenanceModal } from "./_components/LogMaintenanceModal";
+import { useLogPhotos } from "./_components/useLogPhotos";
 
 
 // ==========================================
@@ -129,43 +129,12 @@ export default function MechanicFleetStatusPage({
     [],
   );
 
-  const requestedPhotoIDs = useRef<Set<string>>(new Set());
-
-  // Photos are excluded from the list payload; load them for the truck whose
-  // history is open, covering every log shown in its detail view.
-  useEffect(() => {
-    if (!selectedHistoryRecord) return;
-
-    const truckLogIDs = maintenanceLogs
-      .filter((log) => log && String(log.truckID) === String(selectedHistoryRecord.truckID))
-      .filter((log) =>
-        (log.hasPreliminaryPhoto && !log.preliminaryPhotoUrl) ||
-        (log.hasProgressPhoto && !log.progressPhotoUrl) ||
-        (log.hasFinalPhoto && !log.photoUrl),
-      )
-      .map((log) => log.id);
-
-    // Only request each log once: a log flagged as having a photo whose row
-    // turns out to be empty must not be retried on every render.
-    const pending = truckLogIDs.filter((id) => !requestedPhotoIDs.current.has(String(id)));
-    if (pending.length === 0) return;
-    pending.forEach((id) => requestedPhotoIDs.current.add(String(id)));
-
-    let active = true;
-    fetchLogPhotos(pending)
-      .then((photos) => {
-        if (!active || Object.keys(photos).length === 0) return;
-        setMaintenanceLogs((prev) => mergeLogPhotos(prev, photos));
-        setSelectedHistoryRecord((prev) =>
-          prev ? mergeLogPhotos([prev], photos)[0] : prev,
-        );
-      })
-      .catch((error) => console.error("Failed to load photos:", error));
-
-    return () => {
-      active = false;
-    };
-  }, [selectedHistoryRecord, maintenanceLogs]);
+  // The logs with their photos, for whichever truck is on screen - see
+  // useLogPhotos for why this is not a one-off fetch when a log is opened.
+  const photoTruckID = selectedHistoryRecord?.truckID ?? selectedTruck?.id ?? statusConfirmTruck?.id ?? null;
+  const { logs: logsWithPhotos, seed: seedLogPhotos } = useLogPhotos(maintenanceLogs, photoTruckID);
+  const withPhotos = (log: HistoryLogRecord | null) =>
+    log ? (logsWithPhotos.find((l) => String(l.id) === String(log.id)) ?? log) : null;
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>(
     [],
   );
@@ -579,6 +548,18 @@ export default function MechanicFleetStatusPage({
         return;
       }
 
+      // The photos just saved show at once, from what the form holds, rather
+      // than waiting to be fetched back.
+      const saved = (await response.json().catch(() => null)) as { data?: { id?: string } } | null;
+      const savedID = editingHistoryRecord?.id ?? saved?.data?.id;
+      if (savedID) {
+        seedLogPhotos(savedID, {
+          preliminary: formData.preliminaryPhotoUrl,
+          progress: formData.progressPhotoUrl,
+          final: formData.photoUrl,
+        });
+      }
+
       // The log is saved; now the status change it was written for. It goes
       // with logOpened, so grounding the truck does not open a second, empty
       // log beside this one.
@@ -678,7 +659,7 @@ export default function MechanicFleetStatusPage({
   let inheritedAdditionalMechanicID = "";
   if (isCurrentlyUnderMaintenance) {
     // <-- UPDATED: Added `l &&` to safely bypass undefined logs
-    const latestTruckLog = maintenanceLogs.find(
+    const latestTruckLog = logsWithPhotos.find(
       (l) => l && String(l.truckID) === String(activeModalTruckId),
     );
     inheritedAdditionalMechanicID = String(
@@ -691,9 +672,9 @@ export default function MechanicFleetStatusPage({
       {/* View Routing Logic */}
       {selectedHistoryRecord ? (
         <LogDetailView
-          log={selectedHistoryRecord}
+          log={withPhotos(selectedHistoryRecord) ?? selectedHistoryRecord}
           // <-- UPDATED: Added `l &&` to safely bypass undefined logs
-          truckLogs={maintenanceLogs.filter(
+          truckLogs={logsWithPhotos.filter(
             (l) =>
               l && String(l.truckID) === String(selectedHistoryRecord.truckID),
           )}
@@ -716,7 +697,7 @@ export default function MechanicFleetStatusPage({
       ) : showTruckHistoryView && selectedTruck ? (
         <TruckSpecificHistoryView
           truck={selectedTruck}
-          logs={maintenanceLogs}
+          logs={logsWithPhotos}
           onBack={() => setShowTruckHistoryView(false)}
           onSelectLog={(log) => setSelectedHistoryRecord(log)}
           onEditLog={(log) => {
@@ -729,7 +710,7 @@ export default function MechanicFleetStatusPage({
       ) : selectedTruck ? (
         <TruckDetailView
           truck={selectedTruck}
-          logs={maintenanceLogs}
+          logs={logsWithPhotos}
           onBack={() => setSelectedTruck(null)}
           onEdit={(truckRecord) => {
             setEditingTruck(truckRecord);
@@ -1075,7 +1056,7 @@ export default function MechanicFleetStatusPage({
           setPendingStatusTarget("");
         }}
         onSubmitSuccess={handleMaintenanceLogSubmit}
-        editData={editingHistoryRecord}
+        editData={withPhotos(editingHistoryRecord)}
         trucksOptions={trucksOptionsForModal}
         mechanicsOptions={mechanicsOptions}
         preselectedTruckId={statusConfirmTruck?.id || selectedTruck?.id}
