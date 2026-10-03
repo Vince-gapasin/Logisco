@@ -44,9 +44,23 @@ export async function GET(request: Request) {
     const result = await getEmployees(validation.data);
     const { page, limit } = validation.data;
 
+    // A mechanic asks for this list to fill a dropdown of mechanics, and was
+    // handed every employee's home address, phone, email and login link with
+    // it. The office sees the directory; everyone else sees who is who.
+    const isManager = !requireRole(auth.employee.role, ["Admin", "Coordinator"]);
+    const employees = isManager
+      ? result.employees
+      : result.employees.map((employee) => ({
+          employeeID: employee.employeeID,
+          employeeName: employee.employeeName,
+          role: employee.role,
+          availability: employee.availability,
+          isActive: employee.isActive,
+        }));
+
     return NextResponse.json(
       {
-        data: result.employees,
+        data: employees,
         pagination: {
           page,
           limit,

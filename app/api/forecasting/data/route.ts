@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/app/lib/auth";
+import { OFFICE_ROLES, requireAuth, requireRole } from "@/app/lib/auth";
 import { generateForecast } from "@/services/forecasting/forecastingService";
 
 export async function GET(request: Request) {
@@ -11,6 +11,13 @@ export async function GET(request: Request) {
         { message: auth.error },
         { status: auth.status }
       );
+    }
+
+    // The office's figures, like the snapshots and the dataset beside it. Any
+    // signed-in employee could read them, drivers and helpers included.
+    const roleError = requireRole(auth.employee.role, OFFICE_ROLES);
+    if (roleError) {
+      return NextResponse.json({ message: roleError.error }, { status: roleError.status });
     }
 
     const forecast = await generateForecast();

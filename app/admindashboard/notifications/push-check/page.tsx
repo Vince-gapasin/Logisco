@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import AdminOnly from "@/components/AdminOnly";
 
 interface Device {
   employeeID: string;
@@ -28,6 +29,14 @@ interface Status {
 }
 
 export default function PushCheckPage() {
+  return (
+    <AdminOnly title="Push Notification Check">
+      <PushCheckPageContent />
+    </AdminOnly>
+  );
+}
+
+function PushCheckPageContent() {
   const [status, setStatus] = useState<Status | null>(null);
   const [error, setError] = useState("");
   const [sending, setSending] = useState("");

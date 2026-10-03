@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Smartphone, XCircle } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import AdminOnly from "@/components/AdminOnly";
 
 interface Check {
   area: string;
@@ -27,6 +28,14 @@ const icons = {
 };
 
 export default function SystemHealthPage() {
+  return (
+    <AdminOnly title="System Health">
+      <SystemHealthPageContent />
+    </AdminOnly>
+  );
+}
+
+function SystemHealthPageContent() {
   const [checks, setChecks] = useState<Check[] | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
