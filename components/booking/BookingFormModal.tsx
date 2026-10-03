@@ -26,6 +26,7 @@ import {
 import SelectMenu from "@/components/SelectMenu";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
+import { todayInManila } from "@/app/lib/datetime";
 
 // One booking form for every way a booking starts: a registered client, an
 // on-call (walk-in) customer, or a new client. The on-call and new-client
@@ -121,7 +122,10 @@ const emptyDelivery = (): DeliveryRow => ({
   quantity: "",
 });
 
-const today = () => new Date().toISOString().split("T")[0];
+// Today in Manila, the same day the server judges "in the past" by.
+// toISOString() is UTC, which until 8 in the morning is still yesterday -
+// so the date picker offered yesterday and the server then refused it.
+const today = () => todayInManila();
 
 function initialForm() {
   return {

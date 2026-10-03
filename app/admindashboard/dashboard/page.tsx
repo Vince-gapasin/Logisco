@@ -32,7 +32,7 @@ import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import { useToast } from "@/components/Toast";
-import { mapOrderToBookingView, toFeedBooking, type OrderWithRelations } from "@/app/lib/bookingView";
+import { liveDispatchOf, mapOrderToBookingView, toFeedBooking, type OrderWithRelations } from "@/app/lib/bookingView";
 import {
   X,
   Search,
@@ -100,6 +100,8 @@ export default function AdminDashboardPage() {
   const [drivers, setDrivers] = useState<Partial<EmployeeRow>[]>([]);
   const [helpers, setHelpers] = useState<Partial<EmployeeRow>[]>([]);
   const [subcontractors, setSubcontractors] = useState<Partial<SubContractorRow>[]>([]);
+  /** Every active driver, for the crew filter - not only the ones free right now. */
+  const [allDrivers, setAllDrivers] = useState<Partial<EmployeeRow>[]>([]);
 
   const [bookingsData, setBookingsData] = useState<Record<string, DashboardBooking[]>>({
     "Pending Bookings": [],
@@ -154,18 +156,22 @@ export default function AdminDashboardPage() {
           const product = detailsArr[0]?.productName || "Multiple Items";
           const stopsArr = Array.isArray(o.BranchStops) ? o.BranchStops : o.BranchStops ? [o.BranchStops] : [];
           const rawTime = stopsArr[0]?.expectedTime || "";
+          // The day it is to be delivered, which is what the time beside it is
+          // for. This read "Request Date" - the day the booking was taken - so
+          // a delivery booked today for Friday showed as due today.
+          const scheduleMatch = o.notes?.match(/Delivery Schedule:\s*(.*)/);
           const requestDateMatch = o.notes?.match(/Request Date:\s*(.*)/);
           const created = o.createdAt ? new Date(o.createdAt) : null;
-          const reqDate = requestDateMatch
-            ? requestDateMatch[1].trim()
-            : (created?.toLocaleDateString() ?? "");
+          const reqDate =
+            scheduleMatch?.[1]?.trim() ||
+            requestDateMatch?.[1]?.trim() ||
+            (created?.toLocaleDateString() ?? "");
           const dateTime = rawTime
             ? `${reqDate} @ ${rawTime}`
             : (created?.toLocaleString() ?? reqDate);
 
-          const dispatchRecord = Array.isArray(o.DispatchOrder)
-            ? o.DispatchOrder[0]
-            : o.DispatchOrder;
+          // The trip it is on now, not the first one it ever had.
+          const dispatchRecord = liveDispatchOf(o.DispatchOrder);
           const dispatchStatus = dispatchRecord?.status || "Pending";
           const currentStep = Number(dispatchRecord?.current_step || 0);
 
@@ -322,7 +328,9 @@ export default function AdminDashboardPage() {
       const [clientRes, truckRes, empRes, subconRes] = await Promise.all([
         apiFetch<{ data: Partial<ClientRow>[] }>("/api/clients").catch(() => ({ data: [] })),
         apiFetch<{ data: Partial<TruckRow>[] }>("/api/fleet-status").catch(() => ({ data: [] })),
-        apiFetch<{ data: Partial<EmployeeRow>[] }>("/api/employees").catch(() => ({ data: [] })),
+        // Every active employee. Without a limit this was the first ten by name,
+        // so the crew lists and the filter were missing everyone after them.
+        apiFetch<{ data: Partial<EmployeeRow>[] }>("/api/employees?limit=100&isActive=true").catch(() => ({ data: [] })),
         apiFetch<{ data: Partial<SubContractorRow>[] }>("/api/subcontractors").catch(() => ({ data: [] })),
       ]);
 
@@ -347,6 +355,7 @@ export default function AdminDashboardPage() {
 
       setDrivers(assignableCrew(allEmployees, "Driver"));
       setHelpers(assignableCrew(allEmployees, "Helper"));
+      setAllDrivers((empRes.data ?? []).filter((employee) => employee.role?.trim() === "Driver"));
 
       setSubcontractors(subconRes.data || []);
     } catch (error) {
@@ -433,7 +442,11 @@ export default function AdminDashboardPage() {
       const helper2Name = data.resolvedNames.helper2 || "None";
       const truckName = (!data.unassigned && data.resolvedNames.truck) || "Unassigned";
 
-      detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate || new Date().toISOString().split("T")[0]}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupList[0]?.warehouseAddress} @ ${data.pickupList[0]?.pickupTime}\n`;
+      // Today in the browser's own time zone. toISOString() is UTC, which in
+      // Manila is still yesterday until 8 in the morning.
+      const now = new Date();
+      const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+      detailedNotes += `[DELIVERY DETAILS]\nPriority: ${data.priorityLevel}\nRequest Date: ${data.requestDate || localToday}\nDelivery Schedule: ${data.deliverySchedule}\nPickup: ${data.pickupList[0]?.warehouseAddress} @ ${data.pickupList[0]?.pickupTime}\n`;
 
       if (data.subconPartner) {
         detailedNotes += `\n[SUBCON ASSIGNMENT]\nPartner: ${data.subconPartnerName}\nTruck/Plate: ${data.truckPlate || "TBD"}\nDriver: ${data.driver || "TBD"}\n`;
@@ -566,9 +579,11 @@ export default function AdminDashboardPage() {
     clients.map(c => ({ id: c.clientID ?? "", name: c.company || "Unknown" })), 
   [clients]);
 
-  const activeCrewsForFilter = useMemo(() => 
-    drivers.map(d => ({ id: d.employeeID ?? "", name: d.employeeName ?? "Unknown" })), 
-  [drivers]);
+  // Every active driver. This was the drivers free to assign right now, so a
+  // driver out on a delivery could not be filtered by - the one time you would.
+  const activeCrewsForFilter = useMemo(() =>
+    allDrivers.map(d => ({ id: d.employeeID ?? "", name: d.employeeName ?? "Unknown" })),
+  [allDrivers]);
 
   // Apply Search inside Filter Modals
   const filteredCrews = activeCrewsForFilter.filter((c) =>
@@ -597,21 +612,22 @@ export default function AdminDashboardPage() {
         if (dashboardFilters.clientIds.length > 0) {
           const bookingClientId = b.rawOrder?.clientID;
           const matchById = dashboardFilters.clientIds.includes(bookingClientId ?? "");
-          const clientObj = activeClientsForFilter.find(c => dashboardFilters.clientIds.includes(c.id));
-          const matchByName = clientObj && clientObj.name === b.client;
+          // Any selected client, not only the first one picked.
+          const matchByName = activeClientsForFilter.some(
+            (c) => dashboardFilters.clientIds.includes(c.id) && c.name === b.client,
+          );
           
           if (!matchById && !matchByName) return false;
         }
 
         // 2. Crew Filter
         if (dashboardFilters.crewIds.length > 0) {
-          const dispatchRecord = Array.isArray(b.rawOrder?.DispatchOrder)
-            ? b.rawOrder.DispatchOrder[0]
-            : b.rawOrder?.DispatchOrder;
+          const dispatchRecord = liveDispatchOf(b.rawOrder?.DispatchOrder);
           const driverId = dispatchRecord?.driverID;
           const matchById = dashboardFilters.crewIds.includes(driverId ?? "");
-          const driverObj = activeCrewsForFilter.find(c => dashboardFilters.crewIds.includes(c.id));
-          const matchByName = driverObj && driverObj.name === b.driver;
+          const matchByName = activeCrewsForFilter.some(
+            (c) => dashboardFilters.crewIds.includes(c.id) && c.name === b.driver,
+          );
 
           if (!matchById && !matchByName) return false;
         }
@@ -642,7 +658,11 @@ export default function AdminDashboardPage() {
           } else if (dashboardFilters.dateRange === "thisWeek") {
             const firstDay = new Date(today);
             firstDay.setDate(today.getDate() - today.getDay());
-            if (bDate < firstDay) return false;
+            // And the end of it: without this, every booking scheduled for any
+            // later week counted as this week's.
+            const lastDay = new Date(firstDay);
+            lastDay.setDate(firstDay.getDate() + 6);
+            if (bDate < firstDay || bDate > lastDay) return false;
           } else if (dashboardFilters.dateRange === "thisMonth") {
             if (bDate.getMonth() !== today.getMonth() || bDate.getFullYear() !== today.getFullYear()) return false;
           } else if (dashboardFilters.dateRange === "thisYear") {

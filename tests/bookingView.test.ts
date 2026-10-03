@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DELIVERY_STATUS, STOP_STATUS } from "@/app/lib/enums";
-import { isPendingBooking, mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
+import { isPendingBooking, liveDispatchOf, mapOrderToBookingView, toFeedBooking } from "@/app/lib/bookingView";
 
 function order(overrides: Record<string, unknown> = {}) {
   return {
@@ -232,5 +232,37 @@ describe("what the pending list holds", () => {
   it("drops a trip already on the road, and a cancelled booking", () => {
     expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.inTransit, driverID: "e1" }])).toBe(false);
     expect(pending([{ dispatchID: "d1", status: DELIVERY_STATUS.rejected, driverID: "e1" }], false)).toBe(false);
+  });
+});
+
+describe("which trip a booking is on now", () => {
+  // A booking keeps every trip it has had. The dashboard and the reports took
+  // the first one, so a booking a crew had declined and another had since
+  // delivered showed the crew who said no - and, in the reports, a foul trip.
+  it("is the open trip, not a declined one before it", () => {
+    const live = liveDispatchOf([
+      { dispatchID: "old", status: DELIVERY_STATUS.rejected },
+      { dispatchID: "new", status: DELIVERY_STATUS.completed },
+    ]);
+    expect(live?.dispatchID).toBe("new");
+  });
+
+  it("is the replacement after a breakdown", () => {
+    const live = liveDispatchOf([
+      { dispatchID: "broke-down", status: DELIVERY_STATUS.foulTrip },
+      { dispatchID: "replacement", status: DELIVERY_STATUS.inTransit },
+    ]);
+    expect(live?.dispatchID).toBe("replacement");
+  });
+
+  it("is the last one when every trip is closed", () => {
+    // Declined and not yet reassigned: the booking is waiting for a crew.
+    const live = liveDispatchOf([{ dispatchID: "only", status: DELIVERY_STATUS.rejected }]);
+    expect(live?.dispatchID).toBe("only");
+  });
+
+  it("is nothing for a booking that never had one", () => {
+    expect(liveDispatchOf([])).toBeNull();
+    expect(liveDispatchOf(null)).toBeNull();
   });
 });

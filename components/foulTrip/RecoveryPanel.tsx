@@ -16,6 +16,7 @@ import {
 import { apiFetch } from "@/app/lib/apiClient";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
+import { todayInManila } from "@/app/lib/datetime";
 
 // What dispatch can do about a foul trip. This replaces a screen whose four
 // options made no server call and whose driver, truck and mechanic lists were
@@ -41,8 +42,10 @@ const OPTIONS: { id: Action; title: string; description: string; icon: LucideIco
   { id: "close", title: "Close", description: "Already handled outside the system.", icon: CheckCircle2 },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-const tomorrow = () => new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+// In Manila. These were UTC dates, so before 8 in the morning "today" was
+// yesterday and "tomorrow" was today.
+const today = () => todayInManila();
+const tomorrow = () => todayInManila(new Date(Date.now() + 864e5));
 
 // A starting crew for a re-assignment or reschedule, all of it editable. The
 // failed trip's own driver and helpers were released when it broke down, so

@@ -228,21 +228,29 @@ export interface OrderWithRelations extends Partial<OrderRow> {
   FoulTripIncident?: Related<Partial<FoulTripIncidentRow>>;
 }
 
+/**
+ * The trip a booking is on now.
+ *
+ * A booking keeps every trip it has had: one a crew declined, one that broke
+ * down, and the one that replaced it. The live one is the trip that is not
+ * closed; failing that, the latest. Screens that took the first trip instead
+ * showed a reassigned booking with the crew who had turned it down, and a
+ * delivered one as a foul trip.
+ */
+export function liveDispatchOf<T extends { status?: string | null }>(
+  dispatches: T | T[] | null | undefined,
+): T | null {
+  const rows = asRows(dispatches);
+  return rows.find((d) => !CLOSED_DISPATCH_STATUSES.includes(d.status ?? "")) ?? rows[rows.length - 1] ?? null;
+}
+
 export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
   const client = firstRelated(order.Client);
   const items = asRows(order.OrderDetails);
   const stops = asRows(order.BranchStops);
   const pickupRows = asRows(order.PickupStops);
 
-  const dispatches = asRows(order.DispatchOrder);
-
-  // The latest dispatch is the live one; earlier ones were rejected.
-  const liveDispatch =
-    dispatches.find(
-      (d) => !CLOSED_DISPATCH_STATUSES.includes(d.status ?? ""),
-    ) ??
-    dispatches[dispatches.length - 1] ??
-    null;
+  const liveDispatch = liveDispatchOf(order.DispatchOrder);
 
   // A driver's acceptance lives on the dispatch itself; each helper carries
   // their own status on their DispatchHelper row.

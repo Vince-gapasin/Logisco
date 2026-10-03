@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { DashboardBooking } from "./feeds";
+import { liveDispatchOf } from "@/app/lib/bookingView";
 
 // ==========================================
 // VIEW BOOKING MODAL (READ-ONLY)
@@ -79,7 +80,7 @@ export function ViewOrderModal({
           },
         ];
 
-  const dispatchRecord = Array.isArray(raw.DispatchOrder) ? raw.DispatchOrder[0] : raw.DispatchOrder;
+  const dispatchRecord = liveDispatchOf(raw.DispatchOrder);
 
   const dispatchNote = dispatchRecord?.dispatchNote || "";
   const podUrl = dispatchRecord?.pod_url || "";

@@ -4,11 +4,7 @@ import Link from "next/link";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
-import {
-  mapOrderToBookingView,
-  toFeedBooking,
-  type OrderWithRelations,
-} from "@/app/lib/bookingView";
+import { mapOrderToBookingView, toFeedBooking, type OrderWithRelations, liveDispatchOf } from "@/app/lib/bookingView";
 import BookingHistoryPanel from "@/components/booking/BookingHistoryPanel";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
@@ -19,7 +15,7 @@ import {
   ClientInformation,
 } from "@/components/booking/BookingReadOnly";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
-import { formatDateTime } from "@/app/lib/datetime";
+import { formatDateTime, todayInManila } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import {
@@ -484,14 +480,20 @@ export default function ReportsForecastingPage() {
             }
             uniqueClients.add(displayClient);
 
+            // The delivery day, as the dashboard has it: what a report of
+            // deliveries is dated by. It was the day the booking was taken, so
+            // a delivery booked on the 1st for the 5th counted in the wrong
+            // day's, and sometimes the wrong month's, figures. Older bookings
+            // with no delivery day fall back to that.
+            const scheduleMatch = o.notes?.match(/Delivery Schedule:\s*([^\n]*)/);
             const requestDateMatch = o.notes?.match(/Request Date:\s*([^\n]*)/);
-            const reqDate = requestDateMatch
-              ? requestDateMatch[1].trim()
-              : o.createdAt
-                ? new Date(o.createdAt).toISOString().split("T")[0]
-                : "";
+            const reqDate =
+              scheduleMatch?.[1]?.trim() ||
+              requestDateMatch?.[1]?.trim() ||
+              (o.createdAt ? todayInManila(new Date(o.createdAt)) : "");
 
-            const dispatchRecord = Array.isArray(o.DispatchOrder) ? o.DispatchOrder[0] : o.DispatchOrder;
+            // The trip it is on now, not the first one it ever had.
+            const dispatchRecord = liveDispatchOf(o.DispatchOrder);
 
             const driverPerson = Array.isArray(dispatchRecord?.Driver)
               ? dispatchRecord?.Driver[0]
@@ -539,8 +541,13 @@ export default function ReportsForecastingPage() {
               category = "Delivered";
             } else if (dispatchStatusValue === "Cancelled") {
               category = "Cancelled";
-            } else if (["Foul Trip", "Rejected"].includes(dispatchStatusValue)) {
+            } else if (dispatchStatusValue === "Foul Trip") {
               category = "Foul Trip";
+            } else if (dispatchStatusValue === "Rejected") {
+              // A crew turned it down and it is waiting for another, as the
+              // dashboard has it. Counted as a foul trip here, it inflated the
+              // foul-trip total with deliveries nothing had gone wrong with.
+              category = "Pending";
             } else if (dispatchStatusValue === "In Transit") {
               category = "In-Transit";
             } else if (
@@ -786,7 +793,7 @@ export default function ReportsForecastingPage() {
       report.section("Records", `${totalHistorical} matching this filter`, 24);
       report.table(
         [
-          { header: "Date", width: 25 },
+          { header: "Delivery Date", width: 25 },
           { header: "Order ID", width: 38 },
           { header: "Client", width: 55 },
           { header: "Final status", width: 26 },
@@ -1102,7 +1109,7 @@ export default function ReportsForecastingPage() {
           <table className="w-full text-left border-collapse md:min-w-225">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Date</th>
+                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Date</th>
                 <th className="py-3.5 px-4 sm:px-6">Order ID</th>
                 <th className="py-3.5 px-4 sm:px-6">Client</th>
                 <th className="py-3.5 px-4 sm:px-6">Final Status</th>

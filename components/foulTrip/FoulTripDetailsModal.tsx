@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Clock, FileText, X } from "lucide-react";
 import RecoveryPanel from "@/components/foulTrip/RecoveryPanel";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import type { FeedBooking, FeedStopRow } from "@/app/lib/bookingView";
+import { todayInManila } from "@/app/lib/datetime";
 
 // The foul-trip details and recovery screen. Shared by the Foul Trip feed and
 // the dashboard's Foul Trip list, so a booking opens the same way from both.
@@ -144,7 +145,7 @@ export default function FoulTripDetailsModal({
   onProceedSuccess,
   booking,
 }: BookingDetailsModalProps) {
-  const currentDate = new Date().toISOString().split("T")[0];
+  const currentDate = todayInManila();
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState<Record<string, string>>({});

@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { getCrewStatusBadge } from "./badges";
+import { todayInManila } from "@/app/lib/datetime";
 
 // ==========================================
 // BOOKING DETAILS / ASSIGNMENT MODAL
@@ -37,7 +38,7 @@ export function BookingDetailsModal({
   onSubmitSuccess,
   onCancelBooking,
 }: BookingDetailsModalProps) {
-  const currentDate = new Date().toISOString().split("T")[0];
+  const currentDate = todayInManila();
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState<Record<string, string>>({});
@@ -130,7 +131,12 @@ export function BookingDetailsModal({
   // is the whole point of opening them here.
   const wasDeclined = booking.confirmationStatus === "Declined";
   const isUnassigned = booking.confirmationStatus === "Unassigned";
-  const isEditable = isAssignCrew || isPendingCrew || wasDeclined || isUnassigned;
+  // A crew that has accepted can still be changed until the trip starts - the
+  // office changing its mind, or swapping someone who can no longer make it.
+  // The server has always allowed re-assigning an accepted trip; this screen
+  // locked it. The new crew are asked to accept again.
+  const isCrewConfirmed = booking.confirmationStatus === "Crew Confirmed";
+  const isEditable = isAssignCrew || isPendingCrew || wasDeclined || isUnassigned || isCrewConfirmed;
 
   const handleChange = (
     e: React.ChangeEvent<

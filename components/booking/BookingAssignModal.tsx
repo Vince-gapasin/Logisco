@@ -28,6 +28,7 @@ import CrewPicker from "@/components/booking/CrewPicker";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
 import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
+import { todayInManila } from "@/app/lib/datetime";
 
 interface BookingAssignModalProps {
   isOpen: boolean;
@@ -87,7 +88,7 @@ export default function BookingAssignModal({
   onSubmitSuccess,
   onCancelBooking,
 }: BookingAssignModalProps) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInManila();
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [formData, setFormData] = useState<FormState>(EMPTY_FORM);

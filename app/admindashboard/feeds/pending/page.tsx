@@ -167,6 +167,11 @@ export default function PendingBookingPage() {
         method: "PATCH",
         body: JSON.stringify({ action: "cancel" }),
       });
+      // Closed and confirmed. The details used to stay open on the booking it
+      // had just cancelled, with nothing to say the cancel had worked.
+      setIsModalOpen(false);
+      setSelectedBooking(null);
+      showToast("Booking cancelled.", "success");
       await loadBookings();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to cancel booking.", "error");
@@ -211,12 +216,12 @@ export default function PendingBookingPage() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <UrlSearchSync onQuery={setSearchTerm} />
+              <UrlSearchSync onQuery={(query) => { setSearchTerm(query); setCurrentPage(1); }} />
               <UrlOpenSync rows={bookings} ready={!isLoading} onOpen={handleOpenModal} />
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }}
                 placeholder="Search order ID, client, product..."
                 className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"
               />
