@@ -83,7 +83,7 @@ export default function MechanicFleetStatusPage({
   }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "Already Booked" | "On Delivery" | "Out of Service">("All");
+  const [selectedFilter, setSelectedFilter] = useState<"All" | "On Maintenance" | "Available" | "On Delivery" | "Out of Service">("All");
   const [showArchived, setShowArchived] = useState(false);
 
   const [isSavingTruck, setIsSavingTruck] = useState(false);
@@ -171,6 +171,24 @@ export default function MechanicFleetStatusPage({
   );
   const [isLoading, setIsLoading] = useState(true);
 
+  const [archivedList, setArchivedList] = useState<TruckRecord[]>([]);
+
+  const toTruckRecord = (truck: Partial<TruckRow>): TruckRecord => ({
+    id: truck.truckID ?? "",
+    // Carried so an edit keeps the code the truck has, rather than the form
+    // inventing a new one from the plate.
+    truckCode: truck.truckCode ?? undefined,
+    plateNumber: truck.plateNumber ?? "",
+    truckType: truck.truckType ?? "",
+    truckModel: truck.model ?? "",
+    capacity: truck.capacity === null || truck.capacity === undefined ? "" : String(truck.capacity),
+    lastChecked: truck.lastChecked ?? "",
+    status: truck.truckStatus || "Available",
+  });
+
+  // Kept in the order the server sends: most recently checked first. This used
+  // to re-sort by Number(id), which for a UUID is NaN, so the list came out in
+  // whatever order the sort happened to leave it.
   const fetchTrucks = async () => {
     setIsLoading(true);
     try {
@@ -184,26 +202,28 @@ export default function MechanicFleetStatusPage({
         : Array.isArray(result?.data)
           ? result.data
           : [];
-      const mappedData: TruckRecord[] = (payload as Partial<TruckRow>[]).map((truck) => ({
-        id: truck.truckID ?? "",
-        plateNumber: truck.plateNumber ?? "",
-        truckType: truck.truckType ?? "",
-        truckModel: truck.model ?? "",
-        capacity: truck.capacity === null || truck.capacity === undefined ? "" : String(truck.capacity),
-        lastChecked: truck.lastChecked ?? "",
-        status: truck.truckStatus || "Available",
-      }));
-
-      // Forces highest ID (newest) to the top and resolves the TS (a, b) error
-      const sortedData = mappedData.sort(
-        (a: TruckRecord, b: TruckRecord) => Number(b.id) - Number(a.id),
-      );
-
-      setFleetList(sortedData);
+      setFleetList((payload as Partial<TruckRow>[]).map(toTruckRecord));
     } catch (error) {
       console.error("Error fetching trucks:", error);
+      showToast("Could not load the fleet. Check your connection and reload.", "error");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // The retired trucks. The fleet list only ever holds active ones - retiring
+  // is a soft delete - so the archive has to be asked for separately.
+  const fetchArchived = async () => {
+    try {
+      const response = await authFetch(`/api/fleet-status?archived=true`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      const payload = Array.isArray(result?.data) ? result.data : [];
+      setArchivedList((payload as Partial<TruckRow>[]).map(toTruckRecord));
+    } catch (error) {
+      console.error("Error fetching archived trucks:", error);
+      showToast("Could not load the archived trucks.", "error");
     }
   };
 
@@ -229,14 +249,21 @@ export default function MechanicFleetStatusPage({
       // LogPhotos that the endpoint does not send, so every one of those
       // lookups came back undefined and each field was carried by the
       // fallback beside it.
-      const mappedLogs = rawLogs as HistoryLogRecord[];
+      //
+      // The service names the timestamp createdAt. Every comparison on this
+      // screen reads created_at, which was therefore always undefined and fell
+      // back to the date alone - so two logs written the same day tied, and the
+      // reverse() here put the older one first. "The latest log", which decides
+      // whose repair a truck is, was the earliest log of the day.
+      const mappedLogs = (rawLogs as (HistoryLogRecord & { createdAt?: string })[]).map(
+        (log) => ({ ...log, created_at: log.created_at ?? log.createdAt }),
+      );
 
-      const sortedAllLogs = [...mappedLogs].reverse().sort((a, b) => {
-        const timeA = new Date(a.created_at || a.date).getTime();
-        const timeB = new Date(b.created_at || b.date).getTime();
-        const diff = timeB - timeA;
-        return diff !== 0 && !isNaN(diff) ? diff : 0;
-      });
+      const time = (log: HistoryLogRecord) => {
+        const t = new Date(log.created_at || log.date).getTime();
+        return Number.isNaN(t) ? 0 : t;
+      };
+      const sortedAllLogs = [...mappedLogs].sort((a, b) => time(b) - time(a));
 
       setMaintenanceLogs(sortedAllLogs);
     } catch (error) {
@@ -247,7 +274,10 @@ export default function MechanicFleetStatusPage({
   const fetchMechanics = async () => {
     try {
       // authFetch attaches the signed-in employee's token.
-      const response = await authFetch(`/api/employees?page=1&limit=100`, {
+      // Active mechanics only, asked for by role: the first hundred employees of
+      // every role, filtered here, missed mechanics past the hundredth and
+      // offered ones who had left.
+      const response = await authFetch(`/api/employees?page=1&limit=100&role=Mechanic&isActive=true`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -287,29 +317,42 @@ export default function MechanicFleetStatusPage({
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /** Reads the reason the server gave for refusing, when it gave one. */
+  const serverMessage = async (response: Response, fallback: string) => {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    return body?.message || fallback;
+  };
+
   const executeStatusUpdate = async (
     truckRecord: TruckRecord,
     newStatus: string,
+    { logOpened = false }: { logOpened?: boolean } = {},
   ) => {
     // Grabs the local date in YYYY-MM-DD format, ignoring UTC shifts
     const offset = new Date().getTimezoneOffset() * 60000;
     const today = new Date(Date.now() - offset).toISOString().split("T")[0];
 
-    // Inject the new status AND the fresh lastChecked date into the payload
-    const fullPayload = {
-      ...truckRecord,
-      status: newStatus,
-      lastChecked: today,
-    };
+    // Only what is changing. This sent the whole truck as this screen last saw
+    // it, so a plate or model edited elsewhere since the list loaded was
+    // quietly written back.
+    //
+    // logOpened says the maintenance log for this change has just been saved,
+    // so the server does not open a second one when the truck is grounded.
+    const payload = { status: newStatus, lastChecked: today, logOpened };
 
     try {
       const response = await authFetch(`/api/fleet-status/${truckRecord.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fullPayload),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
+      if (!response.ok) {
+        showToast(await serverMessage(response, "Failed to update the truck's status."), "error");
+        return;
+      }
+
+      {
         // Update the frontend list with both the new status and the new date
         setFleetList((prev) =>
           prev.map((truck) =>
@@ -382,14 +425,9 @@ export default function MechanicFleetStatusPage({
       setEditingHistoryRecord(null);
       setShowLogMaintenanceModal(true);
     }
-    // 4. Standard status updates (e.g., to On Delivery)
+    // 4. Any other status
     else {
       await executeStatusUpdate(statusConfirmTruck, targetStatus);
-
-      if (targetStatus === "Disabled") {
-        setSelectedTruck(null);
-      }
-
       setStatusConfirmTruck(null);
       setPendingStatusTarget("");
     }
@@ -405,57 +443,99 @@ export default function MechanicFleetStatusPage({
         : `/api/fleet-status`;
       const method = editingTruck ? "PUT" : "POST";
 
+      // An edit leaves the status out. The form carries the status the truck
+      // had when this screen loaded, and sending it back put a truck that had
+      // since gone out on a delivery back to Available.
+      const { status, ...details } = record;
+      const body = editingTruck ? details : { ...details, status };
+
       const response = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(record),
+        body: JSON.stringify(body),
       });
 
-      if (response.ok) {
-        const savedData = await response.json();
-        if (editingTruck) {
-          setFleetList((prev) =>
-            prev.map((t) => (String(t.id) === String(record.id) ? record : t)),
-          );
-          if (selectedTruck && String(selectedTruck.id) === String(record.id))
-            setSelectedTruck(record);
-        } else {
-          const newTruck: TruckRecord = {
-            ...record,
-            id: savedData.truckID || savedData.id,
-          };
-          setFleetList((prev) => [newTruck, ...prev]);
-        }
-        showToast(
-          editingTruck
-            ? "Changes saved successfully."
-            : "Truck added successfully.", "success");
-      } else {
-        showToast("Failed to save truck. Check your server connection.", "error");
+      if (!response.ok) {
+        // Kept open, so what was typed is not lost to a duplicate plate.
+        showToast(await serverMessage(response, "Failed to save the truck."), "error");
+        return;
       }
-    } catch (error) { 
-      console.error("Error saving truck:", error); 
-      showToast("Error saving truck details.", "error"); 
+
+      const savedData = await response.json();
+      if (editingTruck) {
+        // The details as saved; the status stays whatever it already is.
+        setFleetList((prev) =>
+          prev.map((t) => (String(t.id) === String(record.id) ? { ...record, status: t.status } : t)),
+        );
+        if (selectedTruck && String(selectedTruck.id) === String(record.id))
+          setSelectedTruck((prev) => (prev ? { ...record, status: prev.status } : prev));
+      } else {
+        const newTruck: TruckRecord = {
+          ...record,
+          id: savedData.truckID || savedData.id,
+          truckCode: savedData.truckCode ?? record.truckCode,
+        };
+        setFleetList((prev) => [newTruck, ...prev]);
+      }
+      showToast(
+        editingTruck
+          ? "Changes saved successfully."
+          : "Truck added successfully.", "success");
+      setEditingTruck(null);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error saving truck:", error);
+      showToast("Error saving truck details.", "error");
     } finally {
       setIsSavingTruck(false);
-      setEditingTruck(null); 
-      setIsModalOpen(false);
     }
   };
 
-  const handleDeleteTruck = async (id: string | number) => {
+  // Archiving is the server's soft delete: the truck leaves the fleet and every
+  // booking list, and keeps its history. "Disable" and "Delete" both used to
+  // sit here - one sent a status the server does not have and failed without a
+  // word, the other did this - so there is one action now, and a way back.
+  const handleArchiveTruck = async (id: string | number) => {
     try {
       const response = await authFetch(`/api/fleet-status/${id}`, {
         method: "DELETE",
       });
-      if (response.ok) {
-        setFleetList((prev) => prev.filter((t) => String(t.id) !== String(id)));
-        setSelectedTruck(null);
-        showToast("Truck deleted successfully.", "success");
+      if (!response.ok) {
+        showToast(await serverMessage(response, "Failed to archive the truck."), "error");
+        return;
       }
+      const archived = fleetList.find((t) => String(t.id) === String(id));
+      setFleetList((prev) => prev.filter((t) => String(t.id) !== String(id)));
+      if (archived) {
+        setArchivedList((prev) => [{ ...archived, status: "Out of Service" }, ...prev]);
+      }
+      setSelectedTruck(null);
+      showToast("Truck archived. It can be restored from Archived Trucks.", "success");
     } catch (error) {
-      console.error("Error deleting truck:", error);
-      showToast("Error deleting truck.", "error");
+      console.error("Error archiving truck:", error);
+      showToast("Error archiving truck.", "error");
+    }
+  };
+
+  const handleRestoreTruck = async (id: string | number) => {
+    try {
+      const response = await authFetch(`/api/fleet-status/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restore: true }),
+      });
+      if (!response.ok) {
+        showToast(await serverMessage(response, "Failed to restore the truck."), "error");
+        return;
+      }
+      const restored = toTruckRecord(await response.json());
+      setArchivedList((prev) => prev.filter((t) => String(t.id) !== String(id)));
+      setFleetList((prev) => [restored, ...prev]);
+      setSelectedTruck(null);
+      showToast("Truck restored as Out of Service. Set it to Available when it is ready.", "success");
+    } catch (error) {
+      console.error("Error restoring truck:", error);
+      showToast("Error restoring truck.", "error");
     }
   };
 
@@ -493,34 +573,43 @@ export default function MechanicFleetStatusPage({
         body: JSON.stringify(finalPayload),
       });
 
-      if (response.ok) {
-        await fetchLogs();
-        showToast(
-          editingHistoryRecord
-            ? "Changes saved successfully."
-            : "Maintenance log saved successfully.", "success");
-
-        // EXECUTE DELAYED STATUS UPDATE: Update the truck unconditionally if a target is set
-        if (statusConfirmTruck && pendingStatusTarget) {
-          await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget);
-        }
-      } else {
-        showToast("Failed to save maintenance log.", "error");
+      if (!response.ok) {
+        // Kept open with what was typed, rather than closed on a failure.
+        showToast(await serverMessage(response, "Failed to save the maintenance log."), "error");
+        return;
       }
-    } catch (error) { 
-      console.error("Error saving maintenance log:", error); 
-    } finally { 
-      setIsSavingLog(false); // Reset saving state
-      setEditingHistoryRecord(null); 
-      setShowLogMaintenanceModal(false); 
+
+      // The log is saved; now the status change it was written for. It goes
+      // with logOpened, so grounding the truck does not open a second, empty
+      // log beside this one.
+      if (statusConfirmTruck && pendingStatusTarget) {
+        await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget, { logOpened: true });
+      }
+      await fetchLogs();
+      showToast(
+        editingHistoryRecord
+          ? "Changes saved successfully."
+          : "Maintenance log saved successfully.", "success");
+
+      setEditingHistoryRecord(null);
+      setShowLogMaintenanceModal(false);
       setStatusConfirmTruck(null);
       setPendingStatusTarget("");
+    } catch (error) {
+      console.error("Error saving maintenance log:", error);
+      showToast("Error saving the maintenance log.", "error");
+    } finally {
+      setIsSavingLog(false);
     }
   };
 
   const handleDeleteHistoryLog = async (id: string | number) => {
     try {
-      await authFetch(`/api/historyLogsM/${id}`, { method: "DELETE" });
+      const response = await authFetch(`/api/historyLogsM/${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        showToast(await serverMessage(response, "Failed to delete the log."), "error");
+        return;
+      }
       setMaintenanceLogs((prev) =>
         prev.filter((log) => String(log.id) !== String(id)),
       );
@@ -528,18 +617,20 @@ export default function MechanicFleetStatusPage({
       showToast("Deleted successfully.", "success");
     } catch (error) {
       console.error("Error deleting log:", error);
+      showToast("Error deleting the log.", "error");
     }
   };
 
-  const activeFleet = fleetList.filter((t) => t.status !== "Disabled");
-  const disabledFleet = fleetList.filter((t) => t.status === "Disabled");
+  // "Disabled" and "Already Booked" were statuses here that the server never
+  // stores (it has four: Available, On Delivery, On Maintenance, Out of
+  // Service), so their tab always read 0 and the archive was always empty.
+  // Retired trucks come from their own request now.
+  const activeFleet = fleetList;
+  const disabledFleet = archivedList;
 
   const totalCount = activeFleet.length;
   const operationalCount = activeFleet.filter(
     (t) => t.status === "Available",
-  ).length;
-  const alreadyBookedCount = activeFleet.filter(
-    (t) => t.status === "Already Booked",
   ).length;
   const deliveryCount = activeFleet.filter(
     (t) => t.status === "On Delivery",
@@ -644,7 +735,9 @@ export default function MechanicFleetStatusPage({
             setEditingTruck(truckRecord);
             setIsModalOpen(true);
           }}
-          onDelete={() => setTruckToDelete(selectedTruck.id)}
+          isArchived={showArchived}
+          onArchiveClick={() => setTruckToDelete(selectedTruck.id)}
+          onRestoreClick={() => void handleRestoreTruck(selectedTruck.id)}
           onUpdateStatusClick={() => {
             setStatusConfirmTruck(selectedTruck);
             setPendingStatusTarget("");
@@ -657,12 +750,6 @@ export default function MechanicFleetStatusPage({
             setMaintenanceFormType("update");
             setEditingHistoryRecord(null); // Force a NEW row for the progress update
             setShowLogMaintenanceModal(true);
-          }}
-          // --- 1. ADD THIS BLOCK ---
-          onDisableClick={() => {
-            setStatusConfirmTruck(selectedTruck);
-            setPendingStatusTarget("Disabled");
-            setShowConfirmationModal(true);
           }}
           currentUserId={String(currentUser.employeeID)}
         />
@@ -677,6 +764,7 @@ export default function MechanicFleetStatusPage({
             <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
               <button
                 onClick={() => {
+                  if (!showArchived) void fetchArchived();
                   setShowArchived(!showArchived);
                   setSelectedFilter("All");
                   setCurrentPage(1);
@@ -726,12 +814,6 @@ export default function MechanicFleetStatusPage({
                       className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Available" ? getStatusStyles("Available").tabActive : getStatusStyles("Available").bgLight}`}
                     >
                       Available ({operationalCount})
-                    </button>
-                    <button
-                      onClick={() => setSelectedFilter("Already Booked")}
-                      className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "Already Booked" ? getStatusStyles("Already Booked").tabActive : getStatusStyles("Already Booked").bgLight}`}
-                    >
-                      Already Booked ({alreadyBookedCount})
                     </button>
                     <button
                       onClick={() => setSelectedFilter("On Delivery")}
@@ -1010,11 +1092,12 @@ export default function MechanicFleetStatusPage({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete Truck Record
+              Archive Truck
             </h3>
             <p className="text-sm text-slate-600 mb-6">
-              Are you sure you want to delete this truck? This action is
-              permanent and cannot be undone.
+              The truck will leave the fleet and can no longer be booked. Its
+              maintenance history is kept, and it can be restored from
+              Archived Trucks.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -1027,12 +1110,12 @@ export default function MechanicFleetStatusPage({
               <button
                 type="button"
                 onClick={() => {
-                  handleDeleteTruck(truckToDelete);
+                  void handleArchiveTruck(truckToDelete);
                   setTruckToDelete(null);
                 }}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer"
               >
-                Confirm Delete
+                Archive Truck
               </button>
             </div>
           </div>

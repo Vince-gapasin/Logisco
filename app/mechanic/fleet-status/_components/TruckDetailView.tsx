@@ -6,7 +6,7 @@ import {
   Truck,
   ArrowLeft,
   Edit3,
-  Trash2,
+  RotateCcw,
   History as HistoryIcon,
   Wrench,
   Archive,
@@ -24,12 +24,14 @@ interface TruckDetailViewProps {
   logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
-  onDelete: () => void;
+  /** Opened from Archived Trucks: the only thing to do with it is restore it. */
+  isArchived: boolean;
+  onArchiveClick: () => void;
+  onRestoreClick: () => void;
   onUpdateStatusClick: () => void;
   onHistoryClick: () => void;
   onLogMaintenanceClick: () => void;
-  onDisableClick: () => void;
-  currentUserId: string; // <-- ADD THIS PROP
+  currentUserId: string;
 }
 
 export function TruckDetailView({
@@ -37,11 +39,12 @@ export function TruckDetailView({
   logs,
   onBack,
   onEdit,
-  onDelete,
+  isArchived,
+  onArchiveClick,
+  onRestoreClick,
   onUpdateStatusClick,
   onHistoryClick,
   onLogMaintenanceClick,
-  onDisableClick,
   currentUserId,
 }: TruckDetailViewProps) {
   const styles = getStatusStyles(truck.status);
@@ -54,8 +57,8 @@ export function TruckDetailView({
   // Only true if the truck is actively broken down or being worked on
   const isUnderMaintenance = truck.status === "On Maintenance" || truck.status === "Out of Service";
 
-  // True if the truck is currently tied to an active dispatch/booking
-  const isRestrictedStatus = truck.status === "On Delivery" || truck.status === "Already Booked";
+  // True if the truck is out on a delivery.
+  const isRestrictedStatus = truck.status === "On Delivery";
 
   // 1. Isolate logs for this truck (Ultra-aggressive match ensures IDs and Plates link)
   const sortedTruckLogs = logs.filter((l) => {
@@ -79,9 +82,6 @@ export function TruckDetailView({
     return matchID || matchPlate;
   });
 
-  //  Check if the truck has any existing maintenance logs
-  const hasHistory = sortedTruckLogs.length > 0;
-
   // 2. Isolate the newest log that contains preliminary inspection data
   const prelimIndex = sortedTruckLogs.findIndex(
     (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl,
@@ -96,13 +96,21 @@ export function TruckDetailView({
       ? sortedTruckLogs.slice(0, prelimIndex + 1)
       : sortedTruckLogs;
 
-  // --- NEW: Strict Latest-Mechanic Access Control ---
+  // --- Strict Latest-Mechanic Access Control ---
   // A mechanic is ONLY unblocked if they are assigned on the MOST RECENT log of the active cycle.
   // If they are replaced or removed in a newer update, they lose access.
+  //
+  // Except when nobody is on it. A truck grounded by the office, or by a
+  // breakdown on the road, opens its log with no mechanic - nobody has been
+  // sent yet. That used to lock every mechanic out of the truck, including the
+  // one who went to fix it. An open job is anyone's; whoever writes the next
+  // log becomes the mechanic on it.
   const currentUserStr = String(currentUserId).trim();
   const activeCycleLog = currentCycleLogs[0];
+  const isUnassignedJob = Boolean(activeCycleLog) && !activeCycleLog.primaryMechanicID;
   const hasMechanicAccess = activeCycleLog
-    ? String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
+    ? isUnassignedJob ||
+      String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
       String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
     : true;
 
@@ -188,8 +196,18 @@ export function TruckDetailView({
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-end w-full md:w-auto gap-2 sm:gap-3">
           {/* The work buttons. Second on a phone, first on a desktop. */}
           <div className="order-2 md:order-1 flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+            {isArchived && (
+              <button
+                onClick={onRestoreClick}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 shrink-0" />
+                <span>Restore Truck</span>
+              </button>
+            )}
+
             {/* Maintenance Update Form (Only visible to assigned mechanic when broken down) */}
-            {isUnderMaintenance && hasMechanicAccess && (
+            {!isArchived && isUnderMaintenance && hasMechanicAccess && (
               <button
                 onClick={onLogMaintenanceClick}
                 className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
@@ -200,7 +218,7 @@ export function TruckDetailView({
             )}
 
             {/* Hide top action buttons if the truck is being fixed by another mechanic OR is restricted (unless assigned to a foul trip) */}
-            {(!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
+            {!isArchived && (!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
               <button onClick={onUpdateStatusClick} className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
             )}
           </div>
@@ -216,7 +234,7 @@ export function TruckDetailView({
             <span>History</span>
           </button>
 
-          {(!isUnderMaintenance || hasMechanicAccess) && (
+          {!isArchived && (!isUnderMaintenance || hasMechanicAccess) && (
             <div className="relative shrink-0">
               {/* More Actions Dropdown Menu */}
               <button
@@ -247,40 +265,23 @@ export function TruckDetailView({
                       <Edit3 className="w-4 h-4 text-slate-500" /> Edit Truck
                     </button>
 
-                    {/* Disable Button inside Dropdown */}
-                    {truck.status !== "Disabled" && (!isRestrictedStatus || isExplicitlyAssigned) && (
-                      <button 
-                        onClick={() => { setIsMoreMenuOpen(false); onDisableClick(); }} 
-                        className="w-full text-left px-4 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                    {/* Archive: takes the truck out of the fleet, keeping its history.
+                        Not while it is out on a delivery - the server refuses that too. */}
+                    {!isRestrictedStatus ? (
+                      <button
+                        onClick={() => { setIsMoreMenuOpen(false); onArchiveClick(); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
                       >
-                        <Archive className="w-4 h-4 text-slate-500" /> Disable Truck
+                        <Archive className="w-4 h-4" /> Archive Truck
                       </button>
+                    ) : (
+                      <div
+                        title="A truck on a delivery can be archived once it is back."
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-400 bg-slate-50 flex items-center gap-2 cursor-not-allowed"
+                      >
+                        <Archive className="w-4 h-4" /> Archive Truck
+                      </div>
                     )}
-
-                    {/* Delete Button inside Dropdown */}
-                    <button
-                      onClick={
-                        hasHistory
-                          ? undefined
-                          : () => {
-                              setIsMoreMenuOpen(false);
-                              onDelete();
-                            }
-                      }
-                      disabled={hasHistory}
-                      title={
-                        hasHistory
-                          ? "Cannot delete a truck with existing repair history"
-                          : "Delete Truck"
-                      }
-                      className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors ${
-                        hasHistory
-                          ? "text-slate-400 bg-slate-50 cursor-not-allowed"
-                          : "text-red-600 hover:bg-red-50 cursor-pointer"
-                      }`}
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete Truck
-                    </button>
                   </div>
                 </>
               )}

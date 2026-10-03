@@ -333,7 +333,8 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                   Primary Mechanic *
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 font-medium cursor-not-allowed">
-                  {editData
+                  {/* An unassigned log is taken by whoever edits it. */}
+                  {editData?.primaryMechanicID
                     ? editData.mechanicName
                     : loggedInMechanic.employeeName}
                 </div>

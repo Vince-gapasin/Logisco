@@ -80,8 +80,11 @@ export function LogDetailView({
 
   const activeCycleLog = newestFirstCycleLogs[0];
   const currentUserStr = String(currentUserId).trim();
+  // A log opened by the office or by a breakdown has no mechanic on it yet;
+  // it is open to whichever mechanic picks it up, as on the truck screen.
   const hasMechanicAccess = activeCycleLog
-    ? String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
+    ? !activeCycleLog.primaryMechanicID ||
+      String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
       String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
     : false;
 
@@ -219,7 +222,11 @@ export function LogDetailView({
                   Primary Mechanic
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {mechanicSourceLog?.mechanicName || log.mechanicName || "N/A"}
+                  {mechanicSourceLog?.primaryMechanicID
+                    ? mechanicSourceLog.mechanicName
+                    : log.primaryMechanicID
+                      ? log.mechanicName
+                      : "Unassigned - awaiting a mechanic"}
                 </div>
               </div>
               <div className="sm:col-span-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useNotifications } from "@/app/lib/useNotifications";
 import {
   Bell,
@@ -10,9 +11,11 @@ import {
   Clock,
   ClipboardList,
   X,
-  MapPin,
 } from "lucide-react";
 
+// What the server sends. This used to also list notes, a location, the crew's
+// message and the driver's and helper's contacts, none of which any
+// notification carries - so the details showed those headings over blanks.
 interface Notification {
   id: string | number;
   title: string;
@@ -21,19 +24,21 @@ interface Notification {
   // Widened: notification types come from the server.
   type: string;
   isDone: boolean;
+  /** The screen the notification is about. */
+  link?: string | null;
   truckPlate?: string;
   vehicleType?: string;
   issue?: string;
-  notes?: string;
   crewName?: string;
-  location?: string;
-  locationLink?: string;
   reason?: string;
-  crewMessage?: string;
-  driverName?: string;
-  driverContact?: string;
-  helperName?: string;
-  helperContact?: string;
+}
+
+/** What the Open button says, from where it goes. */
+function openLabel(link: string): string {
+  if (link.startsWith("/mechanic/roadside")) return "Open Roadside Jobs";
+  if (link.startsWith("/mechanic/fleet-status")) return "Open Fleet Status";
+  if (link.startsWith("/mechanic/history-logs")) return "Open History Logs";
+  return "Open";
 }
 
 export default function MechanicNotificationsPage() {
@@ -305,121 +310,61 @@ export default function MechanicNotificationsPage() {
                 )}
               </div>
 
-              {/* Dynamic Notification Context Details */}
-              <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm">
-                <h4 className="font-semibold text-slate-900 text-sm border-b border-slate-100 pb-2 mb-3">
-                  Context Information
-                </h4>
-                {selectedNotification.type === "assignment" && (
+              {/* Context: only what this notification actually carries. */}
+              {(selectedNotification.truckPlate ||
+                selectedNotification.vehicleType ||
+                selectedNotification.issue ||
+                selectedNotification.reason) && (
+                <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm">
+                  <h4 className="font-semibold text-slate-900 text-sm border-b border-slate-100 pb-2 mb-3">
+                    Context Information
+                  </h4>
                   <ul className="space-y-2 text-sm text-slate-600">
-                    <li className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="font-medium text-slate-700">
-                        Assigned Truck
-                      </span>
-                      <span className="font-semibold">
-                        {selectedNotification.truckPlate}
-                      </span>
-                    </li>
-                    <li className="flex justify-between border-b border-dashed border-slate-200 pb-2 pt-1">
-                      <span className="font-medium text-slate-700">
-                        Vehicle Type
-                      </span>
-                      <span>{selectedNotification.vehicleType}</span>
-                    </li>
-                    <li className="flex flex-col border-b border-dashed border-slate-200 pb-2 pt-1">
-                      <span className="font-medium text-slate-700 mb-0.5">
-                        Issues Observed
-                      </span>
-                      <span>{selectedNotification.issue}</span>
-                    </li>
-                    <li className="flex flex-col pt-1">
-                      <span className="font-medium text-slate-700 mb-0.5">
-                        Additional Notes
-                      </span>
-                      <span>{selectedNotification.notes}</span>
-                    </li>
+                    {selectedNotification.truckPlate && (
+                      <li className="flex justify-between border-b border-dashed border-slate-200 pb-2">
+                        <span className="font-medium text-slate-700">Truck</span>
+                        <span className="font-semibold">{selectedNotification.truckPlate}</span>
+                      </li>
+                    )}
+                    {selectedNotification.vehicleType && (
+                      <li className="flex justify-between border-b border-dashed border-slate-200 pb-2 pt-1">
+                        <span className="font-medium text-slate-700">Vehicle Type</span>
+                        <span>{selectedNotification.vehicleType}</span>
+                      </li>
+                    )}
+                    {selectedNotification.issue && (
+                      <li className="flex flex-col border-b border-dashed border-slate-200 pb-2 pt-1">
+                        <span className="font-medium text-slate-700 mb-0.5">Details</span>
+                        <span>{selectedNotification.issue}</span>
+                      </li>
+                    )}
+                    {selectedNotification.reason && (
+                      <li className="flex flex-col pt-1">
+                        <span className="font-medium text-slate-700 mb-0.5">Reason</span>
+                        <span className="text-red-600 font-medium">{selectedNotification.reason}</span>
+                      </li>
+                    )}
                   </ul>
-                )}
-
-                {selectedNotification.type === "warning" && (
-                  <ul className="space-y-2 text-sm text-slate-600">
-                    <li className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="font-medium text-slate-700">
-                        Reported Truck
-                      </span>
-                      <span className="font-semibold">
-                        {selectedNotification.truckPlate}
-                      </span>
-                    </li>
-                    <li className="flex justify-between border-b border-dashed border-slate-200 pb-2 pt-1">
-                      <span className="font-medium text-slate-700">
-                        Vehicle Type
-                      </span>
-                      <span>{selectedNotification.vehicleType}</span>
-                    </li>
-                    <li className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-dashed border-slate-200 pb-2 pt-1 gap-1">
-                      <span className="font-medium text-slate-700">
-                        Location
-                      </span>
-                      <a
-                        href={selectedNotification.locationLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer flex items-center gap-1 font-medium"
-                      >
-                        <MapPin className="w-3.5 h-3.5" />
-                        {selectedNotification.location}
-                      </a>
-                    </li>
-                    <li className="flex flex-col border-b border-dashed border-slate-200 pb-2 pt-1">
-                      <span className="font-medium text-slate-700 mb-0.5">
-                        Reason
-                      </span>
-                      <span className="text-red-600 font-medium">
-                        {selectedNotification.reason}
-                      </span>
-                    </li>
-                    <li className="flex flex-col border-b border-dashed border-slate-200 pb-2 pt-1">
-                      <span className="font-medium text-slate-700 mb-0.5">
-                        Message of the Crew
-                      </span>
-                      <span>{selectedNotification.crewMessage}</span>
-                    </li>
-                    <li className="flex flex-col pt-1 gap-1.5">
-                      <span className="font-medium text-slate-700 mb-0.5">
-                        Crew Information
-                      </span>
-                      <div className="flex flex-col gap-1">
-                        <span>
-                          Driver: {selectedNotification.driverName} —{" "}
-                          {selectedNotification.driverContact}
-                        </span>
-                        <span>
-                          Helper: {selectedNotification.helperName} —{" "}
-                          {selectedNotification.helperContact}
-                        </span>
-                      </div>
-                    </li>
-                  </ul>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-              {(selectedNotification.type === "assignment" ||
-                selectedNotification.type === "warning") && (
-                <button
+              {/* Takes them to the screen it is about. This was a "Start
+                  Inspection" / "Locate Truck" button that did nothing. */}
+              {selectedNotification.link && (
+                <Link
+                  href={selectedNotification.link}
+                  onClick={() => markRead(selectedNotification.id)}
                   className={`px-5 py-2.5 text-white rounded-xl text-sm font-semibold hover:bg-black hover:border-black transition-colors duration-200 shadow-md cursor-pointer border border-transparent ${
                     selectedNotification.type === "warning"
                       ? "bg-red-600"
                       : "bg-blue-700"
                   }`}
                 >
-                  {selectedNotification.type === "warning"
-                    ? "Locate Truck"
-                    : "Start Inspection"}
-                </button>
+                  {openLabel(selectedNotification.link)}
+                </Link>
               )}
               <button
                 onClick={closeNotificationDetails}

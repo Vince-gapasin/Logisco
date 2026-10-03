@@ -119,7 +119,7 @@ export function TruckSpecificHistoryView({
                           </span>
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">
-                          {log.mechanicName || "Mechanic"}
+                          {log.primaryMechanicID ? log.mechanicName : "Unassigned"}
                         </div>
                       </td>
                       <td className="hidden md:table-cell py-4 px-4 w-1/4 text-left align-middle">

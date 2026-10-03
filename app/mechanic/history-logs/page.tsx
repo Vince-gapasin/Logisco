@@ -39,6 +39,7 @@ export interface HistoryLogRecord {
   issue: string;
   remarks: string;
   date: string;
+  createdAt?: string;
   photoUrl?: string; 
   driversReport?: string;
   preliminaryRemarks?: string;
@@ -99,7 +100,11 @@ function LogMaintenanceModal({
   const prelimFileInputRef = useRef<HTMLInputElement | null>(null);
   const progressFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  // The local date. toISOString() is the date in UTC, which in Manila is
+  // still yesterday until 8 in the morning - so today's date was refused as
+  // being in the future.
+  const now = new Date();
+  const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 
   // Seeded from the log this was opened to edit.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -163,7 +168,12 @@ function LogMaintenanceModal({
     else if (formData.date > today) newErrors.date = "Future dates are not allowed.";
     if (!formData.truckID) newErrors.truckID = "Truck selection is required.";
     if (!formData.primaryMechanicID) newErrors.primaryMechanicID = "Primary mechanic is required.";
-    if (!formData.issue.trim()) newErrors.issue = "Issue / work performed is required.";
+    // A log records one phase of a repair: the inspection, a progress update or
+    // the final work. Only the last has "work performed", so requiring it made
+    // every inspection and progress log impossible to save once edited.
+    if (!formData.issue.trim() && !formData.driversReport.trim() && !formData.additionalIssue.trim()) {
+      newErrors.issue = "Describe the work performed, the reported issue or an additional issue.";
+    }
     if (formData.additionalMechanicID && formData.additionalMechanicID === formData.primaryMechanicID) {
       newErrors.additionalMechanicID = "Cannot select the same mechanic twice.";
     }
@@ -467,8 +477,11 @@ function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDeta
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const currentUserStr = String(currentUserId).trim();
-  const hasMechanicAccess = 
-    String(log.primaryMechanicID).trim() === currentUserStr || 
+  // A log opened by the office or by a breakdown has no mechanic yet, and is
+  // open to whichever mechanic picks it up.
+  const hasMechanicAccess =
+    !log.primaryMechanicID ||
+    String(log.primaryMechanicID).trim() === currentUserStr ||
     String(log.additionalMechanicID).trim() === currentUserStr;
 
   return (
@@ -520,7 +533,7 @@ function LogDetailView({ log, onBack, onEdit, onDelete, currentUserId }: LogDeta
               <div><label className="block text-xs font-medium text-black mb-1">Plate Number</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.plateNumber}</div></div>
               <div><label className="block text-xs font-medium text-black mb-1">Type of Truck</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.truckType}</div></div>
               <div><label className="block text-xs font-medium text-black mb-1">Date</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.date ? log.date.split("T")[0] : "N/A"}</div></div>
-              <div><label className="block text-xs font-medium text-black mb-1">Primary Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.mechanicName}</div></div>
+              <div><label className="block text-xs font-medium text-black mb-1">Primary Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.primaryMechanicID ? log.mechanicName : "Unassigned - awaiting a mechanic"}</div></div>
               <div className="sm:col-span-2"><label className="block text-xs font-medium text-black mb-1">Additional Mechanic</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">{log.additionalMechanic || "None"}</div></div>
             </div>
           </div>
@@ -690,7 +703,9 @@ export default function MechanicHistoryLogsPage() {
       }
 
       // 2. Fetch Mechanics safely
-      const empRes = await authFetch(`/api/employees?role=Mechanic`);
+      // Active ones only; the default page size was 10, so more mechanics than
+      // that were missing from the list.
+      const empRes = await authFetch(`/api/employees?role=Mechanic&isActive=true&limit=100`);
       if (empRes.ok) {
         const empData = await empRes.json();
         // Safely extract the array to prevent .filter() crashes
@@ -740,28 +755,40 @@ export default function MechanicHistoryLogsPage() {
           body: JSON.stringify(finalPayload),
         });
         
-        if (response.ok) {
-          await fetchLogs();
-          setSelectedLog((prev) => prev?.id === editingLog.id ? { ...prev, ...finalPayload } : prev);
-          showToast("Changes saved successfully.", "success");
+        if (!response.ok) {
+          // Kept open with what was typed.
+          showToast(await failureMessage(response, "Failed to save the log."), "error");
+          return;
         }
+        await fetchLogs();
+        setSelectedLog((prev) => prev?.id === editingLog.id ? { ...prev, ...finalPayload } : prev);
+        showToast("Changes saved successfully.", "success");
       } else {
-        const response = await authFetch(`/api/historyLogsM`, { 
+        const response = await authFetch(`/api/historyLogsM`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(finalPayload),
         });
-        if (response.ok) {
-          await fetchLogs();
-          showToast("Log added successfully.", "success");
+        if (!response.ok) {
+          showToast(await failureMessage(response, "Failed to add the log."), "error");
+          return;
         }
+        await fetchLogs();
+        showToast("Log added successfully.", "success");
       }
     } catch (error) {
       console.error("Error saving log:", error);
+      showToast("Error saving the log.", "error");
+      return;
     }
 
     setEditingLog(null);
     setIsModalOpen(false);
+  };
+
+  const failureMessage = async (response: Response, fallback: string) => {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    return body?.message || fallback;
   };
 
   const handleDeleteLog = async (id: string | number) => {
@@ -769,13 +796,16 @@ export default function MechanicHistoryLogsPage() {
       const response = await authFetch(`/api/historyLogsM/${id}`, { 
         method: "DELETE",
       });
-      if (response.ok) {
-        setLogsList((prev) => prev.filter((log) => log.id !== id));
-        setSelectedLog(null);
-        showToast("Deleted successfully.", "success");
+      if (!response.ok) {
+        showToast(await failureMessage(response, "Failed to delete the log."), "error");
+        return;
       }
+      setLogsList((prev) => prev.filter((log) => log.id !== id));
+      setSelectedLog(null);
+      showToast("Deleted successfully.", "success");
     } catch (error) {
       console.error("Error deleting log:", error);
+      showToast("Error deleting the log.", "error");
     }
   };
 
@@ -794,7 +824,9 @@ export default function MechanicHistoryLogsPage() {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();
     if (dateA === dateB) {
-      return String(b.id).localeCompare(String(a.id));
+      // Same day: the one written last first. The ids are UUIDs, which put
+      // same-day logs in no meaningful order.
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
     }
     return dateB - dateA;
   });
@@ -881,7 +913,7 @@ export default function MechanicHistoryLogsPage() {
                               </div>
                               <div className="text-xs text-slate-500 mt-1 max-w-md sm:max-w-lg">
                                 <div className="font-medium text-slate-700 wrap-break-word">
-                                  {log.mechanicName} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
+                                  {log.primaryMechanicID ? log.mechanicName : "Unassigned"} {log.additionalMechanic ? `& ${log.additionalMechanic}` : ""}
                                 </div>
                                 <div className="mt-0.5 md:truncate wrap-break-word">{log.issue}</div>
                               </div>

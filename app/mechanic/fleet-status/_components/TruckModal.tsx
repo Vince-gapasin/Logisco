@@ -61,6 +61,7 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
     } else {
       setFormData(initialTruckState);
     }
+    setErrors({});
   }, [editData, isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -142,8 +143,9 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
       status: editData ? editData.status : "Available",
     };
 
+    // The page closes this once the save has gone through. Closing here, before
+    // it had, threw away what was typed whenever the save was refused.
     onSubmitSuccess(updatedRecord);
-    handleCloseModal();
   };
 
   const TRUCK_TYPES = [
@@ -287,7 +289,7 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
                 <input
                   type="text"
                   name="capacity"
-                  placeholder="e.g., 5 Tons or 5000 kg"
+                  placeholder="e.g., 5000 kg"
                   value={formData.capacity}
                   onChange={handleInputChange}
                   className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 ${errors.capacity ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
