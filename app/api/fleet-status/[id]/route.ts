@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
+import { TRUCK_STATUS } from "@/app/lib/enums";
 import {
   announceTruckStatus,
   deleteTruck,
   getTruckById,
+  restoreTruck,
   toTruckPayload,
   updateTruck,
   validateTruckPayload,
@@ -39,6 +41,30 @@ export async function PUT(request: Request, { params }: RouteContext) {
     body = await request.json();
   } catch {
     return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
+  }
+
+  // { restore: true } brings a retired truck back from the archive.
+  if (body.restore === true) {
+    try {
+      const { id } = await params;
+      const truck = await restoreTruck(id);
+      if (!truck) {
+        return NextResponse.json({ message: "Truck not found in the archive" }, { status: 404 });
+      }
+
+      await recordAudit({
+        table: "Truck",
+        recordID: id,
+        action: "RESTORE",
+        actor: auditActor(auth),
+        after: { isActive: true, truckStatus: truck.truckStatus },
+      });
+
+      return NextResponse.json(truck);
+    } catch (error) {
+      console.error("RESTORE truck error:", error);
+      return NextResponse.json({ message: "Failed to restore truck" }, { status: 500 });
+    }
   }
 
   const payload = toTruckPayload(body);
@@ -86,6 +112,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
         status,
         { employeeID: auth.employee.employeeID, name: auth.employee.employeeName },
         reason || null,
+        // The mechanic's screen saves its inspection log first and then sends
+        // the status with logOpened, so grounding does not open a second one.
+        { openLog: body.logOpened !== true },
       );
     }
 
@@ -108,6 +137,17 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+
+    // A truck out on a delivery is carrying somebody's goods; retiring it
+    // would strand the trip. It has to come back first.
+    const current = await getTruckById(id);
+    if (current?.truckStatus === TRUCK_STATUS.onDelivery) {
+      return NextResponse.json(
+        { message: "This truck is on a delivery. It can be archived once it is back." },
+        { status: 409 },
+      );
+    }
+
     const truck = await deleteTruck(id);
 
     if (!truck) {

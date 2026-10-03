@@ -161,4 +161,23 @@ describe("what is left behind for the mechanics", () => {
     await announceTruckStatus(TRUCK, "Available", "On Delivery");
     expect(opened).toHaveLength(0);
   });
+
+  it("opens nothing when the mechanic has just written the log themselves", async () => {
+    // The mechanic's status change saves their inspection form first. A second
+    // log beside it, saying nobody had looked at the truck, was a duplicate
+    // that also left the truck looking unassigned.
+    plate();
+    await announceTruckStatus(
+      TRUCK,
+      "Available",
+      "On Maintenance",
+      { employeeID: "m1", name: "A Mechanic" },
+      null,
+      { openLog: false },
+    );
+
+    expect(opened).toHaveLength(0);
+    // The office and the other mechanics are still told.
+    expect(sent).toHaveLength(1);
+  });
 });

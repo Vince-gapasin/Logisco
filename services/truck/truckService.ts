@@ -174,16 +174,43 @@ export function validateTruckPayload(payload: UpdateTruckDto, isCreate: boolean)
   return null;
 }
 
-export async function getFleet(): Promise<Truck[]> {
+/**
+ * The fleet, or with `archived` the trucks that were retired from it.
+ *
+ * Retiring is a soft delete - trucks are referenced by dispatches and
+ * maintenance logs - so the archive is where a retired truck can still be
+ * found, and restored from.
+ */
+export async function getFleet({ archived = false }: { archived?: boolean } = {}): Promise<Truck[]> {
   const { data, error } = await supabase
     .from(TABLE)
     // The fuel's name comes along, so a list does not have to resolve 36 ids.
     .select("*, FuelType ( name, unit )")
-    .eq("isActive", true)
+    .eq("isActive", !archived)
     .order("lastChecked", { ascending: false, nullsFirst: false });
 
   if (error) throw error;
   return (data ?? []).map(withFuelType);
+}
+
+/**
+ * Brings a retired truck back into the fleet.
+ *
+ * It comes back Out of Service, the status retiring left it in, rather than
+ * straight to Available: whoever restores it decides when it can be booked,
+ * through the same status change and maintenance log as any grounded truck.
+ */
+export async function restoreTruck(id: string): Promise<Truck | null> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ isActive: true, truckStatus: TRUCK_STATUS.outOfService })
+    .eq("truckID", id)
+    .eq("isActive", false)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as Truck | null;
 }
 
 export async function createFleetTruck(payload: UpdateTruckDto & { truckCode?: string }): Promise<Truck> {
@@ -231,6 +258,13 @@ export async function announceTruckStatus(
   actor?: { employeeID: string; name: string } | null,
   /** What put it there, when something other than a person did: "Foul trip: Broken Truck". */
   cause?: string | null,
+  /**
+   * Whether grounding opens a maintenance log. False when the caller has just
+   * written one itself - the mechanic's own inspection form, saved as part of
+   * the same status change - so the truck does not get a second, empty log
+   * that says nobody has looked at it.
+   */
+  { openLog = true }: { openLog?: boolean } = {},
 ): Promise<void> {
   if (!truckID || from === to) return;
 
@@ -284,7 +318,7 @@ export async function announceTruckStatus(
   //
   // Only on the way down. Coming back off maintenance is the closing of a repair
   // somebody was already logging, not the start of a new one.
-  if (!isGrounded) return;
+  if (!isGrounded || !openLog) return;
 
   // Not fatal, for the same reason the notification is not: a delivery must not
   // fail to release its truck because a log could not be opened.

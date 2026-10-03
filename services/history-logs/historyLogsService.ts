@@ -203,11 +203,26 @@ export async function updateHistoryLog(id: string, body: LogBody) {
 
   // Remember the current child rows, insert the replacements, then remove
   // the old ones - a failure part-way leaves the previous data intact.
+  //
+  // Photos are the exception: a phase's photo is replaced only when the body
+  // brings a new one. The list a log is edited from carries no image data -
+  // only whether one exists - so an edit saved before the images had loaded
+  // sent every photo as empty, and replacing them wholesale deleted them all.
+  // There is no way to remove a photo from the form, so a phase left empty
+  // keeps what it had.
+  const sentPhotoPhases = new Set(buildChildren(id, body).LogPhotos.map((row) => row.phase));
+
   const oldIds: Record<string, string[]> = {};
   for (const table of CHILD_TABLES) {
-    const { data, error: readError } = await supabase.from(table).select("id").eq("logID", id);
+    const { data, error: readError } = await supabase
+      .from(table)
+      .select(table === "LogPhotos" ? "id, phase" : "id")
+      .eq("logID", id);
     if (readError) throw new Error(`Failed to read ${table}: ${readError.message}`);
-    oldIds[table] = (data ?? []).map((row: { id: string }) => row.id);
+    const rows = (data ?? []) as unknown as { id: string; phase?: string }[];
+    oldIds[table] = rows
+      .filter((row) => table !== "LogPhotos" || sentPhotoPhases.has(row.phase ?? ""))
+      .map((row) => row.id);
   }
 
   await insertChildren(id, body);

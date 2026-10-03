@@ -12,8 +12,11 @@ export async function GET(request: Request) {
   const { response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
+  // ?archived=true lists the retired trucks instead of the working fleet.
+  const archived = new URL(request.url).searchParams.get("archived") === "true";
+
   try {
-    const data = await getFleet();
+    const data = await getFleet({ archived });
     return NextResponse.json({ data });
   } catch (error) {
     console.error("GET fleet error:", error);

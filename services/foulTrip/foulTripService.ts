@@ -577,6 +577,73 @@ export async function sendMechanic(
   return { incidentID };
 }
 
+async function truckStatusOf(truckID: string): Promise<string | null> {
+  const { data } = await supabase.from("Truck").select("truckStatus").eq("truckID", truckID).maybeSingle();
+  return (data?.truckStatus as string | undefined) ?? null;
+}
+
+/**
+ * Writes the roadside verdict into the truck's maintenance history.
+ *
+ * The breakdown opened a maintenance log when it grounded the truck, and the
+ * mechanic's fleet screen reads that history to decide whose job a truck is
+ * and whether its repair is still open. The roadside report used to update
+ * the truck and say nothing there - so a truck repaired on the road went back
+ * into service with its log still open, unassigned, and nobody's name on the
+ * repair.
+ *
+ * Fixed closes the cycle with a final log; not fixable adds a progress update,
+ * which also makes this mechanic the one on the job. When the truck's status
+ * changed, the change is announced the way every other return to service is.
+ *
+ * Never fatal: the verdict itself has already been recorded.
+ */
+async function recordRoadsideVerdict(
+  truckID: string,
+  mechanicID: string,
+  outcome: "fixed" | "not_fixable",
+  statusBefore: string | null,
+  statusAfter: string,
+  notes: string | null,
+) {
+  try {
+    const { data: mechanic } = await supabase
+      .from("Employee")
+      .select("employeeName")
+      .eq("employeeID", mechanicID)
+      .maybeSingle();
+
+    if (statusBefore !== statusAfter) {
+      const { announceTruckStatus } = await import("@/services/truck/truckService");
+      await announceTruckStatus(
+        truckID,
+        statusBefore,
+        statusAfter,
+        { employeeID: mechanicID, name: (mechanic?.employeeName as string) ?? "Mechanic" },
+        null,
+        { openLog: false },
+      );
+    }
+
+    const { createHistoryLog } = await import("@/services/history-logs/historyLogsService");
+    await createHistoryLog({
+      truckID,
+      date: new Date().toISOString().slice(0, 10),
+      statusBefore,
+      statusAfter,
+      primaryMechanicID: mechanicID,
+      ...(outcome === "fixed"
+        ? { issue: notes || "Repaired on site.", remarks: "Roadside repair." }
+        : {
+            additionalIssue: notes || "Could not be fixed on site.",
+            progressRemarks: "Not fixable at the roadside. Dispatch is sending a replacement truck.",
+          }),
+    });
+  } catch (error) {
+    console.error("[Roadside] Could not record the verdict in the maintenance log:", error);
+  }
+}
+
 /**
  * The mechanic's verdict from the site.
  *
@@ -608,6 +675,10 @@ export async function mechanicReport(
       .update({ status: INCIDENT_STATUS.open, mechanicOutcome: "not_fixable", mechanicRespondedAt: now, mechanicNotes })
       .eq("incidentID", incidentID);
     if (error) throw new Error(error.message);
+    if (incident.truckID) {
+      const status = await truckStatusOf(incident.truckID);
+      await recordRoadsideVerdict(incident.truckID, mechanicID, "not_fixable", status, status ?? TRUCK_STATUS.onMaintenance, report.notes?.trim() || null);
+    }
     return { incidentID, dispatchID: incident.dispatchID, resumed: false, reason: "not_fixable" as const };
   }
 
@@ -649,9 +720,12 @@ export async function mechanicReport(
 
   const crewElsewhere = (busy.data?.length ?? 0) > 0 || ((busyHelpers.data as unknown[] | null)?.length ?? 0) > 0;
 
+  const truckStatusBefore = dispatch.truckID ? await truckStatusOf(dispatch.truckID) : null;
+
   if (dispatch.status !== DELIVERY_STATUS.foulTrip || crewElsewhere) {
     if (dispatch.truckID) {
       await supabase.from("Truck").update({ truckStatus: TRUCK_STATUS.available }).eq("truckID", dispatch.truckID);
+      await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.available, report.notes?.trim() || null);
     }
     const { error } = await supabase
       .from("FoulTripIncident")
@@ -688,6 +762,7 @@ export async function mechanicReport(
 
   if (dispatch.truckID) {
     await supabase.from("Truck").update({ truckStatus: TRUCK_STATUS.onDelivery }).eq("truckID", dispatch.truckID);
+    await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.onDelivery, report.notes?.trim() || null);
   }
   // The crew are back on this trip; that they are busy again follows from the
   // trip itself, which is what the employee screens read.
