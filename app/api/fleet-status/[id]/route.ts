@@ -115,10 +115,14 @@ export async function PUT(request: Request, { params }: RouteContext) {
       recordID: id,
       action: "UPDATE",
       actor: auditActor(auth),
+      // What each changed field was, so the truck's history can say "from A to
+      // B" and not only "set to B". This kept the status and plate alone.
       before: before
-        ? { truckStatus: before.truckStatus, plateNumber: before.plateNumber }
+        ? Object.fromEntries(
+            Object.keys(payload).map((field) => [field, (before as unknown as Record<string, unknown>)[field] ?? null]),
+          )
         : null,
-      after: payload,
+      after: { ...payload, ...(typeof body.reason === "string" && body.reason.trim() ? { reason: body.reason.trim() } : {}) },
     });
 
     // The same announcement the breakdown path makes, rather than a second copy

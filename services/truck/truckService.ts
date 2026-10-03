@@ -242,6 +242,106 @@ export async function getCurrentTrip(truckID: string): Promise<TruckTrip | null>
   };
 }
 
+/** One change to a truck's record, as its history shows it. */
+export interface TruckChange {
+  id: string;
+  at: string;
+  /** Added, Edited, Archived, Restored. */
+  action: string;
+  byName: string;
+  byRole: string;
+  changes: { field: string; from: string | null; to: string | null }[];
+  reason: string | null;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  plateNumber: "Plate number",
+  truckCode: "Truck code",
+  truckType: "Type",
+  model: "Model",
+  capacity: "Capacity",
+  lastChecked: "Last checked",
+  fuelTypeID: "Fuel type",
+  truckStatus: "Status",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: "Added",
+  UPDATE: "Edited",
+  RETIRE: "Archived",
+  RESTORE: "Restored",
+};
+
+const shown = (value: unknown): string | null =>
+  value === null || value === undefined || value === "" ? null : String(value);
+
+/**
+ * Who changed this truck's record, what they changed and when - newest first.
+ *
+ * Every add, edit, archive, restore and status change through the fleet screens
+ * is audited with the person who made it. Nothing showed it, so a truck edited
+ * by a coordinator or a mechanic could not be traced back to them. Changes the
+ * trips make to a truck's status are not here: they are the trip's, and the
+ * booking's history has them.
+ */
+export async function getTruckChanges(truckID: string): Promise<TruckChange[]> {
+  const { data, error } = await supabase
+    .from("AuditTrail")
+    .select("auditID, action, oldData, newData, timestamp")
+    .eq("tableName", "Truck")
+    .eq("recordID", truckID)
+    .order("timestamp", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+
+  // Fuel is stored as an id; the history says which fuel.
+  const fuelIDs = new Set<string>();
+  for (const row of data ?? []) {
+    for (const side of [row.oldData, row.newData] as (Record<string, unknown> | null)[]) {
+      if (typeof side?.fuelTypeID === "string") fuelIDs.add(side.fuelTypeID);
+    }
+  }
+  const fuelNames = new Map<string, string>();
+  if (fuelIDs.size > 0) {
+    const { data: fuels } = await supabase.from("FuelType").select("fuelTypeID, name").in("fuelTypeID", [...fuelIDs]);
+    for (const fuel of fuels ?? []) fuelNames.set(fuel.fuelTypeID as string, fuel.name as string);
+  }
+  const named = (field: string, value: unknown) =>
+    field === "fuelTypeID" && typeof value === "string" ? (fuelNames.get(value) ?? value) : value;
+
+  return (data ?? []).map((row) => {
+    const after = { ...((row.newData as Record<string, unknown> | null) ?? {}) };
+    const before = (row.oldData as Record<string, unknown> | null) ?? {};
+    const by = (after.by ?? {}) as { name?: string | null; role?: string | null };
+    const reason = shown(after.reason);
+    delete after.by;
+    delete after.reason;
+
+    const changes = Object.entries(after)
+      .filter(([field]) => field in FIELD_LABELS)
+      .map(([field, to]) => ({
+        field: FIELD_LABELS[field],
+        from: shown(named(field, before[field])),
+        to: shown(named(field, to)),
+      }))
+      // An edit sends the whole form; only what actually moved is a change.
+      // Entries recorded before the earlier values were kept have no "from",
+      // and are shown as set.
+      .filter((change) => row.action !== "UPDATE" || change.from !== change.to);
+
+    return {
+      id: row.auditID as string,
+      at: row.timestamp as string,
+      action: ACTION_LABELS[row.action as string] ?? (row.action as string),
+      byName: by.name ?? "Unknown",
+      byRole: by.role ?? "",
+      changes,
+      reason,
+    };
+  });
+}
+
 /**
  * Brings a retired truck back into the fleet.
  *

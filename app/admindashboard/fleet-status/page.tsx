@@ -12,6 +12,7 @@ import RowOpenButton from "@/components/RowOpenButton";
 import TruckMaintenanceHistory from "@/components/truck/TruckMaintenanceHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
 import TruckTripCard from "@/components/truck/TruckTripCard";
+import TruckChangeHistory from "@/components/truck/TruckChangeHistory";
 import type { TruckTrip } from "@/services/truck/truckService";
 import {
   Search,
@@ -632,6 +633,9 @@ function TruckDetailView({
             </div>
           </div>
 
+          {/* Who changed this truck's record - an admin, a coordinator or a
+              mechanic - and what they changed. */}
+          <TruckChangeHistory truckID={truck.id} refreshKey={truck} />
         </div>
       </div>
 
