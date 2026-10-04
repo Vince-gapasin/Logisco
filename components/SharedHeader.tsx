@@ -25,7 +25,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
+            className="p-2 min-w-tap min-h-tap sm:pointer-fine:min-w-0 sm:pointer-fine:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0"
             aria-label="Open Menu"
           >
             <Menu className="w-5 h-5 md:w-6 md:h-6" />
@@ -41,7 +41,7 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHead
 
         <Link
           href={`${basePath}/profile`}
-          className="w-11 h-11 sm:w-8 sm:h-8 md:w-10 md:h-10 bg-blue-600 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition block shrink-0"
+          className="w-11 h-11 sm:w-10 sm:h-10 bg-blue-600 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition block shrink-0"
           title="Profile Settings"
         >
           <img

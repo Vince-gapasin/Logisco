@@ -125,7 +125,7 @@ export function PartnerModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -177,7 +177,7 @@ export function PartnerModal({
                     onClick={() =>
                       setIsContractDropdownOpen(!isContractDropdownOpen)
                     }
-                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
+                    className={`min-h-tap md:pointer-fine:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.contractType ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"}`}
                   >
                     <span
                       className={
@@ -203,7 +203,7 @@ export function PartnerModal({
                             });
                             setIsContractDropdownOpen(false);
                           }}
-                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${formData.contractType === opt ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {opt}
                         </button>

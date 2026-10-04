@@ -125,7 +125,7 @@ export default function DeliveryFeedbackCard({ token, invitation, onSaved }: Pro
                 type="button"
                 aria-pressed={answers[question.key] === true}
                 onClick={() => setAnswers((current) => ({ ...current, [question.key]: true }))}
-                className={`min-h-tap md:min-h-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                className={`min-h-tap md:pointer-fine:min-h-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                   answers[question.key] === true
                     ? "bg-emerald-600 text-white border-emerald-600"
                     : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300"
@@ -138,7 +138,7 @@ export default function DeliveryFeedbackCard({ token, invitation, onSaved }: Pro
                 type="button"
                 aria-pressed={answers[question.key] === false}
                 onClick={() => setAnswers((current) => ({ ...current, [question.key]: false }))}
-                className={`min-h-tap md:min-h-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                className={`min-h-tap md:pointer-fine:min-h-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                   answers[question.key] === false
                     ? "bg-red-600 text-white border-red-600"
                     : "bg-white text-slate-600 border-slate-200 hover:border-red-300"
@@ -173,7 +173,7 @@ export default function DeliveryFeedbackCard({ token, invitation, onSaved }: Pro
           type="button"
           onClick={submit}
           disabled={!bothAnswered || saving}
-          className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500 transition-colors"
+          className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500 transition-colors"
         >
           {saving ? "Sending..." : "Send feedback"}
         </button>

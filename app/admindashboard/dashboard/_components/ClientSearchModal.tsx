@@ -42,7 +42,7 @@ export function ClientSearchModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg relative p-6 sm:p-10 flex flex-col items-center text-center max-h-[90dvh]">
         <button
           onClick={handleClose}
-          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-1.5 rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+          className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-1.5 rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -82,7 +82,7 @@ export function ClientSearchModal({
                       <td className="w-20 text-center border-l border-slate-200">
                         <button
                           onClick={() => onSelectClient(client.clientID ?? "")}
-                          className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
+                          className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center text-blue-500 hover:text-blue-700 text-sm font-medium px-2 py-1"
                         >
                           Select
                         </button>

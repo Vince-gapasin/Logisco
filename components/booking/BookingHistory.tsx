@@ -155,7 +155,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                           href={entry.proof.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="min-h-tap lg:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
+                          className="min-h-tap lg:pointer-fine:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
                         >
                           View PDF
                         </a>
@@ -173,7 +173,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                               reason: "",
                             });
                           }}
-                          className="min-h-tap lg:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
+                          className="min-h-tap lg:pointer-fine:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
                         >
                           View POD
                         </button>
@@ -222,7 +222,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                   No second request and no copy of the file to serve. */}
               <a
                 href={`${enlarged.url}&download=${encodeURIComponent(downloadNameFor(enlarged.label, enlarged.isPdf))}`}
-                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 Download
@@ -231,14 +231,14 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                 href={enlarged.url}
                 target="_blank"
                 rel="noreferrer"
-                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
               >
                 Open full size
               </a>
               <button
                 type="button"
                 onClick={() => setEditing((open) => !open)}
-                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:underline"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:underline"
               >
                 <Pencil className="w-3.5 h-3.5 shrink-0" />
                 {editing ? "Stop editing" : "Correct this"}
@@ -246,7 +246,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
               <button
                 type="button"
                 onClick={() => setEnlarged(null)}
-                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-slate-300 hover:text-white"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-slate-300 hover:text-white"
               >
                 Close
               </button>
@@ -320,7 +320,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                   type="button"
                   onClick={() => void saveCorrection()}
                   disabled={saving}
-                  className="w-full min-h-tap md:min-h-0 inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                  className="w-full min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
                 >
                   {saving ? "Saving..." : "Save correction"}
                 </button>

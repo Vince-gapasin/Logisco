@@ -481,7 +481,7 @@ export default function CalendarPage() {
           <span className="font-bold text-slate-900">Calendar Menu</span>
           <button
             onClick={() => setIsMiniSidebarOpen(false)}
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:bg-gray-100"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-600 hover:bg-gray-100"
             aria-label="Close Calendar Menu"
           >
             <X size={20} />
@@ -496,14 +496,14 @@ export default function CalendarPage() {
               <button
                 aria-label="Previous Month"
                 onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 aria-label="Next Month"
                 onClick={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-                className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <ChevronRight size={16} />
               </button>
@@ -535,7 +535,7 @@ export default function CalendarPage() {
                     scrollToIndex(day - 1);
                     setIsMiniSidebarOpen(false);
                   }}
-                  className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
+                  className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 cursor-pointer rounded-full transition-colors relative ${
                     iso === todayIso
                       ? "bg-blue-600 text-white font-semibold shadow-sm"
                       : isShowing
@@ -607,7 +607,7 @@ export default function CalendarPage() {
             {/* Mobile trigger button to open the mini-calendar drawer */}
             <button
               onClick={() => setIsMiniSidebarOpen(true)}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 -ml-2 rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
+              className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 -ml-2 rounded-lg text-slate-700 hover:bg-gray-100 lg:hidden"
               aria-label="Open Calendar Menu"
             >
               <Menu size={20} />
@@ -629,7 +629,7 @@ export default function CalendarPage() {
               onClick={() => zoomBy(-1)}
               disabled={zoom === 0}
               aria-label="Show more hours at once"
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ZoomOut size={16} />
             </button>
@@ -638,7 +638,7 @@ export default function CalendarPage() {
               onClick={() => zoomBy(1)}
               disabled={zoom === HOUR_HEIGHTS.length - 1}
               aria-label="Give each hour more room"
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 text-slate-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ZoomIn size={16} />
             </button>

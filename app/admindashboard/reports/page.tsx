@@ -154,7 +154,7 @@ function ViewOrderModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -295,7 +295,7 @@ const FilterDropdown = ({
                 setValue(opt);
                 setActiveDropdown(null);
               }}
-              className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
+              className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-start w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 cursor-pointer ${
                 value === opt
                   ? "bg-blue-50 text-blue-600 font-medium"
                   : "text-slate-700"
@@ -1016,7 +1016,7 @@ export default function ReportsForecastingPage() {
             aria-expanded={isFilterOpen}
             aria-label="Filters"
             title="Filters"
-            className={`relative min-h-tap md:min-h-0 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors shadow-sm whitespace-nowrap w-9 sm:w-auto px-0 sm:px-4 cursor-pointer ${
+            className={`relative min-h-tap md:pointer-fine:min-h-0 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors shadow-sm whitespace-nowrap w-9 sm:w-auto px-0 sm:px-4 cursor-pointer ${
               isFilterOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
             }`}
           >
@@ -1315,7 +1315,7 @@ export default function ReportsForecastingPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Previous
             </button>
@@ -1327,7 +1327,7 @@ export default function ReportsForecastingPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
+              className={`min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}
             >
               Next
             </button>

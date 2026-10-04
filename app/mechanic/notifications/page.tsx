@@ -232,7 +232,7 @@ export default function MechanicNotificationsPage() {
               </h2>
               <button
                 onClick={closeNotificationDetails}
-                className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer ${
+                className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-white/80 hover:text-white transition-colors cursor-pointer ${
                   selectedNotification.type === "warning"
                     ? "hover:bg-red-700"
                     : "hover:bg-slate-800"
@@ -290,7 +290,7 @@ export default function MechanicNotificationsPage() {
                   {!selectedNotification.isDone && (
                     <button
                       onClick={() => setIsConfirmingDone(true)}
-                      className="min-h-tap md:min-h-0 inline-flex items-center justify-center shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+                      className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center shrink-0 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
                     >
                       Mark as Done
                     </button>

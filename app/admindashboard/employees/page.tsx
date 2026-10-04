@@ -663,7 +663,7 @@ export default function EmployeesPage() {
                           setSelectedRole(role);
                           setIsDropdownOpen(false);
                         }}
-                        className={`min-h-tap md:min-h-0 w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
+                        className={`min-h-tap md:pointer-fine:min-h-0 w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer ${
                           isSelected
                             ? "bg-blue-50 text-blue-600 font-semibold"
                             : "text-slate-700 hover:bg-slate-50"
@@ -803,7 +803,7 @@ export default function EmployeesPage() {
                 setCurrentPage((previous) => Math.max(previous - 1, 1))
               }
               disabled={currentPage <= 1 || isLoading}
-              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage <= 1 || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
@@ -819,7 +819,7 @@ export default function EmployeesPage() {
                 setCurrentPage((previous) => Math.min(previous + 1, totalPages))
               }
               disabled={currentPage >= totalPages || isLoading}
-              className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
+              className={`min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors ${
                 currentPage >= totalPages || isLoading
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"

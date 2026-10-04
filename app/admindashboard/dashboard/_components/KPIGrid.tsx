@@ -24,7 +24,7 @@ export function KPIGrid({
           <button
             key={tab.name}
             onClick={() => onNavigate(tab.name)}
-            className="min-h-tap md:min-h-0 p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
+            className="min-h-tap md:pointer-fine:min-h-0 p-2 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm bg-white border border-gray-200 hover:border-blue-600 transition-all flex flex-col sm:flex-row items-center justify-center sm:justify-start sm:space-x-4 text-center sm:text-left w-full"
             title={tab.name}
           >
             <div

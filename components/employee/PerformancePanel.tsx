@@ -264,7 +264,7 @@ function LateStopRow({
               type="button"
               onClick={submit}
               disabled={!reason || saving || (reason === "other" && notes.trim().length === 0)}
-              className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
+              className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
             >
               {saving ? "Saving..." : "Excuse this delay"}
             </button>
@@ -294,7 +294,7 @@ function PeriodToggle({ allTime, onChange }: { allTime: boolean; onChange: (allT
           key={String(value)}
           type="button"
           onClick={() => onChange(value as boolean)}
-          className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+          className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
             allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
           }`}
         >

@@ -108,7 +108,7 @@ export default function TruckStatusControl({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg hover:bg-white/10 shrink-0"
+            className="p-2 min-w-tap min-h-tap sm:pointer-fine:min-w-0 sm:pointer-fine:min-h-0 inline-flex items-center justify-center rounded-lg hover:bg-white/10 shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -143,7 +143,7 @@ export default function TruckStatusControl({
                       setError(null);
                     }}
                     aria-pressed={picked}
-                    className={`min-h-tap sm:min-h-0 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors cursor-pointer ${
+                    className={`min-h-tap sm:pointer-fine:min-h-0 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors cursor-pointer ${
                       picked
                         ? "border-blue-600 bg-blue-50 text-blue-900"
                         : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
@@ -207,7 +207,7 @@ export default function TruckStatusControl({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-tap sm:min-h-0 px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="min-h-tap sm:pointer-fine:min-h-0 px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
           >
             {trip ? "Close" : "Cancel"}
           </button>
@@ -216,7 +216,7 @@ export default function TruckStatusControl({
             type="button"
             onClick={() => void save()}
             disabled={!target || saving}
-            className="min-h-tap sm:min-h-0 px-5 py-2.5 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-tap sm:pointer-fine:min-h-0 px-5 py-2.5 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving..." : "Change status"}
           </button>

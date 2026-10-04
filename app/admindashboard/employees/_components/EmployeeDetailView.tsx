@@ -172,7 +172,7 @@ export function EmployeeDetailView({
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <button
             onClick={onBack}
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-xs transition-colors hover:bg-slate-100"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center shrink-0 rounded-xl border border-slate-200 bg-white p-2 text-slate-700 shadow-xs transition-colors hover:bg-slate-100"
             title="Back to Directory"
             aria-label="Back to Employee Directory"
           >

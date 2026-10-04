@@ -140,7 +140,7 @@ export default function BookingOverrideModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -237,7 +237,7 @@ export default function BookingOverrideModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors"
+            className="w-auto sm:w-auto min-h-tap sm:pointer-fine:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors"
           >
             Never mind
           </button>
@@ -245,7 +245,7 @@ export default function BookingOverrideModal({
             type="button"
             onClick={() => void submit()}
             disabled={saving || !action}
-            className={`w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors disabled:opacity-60 ${ action === "cancel" ? "bg-red-600 hover:bg-red-700" : action === "foul-trip" ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700" } px-3 sm:px-4`}
+            className={`w-auto sm:w-auto min-h-tap sm:pointer-fine:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors disabled:opacity-60 ${ action === "cancel" ? "bg-red-600 hover:bg-red-700" : action === "foul-trip" ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700" } px-3 sm:px-4`}
           >
             {saving ? "Working..." : chosen ? chosen.label : "Choose one"}
           </button>

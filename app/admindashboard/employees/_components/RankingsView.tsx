@@ -87,7 +87,7 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
                 key={option}
                 type="button"
                 onClick={() => setRole(option)}
-                className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   role === option
                     ? "bg-slate-900 text-white shadow-md shadow-slate-900/10"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
@@ -106,7 +106,7 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
                 key={String(value)}
                 type="button"
                 onClick={() => setAllTime(value as boolean)}
-                className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
+                className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
                   allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
                 }`}
               >

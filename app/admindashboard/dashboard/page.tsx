@@ -823,7 +823,7 @@ export default function AdminDashboardPage() {
                         setIsCrewDropdownOpen(!isCrewDropdownOpen);
                         setIsClientDropdownOpen(false);
                       }}
-                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">{selectedCrewLabel}</span>
                       <ChevronDown
@@ -925,7 +925,7 @@ export default function AdminDashboardPage() {
                         setIsClientDropdownOpen(!isClientDropdownOpen);
                         setIsCrewDropdownOpen(false);
                       }}
-                      className="min-h-tap md:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">
                         {selectedClientLabel}
@@ -1037,7 +1037,7 @@ export default function AdminDashboardPage() {
                     setIsCrewDropdownOpen(false);
                     setIsClientDropdownOpen(false);
                   }}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Clear Filters
                 </button>
@@ -1047,7 +1047,7 @@ export default function AdminDashboardPage() {
                     setIsClientDropdownOpen(false);
                     setIsFilterOpen(false);
                   }}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                 >
                   Apply Filters
                 </button>

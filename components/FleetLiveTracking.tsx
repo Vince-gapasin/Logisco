@@ -103,7 +103,7 @@ function AnswerStallDialog({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm"
+            className="w-auto sm:w-auto min-h-tap sm:pointer-fine:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm"
           >
             Never mind
           </button>
@@ -111,7 +111,7 @@ function AnswerStallDialog({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm disabled:opacity-60"
+            className="w-auto sm:w-auto min-h-tap sm:pointer-fine:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm disabled:opacity-60"
           >
             {saving ? "Saving..." : "Mark handled"}
           </button>
@@ -428,7 +428,7 @@ export default function FleetLiveTracking() {
                             onClick={() =>
                               setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
                             }
-                            className="mt-0.5 min-h-tap md:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
+                            className="mt-0.5 min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
                           >
                             {routeFor === record.dispatchID ? "Hide route" : "Show route"}
                           </button>
@@ -449,7 +449,7 @@ export default function FleetLiveTracking() {
                             <button
                               type="button"
                               onClick={() => copyTrackingLink(record.trackingToken as string)}
-                              className="inline-flex items-center gap-1.5 min-h-tap md:min-h-0 text-blue-600 hover:underline"
+                              className="inline-flex items-center gap-1.5 min-h-tap md:pointer-fine:min-h-0 text-blue-600 hover:underline"
                             >
                               {copiedToken === record.trackingToken ? (
                                 <Check className="w-3.5 h-3.5 shrink-0" />
@@ -560,7 +560,7 @@ export default function FleetLiveTracking() {
                             <button
                               type="button"
                               onClick={() => setAnswering(record)}
-                              className="mt-1.5 min-h-tap md:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                              className="mt-1.5 min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                             >
                               <Check className="h-3.5 w-3.5 shrink-0" />
                               Mark handled
@@ -604,7 +604,7 @@ export default function FleetLiveTracking() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1 || totalPages === 0}
-              className={`px-3 py-1.5 min-h-tap sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
+              className={`px-3 py-1.5 min-h-tap sm:pointer-fine:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === 1 || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"
@@ -618,7 +618,7 @@ export default function FleetLiveTracking() {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`px-3 py-1.5 min-h-tap sm:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
+              className={`px-3 py-1.5 min-h-tap sm:pointer-fine:min-h-0 border border-slate-200 rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center ${
                 currentPage === totalPages || totalPages === 0
                   ? "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
                   : "bg-white text-slate-700 hover:bg-slate-50"

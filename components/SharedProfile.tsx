@@ -234,7 +234,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsEmailModalOpen(false)}
-                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingEmail}
               >
                 <X className="w-5 h-5" />
@@ -305,7 +305,7 @@ export default function SharedProfile() {
                   type="button"
                   onClick={() => setIsEmailModalOpen(false)}
                   disabled={isSubmittingEmail}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -332,7 +332,7 @@ export default function SharedProfile() {
               </h3>
               <button
                 onClick={() => setIsPasswordModalOpen(false)}
-                className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center text-slate-500 hover:text-slate-600 transition-colors p-1"
                 disabled={isSubmittingPassword}
               >
                 <X className="w-5 h-5" />
@@ -389,7 +389,7 @@ export default function SharedProfile() {
                   type="button"
                   onClick={() => setIsPasswordModalOpen(false)}
                   disabled={isSubmittingPassword}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>

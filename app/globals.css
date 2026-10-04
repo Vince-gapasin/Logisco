@@ -22,7 +22,10 @@
      every control on a phone was oversized next to the same screen on a
      desktop, which the team asked to have brought in line.
      Named rather than written at each of the two hundred call sites, so the
-     next time this number is questioned it is one edit. */
+     next time this number is questioned it is one edit.
+     Switched off on wider screens only where there is a mouse, as
+     md:pointer-fine:min-h-0 rather than md:min-h-0: a tablet is as wide as a
+     small laptop but is still tapped with a finger. */
   --spacing-tap: 2.5rem;
 }
 

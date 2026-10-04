@@ -63,7 +63,7 @@ function Thumbnail({
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-blue-600 hover:underline"
+        className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-blue-600 hover:underline"
       >
         View PDF
       </a>
@@ -228,7 +228,7 @@ export default function StopProofList({
                 href={`${enlarged.src}&download=${encodeURIComponent(
                   `proof-of-delivery-${enlarged.label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "stop"}.jpg`,
                 )}`}
-                className="min-h-tap md:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 Download
@@ -237,14 +237,14 @@ export default function StopProofList({
                 href={enlarged.src}
                 target="_blank"
                 rel="noreferrer"
-                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
               >
                 Open full size
               </a>
               <button
                 type="button"
                 onClick={() => setEnlarged(null)}
-                className="min-h-tap md:min-h-0 inline-flex items-center text-xs font-semibold text-slate-300 hover:text-white"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-slate-300 hover:text-white"
               >
                 Close
               </button>

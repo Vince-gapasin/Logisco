@@ -352,7 +352,7 @@ export default function MechanicHistoryLogsPage() {
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
             <button
               onClick={() => setSelectedTruckID(null)}
-              className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 shadow-xs cursor-pointer shrink-0"
+              className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 shadow-xs cursor-pointer shrink-0"
               aria-label="Back to all trucks"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -602,14 +602,14 @@ export default function MechanicHistoryLogsPage() {
             <button
               onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
               disabled={currentPage === 1}
-              className="min-h-tap md:min-h-0 px-4 py-1.5 border border-slate-200 rounded-lg font-medium disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed bg-white hover:bg-slate-50 cursor-pointer"
+              className="min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 border border-slate-200 rounded-lg font-medium disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed bg-white hover:bg-slate-50 cursor-pointer"
             >
               Previous
             </button>
             <button
               onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
               disabled={currentPage >= totalPages}
-              className="min-h-tap md:min-h-0 px-4 py-1.5 border border-slate-200 rounded-lg font-medium disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed bg-white hover:bg-slate-50 cursor-pointer"
+              className="min-h-tap md:pointer-fine:min-h-0 px-4 py-1.5 border border-slate-200 rounded-lg font-medium disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed bg-white hover:bg-slate-50 cursor-pointer"
             >
               Next
             </button>

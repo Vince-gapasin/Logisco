@@ -44,7 +44,7 @@ export default function ListLoadError({
         <button
           type="button"
           onClick={onRetry}
-          className="shrink-0 min-h-tap sm:min-h-0 sm:py-1.5 px-4 inline-flex items-center justify-center gap-1.5 bg-white border border-red-200 text-red-700 font-semibold rounded-lg hover:bg-red-100 transition-colors"
+          className="shrink-0 min-h-tap sm:pointer-fine:min-h-0 sm:py-1.5 px-4 inline-flex items-center justify-center gap-1.5 bg-white border border-red-200 text-red-700 font-semibold rounded-lg hover:bg-red-100 transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
           Try again

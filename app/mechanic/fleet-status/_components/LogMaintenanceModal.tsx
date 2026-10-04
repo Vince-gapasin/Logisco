@@ -234,7 +234,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
           <button
             type="button"
             onClick={handleCloseModal}
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -284,7 +284,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                     type="button"
                     disabled={!!preselectedTruckId}
                     onClick={() => setIsTruckDropdownOpen(!isTruckDropdownOpen)}
-                    className={`min-h-tap md:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
+                    className={`min-h-tap md:pointer-fine:min-h-0 w-full bg-white border rounded-md px-3 py-2 text-xs font-normal flex items-center justify-between focus:outline-none focus:ring-1 focus:ring-blue-600 relative z-50 transition-all ${errors.truckID ? "border-red-500 bg-red-50/20 text-black" : "border-slate-300 text-black"} ${preselectedTruckId ? "opacity-75 cursor-not-allowed bg-slate-50" : ""}`}
                   >
                     <span
                       className={
@@ -323,7 +323,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                             });
                             setIsTruckDropdownOpen(false);
                           }}
-                          className={`min-h-tap md:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
+                          className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-start w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${String(formData.truckID) === String(truck.truckID) ? "bg-blue-50/50 text-blue-700 font-medium" : "text-slate-700"}`}
                         >
                           {truck.plateNumber} — {truck.truckType}
                         </button>
@@ -487,7 +487,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="min-h-tap md:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />{" "}
                   {formData[activeFields.photo]

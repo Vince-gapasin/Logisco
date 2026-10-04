@@ -32,14 +32,14 @@ export default function RowDeleteButton({
               setAsking(false);
               onConfirm();
             }}
-            className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
+            className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
           >
             Confirm
           </button>
           <button
             type="button"
             onClick={() => setAsking(false)}
-            className="min-h-tap md:min-h-0 inline-flex items-center justify-center px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
+            className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs sm:text-[10px] font-medium transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -54,7 +54,7 @@ export default function RowDeleteButton({
       onClick={() => setAsking(true)}
       disabled={disabled}
       aria-label={`Delete this ${label}`}
-      className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 hover:text-red-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+      className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 hover:text-red-700 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
     >
       <Trash2 className="w-4 h-4 mx-auto" />
     </button>

@@ -123,7 +123,7 @@ export default function OpenIssueNotice({
               type="button"
               onClick={() => void clear(issue)}
               disabled={clearing === issue.incidentID}
-              className="min-h-tap sm:min-h-0 px-4 py-2.5 sm:py-2 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap"
+              className="min-h-tap sm:pointer-fine:min-h-0 px-4 py-2.5 sm:py-2 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap"
             >
               <Check className="w-4 h-4 shrink-0" />
               {clearing === issue.incidentID ? "Saving..." : "This is sorted"}

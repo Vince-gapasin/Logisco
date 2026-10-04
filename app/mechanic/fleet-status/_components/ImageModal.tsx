@@ -25,7 +25,7 @@ export function ImageModal({ src, onClose }: { src: string; onClose: () => void 
 
         <button
           onClick={onClose}
-          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
+          className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
           title="Close"
         >
           <X className="w-5 h-5" />

@@ -147,7 +147,7 @@ export default function SelectMenu({
                   searchRef.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="min-h-tap md:min-h-0 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-600"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-600"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

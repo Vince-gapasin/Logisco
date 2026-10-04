@@ -272,7 +272,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
             </h2>
             <p className="text-xs opacity-80">{trip ? `${trip.clientName ?? "Client"} · ${trip.status}` : "Loading…"}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800">
+          <button type="button" onClick={onClose} aria-label="Close" className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800">
             <X className="w-5 h-5" />
           </button>
         </div>

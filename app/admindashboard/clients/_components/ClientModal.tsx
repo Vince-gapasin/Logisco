@@ -286,7 +286,7 @@ export function ClientModal({
           </h2>
           <button
             onClick={handleCloseModal}
-            className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -575,7 +575,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={pickupList.length === 1}
-                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${pickupList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   pickupList.length === 1
@@ -778,7 +778,7 @@ export function ClientModal({
                                 }))
                               }
                               disabled={deliveryList.length === 1}
-                              className={`min-h-tap md:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
+                              className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-md transition-colors ${deliveryList.length === 1 ? "text-slate-300 cursor-not-allowed" : "hover:bg-red-50 hover:text-red-700"}`}
                               style={{
                                 color:
                                   deliveryList.length === 1
