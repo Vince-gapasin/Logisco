@@ -8,7 +8,6 @@ import ProtectedPortal from "@/components/ProtectedPortal";
 import SharedHeader from "@/components/SharedHeader";
 import { ToastProvider } from "@/components/Toast";
 import PortalSidebar from "@/components/PortalSidebar";
-import BottomTabBar from "@/components/BottomTabBar";
 
 export default function CrewLayout({
   children,
@@ -16,16 +15,17 @@ export default function CrewLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Bumped when the link for the page on screen is picked again. Remounting
-  // <main> drops whatever the page had open (a record, a filter) and returns
-  // it to its starting view, as tapping a lit tab does in any phone app.
+  // Bumped when the sidebar link for the page on screen is picked again.
+  // Remounting <main> drops whatever the page had open (a record, a filter)
+  // and returns it to its starting view; the link alone would go nowhere,
+  // since opening a record does not change the URL.
   const [pageKey, setPageKey] = useState(0);
   const resetPage = () => setPageKey((key) => key + 1);
 
   return (
     <ProtectedPortal>
       <ToastProvider>
-        <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans md:pb-[var(--safe-bottom)]">
+        <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans pb-[var(--safe-bottom)]">
           <PortalSidebar portal="crew" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} onReselect={resetPage} />
 
           <div className="flex w-full flex-1 flex-col overflow-hidden">
@@ -33,7 +33,6 @@ export default function CrewLayout({
               isOpen={isSidebarOpen}
               setIsOpen={setIsSidebarOpen}
               basePath="/crew"
-              hasTabBar
             />
 
             <main key={pageKey} className="flex-1 overflow-y-auto">
@@ -51,10 +50,6 @@ export default function CrewLayout({
                 return child;
               })}
             </main>
-
-            {/* Phones only. It takes over the bottom safe-area padding the
-                shell has from md up, so the bar runs to the screen edge. */}
-            <BottomTabBar portal="crew" onMore={() => setIsSidebarOpen(true)} onReselect={resetPage} />
           </div>
         </div>
       </ToastProvider>

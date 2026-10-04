@@ -24,7 +24,8 @@ interface PortalSidebarProps {
   portal: Portal;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  /** The link for the page on screen was picked again. See BottomTabBar. */
+  /** The link for the page on screen was picked again: the layout resets the
+      page, since a record opened on it does not change the URL. */
   onReselect: () => void;
 }
 

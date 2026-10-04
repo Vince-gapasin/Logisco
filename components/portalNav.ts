@@ -1,9 +1,8 @@
 // ==========================================
 // LOGISCO - PORTAL NAVIGATION
 // ==========================================
-// The pages each portal links to, in one place. The sidebar and the phone tab
-// bar both draw from this, so a page added here appears in both and the two
-// can never disagree about where a link goes.
+// The pages each portal's sidebar links to, in one place. There used to be
+// three sidebars, each with its own copy of its links.
 
 import {
   Calendar,
@@ -22,8 +21,6 @@ export type Portal = "admin" | "crew" | "mechanic";
 export interface NavItem {
   href: string;
   label: string;
-  /** What the phone tab bar shows, where there is room for one word. */
-  short: string;
   icon: LucideIcon;
   /** Other sections that belong under this link: the feeds are opened from
       the dashboard, so the dashboard stays lit while one is on screen. */
@@ -34,31 +31,31 @@ export const PORTAL_NAV: Record<Portal, { name: string; items: NavItem[] }> = {
   admin: {
     name: "admin",
     items: [
-      { href: "/admindashboard/dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard, also: ["/admindashboard/feeds"] },
-      { href: "/admindashboard/calendar", label: "Calendar", short: "Calendar", icon: Calendar },
-      { href: "/admindashboard/clients", label: "Clients & Partners", short: "Clients", icon: Users },
-      { href: "/admindashboard/employees", label: "Employee Directory", short: "Employees", icon: UserSquare2 },
-      { href: "/admindashboard/fleet-status", label: "Fleet Status", short: "Fleet", icon: Truck },
-      { href: "/admindashboard/fleet-tracking", label: "Fleet Live Tracking", short: "Tracking", icon: MapPin },
-      { href: "/admindashboard/reports", label: "Reports & Forecast", short: "Reports", icon: FileText, also: ["/admindashboard/forecasting"] },
+      { href: "/admindashboard/dashboard", label: "Dashboard", icon: LayoutDashboard, also: ["/admindashboard/feeds"] },
+      { href: "/admindashboard/calendar", label: "Calendar", icon: Calendar },
+      { href: "/admindashboard/clients", label: "Clients & Partners", icon: Users },
+      { href: "/admindashboard/employees", label: "Employee Directory", icon: UserSquare2 },
+      { href: "/admindashboard/fleet-status", label: "Fleet Status", icon: Truck },
+      { href: "/admindashboard/fleet-tracking", label: "Fleet Live Tracking", icon: MapPin },
+      { href: "/admindashboard/reports", label: "Reports & Forecast", icon: FileText, also: ["/admindashboard/forecasting"] },
     ],
   },
   crew: {
     name: "crew",
     items: [
-      { href: "/crew/dashboard", label: "Dashboard", short: "Home", icon: LayoutDashboard },
-      { href: "/crew/calendar", label: "Calendar", short: "Calendar", icon: Calendar },
-      { href: "/crew/delivery-history", label: "Delivery History", short: "History", icon: Truck },
+      { href: "/crew/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/crew/calendar", label: "Calendar", icon: Calendar },
+      { href: "/crew/delivery-history", label: "Delivery History", icon: Truck },
     ],
   },
   mechanic: {
     name: "mechanic",
     items: [
       // First, because it is the one with someone waiting at the side of a road.
-      { href: "/mechanic/roadside", label: "Roadside Jobs", short: "Roadside", icon: Wrench },
-      { href: "/mechanic/fleet-status", label: "Fleet Status", short: "Fleet", icon: Truck },
-      { href: "/mechanic/fleet-tracking", label: "Fleet Live Tracking", short: "Tracking", icon: MapPin },
-      { href: "/mechanic/history-logs", label: "History Logs", short: "Logs", icon: FileText },
+      { href: "/mechanic/roadside", label: "Roadside Jobs", icon: Wrench },
+      { href: "/mechanic/fleet-status", label: "Fleet Status", icon: Truck },
+      { href: "/mechanic/fleet-tracking", label: "Fleet Live Tracking", icon: MapPin },
+      { href: "/mechanic/history-logs", label: "History Logs", icon: FileText },
     ],
   },
 };

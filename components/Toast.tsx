@@ -115,7 +115,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           // part alert() supplied for free and the reason not to just drop it.
           role={toast.tone === "error" ? "alert" : "status"}
           aria-live={toast.tone === "error" ? "assertive" : "polite"}
-          className="fixed bottom-[calc(1.5rem+var(--safe-bottom)+var(--bottom-nav))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 w-[calc(100vw-2rem)] max-w-sm sm:w-auto animate-in fade-in slide-in-from-bottom-5"
+          className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-100 w-[calc(100vw-2rem)] max-w-sm sm:w-auto animate-in fade-in slide-in-from-bottom-5"
         >
           <div className="bg-slate-900 text-white pl-5 pr-2 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
             <div

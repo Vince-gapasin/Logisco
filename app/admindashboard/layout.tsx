@@ -15,9 +15,10 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Bumped when the link for the page on screen is picked again. Remounting
-  // <main> drops whatever the page had open (a record, a filter) and returns
-  // it to its starting view, as tapping a lit tab does in any phone app.
+  // Bumped when the sidebar link for the page on screen is picked again.
+  // Remounting <main> drops whatever the page had open (a record, a filter)
+  // and returns it to its starting view; the link alone would go nowhere,
+  // since opening a record does not change the URL.
   const [pageKey, setPageKey] = useState(0);
   const resetPage = () => setPageKey((key) => key + 1);
 

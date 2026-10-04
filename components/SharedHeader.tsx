@@ -11,11 +11,9 @@ interface SharedHeaderProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   basePath: string; // e.g., "/admindashboard" or "/crewdashboard"
-  /** The portal shows BottomTabBar on phones, whose "More" opens the menu. */
-  hasTabBar?: boolean;
 }
 
-export default function SharedHeader({ isOpen, setIsOpen, basePath, hasTabBar = false }: SharedHeaderProps) {
+export default function SharedHeader({ isOpen, setIsOpen, basePath }: SharedHeaderProps) {
   // Whose initials to draw. This had its own copy of reading the session, which
   // is how three screens came to disagree about who was signed in.
   const user = useSessionUser();
@@ -24,14 +22,11 @@ export default function SharedHeader({ isOpen, setIsOpen, basePath, hasTabBar = 
   return (
     <header className="min-h-16 pt-[var(--safe-top)] bg-white shadow-sm flex justify-between items-center px-4 md:px-8 z-30 shrink-0 gap-4">
       <div className="flex items-center gap-3 w-full max-w-md min-w-0">
-        {/* Not from xl up, where the sidebar stays open; nor on a phone with
-            a tab bar, whose "More" opens it. */}
+        {/* Not from xl up, where the sidebar stays open. */}
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className={`p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0 xl:hidden ${
-              hasTabBar ? "max-md:hidden" : ""
-            }`}
+            className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center bg-[#110031] text-white rounded-lg shadow-md hover:bg-[#1b0847] transition-colors shrink-0 xl:hidden"
             aria-label="Open Menu"
           >
             <Menu className="w-5 h-5 md:w-6 md:h-6" />
