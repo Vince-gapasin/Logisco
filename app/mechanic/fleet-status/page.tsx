@@ -7,6 +7,7 @@ import type { EmployeeRow, TruckRow } from "@/types/database";
 import type { TruckTrip } from "@/services/truck/truckService";
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
+import { useIsPhone } from "@/app/lib/useIsPhone";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/Toast";
 import RowOpenButton from "@/components/RowOpenButton";
@@ -43,6 +44,8 @@ export default function MechanicFleetStatusPage({
   setIsopen,
 }: MechanicFleetStatusProps) {
   const showToast = useToast();
+  // The full search hint is cut off in a phone-width box.
+  const isPhone = useIsPhone();
   // 1. Dynamic state for the logged-in mechanic
   const [currentUser, setCurrentUser] = useState({
     employeeID: "",
@@ -786,7 +789,7 @@ export default function MechanicFleetStatusPage({
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
-              <div className="flex items-center gap-2 w-full lg:w-auto lg:min-w-0 lg:flex-wrap overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+              <div className="flex items-center gap-2 w-full lg:w-auto lg:min-w-0 md:flex-wrap overflow-x-auto md:overflow-visible pb-2 md:pb-0">
                 <button
                   onClick={() => setSelectedFilter("All")}
                   className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
@@ -835,7 +838,7 @@ export default function MechanicFleetStatusPage({
                 <UrlSearchSync onQuery={setSearchTerm} />
                 <input
                   type="text"
-                  placeholder="Search by Plate No, Type or Booking..."
+                  placeholder={isPhone ? "Search trucks…" : "Search by Plate No, Type or Booking..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-500"

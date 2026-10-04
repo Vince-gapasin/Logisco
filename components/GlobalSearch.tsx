@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { authFetch } from "@/app/lib/apiClient";
+import { useIsPhone } from "@/app/lib/useIsPhone";
 import type { SearchResult, SearchResultType } from "@/services/search/searchService";
 
 // Mirrors MIN_QUERY_LENGTH in the search service. Not imported from it: that
@@ -33,15 +34,6 @@ const PLACEHOLDERS: Record<string, string> = {
   "/crew": "Search deliveries…",
   "/mechanic": "Search trucks…",
 };
-
-// On a phone the search box is too narrow for the full hint - it was cut to
-// "Search bookin" - so it says only "Search…" there.
-const NARROW = "(max-width: 639px)";
-function subscribeNarrow(onChange: () => void) {
-  const query = window.matchMedia(NARROW);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
 
 interface Response {
   /** The text that was sent, so a late reply to an old query is never shown. */
@@ -81,7 +73,9 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
-  const isNarrow = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
+  // On a phone the search box is too narrow for the full hint - it was cut to
+  // "Search bookin" - so it says only "Search…" there.
+  const isNarrow = useIsPhone();
   const [response, setResponse] = useState<Response | null>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
