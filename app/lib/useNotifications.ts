@@ -29,8 +29,6 @@ export interface AppNotification {
   crewName?: string;
   reason?: string;
   isRead: boolean;
-  /** Same flag under the name the mechanic screen uses. */
-  isDone: boolean;
 }
 
 function readDismissedIds(): Set<string> {
@@ -59,7 +57,7 @@ export function useNotifications() {
     try {
       // Polled every 60s: always go to the network.
       const result = await apiFetch<{
-        data: (Omit<AppNotification, "isRead" | "isDone"> & { isRead?: boolean })[];
+        data: (Omit<AppNotification, "isRead"> & { isRead?: boolean })[];
       }>("/api/notifications", { cache: "no-store" });
       const dismissed = readDismissedIds();
 
@@ -67,7 +65,7 @@ export function useNotifications() {
         (result.data ?? []).map((item) => {
           // The server knows for an event; this browser knows for a condition.
           const isRead = item.isStored ? Boolean(item.isRead) : dismissed.has(item.id);
-          return { ...item, isRead, isDone: isRead };
+          return { ...item, isRead };
         }),
       );
       setError("");
@@ -92,7 +90,7 @@ export function useNotifications() {
         dismissed.add(key);
         storeDismissedIds(dismissed);
       }
-      return prev.map((item) => (item.id === key ? { ...item, isRead: true, isDone: true } : item));
+      return prev.map((item) => (item.id === key ? { ...item, isRead: true } : item));
     });
 
     // Recorded for the person; a failure only means it stays unread.
@@ -109,7 +107,7 @@ export function useNotifications() {
       prev.filter((item) => !item.isStored).forEach((item) => dismissed.add(item.id));
       storeDismissedIds(dismissed);
 
-      return prev.map((item) => ({ ...item, isRead: true, isDone: true }));
+      return prev.map((item) => ({ ...item, isRead: true }));
     });
 
     void apiFetch("/api/notifications/read", { method: "POST", body: JSON.stringify({ all: true }) }).catch(
