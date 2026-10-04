@@ -82,11 +82,19 @@ Admin → System health checks most of these against the running deployment.
 
 ```bash
 npm run dev         # development server
+npm run dev:clean   # development server, after deleting its cache (see below)
 npm run build       # production build
 npm test            # Vitest, once
 npm run typecheck   # tsc --noEmit
 npm run lint        # ESLint
 ```
+
+The development server keeps a cache in `.next/dev` between runs. Now and then
+it goes stale: a style you added does not appear, or an API route that exists
+answers 404, and restarting with `npm run dev` brings the same stale state back.
+Stop the server and start it with `npm run dev:clean` instead. The first start
+after that is slower while the cache is rebuilt. Production builds are not
+affected.
 
 Regenerate `types/database.ts` after a schema change:
 
