@@ -52,7 +52,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
       const { id } = await params;
       const truck = await restoreTruck(id);
       if (!truck) {
-        return NextResponse.json({ message: "Truck not found in the archive" }, { status: 404 });
+        return NextResponse.json({ message: "Truck not found among the disabled trucks" }, { status: 404 });
       }
 
       await recordAudit({
@@ -61,6 +61,12 @@ export async function PUT(request: Request, { params }: RouteContext) {
         action: "RESTORE",
         actor: auditActor(auth),
         after: { isActive: true, truckStatus: truck.truckStatus },
+      });
+
+      // Back in the fleet and bookable: told like any truck back in service.
+      await announceTruckStatus(id, TRUCK_STATUS.outOfService, truck.truckStatus, {
+        employeeID: auth.employee.employeeID,
+        name: auth.employee.employeeName,
       });
 
       return NextResponse.json(truck);
@@ -174,7 +180,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     const current = await getTruckById(id);
     if (current?.truckStatus === TRUCK_STATUS.onDelivery) {
       return NextResponse.json(
-        { message: "This truck is on a delivery. It can be archived once it is back." },
+        { message: "This truck is on a delivery. It can be disabled once it is back." },
         { status: 409 },
       );
     }

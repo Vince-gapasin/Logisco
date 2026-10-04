@@ -274,7 +274,7 @@ export async function getCurrentTrips(truckIDs: string[]): Promise<Map<string, T
 export interface TruckChange {
   id: string;
   at: string;
-  /** Added, Edited, Archived, Restored. */
+  /** Added, Edited, Disabled, Restored. */
   action: string;
   byName: string;
   byRole: string;
@@ -296,7 +296,7 @@ const FIELD_LABELS: Record<string, string> = {
 const ACTION_LABELS: Record<string, string> = {
   CREATE: "Added",
   UPDATE: "Edited",
-  RETIRE: "Archived",
+  RETIRE: "Disabled",
   RESTORE: "Restored",
 };
 
@@ -371,16 +371,16 @@ export async function getTruckChanges(truckID: string): Promise<TruckChange[]> {
 }
 
 /**
- * Brings a retired truck back into the fleet.
+ * Brings a disabled truck back into the fleet, Available.
  *
- * It comes back Out of Service, the status retiring left it in, rather than
- * straight to Available: whoever restores it decides when it can be booked,
- * through the same status change and maintenance log as any grounded truck.
+ * It used to come back Out of Service, the status disabling left it in. But
+ * Out of Service means a truck with an outside repair company, which a truck
+ * coming back from being disabled is not - so it returns ready to book.
  */
 export async function restoreTruck(id: string): Promise<Truck | null> {
   const { data, error } = await supabase
     .from(TABLE)
-    .update({ isActive: true, truckStatus: TRUCK_STATUS.outOfService })
+    .update({ isActive: true, truckStatus: TRUCK_STATUS.available })
     .eq("truckID", id)
     .eq("isActive", false)
     .select()

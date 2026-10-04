@@ -30,12 +30,13 @@ import {
   History as HistoryIcon,
   Edit3,
   Wrench,
-  Archive,
+  Ban,
   RotateCcw,
   AlertTriangle,
   Loader2,
   ChevronDown,
   ClipboardList,
+  ClipboardCheck,
 } from "lucide-react";
 
 import type {
@@ -475,6 +476,8 @@ interface TruckDetailViewProps {
   repair: CurrentRepair;
   /** The mechanic's Maintenance Update Form, filed from the office. */
   onMaintenanceUpdate: () => void;
+  /** The final maintenance log, which finishes the repair and returns the truck to Available. */
+  onFinalLog: () => void;
 }
 
 function TruckDetailView({
@@ -489,6 +492,7 @@ function TruckDetailView({
   onStatus,
   repair,
   onMaintenanceUpdate,
+  onFinalLog,
 }: TruckDetailViewProps) {
   // Being repaired, here or by an outside company - what the mechanic's page
   // calls under maintenance.
@@ -570,6 +574,18 @@ function TruckDetailView({
             </button>
           )}
 
+          {/* Finishing the repair the way a mechanic does: the final log -
+              work performed, remarks, a photo - and the truck is Available. */}
+          {!isArchived && isGrounded && (
+            <button
+              onClick={onFinalLog}
+              className="flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-emerald-200 shadow-sm cursor-pointer"
+            >
+              <ClipboardCheck className="w-4 h-4 shrink-0" />
+              <span>Final Maintenance Log</span>
+            </button>
+          )}
+
           {/* Taking a truck off the road is not the same job as editing its
               plate or its capacity, and it was only reachable through the form
               that does those - which had no status field in it at all. */}
@@ -602,8 +618,8 @@ function TruckDetailView({
                 onClick={() => setShowDeleteModal(true)}
                 className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
               >
-                <Archive className="w-4 h-4 shrink-0" />
-                <span>Archive</span>
+                <Ban className="w-4 h-4 shrink-0" />
+                <span>Disable</span>
               </button>
             </>
           )}
@@ -680,12 +696,12 @@ function TruckDetailView({
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
             <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Archive Truck
+              Disable Truck
             </h3>
             <p className="text-sm text-slate-600 mb-6">
               <strong className="text-slate-900">{truck.plateNumber}</strong> will
-              leave the fleet and can no longer be booked. Its history is kept,
-              and it can be restored from Archived Trucks.
+              be disabled: it leaves the fleet and can no longer be booked. Its
+              history is kept, and it can be restored from Disabled Trucks.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -701,7 +717,7 @@ function TruckDetailView({
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm flex justify-center gap-2"
               >
                 {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Archive
+                Disable
               </button>
             </div>
           </div>
@@ -853,7 +869,7 @@ export default function FleetStatusPage() {
         await handleRowClick(selectedTruck.id);
       }
       await fetchMaintenanceLogs();
-      showToast("Maintenance log saved.", "success");
+      showToast(logForm.pending ? "Final log saved. The truck is available again." : "Maintenance log saved.", "success");
       setLogForm(null);
     } catch (error) {
       showToast(getErrorMessage(error), "error");
@@ -947,7 +963,7 @@ export default function FleetStatusPage() {
     try {
       await apiFetch(`/api/fleet-status/${id}`, { method: "DELETE" });
       setSelectedTruck(null);
-      showToast("Truck archived. It can be restored from Archived Trucks.");
+      showToast("Truck disabled. It can be restored from Disabled Trucks.");
       await fetchTrucks();
     } catch (error) {
       showToast(getErrorMessage(error), "error");
@@ -962,7 +978,7 @@ export default function FleetStatusPage() {
         body: JSON.stringify({ restore: true }),
       });
       setSelectedTruck(null);
-      showToast("Truck restored as Out of Service. Set it to Available when it is ready.");
+      showToast("Truck restored. It is back in the fleet and available.");
       await fetchTrucks();
     } catch (error) {
       showToast(getErrorMessage(error), "error");
@@ -1049,6 +1065,9 @@ export default function FleetStatusPage() {
           onMaintenanceUpdate={() =>
             setLogForm({ type: selectedRepair.inProgress ? "update" : "inspection", pending: null })
           }
+          onFinalLog={() =>
+            setLogForm({ type: "log", pending: { status: "Available" as TruckStatus, reason: "Repair finished - final maintenance log filed." } })
+          }
         />
         {changingStatus && (
           <TruckStatusControl
@@ -1078,7 +1097,7 @@ export default function FleetStatusPage() {
       <div className="mb-6 flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-            {showArchived ? "Archived Trucks" : "Fleet Status"}
+            {showArchived ? "Disabled Trucks" : "Fleet Status"}
           </h1>
           </div>
         <div className="flex flex-row gap-2">
@@ -1090,8 +1109,8 @@ export default function FleetStatusPage() {
             }}
             className="w-auto sm:w-44 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
           >
-            <Archive className="w-4 h-4 shrink-0" />
-            <span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
+            <Ban className="w-4 h-4 shrink-0" />
+            <span>{showArchived ? "Active Fleet" : "Disabled Trucks"}</span>
           </button>
           {!showArchived && (
             <button

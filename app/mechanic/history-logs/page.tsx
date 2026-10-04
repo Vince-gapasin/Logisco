@@ -366,7 +366,7 @@ export default function MechanicHistoryLogsPage() {
                 {selectedTruck.truckType}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}>
-                {selectedTruck.archived ? "Archived" : selectedTruck.status}
+                {selectedTruck.archived ? "Disabled" : selectedTruck.status}
               </span>
             </div>
           </div>
@@ -581,7 +581,7 @@ export default function MechanicHistoryLogsPage() {
                       </td>
                       <td className="md:py-4 md:px-4 align-middle md:text-right">
                         <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold border ${styles.bgLight}`}>
-                          {truck.archived ? "Archived" : truck.status}
+                          {truck.archived ? "Disabled" : truck.status}
                         </span>
                       </td>
                     </tr>

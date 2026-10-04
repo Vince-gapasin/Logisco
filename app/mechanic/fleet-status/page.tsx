@@ -18,7 +18,7 @@ import {
   FileText,
   AlertTriangle,
   Loader2,
-  Archive,
+  Ban,
 } from "lucide-react";
 import type { EmployeeOption, HistoryLogRecord, TruckRecord } from "./_components/types";
 import { LogDetailView } from "./_components/LogDetailView";
@@ -195,7 +195,7 @@ export default function MechanicFleetStatusPage({
       setArchivedList((payload as Partial<TruckRow>[]).map(toTruckRecord));
     } catch (error) {
       console.error("Error fetching archived trucks:", error);
-      showToast("Could not load the archived trucks.", "error");
+      showToast("Could not load the disabled trucks.", "error");
     }
   };
 
@@ -482,7 +482,7 @@ export default function MechanicFleetStatusPage({
         setArchivedList((prev) => [{ ...archived, status: "Out of Service" }, ...prev]);
       }
       setSelectedTruck(null);
-      showToast("Truck disabled. It can be restored from Archived Trucks.", "success");
+      showToast("Truck disabled. It can be restored from Disabled Trucks.", "success");
     } catch (error) {
       console.error("Error archiving truck:", error);
       showToast("Error disabling the truck.", "error");
@@ -504,7 +504,7 @@ export default function MechanicFleetStatusPage({
       setArchivedList((prev) => prev.filter((t) => String(t.id) !== String(id)));
       setFleetList((prev) => [restored, ...prev]);
       setSelectedTruck(null);
-      showToast("Truck restored as Out of Service. Set it to Available when it is ready.", "success");
+      showToast("Truck restored. It is back in the fleet and available.", "success");
     } catch (error) {
       console.error("Error restoring truck:", error);
       showToast("Error restoring truck.", "error");
@@ -752,7 +752,7 @@ export default function MechanicFleetStatusPage({
           <div className="mb-6 flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                {showArchived ? "Archived Trucks" : "Fleet Status"}
+                {showArchived ? "Disabled Trucks" : "Fleet Status"}
               </h1>
               </div>
             <div className="flex flex-row gap-2">
@@ -765,8 +765,8 @@ export default function MechanicFleetStatusPage({
                 }}
                 className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
               >
-                <Archive className="w-4 h-4 shrink-0" />
-                <span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
+                <Ban className="w-4 h-4 shrink-0" />
+                <span>{showArchived ? "Active Fleet" : "Disabled Trucks"}</span>
               </button>
 
               {!showArchived && (
@@ -1104,7 +1104,7 @@ export default function MechanicFleetStatusPage({
             <p className="text-sm text-slate-600 mb-6">
               The truck will be disabled: it leaves the fleet and can no longer
               be booked. Its maintenance history is kept, and it can be
-              restored from Archived Trucks.
+              restored from Disabled Trucks.
             </p>
             <div className="flex items-center gap-3">
               <button

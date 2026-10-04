@@ -27,7 +27,7 @@ interface TruckDetailViewProps {
   logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
-  /** Opened from Archived Trucks: the only thing to do with it is restore it. */
+  /** Opened from Disabled Trucks: the only thing to do with it is restore it. */
   isArchived: boolean;
   onArchiveClick: () => void;
   onRestoreClick: () => void;
@@ -199,7 +199,7 @@ export function TruckDetailView({
                     </button>
 
                     {/* Disable: takes the truck out of the fleet, keeping its history
-                        (it is then listed under Archived Trucks).
+                        (it is then listed under Disabled Trucks).
                         Not while it is out on a delivery - the server refuses that too. */}
                     {!isRestrictedStatus ? (
                       <button

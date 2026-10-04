@@ -48,11 +48,11 @@ function maintenanceNote(log: HistoryLogRecord): string {
   return log.issue || log.additionalIssue || log.driversReport || "";
 }
 
-/** "Edited", "Archived" and so on, said as what happened to the record. */
+/** "Edited", "Disabled" and so on, said as what happened to the record. */
 function changeTitle(change: TruckChange): string {
   const fields = change.changes.map((item) => item.field);
   if (change.action === "Added") return "Added to the fleet";
-  if (change.action === "Archived") return "Archived";
+  if (change.action === "Disabled") return "Disabled";
   if (change.action === "Restored") return "Restored to the fleet";
   if (fields.length === 1 && fields[0] === "Status") return "Status changed";
   if (fields.length === 0) return "Record edited";
