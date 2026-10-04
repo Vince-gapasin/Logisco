@@ -473,7 +473,7 @@ export default function MechanicFleetStatusPage({
         method: "DELETE",
       });
       if (!response.ok) {
-        showToast(await serverMessage(response, "Failed to archive the truck."), "error");
+        showToast(await serverMessage(response, "Failed to disable the truck."), "error");
         return;
       }
       const archived = fleetList.find((t) => String(t.id) === String(id));
@@ -482,10 +482,10 @@ export default function MechanicFleetStatusPage({
         setArchivedList((prev) => [{ ...archived, status: "Out of Service" }, ...prev]);
       }
       setSelectedTruck(null);
-      showToast("Truck archived. It can be restored from Archived Trucks.", "success");
+      showToast("Truck disabled. It can be restored from Archived Trucks.", "success");
     } catch (error) {
       console.error("Error archiving truck:", error);
-      showToast("Error archiving truck.", "error");
+      showToast("Error disabling the truck.", "error");
     }
   };
 
@@ -1099,12 +1099,12 @@ export default function MechanicFleetStatusPage({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Archive Truck
+              Disable Truck
             </h3>
             <p className="text-sm text-slate-600 mb-6">
-              The truck will leave the fleet and can no longer be booked. Its
-              maintenance history is kept, and it can be restored from
-              Archived Trucks.
+              The truck will be disabled: it leaves the fleet and can no longer
+              be booked. Its maintenance history is kept, and it can be
+              restored from Archived Trucks.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -1122,7 +1122,7 @@ export default function MechanicFleetStatusPage({
                 }}
                 className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer"
               >
-                Archive Truck
+                Disable Truck
               </button>
             </div>
           </div>

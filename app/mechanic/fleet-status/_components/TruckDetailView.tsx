@@ -11,12 +11,13 @@ import {
   RotateCcw,
   History as HistoryIcon,
   Wrench,
-  Archive,
+  Ban,
   MoreHorizontal,
 } from "lucide-react";
 import type { HistoryLogRecord, TruckRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
+import { CurrentRepairSections, currentRepairOf } from "./CurrentRepair";
 
 // ==========================================
 // TRUCK INFORMATION DETAIL VIEW
@@ -63,41 +64,8 @@ export function TruckDetailView({
   // True if the truck is out on a delivery.
   const isRestrictedStatus = truck.status === "On Delivery";
 
-  // 1. Isolate logs for this truck (Ultra-aggressive match ensures IDs and Plates link)
-  const sortedTruckLogs = logs.filter((l) => {
-    if (!l) return false; // <-- ADD THIS GUARD
-
-    const safeLogTruckID = String(l.truckID || "log_null").trim();
-    const safeTruckID = String(truck.id || "truck_null").trim();
-    const matchID = safeLogTruckID === safeTruckID;
-
-    const cleanLogPlate = String(l.plateNumber || "")
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .toLowerCase();
-    const cleanTruckPlate = String(truck.plateNumber || "")
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .toLowerCase();
-    const matchPlate =
-      cleanLogPlate === cleanTruckPlate &&
-      cleanLogPlate !== "" &&
-      cleanLogPlate !== "na";
-
-    return matchID || matchPlate;
-  });
-
-  // 2. Isolate the newest log that contains preliminary inspection data
-  const prelimIndex = sortedTruckLogs.findIndex(
-    (l) => l.driversReport || l.preliminaryRemarks || l.preliminaryPhotoUrl,
-  );
-  const latestPreliminaryLog =
-    prelimIndex !== -1 ? sortedTruckLogs[prelimIndex] : null;
-
-  // 3. Extract all logs belonging to the current maintenance cycle FIRST
-  // sortedTruckLogs is Newest-First, meaning index 0 is the most recent update.
-  const currentCycleLogs =
-    prelimIndex !== -1
-      ? sortedTruckLogs.slice(0, prelimIndex + 1)
-      : sortedTruckLogs;
+  // The repair under way, read the same way the office's truck page reads it.
+  const repair = currentRepairOf(truck, logs);
 
   // --- Strict Latest-Mechanic Access Control ---
   // A mechanic is ONLY unblocked if they are assigned on the MOST RECENT log of the active cycle.
@@ -107,19 +75,10 @@ export function TruckDetailView({
   // breakdown on the road, opens its log with no mechanic - nobody has been
   // sent yet. That used to lock every mechanic out of the truck, including the
   // one who went to fix it. An open job is anyone's; whoever writes the next
-  // log becomes the mechanic on it.
+  // log becomes the mechanic on it. A truck grounded again after its last
+  // repair was finished is an open job too (see currentRepairOf).
   const currentUserStr = String(currentUserId).trim();
-  // Only a repair still in progress belongs to somebody. When the newest log
-  // put the truck back in service, the last repair is over: a truck grounded
-  // again without a new log - a restored truck comes back Out of Service - is
-  // an open job, the same as one the office has just sent to maintenance. It
-  // used to stay locked to whoever finished the previous repair, so Out of
-  // Service trucks showed nobody else the Maintenance Update Form or Update
-  // Status buttons that an On Maintenance truck does.
-  const newestLog = sortedTruckLogs[0];
-  const repairInProgress =
-    newestLog?.statusAfter === "On Maintenance" || newestLog?.statusAfter === "Out of Service";
-  const activeCycleLog = repairInProgress ? currentCycleLogs[0] : undefined;
+  const activeCycleLog = repair.activeLog;
   const isUnassignedJob = Boolean(activeCycleLog) && !activeCycleLog?.primaryMechanicID;
   const hasMechanicAccess = activeCycleLog
     ? isUnassignedJob ||
@@ -127,50 +86,11 @@ export function TruckDetailView({
       String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
     : true;
 
-  // --- ADD THIS NEW VARIABLE ---
   // Evaluates to true ONLY if the mechanic is explicitly assigned to an active log (bypasses delivery restrictions for foul trips)
   const isExplicitlyAssigned = activeCycleLog ? (
-    String(activeCycleLog.primaryMechanicID).trim() === currentUserStr || 
+    String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
     String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
   ) : false;
-
-  const progressUpdates = currentCycleLogs
-    .filter((l) => l.additionalIssue || l.progressRemarks || l.progressPhotoUrl)
-    .sort((a, b) => {
-      const timeA = new Date(a.created_at || a.date).getTime();
-      const timeB = new Date(b.created_at || b.date).getTime();
-      return timeB - timeA;
-    });
-
-  const combinedIssuesList = progressUpdates
-    .filter((u) => u.additionalIssue)
-    .map((u, idx, arr) => (
-      <div key={`issue-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
-        <span className="font-bold">
-          Update #{arr.length - idx} [{formatDisplayDate(u.date)} -{" "}
-          {u.mechanicName || "Mechanic"}]:
-        </span>
-        <br />
-        {u.additionalIssue}
-      </div>
-    ));
-
-  const combinedRemarksList = progressUpdates
-    .filter((u) => u.progressRemarks)
-    .map((u, idx, arr) => (
-      <div key={`remark-${idx}`} className={idx !== 0 ? "mt-4" : ""}>
-        <span className="font-bold">
-          Update #{arr.length - idx} [{formatDisplayDate(u.date)} -{" "}
-          {u.mechanicName || "Mechanic"}]:
-        </span>
-        <br />
-        {u.progressRemarks}
-      </div>
-    ));
-
-  const combinedPhotos = progressUpdates
-    .map((u) => u.progressPhotoUrl)
-    .filter(Boolean);
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -278,21 +198,22 @@ export function TruckDetailView({
                       <Edit3 className="w-4 h-4 text-slate-500" /> Edit Truck
                     </button>
 
-                    {/* Archive: takes the truck out of the fleet, keeping its history.
+                    {/* Disable: takes the truck out of the fleet, keeping its history
+                        (it is then listed under Archived Trucks).
                         Not while it is out on a delivery - the server refuses that too. */}
                     {!isRestrictedStatus ? (
                       <button
                         onClick={() => { setIsMoreMenuOpen(false); onArchiveClick(); }}
                         className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
                       >
-                        <Archive className="w-4 h-4" /> Archive Truck
+                        <Ban className="w-4 h-4" /> Disable Truck
                       </button>
                     ) : (
                       <div
-                        title="A truck on a delivery can be archived once it is back."
+                        title="A truck on a delivery can be disabled once it is back."
                         className="w-full text-left px-4 py-2.5 text-sm text-slate-400 bg-slate-50 flex items-center gap-2 cursor-not-allowed"
                       >
-                        <Archive className="w-4 h-4" /> Archive Truck
+                        <Ban className="w-4 h-4" /> Disable Truck
                       </div>
                     )}
                   </div>
@@ -356,107 +277,7 @@ export function TruckDetailView({
           </div>
 
           {/* Section 2: Preliminary Inspection - Hides when not under maintenance */}
-          {/* The repair now under way, not the last one: a truck grounded again
-              without a new log has no inspection of its own yet. */}
-          {isUnderMaintenance &&
-            repairInProgress &&
-            latestPreliminaryLog &&
-            (latestPreliminaryLog.driversReport ||
-              latestPreliminaryLog.preliminaryRemarks) && (
-              <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs mt-6">
-                <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                  2. Latest Preliminary Inspection
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Issue to Fix / Driver&apos;s Report
-                    </label>
-                    <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                      {latestPreliminaryLog.driversReport || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Preliminary Remarks
-                    </label>
-                    <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                      {latestPreliminaryLog.preliminaryRemarks || "None"}
-                    </div>
-                  </div>
-                  {latestPreliminaryLog.preliminaryPhotoUrl && (
-                    <div className="sm:col-span-2 mt-2">
-                      <label className="block text-xs font-medium text-black mb-1">
-                        Attachment/s
-                      </label>
-                      <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                        <img
-                          src={latestPreliminaryLog.preliminaryPhotoUrl}
-                          alt="Preliminary Evidence"
-                          onClick={() =>
-                            setZoomedImage(
-                              latestPreliminaryLog.preliminaryPhotoUrl!,
-                            )
-                          }
-                          className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-          {/* Section 3: Consolidated Maintenance Progress Updates - Hides when not under maintenance */}
-          {isUnderMaintenance && repairInProgress && progressUpdates.length > 0 && (
-            <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs mt-6">
-              <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex items-center justify-between">
-                <span>3. Maintenance Progress Updates (Consolidated)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Additional Issue/s
-                  </label>
-                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                    {combinedIssuesList.length > 0 ? combinedIssuesList : "—"}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-black mb-1">
-                    Progress Remark/s (Optional)
-                  </label>
-                  <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                    {combinedRemarksList.length > 0
-                      ? combinedRemarksList
-                      : "N/A"}
-                  </div>
-                </div>
-                {combinedPhotos.length > 0 && (
-                  <div className="sm:col-span-2 mt-2">
-                    <label className="block text-xs font-medium text-black mb-1">
-                      Attachment/s ({combinedPhotos.length})
-                    </label>
-                    <div className="flex flex-wrap gap-3">
-                      {combinedPhotos.map((url, idx) => (
-                        <div
-                          key={idx}
-                          className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs"
-                        >
-                          <img
-                            src={url as string}
-                            alt={`Progress Evidence ${idx + 1}`}
-                            onClick={() => setZoomedImage(url as string)}
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <CurrentRepairSections repair={repair} show={isUnderMaintenance} />
         </div>
       </div>
       {zoomedImage && (

@@ -16,6 +16,11 @@ import TruckTripCard from "@/components/truck/TruckTripCard";
 import type { TruckTrip } from "@/services/truck/truckService";
 import { formatDate } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
+import { readStoredSession } from "@/app/lib/clientSession";
+import { LogMaintenanceModal } from "@/app/mechanic/fleet-status/_components/LogMaintenanceModal";
+import { CurrentRepairSections, currentRepairOf, type CurrentRepair } from "@/app/mechanic/fleet-status/_components/CurrentRepair";
+import { useLogPhotos } from "@/app/mechanic/fleet-status/_components/useLogPhotos";
+import type { EmployeeOption, HistoryLogRecord } from "@/app/mechanic/fleet-status/_components/types";
 import {
   Search,
   Truck,
@@ -30,6 +35,7 @@ import {
   AlertTriangle,
   Loader2,
   ChevronDown,
+  ClipboardList,
 } from "lucide-react";
 
 import type {
@@ -465,6 +471,10 @@ interface TruckDetailViewProps {
   onHistory: () => void;
   /** Takes it off the road or puts it back, when the mechanic cannot. */
   onStatus: () => void;
+  /** The repair it is in the middle of, read as the mechanic's page reads it. */
+  repair: CurrentRepair;
+  /** The mechanic's Maintenance Update Form, filed from the office. */
+  onMaintenanceUpdate: () => void;
 }
 
 function TruckDetailView({
@@ -477,7 +487,12 @@ function TruckDetailView({
   onRestore,
   onHistory,
   onStatus,
+  repair,
+  onMaintenanceUpdate,
 }: TruckDetailViewProps) {
+  // Being repaired, here or by an outside company - what the mechanic's page
+  // calls under maintenance.
+  const isGrounded = truck.status === "On Maintenance" || truck.status === "Out of Service";
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -542,6 +557,18 @@ function TruckDetailView({
             <HistoryIcon className="w-4 h-4 shrink-0" />
             <span>History</span>
           </button>
+
+          {/* The same form the mechanics use, so the office can record an
+              inspection or a progress update on a truck being repaired. */}
+          {!isArchived && isGrounded && (
+            <button
+              onClick={onMaintenanceUpdate}
+              className="flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
+            >
+              <ClipboardList className="w-4 h-4 shrink-0" />
+              <span>Maintenance Update Form</span>
+            </button>
+          )}
 
           {/* Taking a truck off the road is not the same job as editing its
               plate or its capacity, and it was only reachable through the form
@@ -641,6 +668,10 @@ function TruckDetailView({
               </div>
             </div>
           </div>
+
+          {/* The repair under way - its inspection and progress updates -
+              exactly as the mechanic's truck page shows it. */}
+          <CurrentRepairSections repair={repair} show={isGrounded && !isArchived} />
         </div>
       </div>
 
@@ -749,11 +780,87 @@ export default function FleetStatusPage() {
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
+  // The maintenance logs and mechanics the mechanic's page works from, so the
+  // office can see the repair under way and file the same forms.
+  const [maintenanceLogs, setMaintenanceLogs] = useState<HistoryLogRecord[]>([]);
+  const [mechanics, setMechanics] = useState<EmployeeOption[]>([]);
+  const [logForm, setLogForm] = useState<{ type: "inspection" | "update" | "log"; pending: { status: TruckStatus; reason: string } | null } | null>(null);
+  const [isSavingLog, setIsSavingLog] = useState(false);
+  const { logs: logsWithPhotos, seed: seedLogPhotos } = useLogPhotos(maintenanceLogs, selectedTruck?.id);
+
+  const fetchMaintenanceLogs = useCallback(async () => {
+    try {
+      const result = await apiFetch<{ data?: (HistoryLogRecord & { createdAt?: string })[] }>("/api/historyLogsM", { cache: "no-store" });
+      setMaintenanceLogs(
+        (result.data ?? [])
+          .map((log) => ({ ...log, created_at: log.created_at ?? log.createdAt }))
+          .sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()),
+      );
+    } catch {
+      // The truck page still works without them; the repair sections stay empty.
+    }
+  }, []);
+
+  useEffect(() => {
+    // The rows land in network callbacks, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchMaintenanceLogs();
+    void apiFetch<{ data?: { employeeID: string; employeeName: string; role: string }[] }>(
+      "/api/employees?page=1&limit=100&role=Mechanic&isActive=true",
+    )
+      .then((result) => setMechanics((result.data ?? []).map((e) => ({ employeeID: e.employeeID, employeeName: e.employeeName, role: e.role }))))
+      .catch(() => setMechanics([]));
+  }, [fetchMaintenanceLogs]);
+
+  const officeUser = (() => {
+    const session = readStoredSession();
+    return { employeeID: session?.id ?? "", employeeName: session?.employeeName ?? "Office" };
+  })();
+
   useEffect(() => {
     // Back to page one whenever the search or the filter changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm, selectedFilter]);
+
+  const saveOfficeLog = async (formData: Record<string, string>) => {
+    if (!selectedTruck || !logForm || isSavingLog) return;
+    setIsSavingLog(true);
+    try {
+      const saved = await apiFetch<{ data?: { id?: string } }>("/api/historyLogsM", {
+        method: "POST",
+        body: JSON.stringify({
+          ...formData,
+          statusBefore: selectedTruck.status,
+          statusAfter: logForm.pending?.status ?? selectedTruck.status,
+        }),
+      });
+      if (saved?.data?.id) {
+        seedLogPhotos(saved.data.id, {
+          preliminary: formData.preliminaryPhotoUrl,
+          progress: formData.progressPhotoUrl,
+          final: formData.photoUrl,
+        });
+      }
+      // The status change this log was written for, flagged so the server
+      // does not open a second, empty log beside it.
+      if (logForm.pending) {
+        await apiFetch(`/api/fleet-status/${selectedTruck.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ truckStatus: logForm.pending.status, reason: logForm.pending.reason, logOpened: true }),
+        });
+        await fetchTrucks();
+        await handleRowClick(selectedTruck.id);
+      }
+      await fetchMaintenanceLogs();
+      showToast("Maintenance log saved.", "success");
+      setLogForm(null);
+    } catch (error) {
+      showToast(getErrorMessage(error), "error");
+    } finally {
+      setIsSavingLog(false);
+    }
+  };
 
   const fetchTrucks = useCallback(async () => {
     setIsLoading(true);
@@ -770,7 +877,7 @@ export default function FleetStatusPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [showArchived]);
+  }, [showArchived, showToast]);
 
   useEffect(() => {
     // The rows land in a network callback, not in the effect body.
@@ -901,9 +1008,30 @@ export default function FleetStatusPage() {
     );
   }
 
+  // The repair the open truck is in the middle of.
+  const selectedRepair = currentRepairOf(
+    { id: selectedTruck?.id ?? "", plateNumber: selectedTruck?.plateNumber ?? "" },
+    logsWithPhotos,
+  );
+
   if (selectedTruck) {
     return (
       <>
+        <LogMaintenanceModal
+          isOpen={logForm !== null}
+          onClose={() => setLogForm(null)}
+          onSubmitSuccess={(formData) => void saveOfficeLog(formData)}
+          editData={null}
+          trucksOptions={[{ truckID: selectedTruck.id, plateNumber: selectedTruck.plateNumber, truckType: selectedTruck.truckType }]}
+          mechanicsOptions={mechanics}
+          preselectedTruckId={selectedTruck.id}
+          formType={logForm?.type ?? "update"}
+          loggedInMechanic={officeUser}
+          inheritedAdditionalMechanicID={selectedRepair.activeLog?.additionalMechanicID ? String(selectedRepair.activeLog.additionalMechanicID) : ""}
+          isSaving={isSavingLog}
+          chooseMechanic
+          defaultPrimaryMechanicID={selectedRepair.activeLog?.primaryMechanicID ? String(selectedRepair.activeLog.primaryMechanicID) : ""}
+        />
         <TruckDetailView
           truck={selectedTruck}
           trip={selectedTrip}
@@ -917,6 +1045,10 @@ export default function FleetStatusPage() {
           onDelete={handleDeleteTruck}
           isArchived={showArchived}
           onRestore={handleRestoreTruck}
+          repair={selectedRepair}
+          onMaintenanceUpdate={() =>
+            setLogForm({ type: selectedRepair.inProgress ? "update" : "inspection", pending: null })
+          }
         />
         {changingStatus && (
           <TruckStatusControl

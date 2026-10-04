@@ -26,11 +26,18 @@ interface LogMaintenanceModalProps {
   preselectedTruckId?: string | number | null;
   formType?: "inspection" | "update" | "log";
   loggedInMechanic: { employeeID: string | number; employeeName: string };
-  inheritedAdditionalMechanicID?: string; 
+  inheritedAdditionalMechanicID?: string;
   isSaving?: boolean;
+  /**
+   * Opened by the office rather than a mechanic: the primary mechanic is chosen
+   * from the list - it defaults to whoever is on the repair - instead of being
+   * the person signed in, who is not the one doing the work.
+   */
+  chooseMechanic?: boolean;
+  defaultPrimaryMechanicID?: string;
 }
 
-export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID, isSaving }: LogMaintenanceModalProps) {
+export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData, trucksOptions, mechanicsOptions, preselectedTruckId, formType = "log", loggedInMechanic, inheritedAdditionalMechanicID, isSaving, chooseMechanic = false, defaultPrimaryMechanicID = "" }: LogMaintenanceModalProps) {
   const showToast = useToast();
   const initialFormState: Record<string, string> = {
     date: "",
@@ -97,7 +104,9 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
         truckID: editData.truckID ? String(editData.truckID) : "",
         primaryMechanicID: editData.primaryMechanicID
           ? String(editData.primaryMechanicID)
-          : String(loggedInMechanic.employeeID),
+          : chooseMechanic
+            ? defaultPrimaryMechanicID
+            : String(loggedInMechanic.employeeID),
         additionalMechanicID: editData.additionalMechanicID
           ? String(editData.additionalMechanicID)
           : "",
@@ -116,7 +125,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
         ...initialFormState,
         date: today,
         truckID: preselectedTruckId ? String(preselectedTruckId) : "",
-        primaryMechanicID: String(loggedInMechanic.employeeID),
+        primaryMechanicID: chooseMechanic ? defaultPrimaryMechanicID : String(loggedInMechanic.employeeID),
         additionalMechanicID: inheritedAdditionalMechanicID || "",
       });
     }
@@ -128,6 +137,8 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     today,
     loggedInMechanic,
     inheritedAdditionalMechanicID,
+    chooseMechanic,
+    defaultPrimaryMechanicID,
   ]);
 
   if (!isOpen) return null;
@@ -332,12 +343,36 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                 <label className="block text-xs font-medium text-black mb-1">
                   Primary Mechanic *
                 </label>
+                {chooseMechanic ? (
+                  <div className="relative">
+                    <select
+                      name="primaryMechanicID"
+                      value={formData.primaryMechanicID || ""}
+                      onChange={handleInputChange}
+                      className={`w-full bg-white border rounded-md px-3 py-2 text-xs font-normal text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none cursor-pointer ${errors.primaryMechanicID ? "border-red-500 bg-red-50/20" : "border-slate-300"}`}
+                    >
+                      <option value="">Select the mechanic who did the work...</option>
+                      {mechanicsOptions
+                        .filter((emp) => String(emp.employeeID) !== String(formData.additionalMechanicID))
+                        .map((mech) => (
+                          <option key={mech.employeeID} value={String(mech.employeeID)}>
+                            {mech.employeeName}
+                          </option>
+                        ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                ) : (
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 font-medium cursor-not-allowed">
                   {/* An unassigned log is taken by whoever edits it. */}
                   {editData?.primaryMechanicID
                     ? editData.mechanicName
                     : loggedInMechanic.employeeName}
                 </div>
+                )}
+                {chooseMechanic && errors.primaryMechanicID && (
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.primaryMechanicID}</p>
+                )}
                 {/* Hidden input preserves the value for form submission */}
                 <input
                   type="hidden"
