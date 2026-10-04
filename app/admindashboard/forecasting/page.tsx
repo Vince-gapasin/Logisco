@@ -2079,7 +2079,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                 </div>
 
                 <div className="pdf-expand w-full xl:overflow-x-auto px-4 pt-4 xl:px-0 xl:pt-0 pb-2">
-                  <table role="table" className="w-full text-left border-collapse xl:min-w-225 block xl:table">
+                  <table role="table" className="w-full text-left border-collapse xl:min-w-250 block xl:table">
                     <thead role="rowgroup" className="hidden xl:table-header-group">
                       <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                         <th className="py-3.5 px-4 sm:px-6">Snapshot</th>

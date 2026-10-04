@@ -430,7 +430,7 @@ export default function InTransitFeedPage() {
         {/* TABLE */}
         {/* ========================================== */}
         <div className="xl:overflow-x-auto px-4 pt-4 xl:px-0 xl:pt-0 min-h-100 xl:min-h-135">
-          <table role="table" className="w-full text-left border-collapse xl:min-w-225 xl:table-fixed block xl:table">
+          <table role="table" className="w-full text-left border-collapse xl:min-w-250 xl:table-fixed block xl:table">
             <thead role="rowgroup" className="hidden xl:table-header-group">
               <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th role="columnheader" className="py-3.5 pl-6 sm:pl-8 pr-4 w-[12%] align-top">

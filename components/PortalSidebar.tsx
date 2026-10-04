@@ -4,11 +4,8 @@
 // One sidebar for the admin, crew and mechanic portals. There used to be three
 // copies of this file that differed only in their links.
 //
-// Below xl it is a drawer opened from the header. From xl (1280px) up it stays
-// open beside the page: an office screen has the room, and a drawer there cost
-// a click on every change of page and hid which page you were on. Not from lg:
-// at 1024px the sidebar would take a quarter of the width and push the feed
-// tables into sideways scrolling.
+// A drawer opened from the header at every width, phones and desktops alike:
+// that is how the GUI was printed, so it stays closed until asked for.
 "use client";
 
 import { releasePushToken } from "@/components/PushNotifications";
@@ -38,7 +35,7 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
 
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
-  // After a link is picked. A no-op from xl up, where the sidebar stays.
+  // After a link is picked.
   const closeSidebar = () => {
     setIsOpen(false);
   };
@@ -58,17 +55,17 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
 
   return (
     <>
-      {/* DARK BACKDROP OVERLAY - only while it is a drawer */}
+      {/* DARK BACKDROP OVERLAY */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 transition-opacity xl:hidden"
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* THE SIDEBAR ASIDE */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden xl:static xl:z-auto xl:translate-x-0 xl:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -78,10 +75,10 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-950/20 rounded-full blur-3xl"></div>
         </div>
 
-        {/* X Close Button - nothing to close once it stays open */}
+        {/* X Close Button */}
         <button
           onClick={() => setIsOpen(false)}
-          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer xl:hidden"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
           aria-label="Close Menu"
         >
           <X className="w-5 h-5" />
