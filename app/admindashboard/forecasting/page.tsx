@@ -2333,14 +2333,14 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
       {isExportModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 print:hidden"
+          className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center bg-slate-950/50 p-4 print:hidden"
           role="dialog"
           aria-modal="true"
           aria-labelledby="export-report-title"
           onClick={() => setIsExportModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl my-auto"
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="export-report-title" className="text-lg font-bold text-slate-900">

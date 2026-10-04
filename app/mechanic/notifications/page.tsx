@@ -379,8 +379,8 @@ export default function MechanicNotificationsPage() {
 
       {/* Confirmation Modal */}
       {isConfirmingDone && selectedNotification && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6">
+        <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 my-auto">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                 <CheckCircle2 className="w-6 h-6 text-green-600" />

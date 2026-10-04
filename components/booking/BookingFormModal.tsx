@@ -1077,8 +1077,8 @@ function BookingForm({
       </div>
 
       {confirmUnassigned && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/60" role="dialog" aria-modal="true" aria-labelledby="unassigned-title">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/60" role="dialog" aria-modal="true" aria-labelledby="unassigned-title">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl my-auto">
             <h3 id="unassigned-title" className="flex items-center gap-2 text-base font-bold text-slate-900">
               <AlertTriangle className="h-5 w-5 text-amber-500" /> Create as an Unassigned Booking?
             </h3>

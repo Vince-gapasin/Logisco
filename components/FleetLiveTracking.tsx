@@ -69,8 +69,8 @@ function AnswerStallDialog({
   onSave: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200">
+    <div className="fixed inset-0 overflow-y-auto z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 my-auto">
         <div className="px-5 py-4 border-b border-slate-200">
           <h3 className="text-sm font-bold text-slate-900">Mark this handled</h3>
           <p className="text-xs text-slate-600 mt-0.5 wrap-break-word">

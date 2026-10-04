@@ -693,8 +693,8 @@ function TruckDetailView({
       </div>
 
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
+        <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center my-auto">
             <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               Disable Truck

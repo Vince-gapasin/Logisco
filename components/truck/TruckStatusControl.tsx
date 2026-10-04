@@ -97,8 +97,8 @@ export default function TruckStatusControl({
   };
 
   return (
-    <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden my-auto">
         <div className="flex items-center justify-between px-5 py-4 bg-[#000c31] text-white">
           <div className="min-w-0">
             <h2 className="text-sm sm:text-base font-bold truncate">Change status</h2>

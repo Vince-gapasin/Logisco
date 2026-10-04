@@ -205,11 +205,11 @@ export default function StopProofList({
 
       {enlarged && (
         <div
-          className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-950/85 animate-fade-in"
+          className="fixed inset-0 overflow-y-auto z-110 flex items-center justify-center p-4 bg-slate-950/85 animate-fade-in"
           onClick={() => setEnlarged(null)}
         >
           <div
-            className="flex w-full max-w-3xl flex-col items-center gap-3"
+            className="flex w-full max-w-3xl flex-col items-center gap-3 my-auto"
             onClick={(event) => event.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

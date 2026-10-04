@@ -155,8 +155,8 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
 
       {/* ================= LOGOUT CONFIRMATION MODAL ================= */}
       {isLogoutModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#000208] border border-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-[#f0f4ff] animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#000208] border border-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-[#f0f4ff] animate-in fade-in zoom-in-95 duration-200 my-auto">
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mb-4 mx-auto border border-red-500/20 shadow-inner">
               <AlertTriangle className="w-6 h-6" />
             </div>

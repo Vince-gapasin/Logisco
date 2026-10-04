@@ -1689,8 +1689,8 @@ export default function CrewDashboardPage({
 
       {/* 2. UPDATE STATUS CONFIRMATION MODAL */}
       {showSubmitConfirmModal && selectedDelivery && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center my-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Location Update</h3>
             <p className="text-sm text-slate-600 mb-6">
               Confirm arrival/completion for <strong className="text-blue-600">{dynamicStops[currentStepIndex]?.title}</strong>?
@@ -1708,8 +1708,8 @@ export default function CrewDashboardPage({
 
       {/* 3. END OF TRIP REPORT MODAL */}
       {showTripReportModal && selectedDelivery && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left my-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Trip Completed!</h3>
             <p className="text-sm text-slate-600 mb-4">Please submit any final remarks or log any vehicle issues observed during the trip.</p>
             <div className="space-y-4 mb-6">
@@ -1728,8 +1728,8 @@ export default function CrewDashboardPage({
 
       {/* 4. START / ACCEPT CONFIRMATION MODAL */}
       {(showStartConfirmModal || showAcceptConfirmModal) && selectedDelivery && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center my-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               {showStartConfirmModal ? "Delivery Progress" : "Confirm Assignment"}
             </h3>
@@ -1755,8 +1755,8 @@ export default function CrewDashboardPage({
 
       {/* 5. DECLINE ASSIGNMENT MODAL */}
       {showDeclineConfirmModal && selectedDelivery && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left my-auto">
             {selectedDelivery.status?.toLowerCase() === "accepted" ? (
               <>
                 <h3 className="text-lg font-bold text-slate-900 mb-2">Withdraw from Delivery</h3>
@@ -1805,8 +1805,8 @@ export default function CrewDashboardPage({
       
       {/* 6. EMERGENCY MODAL */}
       {showEmergencyModal && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left">
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-left my-auto">
             <h3
               className={`text-lg font-bold mb-2 flex items-center gap-2 ${canContinue ? "text-amber-800" : "text-red-600"}`}
             >
