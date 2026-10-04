@@ -989,7 +989,7 @@ export default function ReportsForecastingPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-6 flex items-center justify-between gap-2 sm:gap-3">
       <div role="tablist" aria-label="Reports" className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
         {([
           ["records", "Delivery Records"],
@@ -1001,7 +1001,7 @@ export default function ReportsForecastingPage() {
             role="tab"
             aria-selected={view === id}
             onClick={() => setView(id)}
-            className={`min-h-tap md:min-h-10 px-4 rounded-lg text-sm font-semibold transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+            className={`min-h-tap md:min-h-10 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${view === id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
           >
             {title}
           </button>
@@ -1014,21 +1014,24 @@ export default function ReportsForecastingPage() {
             type="button"
             onClick={() => setIsFilterOpen((open) => !open)}
             aria-expanded={isFilterOpen}
-            className={`min-h-tap md:min-h-0 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors shadow-sm whitespace-nowrap px-3 sm:px-4 cursor-pointer ${
+            aria-label="Filters"
+            title="Filters"
+            className={`relative min-h-tap md:min-h-0 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors shadow-sm whitespace-nowrap w-9 sm:w-auto px-0 sm:px-4 cursor-pointer ${
               isFilterOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
             }`}
           >
             <Filter className="w-4 h-4 shrink-0" />
-            <span>Filters</span>
+            {/* Just the icon on a phone, beside the tabs on one row. */}
+            <span className="hidden sm:inline">Filters</span>
             {activeFilters.length > 0 && (
-              <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
+              <span className="absolute -top-1.5 -right-1.5 sm:static sm:ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
                 {activeFilters.length}
               </span>
             )}
           </button>
 
           {isFilterOpen && (
-            <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-40 p-4 animate-fade-in origin-top-left sm:origin-top-right">
+            <div className="absolute top-full right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-40 p-4 animate-fade-in origin-top-right">
               <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
                 <h3 className="font-bold text-sm text-slate-800">Filter completed reports</h3>
                 <button
