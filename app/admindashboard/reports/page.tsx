@@ -1256,7 +1256,7 @@ export default function ReportsForecastingPage() {
                         {bookingStatusLabel(record.status)}
                       </span>
                     </td>
-                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap">
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6">
                       <span className="xl:hidden text-xs font-semibold text-slate-500">Client</span>
                       <span className="wrap-break-word">{record.client}</span>
                     </td>
@@ -1271,13 +1271,13 @@ export default function ReportsForecastingPage() {
                         {bookingStatusLabel(record.status)}
                       </span>
                     </td>
-                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap text-xs text-slate-500">
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 text-xs text-slate-500">
                       <span className="xl:hidden text-xs font-semibold text-slate-500">Delivery Crews</span>
                       <span className="wrap-break-word">{record.crew}</span>
                     </td>
-                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:truncate xl:max-w-xs text-xs text-slate-500">
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:truncate xl:max-w-56 text-xs text-slate-500">
                       <span className="xl:hidden text-xs font-semibold text-slate-500">Remarks</span>
-                      <span className="wrap-break-word xl:truncate">{record.remarks || "—"}</span>
+                      <span className="wrap-break-word xl:truncate" title={record.remarks || undefined}>{record.remarks || "—"}</span>
                     </td>
                   </tr>
                 ))

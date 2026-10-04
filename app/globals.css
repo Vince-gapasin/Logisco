@@ -156,3 +156,16 @@ body {
     font-size: 16px;
   }
 }
+
+/* Height of the crew and mechanic tab bar (BottomTabBar), which is in the page
+   on phones only. Toasts add it to their bottom offset so a message does not
+   land on top of the tabs. min-h-14 there, 3.5rem here. */
+:root {
+  --bottom-nav: 0px;
+}
+
+@media (max-width: 767px) {
+  :root:has([data-bottom-nav]) {
+    --bottom-nav: 3.5rem;
+  }
+}

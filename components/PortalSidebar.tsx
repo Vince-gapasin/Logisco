@@ -1,6 +1,14 @@
 // ==========================================
-// LOGISCO - ADMIN SIDEBAR
+// LOGISCO - PORTAL SIDEBAR
 // ==========================================
+// One sidebar for the admin, crew and mechanic portals. There used to be three
+// copies of this file that differed only in their links.
+//
+// Below xl it is a drawer opened from the header. From xl (1280px) up it stays
+// open beside the page: an office screen has the room, and a drawer there cost
+// a click on every change of page and hid which page you were on. Not from lg:
+// at 1024px the sidebar would take a quarter of the width and push the feed
+// tables into sideways scrolling.
 "use client";
 
 import { releasePushToken } from "@/components/PushNotifications";
@@ -9,74 +17,55 @@ import React, { useState } from "react";
 import { describeRole, useSessionUser } from "@/app/lib/useSessionUser";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  Truck,
-  UserSquare2,
-  MapPin,
-  FileText,
-  LogOut,
-  Calendar,
-  X,
-  AlertTriangle,
-} from "lucide-react";
+import { AlertTriangle, LogOut, X } from "lucide-react";
+import { PORTAL_NAV, isActive, type Portal } from "@/components/portalNav";
 
-interface SidebarProps {
+interface PortalSidebarProps {
+  portal: Portal;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
 
-export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+export default function PortalSidebar({ portal, isOpen, setIsOpen }: PortalSidebarProps) {
   const user = useSessionUser();
+  const { name, items } = PORTAL_NAV[portal];
 
   const pathname = usePathname();
   const router = useRouter();
 
-  // State to manage the Logout Modal popup visibility
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
-  // Helper to close sidebar after clicking any navigation link
+  // After a link is picked. A no-op from xl up, where the sidebar stays.
   const closeSidebar = () => {
     setIsOpen(false);
   };
 
-  const getLinkClass = (path: string) => {
-    const active = pathname === path;
-    return `flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
-      active
-        ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
-        : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
-    }`;
-  };
-
-  // Handler for confirming logout action
   const handleConfirmLogout = async () => {
     // The phone stops receiving this person's notifications.
     await releasePushToken();
 
-    // 🔑 CRITICAL FIX: Clear auto-login and session storage keys
+    // Clear auto-login and session storage keys.
     localStorage.removeItem("logisco_user_session");
     sessionStorage.removeItem("logisco_user_session");
 
     setIsLogoutModalOpen(false);
     setIsOpen(false);
-    router.push("/"); // Redirect user to login page after logout
+    router.push("/");
   };
 
   return (
     <>
-      {/* DARK BACKDROP OVERLAY */}
+      {/* DARK BACKDROP OVERLAY - only while it is a drawer */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 transition-opacity"
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-40 transition-opacity xl:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* THE SIDEBAR ASIDE */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden xl:static xl:z-auto xl:translate-x-0 xl:shadow-none ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -86,20 +75,20 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-950/20 rounded-full blur-3xl"></div>
         </div>
 
-        {/* X Close Button */}
+        {/* X Close Button - nothing to close once it stays open */}
         <button
           onClick={() => setIsOpen(false)}
-          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer"
+          className="min-w-tap min-h-tap md:min-w-0 md:min-h-0 inline-flex items-center justify-center absolute top-4 right-4 p-2 text-[#8ba4d5] hover:text-white transition-colors z-20 cursor-pointer xl:hidden"
           aria-label="Close Menu"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Refined User Profile Section */}
+        {/* User Profile Section */}
         <div className="relative z-10 flex flex-col items-center justify-center py-8 border-b border-slate-950 mt-6 px-4 text-center">
           <div className="w-18 h-18 bg-black border border-slate-900 rounded-2xl mb-3 overflow-hidden shadow-inner flex items-center justify-center">
             {/* Seeded from whoever is actually signed in. It used to be a name
-                in the markup, so every office portal drew the same initials. */}
+                in the markup, so every portal drew the same initials. */}
             <img
               src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.name ?? "?")}`}
               alt=""
@@ -127,74 +116,26 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
         {/* Navigation Menu */}
         <nav className="relative z-10 flex-1 px-4 py-5 space-y-1.5 overflow-y-auto">
-          <Link
-            href="/admindashboard/dashboard"
-            className={getLinkClass("/admindashboard/dashboard")}
-            onClick={closeSidebar}
-          >
-            <LayoutDashboard className="w-5 h-5 mr-3 shrink-0" />
-            <span>Dashboard</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/calendar"
-            className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
-              pathname === "/admindashboard/calendar"
-                ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
-                : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
-            }`}
-            onClick={closeSidebar}
-          >
-            <div className="flex items-center">
-              <Calendar className="w-5 h-5 mr-3 shrink-0" />
-              <span>Calendar</span>
-            </div>
-          </Link>
-
-          <Link
-            href="/admindashboard/clients"
-            className={getLinkClass("/admindashboard/clients")}
-            onClick={closeSidebar}
-          >
-            <Users className="w-5 h-5 mr-3 shrink-0" />
-            <span>Clients & Partners</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/employees"
-            className={getLinkClass("/admindashboard/employees")}
-            onClick={closeSidebar}
-          >
-            <UserSquare2 className="w-5 h-5 mr-3 shrink-0" />
-            <span>Employee Directory</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/fleet-status"
-            className={getLinkClass("/admindashboard/fleet-status")}
-            onClick={closeSidebar}
-          >
-            <Truck className="w-5 h-5 mr-3 shrink-0" />
-            <span>Fleet Status</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/fleet-tracking"
-            className={getLinkClass("/admindashboard/fleet-tracking")}
-            onClick={closeSidebar}
-          >
-            <MapPin className="w-5 h-5 mr-3 shrink-0" />
-            <span>Fleet Live Tracking</span>
-          </Link>
-
-          <Link
-            href="/admindashboard/reports"
-            className={getLinkClass("/admindashboard/reports")}
-            onClick={closeSidebar}
-          >
-            <FileText className="w-5 h-5 mr-3 shrink-0" />
-            <span>Reports & Forecast</span>
-          </Link>
+          {items.map((item) => {
+            const active = isActive(pathname, item);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={`flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  active
+                    ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
+                    : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
+                }`}
+                onClick={closeSidebar}
+              >
+                <Icon className="w-5 h-5 mr-3 shrink-0" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Logout Button */}
@@ -213,21 +154,18 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       {isLogoutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#000208] border border-slate-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 text-[#f0f4ff] animate-in fade-in zoom-in-95 duration-200">
-            {/* Warning Icon */}
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mb-4 mx-auto border border-red-500/20 shadow-inner">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
-            {/* Modal Headings */}
             <h3 className="text-lg font-bold text-center text-[#f0f4ff] mb-1">
               Confirm Logout
             </h3>
             <p className="text-sm text-[#8ba4d5] text-center mb-6">
               Are you sure you want to end your current session? You will need
-              to log back in to access the admin portal.
+              to log back in to access the {name} portal.
             </p>
 
-            {/* Action Buttons */}
             <div className="flex items-center space-x-3">
               <button
                 type="button"

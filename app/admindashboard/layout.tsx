@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import ProtectedPortal from "@/components/ProtectedPortal";
 import SharedHeader from "@/components/SharedHeader";
 import { ToastProvider } from "@/components/Toast";
-import Sidebar from "@/components/Sidebaradmin";
+import PortalSidebar from "@/components/PortalSidebar";
 
 export default function AdminLayout({
   children,
@@ -20,7 +20,7 @@ export default function AdminLayout({
     <ProtectedPortal>
       <ToastProvider>
         <div className="relative flex h-[100dvh] w-full overflow-hidden bg-slate-50 font-sans pb-[var(--safe-bottom)]">
-          <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+          <PortalSidebar portal="admin" isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
           <div className="flex w-full flex-1 flex-col overflow-hidden">
             <SharedHeader

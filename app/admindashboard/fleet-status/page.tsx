@@ -1129,7 +1129,7 @@ export default function FleetStatusPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
-          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+          <div className="flex items-center gap-2 w-full lg:w-auto lg:min-w-0 lg:flex-wrap overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
             <button
               onClick={() => setSelectedFilter("All")}
               className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
