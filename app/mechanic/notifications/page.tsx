@@ -370,7 +370,7 @@ export default function MechanicNotificationsPage() {
                 onClick={closeNotificationDetails}
                 className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-black hover:text-white hover:border-black transition-colors duration-200 shadow-sm cursor-pointer"
               >
-                Close Details
+                Close<span className="hidden sm:inline"> Details</span>
               </button>
             </div>
           </div>

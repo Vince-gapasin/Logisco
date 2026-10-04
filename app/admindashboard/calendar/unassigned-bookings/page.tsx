@@ -219,9 +219,9 @@ export default function UnassignedBookingsPage() {
         {/* ========================================== */}
         {/* TABLE */}
         {/* ========================================== */}
-        <div className="md:overflow-x-auto px-4 pt-4 md:px-0 md:pt-0 min-h-100 md:min-h-135">
-          <table role="table" className="w-full text-left border-collapse md:min-w-250 md:table-fixed block md:table">
-            <thead role="rowgroup" className="hidden md:table-header-group">
+        <div className="xl:overflow-x-auto px-4 pt-4 xl:px-0 xl:pt-0 min-h-100 xl:min-h-135">
+          <table role="table" className="w-full text-left border-collapse xl:min-w-250 xl:table-fixed block xl:table">
+            <thead role="rowgroup" className="hidden xl:table-header-group">
               <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                 <th role="columnheader" className="py-3.5 pl-6 sm:pl-8 pr-4 w-[15%]">Order ID</th>
                 <th role="columnheader" className="py-3.5 px-4 w-[20%]">Client Name</th>
@@ -232,12 +232,12 @@ export default function UnassignedBookingsPage() {
                 </th>
               </tr>
             </thead>
-            <tbody role="rowgroup" className="block md:table-row-group">
+            <tbody role="rowgroup" className="block xl:table-row-group">
               {isLoading ? (
                 <TableSkeleton rows={5} columns={5} stacked />
               ) : loadError ? (
-                <tr role="row" className="block md:table-row">
-                  <td role="cell" colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center">
+                <tr role="row" className="block xl:table-row">
+                  <td role="cell" colSpan={5} className="block xl:table-cell py-16 sm:py-20 text-center">
                     <ListLoadError message={loadError} onRetry={retryLoad} />
                   </td>
                 </tr>
@@ -247,40 +247,40 @@ export default function UnassignedBookingsPage() {
                     data-pressable
                     key={booking.id}
                     onClick={() => handleOpenModal(booking)}
-                    className="block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
+                    className="block xl:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 xl:border-0 xl:border-b xl:border-slate-100 xl:rounded-none xl:mb-0 xl:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td role="cell" className="block md:table-cell pb-2 mb-1 border-b border-slate-100 md:pb-3.5 md:mb-0 md:border-0 py-1.5 md:py-3.5 px-0 md:pl-6 md:pr-4 font-medium text-slate-900 md:truncate">
+                    <td role="cell" className="block xl:table-cell pb-2 mb-1 border-b border-slate-100 xl:pb-3.5 xl:mb-0 xl:border-0 py-1.5 xl:py-3.5 px-0 xl:pl-6 xl:pr-4 font-medium text-slate-900 xl:truncate">
                       <RowOpenButton
                         label={`Assign booking ${booking.orderId}`}
                         onOpen={() => handleOpenModal(booking)}
-                        className="wrap-break-word text-base font-semibold md:text-sm md:font-medium"
+                        className="wrap-break-word text-base font-semibold xl:text-sm xl:font-medium"
                       >
                         {booking.orderId}
                       </RowOpenButton>
                     </td>
-                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-3.5 px-0 md:px-4 md:truncate font-medium">
-                      <span className="md:hidden text-xs font-semibold text-slate-500">Client Name</span>
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 xl:table-cell items-center py-1.5 xl:py-3.5 px-0 xl:px-4 xl:truncate font-medium">
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Client Name</span>
                       <span className="wrap-break-word">{booking.clientName}</span>
                     </td>
                     <td role="cell"
-                      className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-start py-1.5 md:py-3.5 px-0 md:px-4 md:truncate"
+                      className="grid grid-cols-[40%_60%] gap-2 xl:table-cell items-start py-1.5 xl:py-3.5 px-0 xl:px-4 xl:truncate"
                       title={booking.product}
                     >
-                      <span className="md:hidden text-xs font-semibold text-slate-500">Product</span>
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Product</span>
                       <span className="wrap-break-word">{booking.product}</span>
                     </td>
-                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 md:table-cell items-center py-1.5 md:py-3.5 px-0 md:px-4 md:truncate">
-                      <span className="md:hidden text-xs font-semibold text-slate-500">Scheduled Date</span>
+                    <td role="cell" className="grid grid-cols-[40%_60%] gap-2 xl:table-cell items-center py-1.5 xl:py-3.5 px-0 xl:px-4 xl:truncate">
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Scheduled Date</span>
                       <span className="wrap-break-word">{booking.displayDate}</span>
                     </td>
-                    <td role="cell" className="block md:table-cell pt-3 md:pt-0 py-1.5 md:py-3.5 px-0 md:pl-4 md:pr-6 text-center">
+                    <td role="cell" className="block xl:table-cell pt-3 xl:pt-0 py-1.5 xl:py-3.5 px-0 xl:pl-4 xl:pr-6 text-center">
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenModal(booking);
                         }}
-                        className="w-full md:w-auto px-4 py-3 md:py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors duration-200 whitespace-nowrap cursor-pointer"
+                        className="w-full xl:w-auto px-4 py-3 xl:py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors duration-200 whitespace-nowrap cursor-pointer"
                       >
                         Assign Now
                       </button>
@@ -288,8 +288,8 @@ export default function UnassignedBookingsPage() {
                   </tr>
                 ))
               ) : (
-                <tr role="row" className="block md:table-row">
-                  <td role="cell" colSpan={5} className="block md:table-cell py-16 sm:py-20 text-center">
+                <tr role="row" className="block xl:table-row">
+                  <td role="cell" colSpan={5} className="block xl:table-cell py-16 sm:py-20 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />

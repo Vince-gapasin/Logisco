@@ -594,11 +594,11 @@ export default function BookingAssignModal({
           </div>
         )}
 
-        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-row flex-wrap justify-end gap-2 sm:gap-4 bg-slate-50">
           <button
             type="button"
             onClick={() => setShowCancelConfirm(true)}
-            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-3 sm:py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer sm:mr-auto"
           >
             Cancel Booking
           </button>
@@ -606,7 +606,7 @@ export default function BookingAssignModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-3 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -615,7 +615,7 @@ export default function BookingAssignModal({
             type="submit"
             form="assign-booking-form"
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-6 py-3 sm:py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer disabled:opacity-50"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-3 sm:py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? "Saving…" : reassigning ? "Re-assign Booking" : "Assign Now"}
           </button>
@@ -635,7 +635,7 @@ export default function BookingAssignModal({
                 <button
                   type="button"
                   onClick={() => setShowCancelConfirm(false)}
-                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="w-auto sm:flex-1 px-4 py-2 sm:py-3 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
                 >
                   No, Keep It
                 </button>
@@ -645,7 +645,7 @@ export default function BookingAssignModal({
                     setShowCancelConfirm(false);
                     onCancelBooking(event, booking.id);
                   }}
-                  className="w-full sm:flex-1 px-4 py-3 sm:py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors cursor-pointer shadow-sm"
+                  className="w-auto sm:flex-1 px-4 py-2 sm:py-3 sm:py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer shadow-sm"
                 >
                   Yes, Cancel
                 </button>

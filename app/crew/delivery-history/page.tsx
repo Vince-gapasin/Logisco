@@ -489,8 +489,8 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-6 w-[60%]">Delivery Information</th>
-                <th className="py-3.5 px-6 w-[40%] text-right">Status & Action</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[64%] sm:w-[60%]">Delivery Information</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[36%] sm:w-[40%] text-right">Status & Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
@@ -517,7 +517,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
                     onClick={() => handleRowClick(delivery)}
                     className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
                   >
-                    <td className="py-4 px-6 w-[60%] overflow-hidden">
+                    <td className="py-4 px-4 sm:px-6 w-[64%] sm:w-[60%] overflow-hidden">
                       <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm sm:text-base mb-1 truncate">
                         {delivery.clientName}
                       </div>
@@ -532,7 +532,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
                       </div>
                     </td>
 
-                    <td className="py-4 px-6 text-right align-middle w-[40%]">
+                    <td className="py-4 px-4 sm:px-6 text-right align-middle w-[36%] sm:w-[40%]">
                       <div className="flex flex-col items-end justify-center gap-1.5 sm:gap-2">
                         <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:underline whitespace-nowrap">
                           <Eye className="w-3.5 h-3.5 shrink-0" />

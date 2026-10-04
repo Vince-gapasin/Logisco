@@ -673,14 +673,14 @@ function BookingForm({
                 <button
                   type="button"
                   onClick={() => setPickupList((rows) => [...rows, emptyPickup()])}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-3 sm:px-4 py-1.5 whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-4 h-4" /> New Pickup
                 </button>
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
+              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
+                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                  <thead role="rowgroup" className="hidden lg:table-header-group">
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                       <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
                       <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name *</th>
@@ -692,11 +692,11 @@ function BookingForm({
                       <th className="p-2.5 w-16 text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup" className="block lg:table-row-group space-y-3 lg:space-y-0">
                     {pickupList.map((row, idx) => (
-                      <tr key={idx} className="border-b border-slate-200 align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200">
+                      <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 lg:p-0 lg:border-0 lg:border-b lg:rounded-none lg:align-top">
+                        <td role="cell" className="block lg:table-cell pb-2 mb-2 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium"><span className="lg:hidden">Pickup </span>{idx + 1}</td>
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Warehouse Name *</span>
                           {registered ? (
                             <select
                               value={row.warehouseName}
@@ -729,7 +729,7 @@ function BookingForm({
                             />
                           )}
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Address *</span>
                           <input
                             type="text"
                             placeholder="Full Address"
@@ -739,7 +739,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`pickup_${idx}_warehouseAddress`]} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Person *</span>
                           <input
                             type="text"
                             placeholder="Contact Person"
@@ -748,7 +748,7 @@ function BookingForm({
                             className={cellClass(Boolean(errors[`pickup_${idx}_contactPerson`]))}
                           />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Number *</span>
                           <input
                             type="tel"
                             inputMode="tel"
@@ -759,7 +759,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`pickup_${idx}_contactNumber`] && "11 digits, starting 09"} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Pick Up Time *</span>
                           <input
                             type="time"
                             value={row.pickupTime}
@@ -769,7 +769,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`pickup_${idx}_pickupTime`]} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
                           <QuantityInput
                             value={row.quantity}
                             onChange={(v) => handlePickupChange(idx, "quantity", v)}
@@ -777,7 +777,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`pickup_${idx}_quantity`]} />
                         </td>
-                        <td className="p-2 text-center">
+                        <td role="cell" className="flex justify-end pt-1 lg:table-cell lg:p-2 lg:text-center">
                           <RowDeleteButton onConfirm={() => removePickupRow(idx)} disabled={pickupList.length === 1} />
                         </td>
                       </tr>
@@ -794,14 +794,14 @@ function BookingForm({
                 <button
                   type="button"
                   onClick={() => setDeliveryList((rows) => [...rows, emptyDelivery()])}
-                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-4 py-1.5"
+                  className="min-h-tap md:min-h-0 inline-flex items-center justify-center gap-1.5 bg-blue-600 text-white font-medium rounded-lg text-xs shadow-sm px-3 sm:px-4 py-1.5 whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-4 h-4" /> Branch
                 </button>
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
+              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
+                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                  <thead role="rowgroup" className="hidden lg:table-header-group">
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                       <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
                       <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name *</th>
@@ -813,11 +813,11 @@ function BookingForm({
                       <th className="p-2.5 w-16 text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup" className="block lg:table-row-group space-y-3 lg:space-y-0">
                     {deliveryList.map((row, idx) => (
-                      <tr key={idx} className="border-b border-slate-200 align-top">
-                        <td className="p-2 border-r border-slate-200 text-center font-medium">{idx + 1}</td>
-                        <td className="p-2 border-r border-slate-200">
+                      <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 lg:p-0 lg:border-0 lg:border-b lg:rounded-none lg:align-top">
+                        <td role="cell" className="block lg:table-cell pb-2 mb-2 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium"><span className="lg:hidden">Branch </span>{idx + 1}</td>
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Branch Name *</span>
                           {registered ? (
                             <select
                               value={row.branchName}
@@ -849,7 +849,7 @@ function BookingForm({
                             />
                           )}
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Delivery Address *</span>
                           <input
                             type="text"
                             placeholder="Full Address"
@@ -859,7 +859,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`delivery_${idx}_deliveryAddress`]} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Person *</span>
                           <input
                             type="text"
                             placeholder="Contact Person"
@@ -868,7 +868,7 @@ function BookingForm({
                             className={cellClass(Boolean(errors[`delivery_${idx}_contactPerson`]))}
                           />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Number *</span>
                           <input
                             type="tel"
                             inputMode="tel"
@@ -879,7 +879,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`delivery_${idx}_contactNumber`] && "11 digits, starting 09"} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Delivery Time *</span>
                           <input
                             type="time"
                             value={row.deliveryTime}
@@ -889,7 +889,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
                         </td>
-                        <td className="p-2 border-r border-slate-200">
+                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
                           <QuantityInput
                             value={row.quantity}
                             onChange={(v) => handleDeliveryChange(idx, "quantity", v)}
@@ -897,7 +897,7 @@ function BookingForm({
                           />
                           <CellError message={errors[`delivery_${idx}_quantity`]} />
                         </td>
-                        <td className="p-2 text-center">
+                        <td role="cell" className="flex justify-end pt-1 lg:table-cell lg:p-2 lg:text-center">
                           <RowDeleteButton onConfirm={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} />
                         </td>
                       </tr>

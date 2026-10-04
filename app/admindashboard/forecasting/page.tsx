@@ -1727,21 +1727,21 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
               {/* Action Buttons Container */}
               <div
-                className="w-full sm:w-auto flex flex-wrap items-center gap-3 print:hidden"
+                className="flex flex-wrap items-center gap-2 sm:gap-3 print:hidden"
                 data-html2canvas-ignore="true"
               >
                 <Link
                   href="/admindashboard/reports"
-                  className="w-full sm:w-auto h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl border border-slate-200 shadow-sm transition-all duration-200 text-sm px-4 cursor-pointer"
+                  className="w-auto sm:w-auto h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl border border-slate-200 shadow-sm transition-all duration-200 text-xs sm:text-sm px-4 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4 shrink-0 text-white" />
                   <span>Back to Reports</span>
                 </Link>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <button
                     onClick={() => setIsExportModalOpen(true)}
-                    className="h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all text-sm px-4 cursor-pointer"
+                    className="h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl shadow-md transition-all text-xs sm:text-sm px-4 cursor-pointer"
                   >
                     <Download className="w-4 h-4 shrink-0" />
                     <span>Export Report</span>
@@ -1750,7 +1750,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                   <button
                     onClick={openFilters}
                     aria-label="Open filters"
-                    className="relative w-11 h-11 inline-flex items-center justify-center bg-white border border-slate-200 rounded-xl shadow-sm hover:border-blue-400 transition-all cursor-pointer"
+                    className="relative w-9 sm:w-11 h-9 sm:h-11 inline-flex items-center justify-center bg-white border border-slate-200 rounded-lg sm:rounded-xl shadow-sm hover:border-blue-400 transition-all cursor-pointer px-3"
                   >
                     <SlidersHorizontal className="w-4 h-4 text-slate-700" />
                     {activeFilterCount > 0 && (
@@ -1953,9 +1953,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
               </div>
 
-              <div className="pdf-expand w-full overflow-x-auto pb-2 min-h-75">
-                <table className="w-full text-left border-collapse min-w-225">
-                  <thead>
+              <div className="pdf-expand w-full lg:overflow-x-auto px-4 pt-4 lg:px-0 lg:pt-0 pb-2 min-h-75">
+                <table role="table" className="w-full text-left border-collapse lg:min-w-225 block lg:table">
+                  <thead role="rowgroup" className="hidden lg:table-header-group">
                     <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                       <th className="py-3.5 px-4 sm:px-6">Period</th>
                       <th className="py-3.5 px-4 sm:px-6">
@@ -1970,7 +1970,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                       <th className="py-3.5 px-4 sm:px-6">Trend Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
+                  <tbody role="rowgroup" className="block lg:table-row-group lg:divide-y lg:divide-slate-100 text-sm text-slate-800">
                     {historyRecords.map((row) => {
                       const metrics = calculateMetrics(
                         row.expectedVolume,
@@ -1980,20 +1980,20 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                       return (
                         <tr
                           key={row.id}
-                          className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
+                          role="row" className="block lg:table-row bg-white border border-slate-200 rounded-xl mb-3 p-3 lg:border-0 lg:border-b lg:border-slate-100 lg:rounded-none lg:mb-0 lg:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800"
                         >
-                          <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
+                          <td role="cell" className="block lg:table-cell pb-2 mb-1 border-b border-slate-100 lg:border-0 lg:pb-3.5 lg:mb-0 text-base lg:text-sm font-semibold lg:font-medium py-1.5 lg:py-3.5 px-0 lg:px-6 font-medium text-slate-900 lg:whitespace-nowrap">
                             {row.period}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-slate-600">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap text-slate-600"><span className="lg:hidden text-xs font-semibold text-slate-500">Expected Delivery Volume</span>
                             {row.expectedVolume.toLocaleString()}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-medium text-slate-900">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap font-medium text-slate-900"><span className="lg:hidden text-xs font-semibold text-slate-500">Actual Delivery Volume</span>
                             {row.actualVolume !== null
                               ? row.actualVolume.toLocaleString()
                               : "-"}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs font-semibold">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap text-xs font-semibold"><span className="lg:hidden text-xs font-semibold text-slate-500">Calculated Variance</span>
                             <span
                               className={
                                 metrics.varianceVal > 0
@@ -2006,7 +2006,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                               {metrics.variance}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap"><span className="lg:hidden text-xs font-semibold text-slate-500">Trend Status</span>
                             <span
                               className={`px-2.5 py-1 rounded-full text-xs font-medium ${metrics.statusClass}`}
                             >
@@ -2017,8 +2017,8 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                       );
                     })}
                     {historyRecords.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-10 px-6 text-center text-sm text-slate-500">
+                      <tr role="row" className="block lg:table-row">
+                        <td role="cell" colSpan={5} className="block lg:table-cell py-10 px-6 text-center text-sm text-slate-500">
                           No forecasting records match this timeframe.
                         </td>
                       </tr>
@@ -2071,9 +2071,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                   </div>
                 </div>
 
-                <div className="pdf-expand w-full overflow-x-auto pb-2">
-                  <table className="w-full text-left border-collapse min-w-250">
-                    <thead>
+                <div className="pdf-expand w-full xl:overflow-x-auto px-4 pt-4 xl:px-0 xl:pt-0 pb-2">
+                  <table role="table" className="w-full text-left border-collapse xl:min-w-250 block xl:table">
+                    <thead role="rowgroup" className="hidden xl:table-header-group">
                       <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
                         <th className="py-3.5 px-4 sm:px-6">Snapshot</th>
                         <th className="py-3.5 px-4 sm:px-6">Target Period</th>
@@ -2083,28 +2083,28 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         <th className="py-3.5 px-4 sm:px-6">Percentage Error</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
+                    <tbody role="rowgroup" className="block xl:table-row-group xl:divide-y xl:divide-slate-100 text-sm text-slate-800">
                       {!isSnapshotLoading && !snapshotLoadError && evaluatedSnapshots.map((snapshot) => (
                         <tr
                           key={snapshot.forecastSnapshotID}
-                          className="hover:bg-slate-50/80 transition-colors"
+                          role="row" className="block xl:table-row bg-white border border-slate-200 rounded-xl mb-3 p-3 xl:border-0 xl:border-b xl:border-slate-100 xl:rounded-none xl:mb-0 xl:p-0 hover:bg-slate-50/80 transition-colors"
                         >
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap text-slate-600">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap text-slate-600"><span className="xl:hidden text-xs font-semibold text-slate-500">Snapshot</span>
                             {formatMonth(snapshot.snapshotMonth)}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-medium text-slate-900">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap font-medium text-slate-900"><span className="xl:hidden text-xs font-semibold text-slate-500">Target Period</span>
                             {formatMonth(snapshot.targetPeriod)}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap"><span className="xl:hidden text-xs font-semibold text-slate-500">Forecast</span>
                             {Number(snapshot.expectedVolume).toLocaleString()}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap"><span className="xl:hidden text-xs font-semibold text-slate-500">Actual</span>
                             {Number(snapshot.actualVolume).toLocaleString()}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-semibold text-slate-700">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap font-semibold text-slate-700"><span className="xl:hidden text-xs font-semibold text-slate-500">Absolute Error</span>
                             {Number(snapshot.absoluteError).toLocaleString()}
                           </td>
-                          <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap font-semibold text-amber-600">
+                          <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap font-semibold text-amber-600"><span className="xl:hidden text-xs font-semibold text-slate-500">Percentage Error</span>
                             {snapshot.variancePercentage === null
                               ? "N/A"
                               : `${Math.abs(Number(snapshot.variancePercentage)).toFixed(1)}%`}
@@ -2112,30 +2112,30 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         </tr>
                       ))}
                       {isSnapshotLoading && (
-                        <tr>
-                          <td
+                        <tr role="row" className="block xl:table-row">
+                          <td role="cell"
                             colSpan={6}
-                            className="py-10 px-6 text-center text-sm text-slate-500"
+                            className="block xl:table-cell py-10 px-6 text-center text-sm text-slate-500"
                           >
                             Loading forecast accuracy history…
                           </td>
                         </tr>
                       )}
                       {!isSnapshotLoading && snapshotLoadError && (
-                        <tr>
-                          <td
+                        <tr role="row" className="block xl:table-row">
+                          <td role="cell"
                             colSpan={6}
-                            className="py-10 px-6 text-center text-sm text-red-600"
+                            className="block xl:table-cell py-10 px-6 text-center text-sm text-red-600"
                           >
                             {snapshotLoadError}
                           </td>
                         </tr>
                       )}
                       {!isSnapshotLoading && !snapshotLoadError && evaluatedSnapshots.length === 0 && (
-                        <tr>
-                          <td
+                        <tr role="row" className="block xl:table-row">
+                          <td role="cell"
                             colSpan={6}
-                            className="py-10 px-6 text-center text-sm text-slate-500"
+                            className="block xl:table-cell py-10 px-6 text-center text-sm text-slate-500"
                           >
                             No evaluated forecast snapshots are available for {selectedYear} yet.
                           </td>

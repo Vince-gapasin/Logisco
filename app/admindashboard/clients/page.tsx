@@ -272,18 +272,18 @@ export default function ClientsPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+      <div className="flex flex-row flex-wrap items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Clients & Partners
           </h1>
           </div>
 
-        <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+        <div className="flex">
           {activeTab === "Clients" && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer px-3"
             >
               <UserPlus className="w-4 h-4 shrink-0" />
               <span>Add Client</span>
@@ -292,7 +292,7 @@ export default function ClientsPage() {
           {activeTab === "Partners" && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer px-3"
             >
               <UserPlus className="w-4 h-4 shrink-0" />
               <span>Add Partner</span>

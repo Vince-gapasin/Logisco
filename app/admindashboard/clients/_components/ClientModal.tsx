@@ -798,19 +798,19 @@ export function ClientModal({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-row items-center justify-end sm:justify-center gap-2 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={handleCloseModal}
               style={{ backgroundColor: "oklch(63.7% 0.237 25.331)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-auto sm:w-40 py-2 sm:py-2.5 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 px-3"
             >
               Cancel
             </button>
             <button
               type="submit"
               style={{ backgroundColor: "oklch(54.6% 0.245 262.881)" }}
-              className="w-full sm:w-40 py-2.5 sm:py-2.5 text-white font-semibold rounded-xl text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95"
+              className="w-auto sm:w-40 py-2 sm:py-2.5 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center hover:opacity-95 px-3"
             >
               {editData ? "Save Changes" : "Add Client"}
             </button>

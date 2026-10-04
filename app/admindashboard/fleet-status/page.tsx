@@ -420,19 +420,19 @@ function TruckModal({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-4 border-t border-slate-200">
+          <div className="flex flex-row items-center justify-end sm:justify-center gap-2 sm:gap-4 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={handleCloseModal}
               disabled={isSubmitting}
-              className="w-full sm:w-40 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm shadow-md disabled:opacity-50"
+              className="w-auto sm:w-40 py-2 sm:py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md disabled:opacity-50 px-3"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-40 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-xl text-sm shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-auto sm:w-40 py-2 sm:py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-50 px-3"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {editData ? "Save Changes" : "Add Truck"}
@@ -529,13 +529,13 @@ function TruckDetailView({
         </div>
 
         {/* RIGHT SIDE: Action Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           {/* Everything about past repairs lives behind this, the same as in the
               mechanic's module - one screen, one layout, whichever side you are
               looking from. */}
           <button
             onClick={onHistory}
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+            className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
             <span>History</span>
@@ -547,7 +547,7 @@ function TruckDetailView({
           {isArchived ? (
             <button
               onClick={() => void onRestore(truck.id)}
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+              className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
             >
               <RotateCcw className="w-4 h-4 shrink-0" />
               <span>Restore Truck</span>
@@ -556,7 +556,7 @@ function TruckDetailView({
             <>
               <button
                 onClick={onStatus}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
               >
                 <Wrench className="w-4 h-4 shrink-0" />
                 <span>Status</span>
@@ -564,14 +564,14 @@ function TruckDetailView({
 
               <button
                 onClick={() => onEdit(truck)}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
               >
                 <Edit3 className="w-4 h-4 shrink-0" />
                 <span>Edit Truck</span>
               </button>
               <button
                 onClick={() => setShowDeleteModal(true)}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
               >
                 <Archive className="w-4 h-4 shrink-0" />
                 <span>Archive</span>
@@ -962,20 +962,20 @@ export default function FleetStatusPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="mb-6 flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
             {showArchived ? "Archived Trucks" : "Fleet Status"}
           </h1>
           </div>
-        <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+        <div className="flex flex-row gap-2">
           <button
             onClick={() => {
               setShowArchived(!showArchived);
               setSelectedFilter("All");
               setCurrentPage(1);
             }}
-            className="w-full sm:w-44 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer"
+            className="w-auto sm:w-44 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
           >
             <Archive className="w-4 h-4 shrink-0" />
             <span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
@@ -986,7 +986,7 @@ export default function FleetStatusPage() {
                 setEditingTruck(null);
                 setIsModalOpen(true);
               }}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-all duration-200 cursor-pointer px-3"
             >
               <Truck className="w-4 h-4 shrink-0" />
               <span>Add Truck</span>
@@ -1077,7 +1077,7 @@ export default function FleetStatusPage() {
                       className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                     >
                       <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
-                        <div className="font-medium text-slate-900 truncate">
+                        <div className="font-medium text-slate-900 sm:truncate">
                           <RowOpenButton
                             label={`View truck ${truck.plateNumber}`}
                             onOpen={() => handleRowClick(truck.id)}
@@ -1104,7 +1104,7 @@ export default function FleetStatusPage() {
                       <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                         <div className="relative inline-block text-right z-10">
                           <div
-                            className={`w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
+                            className={`w-28 sm:w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
                           >
                             <span>{truck.shownStatus}</span>
                           </div>

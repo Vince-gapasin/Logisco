@@ -140,7 +140,7 @@ export default function SharedProfile() {
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       {/* ================= PAGE HEADER ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+      <div className="flex flex-row flex-wrap items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             My Profile
@@ -148,17 +148,17 @@ export default function SharedProfile() {
           </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-row items-center gap-2 sm:gap-3">
           <button
             onClick={() => setIsEmailModalOpen(true)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            className="w-auto sm:w-40 h-9 sm:h-11 px-3 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
           >
             <Mail className="w-4 h-4 shrink-0" />
             <span>Change Email</span>
           </button>
           <button
             onClick={() => setIsPasswordModalOpen(true)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
+            className="w-auto sm:w-40 h-9 sm:h-11 px-3 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap"
           >
             <Lock className="w-4 h-4 shrink-0" />
             <span>Change Password</span>

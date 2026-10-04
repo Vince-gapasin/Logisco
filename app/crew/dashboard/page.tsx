@@ -879,9 +879,9 @@ export default function CrewDashboardPage({
       return (
         <button
           onClick={() => setShowDetailsModal(false)}
-          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-slate-800 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
         >
-          Close Details
+          Close<span className="hidden sm:inline"> Details</span>
         </button>
       );
     }
@@ -891,13 +891,13 @@ export default function CrewDashboardPage({
         <>
           <button
             onClick={() => setShowDeclineConfirmModal(true)}
-            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-lg sm:rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
           >
             Decline
           </button>
           <button
             onClick={() => setShowAcceptConfirmModal(true)}
-            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg sm:rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
             Accept
           </button>
@@ -911,7 +911,7 @@ export default function CrewDashboardPage({
       const withdraw = (
         <button
           onClick={() => setShowDeclineConfirmModal(true)}
-          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          className="w-full sm:w-40 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-semibold rounded-lg sm:rounded-xl text-sm shadow-sm transition-all cursor-pointer whitespace-nowrap"
         >
           Withdraw
         </button>
@@ -931,7 +931,7 @@ export default function CrewDashboardPage({
               type="button"
               disabled
               aria-describedby="start-blocked"
-              className="w-full min-h-tap sm:min-h-0 py-2.5 bg-slate-200 text-slate-500 font-semibold rounded-xl text-sm border border-slate-300 cursor-not-allowed whitespace-nowrap"
+              className="w-full min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-slate-200 text-slate-500 font-semibold rounded-lg sm:rounded-xl text-sm border border-slate-300 cursor-not-allowed whitespace-nowrap"
             >
               Start Delivery
             </button>
@@ -948,7 +948,7 @@ export default function CrewDashboardPage({
           {withdraw}
           <button
             onClick={() => setShowStartConfirmModal(true)}
-            className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+            className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg sm:rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
           >
             Start Delivery
           </button>
@@ -969,7 +969,7 @@ export default function CrewDashboardPage({
           setShowDetailsModal(false);
           setViewMode("update-status");
         }}
-        className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
+        className="w-full sm:w-48 min-h-tap sm:min-h-0 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg sm:rounded-xl text-sm shadow-md transition-all cursor-pointer whitespace-nowrap"
       >
         Update Status
       </button>
@@ -1066,8 +1066,10 @@ export default function CrewDashboardPage({
       <UrlSearchSync onQuery={applyUrlSearch} />
       {viewMode === "update-status" && selectedDelivery ? (
         <div className="p-3 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] font-sans relative">
-          <div className="flex items-center justify-between mb-6 gap-2">
-            <div className="flex items-center gap-3">
+          {/* The two report buttons take their own row on a phone; beside the
+              title they ran off the screen and cut the Emergency button in half. */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3 sm:gap-2">
+            <div className="flex items-center gap-3 min-w-0">
               <button onClick={() => setViewMode("list")} className="p-2 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer shrink-0 whitespace-nowrap">
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -1076,7 +1078,7 @@ export default function CrewDashboardPage({
                 <p className="text-sm text-slate-500 mt-0.5">Track locations and upload proofs of delivery.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
               <button
                 onClick={() => {
                   // Opened on "yes, I can continue", because that is what this
@@ -1086,7 +1088,7 @@ export default function CrewDashboardPage({
                   setEmergencyReason(CONTINUING_REASONS[0]);
                   setShowEmergencyModal(true);
                 }}
-                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                className="flex-1 sm:flex-none justify-center min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
               >
                 <TrafficCone className="w-4 h-4 shrink-0" />
                 <span>Report a delay</span>
@@ -1098,7 +1100,7 @@ export default function CrewDashboardPage({
                   setEmergencyReason(STOPPING_REASONS[0]);
                   setShowEmergencyModal(true);
                 }}
-                className="min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                className="flex-1 sm:flex-none justify-center min-h-tap md:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
               >
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>Emergency</span>
@@ -1139,7 +1141,7 @@ export default function CrewDashboardPage({
                   type="button"
                   onClick={() => void reportArrival()}
                   disabled={isReportingArrival}
-                  className="mt-3 w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-3 sm:py-2.5 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-60"
+                  className="mt-3 w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2 sm:py-3 sm:py-2.5 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-60"
                 >
                   <MapPin className="w-4 h-4 shrink-0" />
                   {isReportingArrival ? "Sending..." : "I have arrived"}
@@ -1464,7 +1466,7 @@ export default function CrewDashboardPage({
                   ) : (
                     currentDeliveries.map((delivery) => (
                       <tr data-pressable key={delivery.id} onClick={() => handleRowClick(delivery)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
-                        <td className="py-3 pl-4 sm:pl-8 md:pl-16 pr-2 text-left w-2/3 overflow-hidden">
+                        <td className="py-3 pl-4 sm:pl-8 md:pl-16 pr-2 text-left w-[72%] sm:w-2/3 overflow-hidden">
                           <RowOpenButton
                             label={`View delivery for ${delivery.clientName}`}
                             onOpen={() => handleRowClick(delivery)}
@@ -1475,15 +1477,20 @@ export default function CrewDashboardPage({
                           <div className="text-xs font-semibold text-slate-600 mb-0.5 whitespace-nowrap">{delivery.bookingId}</div>
                           <div className="text-xs text-slate-500 mb-0.5 truncate w-full" title={delivery.address}>{delivery.address}</div>
                           <div className="text-xs text-slate-500 font-medium whitespace-nowrap">{delivery.dateTime}</div>
+                          {/* On a phone the stage gets its own line here; squeezed
+                              into the right-hand third it wrapped four lines deep. */}
+                          <span className={`sm:hidden inline-flex mt-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold leading-tight wrap-break-word max-w-full ${getStatusBadgeClass(delivery.status)}`}>
+                            {getDisplayStatus(delivery)}
+                          </span>
                         </td>
-                        <td className="py-3 pr-4 sm:pr-8 md:pr-16 pl-2 align-top w-1/3">
+                        <td className="py-3 pr-4 sm:pr-8 md:pr-16 pl-2 align-top w-[28%] sm:w-1/3">
                           <div className="flex flex-col items-end justify-start gap-1 h-full">
                             <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 group-hover:text-blue-700 transition-colors text-right whitespace-nowrap"><Eye className="w-3.5 h-3.5 shrink-0" /><span>Click to View</span></div>
                             {/* The longest of these is "Products Loaded -
                                 Delivering", which will not fit on one line in a
                                 third of a phone screen. It wraps rather than
                                 being cut off or forcing the row sideways. */}
-                            <span className={`inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
+                            <span className={`hidden sm:inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-bold text-center wrap-break-word sm:whitespace-nowrap leading-tight ${getStatusBadgeClass(delivery.status)}`}>
                               {getDisplayStatus(delivery)}
                             </span>
                           </div>
@@ -1519,13 +1526,21 @@ export default function CrewDashboardPage({
                 <div className="min-w-0 flex-1">
                   <h2 className="text-sm md:text-lg font-bold text-white tracking-tight truncate leading-tight">Delivery Information</h2>
                   <p className="text-slate-300 text-xs sm:text-xs font-semibold mt-0.5 truncate">Order ID: <span className="font-semibold text-white">{selectedDelivery.bookingId}</span></p>
+                  {isAccepted(selectedDelivery.status) ? (
+                    <span className={`sm:hidden inline-block mt-1.5 px-2.5 py-0.5 rounded-xl text-xs font-bold shadow-sm ${getStatusBadgeClass(selectedDelivery.status)}`}>{getDisplayStatus(selectedDelivery)}</span>
+                  ) : (
+                    <span className="sm:hidden inline-block mt-1.5 px-2.5 py-0.5 rounded-xl text-xs font-bold bg-amber-400 text-slate-900 shadow-sm">Assigned - accept or decline</span>
+                  )}
                 </div>
               </div>
+              {/* On a phone the stage sits under the order ID instead: a long one
+                  ("Heading to pickup: <warehouse>") pushed the close button out
+                  of the header. */}
               <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                 {isAccepted(selectedDelivery.status) ? (
-                  <span className={`px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold shadow-sm whitespace-nowrap ${getStatusBadgeClass(selectedDelivery.status)}`}>{getDisplayStatus(selectedDelivery)}</span>
+                  <span className={`hidden sm:inline-block px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold shadow-sm whitespace-nowrap ${getStatusBadgeClass(selectedDelivery.status)}`}>{getDisplayStatus(selectedDelivery)}</span>
                 ) : (
-                  <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Assigned - accept or decline</span>
+                  <span className="hidden sm:inline-block px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-sm font-bold bg-amber-400 text-slate-900 shadow-sm whitespace-nowrap">Assigned - accept or decline</span>
                 )}
                 <button type="button" onClick={() => setShowDetailsModal(false)} className="p-1 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"><X className="w-5 h-5" /></button>
               </div>
@@ -1663,7 +1678,7 @@ export default function CrewDashboardPage({
             </div>
 
             {/* Actions for Details Modal based on Status */}
-            <div className="flex flex-col sm:flex-row justify-end pt-4 border-t border-slate-200 gap-3">
+            <div className="flex flex-row justify-end pt-4 border-t border-slate-200 gap-2 sm:gap-3">
               {renderModalActions()}
             </div>
           </div>

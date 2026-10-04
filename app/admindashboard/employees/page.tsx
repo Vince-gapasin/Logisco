@@ -568,32 +568,32 @@ export default function EmployeesPage() {
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+      <div className="flex flex-row flex-wrap items-center justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             {showRankings ? "Performance Rankings" : "Employee Directory"}
           </h1>
           </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-row gap-2">
           {/* Every role's ranking, beside the directory it is drawn from. */}
           <button
             type="button"
             onClick={() => setShowRankings((shown) => !shown)}
-            className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-colors duration-200 border border-slate-300 whitespace-nowrap cursor-pointer"
+            className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-colors duration-200 border border-slate-300 whitespace-nowrap cursor-pointer px-3"
           >
             <Trophy className="w-4 h-4 shrink-0" />
             <span>{showRankings ? "Directory" : "Rankings"}</span>
           </button>
 
         {canCreate && !showRankings && (
-          <div className="flex justify-center sm:justify-start w-full sm:w-auto">
+          <div className="flex">
             <button
               onClick={() => {
                 setEditingEmployee(null);
                 setIsModalOpen(true);
               }}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-colors duration-200 whitespace-nowrap cursor-pointer px-3"
             >
               <UserPlus className="w-4 h-4 shrink-0" />
               <span>Add Employee</span>
@@ -684,14 +684,16 @@ export default function EmployeesPage() {
 
         {/* TABLE */}
         <div className="overflow-x-auto min-h-135">
-          <table className="w-full text-left border-collapse md:min-w-200 table-fixed">
+          <table className="w-full text-left border-collapse lg:min-w-200 table-fixed">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6 w-[45%] md:w-[25%]">Name</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[25%] md:w-[15%]">Role</th>
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Address</th>
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Contact</th>
-                <th className="py-3.5 px-4 sm:px-6 w-[30%] md:w-[20%]">Account</th>
+                {/* On a phone the account state moves under the name, so the role
+                    label has room to be read instead of being cut to "Coord...". */}
+                <th className="py-3.5 px-4 sm:px-6 w-[62%] sm:w-[45%] lg:w-[25%]">Name</th>
+                <th className="py-3.5 px-4 sm:px-6 w-[38%] sm:w-[25%] lg:w-[15%]">Role</th>
+                <th className="hidden lg:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Address</th>
+                <th className="hidden lg:table-cell py-3.5 px-4 sm:px-6 w-[20%]">Contact</th>
+                <th className="hidden sm:table-cell py-3.5 px-4 sm:px-6 w-[30%] lg:w-[20%]">Account</th>
               </tr>
             </thead>
             <tbody>
@@ -727,6 +729,11 @@ export default function EmployeesPage() {
                         {employee.middleName ? `${employee.middleName[0]}. ` : ""}
                         {employee.lastName} {employee.suffix}
                       </RowOpenButton>
+                      <span
+                        className={`sm:hidden block text-xs font-medium mt-0.5 ${employee.activation_completed_at ? "text-emerald-700" : "text-amber-700"}`}
+                      >
+                        {employee.activation_completed_at ? "Login Access ✓" : "No Access"}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4 sm:px-6 truncate">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
@@ -734,18 +741,18 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td
-                      className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate"
+                      className="hidden lg:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.address}
                     >
                       {employee.address || "N/A"}
                     </td>
                     <td
-                      className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate"
+                      className="hidden lg:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.contactNumber}
                     >
                       {employee.contactNumber || "N/A"}
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 truncate">
+                    <td className="hidden sm:table-cell py-3.5 px-4 sm:px-6 truncate">
                       {employee.activation_completed_at ? (
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 whitespace-nowrap">
                           Login Access ✓

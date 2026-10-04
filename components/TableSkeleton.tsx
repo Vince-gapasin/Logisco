@@ -7,7 +7,7 @@ import React from "react";
 export default function TableSkeleton({
   rows = 5,
   columns,
-  // Set on tables whose rows become cards on a phone, so the placeholder
+  // Set on tables whose rows are cards below desktop width (xl), so the placeholder
   // stacks the same way and the layout does not jump when data arrives.
   stacked = false,
 }: {
@@ -25,7 +25,7 @@ export default function TableSkeleton({
           role={stacked ? "row" : undefined}
           className={
             stacked
-              ? "block md:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 md:border-0 md:border-b md:border-slate-100 md:rounded-none md:mb-0 md:p-0"
+              ? "block xl:table-row bg-white border border-slate-200 rounded-xl mb-4 p-3 xl:border-0 xl:border-b xl:border-slate-100 xl:rounded-none xl:mb-0 xl:p-0"
               : "border-b border-slate-100"
           }
         >
@@ -33,7 +33,7 @@ export default function TableSkeleton({
             <td
               key={columnIndex}
               role={stacked ? "cell" : undefined}
-              className={`py-4 px-4 sm:px-6 ${stacked ? "block md:table-cell py-1.5 md:py-4 px-0 md:px-4" : ""}`}
+              className={`py-4 px-4 sm:px-6 ${stacked ? "block xl:table-cell py-1.5 xl:py-4 px-0 xl:px-4" : ""}`}
             >
               <div
                 className="h-3.5 rounded bg-slate-100 animate-pulse"

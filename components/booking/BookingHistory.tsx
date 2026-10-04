@@ -97,9 +97,10 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
   return (
     <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
       <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">{title}</div>
-      <div className="overflow-x-auto border border-slate-200 rounded-lg">
-        <table className="w-full text-left border-collapse text-xs min-w-150">
-          <thead>
+      {/* Each entry is a small card below laptop width; the six-column table from lg up. */}
+      <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
+        <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+          <thead role="rowgroup" className="hidden lg:table-header-group">
             <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
               <th className="p-2.5 w-10 border-r border-slate-200 text-center">#</th>
               <th className="p-2.5 border-r border-slate-200 w-[20%]">Date &amp; Time</th>
@@ -109,52 +110,52 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
               <th className="p-2.5 w-[17%]">Role</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup" className="block lg:table-row-group space-y-2 lg:space-y-0">
             {entries === null && !error ? (
-              <tr>
-                <td colSpan={6} className="p-4 text-center text-slate-500 bg-slate-50">
+              <tr role="row" className="block lg:table-row">
+                <td role="cell" colSpan={6} className="block lg:table-cell p-4 text-center text-slate-500 bg-slate-50 rounded-lg lg:rounded-none">
                   <Loader2 className="inline h-4 w-4 animate-spin" /> Loading…
                 </td>
               </tr>
             ) : error ? (
-              <tr>
-                <td colSpan={6} className="p-4 text-center text-red-700 bg-red-50">
+              <tr role="row" className="block lg:table-row">
+                <td role="cell" colSpan={6} className="block lg:table-cell p-4 text-center text-red-700 bg-red-50 rounded-lg lg:rounded-none">
                   {error}
                 </td>
               </tr>
             ) : (entries ?? []).length === 0 ? (
-              <tr>
-                <td colSpan={6} className="p-4 text-center text-slate-500 italic bg-slate-50">
+              <tr role="row" className="block lg:table-row">
+                <td role="cell" colSpan={6} className="block lg:table-cell p-4 text-center text-slate-500 italic bg-slate-50 rounded-lg lg:rounded-none">
                   Nothing recorded for this booking yet.
                 </td>
               </tr>
             ) : (
               (entries ?? []).map((entry, index) => (
-                <tr key={entry.id} className="border-b border-slate-200 font-medium text-slate-700">
+                <tr role="row" key={entry.id} className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 p-3 border border-slate-200 rounded-lg bg-slate-50 lg:table-row lg:p-0 lg:border-0 lg:border-b lg:rounded-none lg:bg-transparent font-medium text-slate-700">
                   {/* Counted from the bottom, where the booking was created.
                       The rows are newest first, so numbering them downwards
                       made the newest thing #1 and the creation of the booking
                       the highest number - the opposite of the order it
                       happened in. Now #1 is where it started and the number
                       at the top is how many things have happened since. */}
-                  <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
-                    {(entries ?? []).length - index}
+                  <td role="cell" className="lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:bg-slate-50 text-slate-500">
+                    #{(entries ?? []).length - index}
                   </td>
-                  <td className="p-2 border-r border-slate-200 bg-slate-50 whitespace-nowrap">{entry.dateTime}</td>
-                  <td className="p-2 border-r border-slate-200 bg-slate-50">
+                  <td role="cell" className="text-slate-500 lg:text-slate-700 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50 lg:whitespace-nowrap">{entry.dateTime}</td>
+                  <td role="cell" className="col-span-2 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50">
                     <span className="font-semibold text-slate-900">{entry.title}</span>
                     {entry.detail ? <span className="block text-slate-600">{entry.detail}</span> : null}
                   </td>
                   {/* The proof taken at the stop this line is about. Empty on the
                       lines that are not about a stop, which is most of them. */}
-                  <td className="p-2 border-r border-slate-200 bg-slate-50 text-center">
+                  <td role="cell" className={`col-span-2 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50 lg:text-center ${entry.proof ? "" : "hidden lg:table-cell"}`}>
                     {entry.proof ? (
                       entry.proof.isPdf ? (
                         <a
                           href={entry.proof.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="min-h-tap md:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
+                          className="min-h-tap lg:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
                         >
                           View PDF
                         </a>
@@ -172,7 +173,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                               reason: "",
                             });
                           }}
-                          className="min-h-tap md:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
+                          className="min-h-tap lg:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
                         >
                           View POD
                         </button>
@@ -181,8 +182,12 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                       <span className="text-slate-400">&mdash;</span>
                     )}
                   </td>
-                  <td className="p-2 border-r border-slate-200 bg-slate-50">{entry.actorName}</td>
-                  <td className="p-2 bg-slate-50">{entry.actorRole}</td>
+                  <td role="cell" className="col-span-2 text-slate-500 lg:text-slate-700 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50">
+                    <span className="lg:hidden">By </span>
+                    {entry.actorName}
+                    <span className="lg:hidden">{entry.actorRole ? ` (${entry.actorRole})` : ""}</span>
+                  </td>
+                  <td role="cell" className="hidden lg:table-cell p-2 bg-slate-50">{entry.actorRole}</td>
                 </tr>
               ))
             )}

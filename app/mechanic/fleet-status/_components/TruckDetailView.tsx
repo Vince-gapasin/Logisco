@@ -202,7 +202,7 @@ export function TruckDetailView({
             {isArchived && (
               <button
                 onClick={onRestoreClick}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
+                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 shrink-0" />
                 <span>Restore Truck</span>
@@ -213,7 +213,7 @@ export function TruckDetailView({
             {!isArchived && isUnderMaintenance && hasMechanicAccess && (
               <button
                 onClick={onLogMaintenanceClick}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
+                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-amber-200 shadow-sm cursor-pointer"
               >
                 <Wrench className="w-4 h-4 shrink-0" />
                 <span>Maintenance Update Form</span>
@@ -222,7 +222,7 @@ export function TruckDetailView({
 
             {/* Hide top action buttons if the truck is being fixed by another mechanic OR is restricted (unless assigned to a foul trip) */}
             {!isArchived && (!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
-              <button onClick={onUpdateStatusClick} className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
+              <button onClick={onUpdateStatusClick} className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
             )}
           </div>
 
@@ -231,7 +231,7 @@ export function TruckDetailView({
           {/* History Button (Always visible) */}
           <button
             onClick={onHistoryClick}
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+            className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
           >
             <HistoryIcon className="w-4 h-4 shrink-0" />
             <span>History</span>

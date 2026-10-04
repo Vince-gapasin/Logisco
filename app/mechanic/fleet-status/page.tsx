@@ -749,13 +749,13 @@ export default function MechanicFleetStatusPage({
         />
       ) : (
         <>
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="mb-6 flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
                 {showArchived ? "Archived Trucks" : "Fleet Status"}
               </h1>
               </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:w-auto w-full">
+            <div className="flex flex-row gap-2">
               <button
                 onClick={() => {
                   if (!showArchived) void fetchArchived();
@@ -763,7 +763,7 @@ export default function MechanicFleetStatusPage({
                   setSelectedFilter("All");
                   setCurrentPage(1);
                 }}
-                className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer"
+                className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
               >
                 <Archive className="w-4 h-4 shrink-0" />
                 <span>{showArchived ? "Active Fleet" : "Archived Trucks"}</span>
@@ -775,7 +775,7 @@ export default function MechanicFleetStatusPage({
                     setEditingTruck(null);
                     setIsModalOpen(true);
                   }}
-                  className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-all duration-200 cursor-pointer"
+                  className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-md transition-all duration-200 cursor-pointer px-3"
                 >
                   <Truck className="w-4 h-4 shrink-0" />
                   <span>Add Truck</span>
@@ -889,7 +889,7 @@ export default function MechanicFleetStatusPage({
                           className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                         >
                           <td className="py-4 pl-4 sm:pl-12 md:pl-20 lg:pl-32 xl:pl-40 pr-2 text-left">
-                            <div className="font-medium text-slate-900 truncate">
+                            <div className="font-medium text-slate-900 sm:truncate">
                               <RowOpenButton
                                 label={`View truck ${truck.plateNumber}`}
                                 onOpen={() => setSelectedTruck(truck)}
@@ -914,7 +914,7 @@ export default function MechanicFleetStatusPage({
                           <td className="py-4 pr-4 sm:pr-12 md:pr-20 lg:pr-32 xl:pr-40 pl-2 text-right">
                             <div className="relative inline-block text-right z-10">
                               <div
-                                className={`w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
+                                className={`w-28 sm:w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
                               >
                                 <span>{shownStatus(truck)}</span>
                               </div>

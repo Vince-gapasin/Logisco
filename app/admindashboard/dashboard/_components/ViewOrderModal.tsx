@@ -274,9 +274,9 @@ export function ViewOrderModal({
                 <span>2. Pickup Address</span>
                 <span className="text-xs text-slate-500 font-normal">Warehouse Cargo Status</span>
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
+              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
+                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                  <thead role="rowgroup" className="hidden lg:table-header-group">
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                       <th className="p-2.5 border-r border-slate-200 w-[18%]">
                         Warehouse Name
@@ -299,7 +299,7 @@ export function ViewOrderModal({
                       <th className="p-2.5 text-center w-[10%]">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup" className="block lg:table-row-group space-y-2 lg:space-y-0">
                     {pickups.map((p, idx) => {
                       // The stop row is what says whether the cargo was
                       // collected. currentStep is still consulted so that
@@ -311,28 +311,29 @@ export function ViewOrderModal({
 
                       return (
                         <tr
+                          role="row"
                           key={idx}
-                          className="border-b border-slate-200 font-medium text-slate-700"
+                          className="block lg:table-row border border-slate-200 rounded-lg p-3 bg-slate-50 lg:p-0 lg:bg-transparent lg:border-0 lg:border-b lg:rounded-none font-medium text-slate-700"
                         >
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="block lg:table-cell pb-2 mb-1 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:font-medium lg:text-slate-700 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50">
                             {p.warehouseName}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Address</span>
                             {p.address}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Contact Person</span>
                             {p.contactPerson}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Contact Number</span>
                             {p.contactNum}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Pick Up Time</span>
                             {p.expectedTime}
                           </td>
-                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:bg-slate-50"><span className="lg:hidden text-slate-500">Quantity</span>
                             {quantity}
                           </td>
-                          <td className="p-2 text-center bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:text-center lg:bg-slate-50"><span className="lg:hidden text-slate-500">Status</span>
                             <span
                               className={`px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${
                                 collected
@@ -362,9 +363,9 @@ export function ViewOrderModal({
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
                 3. Delivery Itinerary & Status
               </div>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-left border-collapse text-xs min-w-150">
-                  <thead>
+              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
+                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                  <thead role="rowgroup" className="hidden lg:table-header-group">
                     <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                       <th className="p-2.5 border-r border-slate-200 w-[20%]">
                         Branch Name
@@ -387,7 +388,7 @@ export function ViewOrderModal({
                       <th className="p-2.5 text-center w-[10%]">Stop Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody role="rowgroup" className="block lg:table-row-group space-y-2 lg:space-y-0">
                     {deliveries.map((d, idx) => {
                       // The stop carries its own status. The step index is
                       // only a fallback for trips that finished before the
@@ -417,28 +418,29 @@ export function ViewOrderModal({
 
                       return (
                         <tr
+                          role="row"
                           key={idx}
-                          className="border-b border-slate-200 font-medium text-slate-700"
+                          className="block lg:table-row border border-slate-200 rounded-lg p-3 bg-slate-50 lg:p-0 lg:bg-transparent lg:border-0 lg:border-b lg:rounded-none font-medium text-slate-700"
                         >
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="block lg:table-cell pb-2 mb-1 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:font-medium lg:text-slate-700 lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50">
                             {d.branchName || "Branch"}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Delivery Address</span>
                             {d.deliveryAddress || d.branchName || "N/A"}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Contact Person</span>
                             {d.contactPerson || cPerson}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Contact Number</span>
                             {d.contactNum || cNum}
                           </td>
-                          <td className="p-2 border-r border-slate-200 bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Expected Time</span>
                             {formatTime(d.expectedTime) || "N/A"}
                           </td>
-                          <td className="p-2 border-r border-slate-200 text-center bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:bg-slate-50"><span className="lg:hidden text-slate-500">Quantity</span>
                             {d.quantity || quantity}
                           </td>
-                          <td className="p-2 text-center bg-slate-50">
+                          <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:text-center lg:bg-slate-50"><span className="lg:hidden text-slate-500">Stop Status</span>
                             <span
                               className={`px-2 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}
                             >
@@ -578,17 +580,9 @@ export function ViewOrderModal({
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end bg-slate-50">
           <button
             onClick={onClose}
-            className={`w-full sm:w-auto px-8 py-2.5 text-white font-semibold rounded-xl text-sm transition-colors shadow-md cursor-pointer ${
-              category === "In-Transit"
-                ? "bg-blue-600 hover:bg-blue-700"
-                : category === "Completed"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : category === "Foul Trip"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-[#000c31] hover:bg-slate-800"
-            }`}
+            className={`w-auto sm:w-auto px-3.5 sm:px-8 py-2 sm:py-2.5 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors shadow-md cursor-pointer ${ category === "In-Transit" ? "bg-blue-600 hover:bg-blue-700" : category === "Completed" ? "bg-green-600 hover:bg-green-700" : category === "Foul Trip" ? "bg-red-600 hover:bg-red-700" : "bg-[#000c31] hover:bg-slate-800" } px-3 sm:px-4`}
           >
-            Close Details
+            Close<span className="hidden sm:inline"> Details</span>
           </button>
         </div>
       </div>

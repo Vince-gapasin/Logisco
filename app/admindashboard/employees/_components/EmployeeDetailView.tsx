@@ -185,7 +185,7 @@ export function EmployeeDetailView({
               {employee.lastName ? employee.lastName[0] : ""}
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className="wrap-break-word sm:truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                 {employeeName || "Employee"}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">

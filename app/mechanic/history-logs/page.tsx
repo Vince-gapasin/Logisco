@@ -371,12 +371,12 @@ export default function MechanicHistoryLogsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* The record the latest update belongs to, in full. */}
             {latest && (
               <button
                 onClick={() => setSelectedLogID(String(latest.id))}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+                className="flex-none sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
               >
                 <FileText className="w-4 h-4 shrink-0" />
                 {/* Short on a phone, so it sits beside History on one line. */}
@@ -388,7 +388,7 @@ export default function MechanicHistoryLogsPage() {
             {/* The way into every maintenance record this truck has. */}
             <button
               onClick={() => setShowTruckHistory(true)}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-3 md:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+              className="flex-none sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
             >
               <HistoryIcon className="w-4 h-4 shrink-0" />
               History ({truckLogs.length})

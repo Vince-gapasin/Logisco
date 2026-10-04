@@ -700,36 +700,32 @@ export default function AdminDashboardPage() {
       <style>{`.feed-scrollbar::-webkit-scrollbar { width: 6px; } .feed-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 4px; } .feed-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } .feed-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }`}</style>
 
       {/* HEADER SECTION WITH FILTER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 relative">
+      <div className="flex flex-row flex-wrap justify-between items-center gap-3 sm:gap-4 mb-6 relative">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
           </div>
 
         {/* Buttons Flex Container */}
-        <div className="grid grid-cols-5 sm:flex sm:flex-row items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto relative z-10">
+        <div className="flex flex-row flex-wrap items-center gap-2 sm:gap-3 relative z-10">
           <button
             onClick={() => {
               setSelectedClientForBooking("");
               setIsBookingModalOpen(true);
             }}
-            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
+            className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center bg-green-500 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-3 sm:px-4"
           >
             + On-Call Booking
           </button>
           <button
             onClick={() => setIsClientSearchModalOpen(true)}
-            className="col-span-2 w-full sm:w-40 h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-1 sm:px-4"
+            className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center bg-blue-600 hover:bg-black text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors duration-200 shadow-md whitespace-nowrap px-3 sm:px-4"
           >
             + New Booking
           </button>
 
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`col-span-1 w-full sm:w-auto h-11 inline-flex items-center justify-center border text-[11px] sm:text-sm font-semibold rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap px-1 sm:px-4 ${
-              isFilterOpen
-                ? "bg-slate-100 border-slate-300 text-slate-800"
-                : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
-            }`}
+            className={`w-auto sm:w-auto h-9 sm:h-11 inline-flex items-center justify-center border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors duration-200 shadow-sm whitespace-nowrap px-3 sm:px-4 ${ isFilterOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700" } px-3 sm:px-4`}
             title="Filters"
           >
             <Filter className="w-4 h-4 sm:mr-2 shrink-0" />

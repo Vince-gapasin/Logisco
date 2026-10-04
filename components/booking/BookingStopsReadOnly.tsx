@@ -72,6 +72,39 @@ function Empty({ columns, text }: { columns: number; text: string }) {
   );
 }
 
+/** One stop as a card, below laptop width, where the seven-column table cannot fit. */
+function StopCard({
+  index,
+  name,
+  rows,
+  status,
+}: {
+  index: number;
+  name?: string;
+  rows: [string, string | undefined][];
+  status?: string | null;
+}) {
+  return (
+    <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 text-xs">
+      <div className="flex items-start justify-between gap-2 pb-2 mb-2 border-b border-slate-200">
+        <p className="font-semibold text-slate-900 text-sm wrap-break-word">
+          <span className="text-slate-500 font-medium mr-1">{index}.</span>
+          {name || "—"}
+        </p>
+        {status !== null && <StatusBadge status={status} />}
+      </div>
+      <dl className="space-y-1.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[40%_60%] gap-2">
+            <dt className="text-slate-500 font-medium">{label}</dt>
+            <dd className="font-medium text-slate-700 wrap-break-word">{value || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export default function BookingStopsReadOnly({
   pickups,
   deliveries,
@@ -100,7 +133,28 @@ export default function BookingStopsReadOnly({
         <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
           2. Pickup Addresses
         </div>
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="lg:hidden space-y-2">
+          {pickups.length === 0 ? (
+            <p className="p-4 text-center text-xs text-slate-500 italic bg-slate-50 rounded-lg">No pickup recorded for this booking.</p>
+          ) : (
+            pickups.map((row, idx) => (
+              <StopCard
+                key={idx}
+                index={idx + 1}
+                name={row.warehouseName}
+                status={showStatus ? row.stopStatus : null}
+                rows={[
+                  ["Address", row.warehouseAddress],
+                  ["Contact Person", row.contactPerson],
+                  ["Contact Number", row.contactNumber],
+                  ["Pick Up Time", row.pickupTime],
+                  ["Quantity", row.quantity],
+                ]}
+              />
+            ))
+          )}
+        </div>
+        <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-lg">
           <table className="w-full text-left border-collapse text-xs min-w-150">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
@@ -144,7 +198,28 @@ export default function BookingStopsReadOnly({
         <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
           3. Delivery Address
         </div>
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <div className="lg:hidden space-y-2">
+          {deliveries.length === 0 ? (
+            <p className="p-4 text-center text-xs text-slate-500 italic bg-slate-50 rounded-lg">No delivery recorded for this booking.</p>
+          ) : (
+            deliveries.map((row, idx) => (
+              <StopCard
+                key={idx}
+                index={idx + 1}
+                name={row.branchName}
+                status={showStatus ? row.stopStatus : null}
+                rows={[
+                  ["Delivery Address", row.deliveryAddress],
+                  ["Contact Person", row.contactPerson],
+                  ["Contact Number", row.contactNumber],
+                  ["Delivery Time", row.deliveryTime],
+                  ["Quantity", row.quantity],
+                ]}
+              />
+            ))
+          )}
+        </div>
+        <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-lg">
           <table className="w-full text-left border-collapse text-xs min-w-150">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">

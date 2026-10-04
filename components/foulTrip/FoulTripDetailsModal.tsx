@@ -438,9 +438,9 @@ export default function FoulTripDetailsModal({
                 2. Pickup Addresses
               </span>
             </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg pb-2">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
+            <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg lg:pb-2">
+              <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                <thead role="rowgroup" className="hidden lg:table-header-group">
                   <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                     <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
                     <th className="p-2.5 border-r border-slate-200 w-[20%]">
@@ -468,60 +468,66 @@ export default function FoulTripDetailsModal({
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup" className="block lg:table-row-group space-y-2 lg:space-y-0">
                   {pickupList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium align-middle">
+                    <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 bg-slate-50 lg:p-0 lg:bg-transparent lg:border-0 lg:border-b lg:rounded-none">
+                      <td role="cell" className="block lg:table-cell pb-2 mb-1 border-b border-slate-200 lg:mb-0 lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium lg:align-middle font-semibold text-slate-900 text-sm lg:text-xs"><span className="lg:hidden">Pickup </span>
                         {idx + 1}
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Warehouse</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.warehouseName || "—"}</span>
                         <input
                           readOnly
                           value={row.warehouseName}
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Address</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.warehouseAddress || "—"}</span>
                         <input
                           type="text"
                           value={row.warehouseAddress}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Contact Person</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.contactPerson || "—"}</span>
                         <input
                           type="text"
                           value={row.contactPerson}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Contact Number</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.contactNumber || "—"}</span>
                         <input
                           type="text"
                           value={row.contactNumber}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Pick Up Time</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.pickupTime || "—"}</span>
                         <input
-                          type="time"
+                          type="text"
                           value={row.pickupTime}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Quantity</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.quantity || "—"}</span>
                         <input
                           type="number"
                           value={row.quantity}
                           readOnly
-                          className={`${tableInputClass} min-w-15 text-center`}
+                          className={`hidden lg:block ${tableInputClass} min-w-15 text-center`}
                         />
                       </td>
-                      <td className="p-2 text-center bg-slate-50 align-top">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:text-center lg:bg-slate-50 lg:align-top"><span className="lg:hidden text-slate-500 font-medium">Stop Status</span>
                         {renderStopStatus(row.stopStatus)}
                       </td>
                     </tr>
@@ -538,9 +544,9 @@ export default function FoulTripDetailsModal({
                 3. Delivery Address
               </span>
             </div>
-            <div className="overflow-x-auto border border-slate-200 rounded-lg pb-2">
-              <table className="w-full text-left border-collapse text-xs min-w-150">
-                <thead>
+            <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg lg:pb-2">
+              <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
+                <thead role="rowgroup" className="hidden lg:table-header-group">
                   <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
                     <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
                     <th className="p-2.5 border-r border-slate-200 w-[20%]">
@@ -568,60 +574,66 @@ export default function FoulTripDetailsModal({
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup" className="block lg:table-row-group space-y-2 lg:space-y-0">
                   {deliveryList.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-200">
-                      <td className="p-2 border-r border-slate-200 text-center font-medium align-middle">
+                    <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 bg-slate-50 lg:p-0 lg:bg-transparent lg:border-0 lg:border-b lg:rounded-none">
+                      <td role="cell" className="block lg:table-cell pb-2 mb-1 border-b border-slate-200 lg:mb-0 lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium lg:align-middle font-semibold text-slate-900 text-sm lg:text-xs"><span className="lg:hidden">Delivery </span>
                         {idx + 1}
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Branch</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.branchName || "—"}</span>
                         <input
                           readOnly
                           value={row.branchName}
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Delivery Address</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.deliveryAddress || "—"}</span>
                         <input
                           type="text"
                           value={row.deliveryAddress}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Contact Person</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.contactPerson || "—"}</span>
                         <input
                           type="text"
                           value={row.contactPerson}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Contact Number</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.contactNumber || "—"}</span>
                         <input
                           type="text"
                           value={row.contactNumber}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Delivery Time</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.deliveryTime || "—"}</span>
                         <input
-                          type="time"
+                          type="text"
                           value={row.deliveryTime}
                           readOnly
-                          className={tableInputClass}
+                          className={`hidden lg:block ${tableInputClass}`}
                         />
                       </td>
-                      <td className="p-2 border-r border-slate-200 align-top bg-slate-50">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:align-top lg:bg-slate-50"><span className="lg:hidden text-slate-500 font-medium">Quantity</span>
+                        <span className="lg:hidden font-medium text-slate-800 wrap-break-word">{row.quantity || "—"}</span>
                         <input
                           type="number"
                           value={row.quantity}
                           readOnly
-                          className={`${tableInputClass} min-w-15 text-center`}
+                          className={`hidden lg:block ${tableInputClass} min-w-15 text-center`}
                         />
                       </td>
-                      <td className="p-2 text-center bg-slate-50 align-top">
+                      <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:text-center lg:bg-slate-50 lg:align-top"><span className="lg:hidden text-slate-500 font-medium">Stop Status</span>
                         {renderStopStatus(row.stopStatus)}
                       </td>
                     </tr>
@@ -752,9 +764,9 @@ export default function FoulTripDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
           >
-            Close Details
+            Close<span className="hidden sm:inline"> Details</span>
           </button>
         </div>
       </div>

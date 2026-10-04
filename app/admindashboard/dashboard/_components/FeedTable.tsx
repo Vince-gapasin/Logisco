@@ -81,8 +81,10 @@ export function FeedTable({
                   onClick={() => onViewOrder(b)}
                   className="cursor-pointer bg-gray-50/50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 group"
                 >
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="min-w-0 pr-2">
+                  {/* On a phone the status and date go under the booking, so the
+                      order ID is not cut to "ORD-4..." beside them. */}
+                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-start gap-y-2 mb-3">
+                    <div className="min-w-0 w-full sm:w-auto pr-2">
                       <h4 className="font-bold text-base truncate">
                         <RowOpenButton
                           label={`View booking ${b.orderId}`}
@@ -96,7 +98,7 @@ export function FeedTable({
                         {b.client}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="flex flex-row flex-wrap sm:flex-nowrap sm:flex-col items-center sm:items-end gap-x-2 gap-y-1 sm:gap-1.5 min-w-0 sm:shrink-0">
                       <span
                         className={`px-3 py-1 ${badge.badgeBg} ${badge.badgeText} rounded-full text-xs sm:text-[11px] font-bold whitespace-nowrap`}
                       >
@@ -107,35 +109,37 @@ export function FeedTable({
                       </span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm mt-4 pt-4 border-t border-gray-200/80">
-                    <div className="min-w-0">
-                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                  {/* Label and value side by side on a phone, so each value has the
+                      width to be read; three columns from sm up. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2 text-sm mt-4 pt-4 border-t border-gray-200/80">
+                    <div className="min-w-0 grid grid-cols-[32%_68%] items-baseline gap-2 sm:block">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block sm:mb-1 truncate">
                         Product
                       </span>
                       <span
-                        className="text-slate-700 font-medium block truncate"
+                        className="text-slate-700 font-medium block wrap-break-word sm:truncate"
                         title={b.product}
                       >
                         {b.product}
                       </span>
                     </div>
-                    <div className="min-w-0">
-                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                    <div className="min-w-0 grid grid-cols-[32%_68%] items-baseline gap-2 sm:block">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block sm:mb-1 truncate">
                         Driver
                       </span>
                       <span
-                        className="text-slate-700 font-medium block truncate"
+                        className="text-slate-700 font-medium block wrap-break-word sm:truncate"
                         title={b.driver}
                       >
                         {b.driver}
                       </span>
                     </div>
-                    <div className="min-w-0">
-                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block mb-1 truncate">
+                    <div className="min-w-0 grid grid-cols-[32%_68%] items-baseline gap-2 sm:block">
+                      <span className="text-gray-500 text-xs sm:text-[11px] uppercase tracking-wider font-semibold block sm:mb-1 truncate">
                         Helper
                       </span>
                       <span
-                        className="text-slate-700 font-medium block truncate"
+                        className="text-slate-700 font-medium block wrap-break-word sm:truncate"
                         title={b.helper}
                       >
                         {b.helper || "N/A"}

@@ -174,7 +174,7 @@ export default function CrewNotificationsPage() {
                   <div className="flex items-center sm:pl-4 sm:pr-2 sm:border-l border-slate-100 pt-3 sm:pt-0 border-t sm:border-t-0 mt-3 sm:mt-0 shrink-0">
                     <button
                       onClick={() => handleMarkAsRead(notif.id)}
-                      className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors w-full sm:w-auto"
+                      className="min-h-tap md:min-h-0 inline-flex items-center justify-center text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors w-auto sm:w-auto"
                     >
                       Mark as read
                     </button>

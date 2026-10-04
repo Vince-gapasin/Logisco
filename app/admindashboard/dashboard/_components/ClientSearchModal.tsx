@@ -46,7 +46,7 @@ export function ClientSearchModal({
         >
           <X className="w-5 h-5" />
         </button>
-        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6 tracking-tight shrink-0">
+        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-6 tracking-tight shrink-0 px-8">
           Select Registered Client
         </h2>
         <div className="relative w-full max-w-md mb-5 shrink-0">

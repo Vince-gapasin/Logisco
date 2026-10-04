@@ -98,12 +98,12 @@ function AnswerStallDialog({
           {error && <p className="text-xs font-medium text-red-600">{error}</p>}
         </div>
 
-        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50 flex flex-col-reverse sm:flex-row justify-end gap-3">
+        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50 flex flex-row justify-end gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-xl text-sm"
+            className="w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm"
           >
             Never mind
           </button>
@@ -111,7 +111,7 @@ function AnswerStallDialog({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="w-full sm:w-auto min-h-tap sm:min-h-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm disabled:opacity-60"
+            className="w-auto sm:w-auto min-h-tap sm:min-h-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm disabled:opacity-60"
           >
             {saving ? "Saving..." : "Mark handled"}
           </button>

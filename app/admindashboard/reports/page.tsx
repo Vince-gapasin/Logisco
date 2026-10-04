@@ -217,7 +217,7 @@ function ViewOrderModal({
         </div>
 
         {/* FIXED FOOTER */}
-        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+        <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex flex-row justify-end gap-2 sm:gap-4 bg-slate-50">
           {/* What happened to this booking, and where its proofs are. It was
               the seventh section of this modal, which meant scrolling past
               everything else to reach the part most often wanted. Behind a
@@ -226,7 +226,7 @@ function ViewOrderModal({
           <button
             type="button"
             onClick={() => onOpenHistory(booking.id)}
-            className="w-full sm:w-auto px-6 py-2.5 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-2.5 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
           >
             <History className="w-4 h-4 shrink-0" />
             History
@@ -235,9 +235,9 @@ function ViewOrderModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
           >
-            Close Details
+            Close<span className="hidden sm:inline"> Details</span>
           </button>
         </div>
       </div>
@@ -911,7 +911,7 @@ export default function ReportsForecastingPage() {
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       <div className="space-y-6">
         {/* HEADER SECTION ALIGNED WITH THE BUTTON */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
               Reports Dashboard
@@ -919,12 +919,12 @@ export default function ReportsForecastingPage() {
             </div>
 
           {/* Action Buttons */}
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-row gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => void exportRecords()}
               disabled={isExporting || view !== "records"}
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-xl shadow-sm transition-all duration-200 text-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 text-xs sm:text-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed px-3"
             >
               <Download className="w-4 h-4 shrink-0" />
               <span>{isExporting ? "Building..." : "Export PDF"}</span>
@@ -932,7 +932,7 @@ export default function ReportsForecastingPage() {
 
             <Link
               href="/admindashboard/forecasting"
-              className="w-full sm:w-40 h-11 inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-xl shadow-md transition-all duration-200 text-sm whitespace-nowrap cursor-pointer"
+              className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl shadow-md transition-all duration-200 text-xs sm:text-sm whitespace-nowrap cursor-pointer px-3"
             >
               <TrendingUp className="w-4 h-4 shrink-0" />
               <span>Forecasting</span>
@@ -1105,23 +1105,25 @@ export default function ReportsForecastingPage() {
           </h2>
         </div>
 
-        <div className="w-full overflow-x-auto pb-2 min-h-75">
-          <table className="w-full text-left border-collapse md:min-w-225">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Date</th>
-                <th className="py-3.5 px-4 sm:px-6">Order ID</th>
-                <th className="py-3.5 px-4 sm:px-6">Client</th>
-                <th className="py-3.5 px-4 sm:px-6">Final Status</th>
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Delivery Crews</th>
-                <th className="hidden md:table-cell py-3.5 px-4 sm:px-6">Remarks</th>
+        {/* Each record is a card below desktop width, in the booking feeds'
+            stacked layout; the six-column table needs a full desktop. */}
+        <div className="w-full xl:overflow-x-auto pb-2 min-h-75 px-4 pt-4 xl:px-0 xl:pt-0">
+          <table role="table" className="w-full text-left border-collapse block xl:table">
+            <thead role="rowgroup" className="hidden xl:table-header-group">
+              <tr role="row" className="bg-slate-50/70 border-b border-slate-100 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Delivery Date</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Order ID</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Client</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Final Status</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Delivery Crews</th>
+                <th role="columnheader" className="py-3.5 px-4 sm:px-6">Remarks</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody role="rowgroup" className="block xl:table-row-group xl:divide-y xl:divide-slate-100">
               {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                <tr role="row" className="block xl:table-row">
+                  <td role="cell" colSpan={6} className="block xl:table-cell py-16 text-center">
                     <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
                     <p className="text-slate-600 text-sm font-medium">
                       Loading records...
@@ -1131,37 +1133,50 @@ export default function ReportsForecastingPage() {
               ) : paginatedRecords.length > 0 ? (
                 paginatedRecords.map((record, idx) => (
                   <tr
+                    role="row"
                     key={record.id || idx}
                     onClick={() => handleRowClick(record)}
-                    className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
+                    className="block xl:table-row bg-white border border-slate-200 rounded-xl mb-3 p-3 xl:border-0 xl:border-b xl:border-slate-100 xl:rounded-none xl:mb-0 xl:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
-                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                    <td role="cell" className="hidden xl:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
                       {record.date}
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 font-medium text-slate-900 whitespace-nowrap">
-                      {record.orderId}
+                    <td role="cell" className="flex items-start justify-between gap-3 xl:table-cell pb-2 mb-1 border-b border-slate-100 xl:border-0 xl:mb-0 py-1 xl:py-3.5 px-0 xl:px-6 font-medium text-slate-900 xl:whitespace-nowrap">
+                      <span className="text-base xl:text-sm font-semibold xl:font-medium wrap-break-word">{record.orderId}</span>
+                      <span
+                        className={`xl:hidden shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
+                      >
+                        {record.status}
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
-                      {record.client}
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap">
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Client</span>
+                      <span className="wrap-break-word">{record.client}</span>
                     </td>
-                    <td className="py-3.5 px-4 sm:px-6 whitespace-nowrap">
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:hidden py-1.5 px-0">
+                      <span className="text-xs font-semibold text-slate-500">Delivery Date</span>
+                      <span>{record.date}</span>
+                    </td>
+                    <td role="cell" className="hidden xl:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
                       <span
                         className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
                       >
                         {record.status}
                       </span>
                     </td>
-                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap text-xs text-slate-500">
-                      {record.crew}
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap text-xs text-slate-500">
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Delivery Crews</span>
+                      <span className="wrap-break-word">{record.crew}</span>
                     </td>
-                    <td className="hidden md:table-cell py-3.5 px-4 sm:px-6 truncate max-w-xs text-xs text-slate-500">
-                      {record.remarks || "—"}
+                    <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:truncate xl:max-w-xs text-xs text-slate-500">
+                      <span className="xl:hidden text-xs font-semibold text-slate-500">Remarks</span>
+                      <span className="wrap-break-word xl:truncate">{record.remarks || "—"}</span>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} className="py-12 sm:py-16 text-center">
+                <tr role="row" className="block xl:table-row">
+                  <td role="cell" colSpan={6} className="block xl:table-cell py-12 sm:py-16 text-center">
                     <div className="flex flex-col items-center justify-center px-4">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3">
                         <FileText className="w-6 h-6" />

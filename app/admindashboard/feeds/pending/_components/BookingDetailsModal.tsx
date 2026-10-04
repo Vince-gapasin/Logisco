@@ -727,11 +727,13 @@ export function BookingDetailsModal({
         </form>
 
         {/* FIXED FOOTER */}
-        <div className="shrink-0 px-4 sm:px-6 py-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 bg-slate-50">
+        {/* One row of compact buttons on a phone, as in a phone dialog: the way
+            out on the left, Close and the main action on the right. */}
+        <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex flex-row flex-wrap items-center justify-end gap-2 sm:gap-4 bg-slate-50">
           <button
             type="button"
             onClick={() => setShowCancelConfirm(true)}
-            className="w-full sm:w-auto px-6 py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer sm:mr-auto"
+            className="w-auto sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer mr-auto"
           >
             Cancel Booking
           </button>
@@ -739,13 +741,13 @@ export function BookingDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+            className="w-auto sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-slate-200 hover:bg-black hover:text-white text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
           >
-            Close Details
+            Close<span className="hidden sm:inline"> Details</span>
           </button>
 
           {submitError && (
-            <p role="alert" className="w-full sm:w-auto sm:mr-auto text-xs text-red-600">{submitError}</p>
+            <p role="alert" className="order-last sm:order-none w-full sm:w-auto sm:mr-auto text-xs text-red-600">{submitError}</p>
           )}
           {/*
             One button for every booking this screen can act on. It used to be
@@ -758,7 +760,7 @@ export function BookingDetailsModal({
               type="submit"
               form="pending-booking-form"
               disabled={isSubmitting}
-              className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer"
+              className="w-auto sm:w-auto px-3.5 sm:px-6 py-2 sm:py-2.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer"
             >
               {isSubmitting ? "Saving…" : isPendingCrew ? "Re-assign Booking" : "Assign Now"}
             </button>
