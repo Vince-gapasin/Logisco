@@ -1763,63 +1763,68 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
               </div>
             </div>
 
-            {/* SUMMARY CARDS SECTION */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {/* SUMMARY CARDS SECTION - two by two on a phone, short labels, so
+                the four numbers are read together instead of one per screen. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mt-6">
               {/* Expected Volume */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                  <Layers className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
+              <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                  <Layers className="w-4 h-4 sm:w-6 sm:h-6 text-slate-500" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Expected Delivery Volume
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    <span className="sm:hidden">Expected</span>
+                    <span className="hidden sm:inline">Expected Delivery Volume</span>
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
+                  <h3 className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 leading-tight">
                     {expectedVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
 
               {/* Actual Volume */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                  <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <Truck className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Actual Delivery Volume
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    <span className="sm:hidden">Actual</span>
+                    <span className="hidden sm:inline">Actual Delivery Volume</span>
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
+                  <h3 className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 leading-tight">
                     {actualVolume.toLocaleString()}
                   </h3>
                 </div>
               </div>
 
               {/* Total Variance */}
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-900" />
+              <div className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-indigo-900" />
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Total Variance
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    <span className="sm:hidden">Variance</span>
+                    <span className="hidden sm:inline">Total Variance</span>
                   </p>
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
+                  <h3 className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 leading-tight">
                     {formattedVariance}
                   </h3>
                 </div>
               </div>
 
               {/* Trend Status */}
-              <div className={`${trendCardStyle.card} p-4 sm:p-5 rounded-2xl border shadow-sm flex items-center gap-4`}>
-                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${trendCardStyle.iconWrap} flex items-center justify-center shrink-0`}>
-                  <TrendIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${trendCardStyle.icon}`} />
+              <div className={`${trendCardStyle.card} p-3 sm:p-5 rounded-xl sm:rounded-2xl border shadow-sm flex items-center gap-2.5 sm:gap-4`}>
+                <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full ${trendCardStyle.iconWrap} flex items-center justify-center shrink-0`}>
+                  <TrendIcon className={`w-4 h-4 sm:w-6 sm:h-6 ${trendCardStyle.icon}`} />
                 </div>
                 <div>
-                  <p className={`text-xs font-semibold ${trendCardStyle.label} uppercase tracking-wider`}>
-                    Trend Status
+                  <p className={`text-[10px] sm:text-xs font-semibold ${trendCardStyle.label} uppercase tracking-wider`}>
+                    <span className="sm:hidden">Trend</span>
+                    <span className="hidden sm:inline">Trend Status</span>
                   </p>
-                  <h3 className={`text-lg sm:text-xl font-bold ${trendCardStyle.value} mt-0.5`}>
+                  <h3 className={`text-base sm:text-xl font-bold ${trendCardStyle.value} mt-0.5 leading-tight`}>
                     {selectedTrendStatus}
                   </h3>
                 </div>

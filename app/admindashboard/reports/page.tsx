@@ -420,6 +420,10 @@ export default function ReportsForecastingPage() {
   // STATE MANAGEMENT
   // ==========================================
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  // The filters live behind one button, as on the dashboard: open as a full
+  // panel they took a screen of their own before any record was in sight.
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   // Filter States
   const [timeframe, setTimeframe] = useState(TIMEFRAME_OPTIONS[0]);
@@ -854,6 +858,46 @@ export default function ReportsForecastingPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isFilterOpen) return;
+    function handlePanelOutside(event: MouseEvent) {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePanelOutside);
+    return () => document.removeEventListener("mousedown", handlePanelOutside);
+  }, [isFilterOpen]);
+
+  // What is narrowing the records, said plainly, so the counts below are
+  // never read without knowing what they are counts of.
+  const activeFilters: { key: string; label: string; clear: () => void }[] = [
+    ...(timeframe !== TIMEFRAME_OPTIONS[0]
+      ? [{
+          key: "timeframe",
+          label:
+            timeframe === "Custom Date Range"
+              ? `${customStartDate || "…"} to ${customEndDate || "…"}`
+              : timeframe,
+          clear: () => setTimeframe(TIMEFRAME_OPTIONS[0]),
+        }]
+      : []),
+    ...(selectedClients.length
+      ? [{ key: "client", label: selectedClients.length === 1 ? selectedClients[0] : `${selectedClients.length} clients`, clear: () => setSelectedClients([]) }]
+      : []),
+    ...(selectedDrivers.length
+      ? [{ key: "drivers", label: selectedDrivers.length === 1 ? `Driver: ${selectedDrivers[0]}` : `${selectedDrivers.length} drivers`, clear: () => setSelectedDrivers([]) }]
+      : []),
+    ...(selectedHelpers.length
+      ? [{ key: "helpers", label: selectedHelpers.length === 1 ? `Helper: ${selectedHelpers[0]}` : `${selectedHelpers.length} helpers`, clear: () => setSelectedHelpers([]) }]
+      : []),
+    ...(status !== STATUS_OPTIONS[0]
+      ? [{ key: "status", label: status, clear: () => setStatus(STATUS_OPTIONS[0]) }]
+      : []),
+  ];
+  const clearAllFilters = () => activeFilters.forEach((filter) => filter.clear());
+  const percentOf = (part: number) => (totalHistorical ? Math.round((part / totalHistorical) * 100) : 0);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Delivered":
@@ -941,7 +985,8 @@ export default function ReportsForecastingPage() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Reports" className="mt-6 inline-flex rounded-xl border border-slate-200 bg-white p-1">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <div role="tablist" aria-label="Reports" className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
         {([
           ["records", "Delivery Records"],
           ["subcon", "Sub-con Trips"],
@@ -959,141 +1004,195 @@ export default function ReportsForecastingPage() {
         ))}
       </div>
 
+      {view === "records" && (
+        <div ref={filterPanelRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen((open) => !open)}
+            aria-expanded={isFilterOpen}
+            className={`min-h-tap md:min-h-0 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 border text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-colors shadow-sm whitespace-nowrap px-3 sm:px-4 cursor-pointer ${
+              isFilterOpen ? "bg-slate-100 border-slate-300 text-slate-800" : "bg-white border-slate-300 hover:bg-slate-50 text-slate-700"
+            }`}
+          >
+            <Filter className="w-4 h-4 shrink-0" />
+            <span>Filters</span>
+            {activeFilters.length > 0 && (
+              <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-bold text-white">
+                {activeFilters.length}
+              </span>
+            )}
+          </button>
+
+          {isFilterOpen && (
+            <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-40 p-4 animate-fade-in origin-top-left sm:origin-top-right">
+              <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                <h3 className="font-bold text-sm text-slate-800">Filter completed reports</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen(false)}
+                  aria-label="Close filters"
+                  className="p-1 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div ref={dropdownsRef} className="grid grid-cols-1 gap-3">
+                <FilterDropdown
+                  id="timeframe"
+                  label="Timeframe"
+                  options={TIMEFRAME_OPTIONS}
+                  value={timeframe}
+                  setValue={setTimeframe}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                />
+                {timeframe === "Custom Date Range" && (
+                  <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">Start</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">End</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+                <MultiSelectDropdown
+                  id="client"
+                  label="Client"
+                  options={clientOptions}
+                  selectedValues={selectedClients}
+                  setSelectedValues={setSelectedClients}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                  placeholder="All Clients"
+                />
+                <MultiSelectDropdown
+                  id="drivers"
+                  label="Drivers"
+                  options={driverOptions}
+                  selectedValues={selectedDrivers}
+                  setSelectedValues={setSelectedDrivers}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                  placeholder="All Drivers"
+                />
+                <MultiSelectDropdown
+                  id="helpers"
+                  label="Helpers"
+                  options={helperOptions}
+                  selectedValues={selectedHelpers}
+                  setSelectedValues={setSelectedHelpers}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                  placeholder="All Helpers"
+                />
+                <FilterDropdown
+                  id="status"
+                  label="Final Status"
+                  options={STATUS_OPTIONS}
+                  value={status}
+                  setValue={setStatus}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                />
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  disabled={activeFilters.length === 0}
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Clear all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen(false)}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-black text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      </div>
+
       {view === "subcon" ? (
         <SubconTripsPanel />
       ) : (
       <>
-      {/* FILTER SECTION */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 mt-6">
-        <div className="flex items-center gap-2 text-slate-900 font-semibold text-sm">
-          <Filter className="w-4 h-4 text-blue-600" />
-          <h2>Filter Completed Reports</h2>
+      {/* What the numbers below are of: every filter that is on, each one
+          removable on its own. */}
+      {activeFilters.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Showing:</span>
+          {activeFilters.map((filter) => (
+            <span
+              key={filter.key}
+              className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 pl-2.5 pr-1 py-0.5 text-xs font-medium text-blue-800"
+            >
+              <span className="max-w-48 truncate">{filter.label}</span>
+              <button
+                type="button"
+                onClick={filter.clear}
+                aria-label={`Remove ${filter.label}`}
+                className="p-0.5 rounded-full hover:bg-blue-100 cursor-pointer"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline-offset-2 hover:underline cursor-pointer"
+          >
+            Clear all
+          </button>
         </div>
+      )}
 
-        <div
-          ref={dropdownsRef}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end"
-        >
-          <FilterDropdown
-            id="timeframe"
-            label="Timeframe"
-            options={TIMEFRAME_OPTIONS}
-            value={timeframe}
-            setValue={setTimeframe}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-          />
-          <MultiSelectDropdown
-            id="client"
-            label="Client"
-            options={clientOptions}
-            selectedValues={selectedClients}
-            setSelectedValues={setSelectedClients}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-            placeholder="All Clients"
-          />
-          <MultiSelectDropdown
-            id="drivers"
-            label="Drivers"
-            options={driverOptions}
-            selectedValues={selectedDrivers}
-            setSelectedValues={setSelectedDrivers}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-            placeholder="All Drivers"
-          />
-          <MultiSelectDropdown
-            id="helpers"
-            label="Helpers"
-            options={helperOptions}
-            selectedValues={selectedHelpers}
-            setSelectedValues={setSelectedHelpers}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-            placeholder="All Helpers"
-          />
-          <FilterDropdown
-            id="status"
-            label="Final Status"
-            options={STATUS_OPTIONS}
-            value={status}
-            setValue={setStatus}
-            activeDropdown={activeDropdown}
-            setActiveDropdown={setActiveDropdown}
-          />
-        </div>
-
-        {/* CUSTOM DATE RANGE FIELDS */}
-        {timeframe === "Custom Date Range" && (
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-4 border-t border-slate-100 animate-fade-in mt-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-              />
+      {/* The three counts, three across at every size like the dashboard's,
+          with the share of the total so a number reads as good or bad at once. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4">
+        {[
+          { label: "Total Records", short: "TOTAL", value: totalHistorical, note: activeFilters.length ? "matching the filters" : "all time", icon: BarChart3, card: "bg-white border-slate-100", iconBg: "bg-slate-100", iconText: "text-slate-500", text: "text-slate-900", labelText: "text-slate-600" },
+          { label: "Successful Deliveries", short: "DELIVERED", value: successfulDeliveries, note: `${percentOf(successfulDeliveries)}% of records`, icon: CheckCircle2, card: "bg-green-50/50 border-green-100", iconBg: "bg-green-100", iconText: "text-green-600", text: "text-green-900", labelText: "text-green-700" },
+          { label: "Foul Trips", short: "FOUL TRIP", value: foulTrips, note: `${percentOf(foulTrips)}% of records`, icon: XCircle, card: "bg-red-50/50 border-red-100", iconBg: "bg-red-100", iconText: "text-red-600", text: "text-red-900", labelText: "text-red-700" },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className={`p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border shadow-sm flex flex-col sm:flex-row items-center gap-1.5 sm:gap-4 text-center sm:text-left ${stat.card}`}
+          >
+            <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center shrink-0 ${stat.iconBg}`}>
+              <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${stat.iconText}`} />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-              />
+            <div className="min-w-0">
+              <p className={`text-lg sm:text-2xl font-bold leading-none ${stat.text}`}>{stat.value}</p>
+              <p className={`mt-1 text-[10px] sm:text-xs font-bold tracking-wider ${stat.labelText}`}>
+                <span className="sm:hidden">{stat.short}</span>
+                <span className="hidden sm:inline">{stat.label.toUpperCase()}</span>
+              </p>
+              <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5 truncate">{stat.note}</p>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* SUMMARY CARDS SECTION */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Total Historical
-            </p>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
-              {totalHistorical}
-            </h3>
-          </div>
-        </div>
-        <div className="bg-green-50/50 p-4 sm:p-5 rounded-2xl border border-green-100 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">
-              Successful Deliveries
-            </p>
-            <h3 className="text-xl sm:text-2xl font-bold text-green-900">
-              {successfulDeliveries}
-            </h3>
-          </div>
-        </div>
-        <div className="bg-red-50/50 p-4 sm:p-5 rounded-2xl border border-red-100 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-            <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-red-700 uppercase tracking-wider">
-              Foul Trip
-            </p>
-            <h3 className="text-xl sm:text-2xl font-bold text-red-900">
-              {foulTrips}
-            </h3>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* DATA TABLE SECTION */}
