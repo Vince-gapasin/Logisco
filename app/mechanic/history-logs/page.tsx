@@ -413,7 +413,7 @@ export default function MechanicHistoryLogsPage() {
                 <div key={label} className="min-w-0">
                   <label className="block text-xs font-medium text-black mb-1">{label}</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 break-words">
-                    {value || "N/A"}
+                    {value || "—"}
                   </div>
                 </div>
               ))}
@@ -456,7 +456,7 @@ export default function MechanicHistoryLogsPage() {
                         : "Issue to Fix / Driver's Report"}
                   </label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                    {phase.text || "N/A"}
+                    {phase.text || "—"}
                   </div>
                 </div>
                 <div>
@@ -597,6 +597,7 @@ export default function MechanicHistoryLogsPage() {
             Showing {rows.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
             {Math.min(currentPage * ITEMS_PER_PAGE, rows.length)} of {rows.length} trucks
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
@@ -613,6 +614,7 @@ export default function MechanicHistoryLogsPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
     </div>

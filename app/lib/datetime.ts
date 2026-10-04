@@ -46,6 +46,21 @@ export function formatTime(value: string | null | undefined): string {
   return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: ZONE });
 }
 
+/**
+ * A date on its own: "Sep 22, 2026". The one way dates read on every screen -
+ * they used to come as "2026-09-22", "September 22, 2026" and "9/22/2026"
+ * depending on the page. A plain YYYY-MM-DD is read as that calendar day, not
+ * shifted by a time zone.
+ */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const dayOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  const stamp = dayOnly ? new Date(Date.UTC(Number(dayOnly[1]), Number(dayOnly[2]) - 1, Number(dayOnly[3]), 12)) : new Date(trimmed);
+  if (Number.isNaN(stamp.getTime())) return value;
+  return stamp.toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: ZONE });
+}
+
 /** A date and time together: "Sep 22, 2026, 8:00 AM". */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "";

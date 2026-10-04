@@ -304,13 +304,13 @@ export default function BookingAssignModal({
                 <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Date Created
                 </p>
-                <p className="text-xs font-bold text-slate-800">{booking.dateCreated || "N/A"}</p>
+                <p className="text-xs font-bold text-slate-800">{booking.dateCreated || "—"}</p>
               </div>
               <div>
                 <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
                   Created By
                 </p>
-                <p className="text-xs font-bold text-slate-800">{booking.createdBy || "N/A"}</p>
+                <p className="text-xs font-bold text-slate-800">{booking.createdBy || "—"}</p>
               </div>
               <div>
                 <p className="text-xs sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">

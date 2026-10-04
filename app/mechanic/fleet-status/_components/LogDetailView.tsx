@@ -216,7 +216,7 @@ export function LogDetailView({
                   Date
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {log.date ? formatDisplayDate(log.date) : "N/A"}
+                  {log.date ? formatDisplayDate(log.date) : "—"}
                 </div>
               </div>
               {/* UPDATED: Pulls mechanics from the preliminary log, falling back to current log */}
@@ -265,7 +265,7 @@ export function LogDetailView({
                           Issue to Fix / Driver&apos;s Report
                         </label>
                         <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                          {pLog.driversReport || "N/A"}
+                          {pLog.driversReport || "—"}
                         </div>
                       </div>
                       <div>
@@ -312,7 +312,7 @@ export function LogDetailView({
                     Additional Issues
                   </label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                    {combinedIssuesList.length > 0 ? combinedIssuesList : "N/A"}
+                    {combinedIssuesList.length > 0 ? combinedIssuesList : "—"}
                   </div>
                 </div>
                 <div>
@@ -372,7 +372,7 @@ export function LogDetailView({
                           Work Performed
                         </label>
                         <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                          {fLog.issue || "N/A"}
+                          {fLog.issue || "—"}
                         </div>
                       </div>
                       <div>

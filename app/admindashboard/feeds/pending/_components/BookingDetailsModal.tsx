@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { getCrewStatusBadge } from "./badges";
 import { todayInManila } from "@/app/lib/datetime";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
 
 // ==========================================
 // BOOKING DETAILS / ASSIGNMENT MODAL
@@ -263,14 +264,14 @@ export function BookingDetailsModal({
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
         {/* HEADER */}
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
-              <FileText className="w-5 h-5" /> Booking Details:{" "}
+            <h2 className="text-base sm:text-xl font-bold text-white tracking-wide flex items-center gap-2">
+              <FileText className="w-5 h-5" /> <span className="hidden sm:inline">Booking Details:</span>{" "}
               {booking.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Status: {booking.status} | {booking.confirmationStatus}
+              Status: {bookingStatusLabel(booking.confirmationStatus)}
             </p>
           </div>
           <button

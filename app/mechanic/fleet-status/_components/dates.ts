@@ -1,16 +1,8 @@
+import { formatDate } from "@/app/lib/datetime";
 
 export const formatDisplayDate = (dateString: string) => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }).format(date);
-  } catch (error) {
-    return dateString;
-  }
+  if (!dateString) return "Not recorded";
+  return formatDate(dateString);
 };
 
 //  To format dates correctly for <input type="date"> in local time

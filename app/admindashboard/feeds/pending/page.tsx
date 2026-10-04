@@ -27,6 +27,9 @@ import {
 import { getStatusBadgeClass } from "./_components/badges";
 import { BookingDetailsModal } from "./_components/BookingDetailsModal";
 import { SuccessModal } from "./_components/SuccessModal";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
+import DayFilterSelect from "@/components/DayFilterSelect";
+import { matchesDayFilter, type DayFilter } from "@/app/lib/dayFilter";
 
 
 // ==========================================
@@ -105,6 +108,7 @@ export default function PendingBookingPage() {
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [dayFilter, setDayFilter] = useState<DayFilter>("Any day");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<FeedBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,9 +122,10 @@ export default function PendingBookingPage() {
   // ==========================================
   const filteredBookings = bookings.filter(
     (booking) =>
-      booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.product.toLowerCase().includes(searchTerm.toLowerCase()),
+      matchesDayFilter(booking.scheduledDate, dayFilter) &&
+      (booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.product.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // ==========================================
@@ -214,6 +219,7 @@ export default function PendingBookingPage() {
             Pending Booking List
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <DayFilterSelect value={dayFilter} onChange={(value) => { setDayFilter(value); setCurrentPage(1); }} />
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={(query) => { setSearchTerm(query); setCurrentPage(1); }} />
@@ -323,7 +329,7 @@ export default function PendingBookingPage() {
                       <span
                         className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
                       >
-                        {booking.confirmationStatus}
+                        {bookingStatusLabel(booking.confirmationStatus)}
                       </span>
                     </td>
                   </tr>
@@ -357,6 +363,7 @@ export default function PendingBookingPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalBookings} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -386,6 +393,7 @@ export default function PendingBookingPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { AVAILABILITY, MANUAL_AVAILABILITY } from "@/app/lib/enums";
+import { formatDate as formatSharedDate } from "@/app/lib/datetime";
 import type {
   ApiEmployee,
   EmployeeFormState,
@@ -122,16 +123,9 @@ export function mapApiEmployee(employee: ApiEmployee): EmployeeRecord {
 
 export function formatDate(value?: string | null) {
   if (!value) {
-    return "N/A";
+    return "Not recorded";
   }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString();
+  return formatSharedDate(value);
 }
 
 // ==========================================

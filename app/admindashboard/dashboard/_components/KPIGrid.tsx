@@ -46,7 +46,7 @@ export function KPIGrid({
             <div className="flex sm:hidden flex-col items-center mt-1.5 w-full">
               <p className="text-sm font-extrabold text-slate-800 leading-none">{count}</p>
               <p
-                className={`text-[8px] font-bold mt-1 tracking-tight text-center truncate w-full ${styles.iconText}`}
+                className={`text-[10px] font-bold mt-1 tracking-tight text-center truncate w-full ${styles.iconText}`}
               >
                 {tab.statusLabel.toUpperCase()}
               </p>

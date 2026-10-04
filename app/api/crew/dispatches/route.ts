@@ -12,6 +12,7 @@ import type {
 import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
 import { formatTime } from "@/app/lib/datetime";
+import { describeItems, quantityOf, readPriority, totalQuantity } from "@/app/lib/crewTrip";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
 
 // Stops are read through the Order: older dispatches were created before
@@ -25,9 +26,12 @@ const DISPATCH_SELECT = `
   pod_url,
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
-    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
-    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
-  Truck ( plateNumber, model )
+    OrderDetails ( productName, quantity ),
+    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
+    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
+  Truck ( plateNumber, model ),
+  Driver:Employee!driverID ( employeeName ),
+  DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) )
 `;
 
 // Before the truck has left, which is the only point at which the whole crew
@@ -71,6 +75,7 @@ type CrewPickup = Partial<PickupStopsRow>;
 
 interface CrewOrder extends Partial<OrderRow> {
   Client?: Partial<ClientRow> | Partial<ClientRow>[] | null;
+  OrderDetails?: { productName?: string | null; quantity?: number | null }[] | null;
   BranchStops?: CrewStop[] | null;
   PickupStops?: CrewPickup[] | null;
 }
@@ -78,6 +83,8 @@ interface CrewOrder extends Partial<OrderRow> {
 interface CrewDispatch extends Partial<DispatchOrderRow> {
   Order?: CrewOrder | CrewOrder[] | null;
   Truck?: Partial<TruckRow> | Partial<TruckRow>[] | null;
+  Driver?: { employeeName?: string | null } | { employeeName?: string | null }[] | null;
+  DispatchHelper?: { status?: string | null; Helper?: { employeeName?: string | null } | { employeeName?: string | null }[] | null }[] | null;
   /** Set here, not in the database: this trip reached the crew as a helper's. */
   _helperStatus?: string | null;
 }
@@ -156,6 +163,15 @@ export async function GET(request: Request) {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
       const client = Array.isArray(order.Client) ? order.Client[0] : (order.Client || {});
       const truck = Array.isArray(dispatch.Truck) ? dispatch.Truck[0] : (dispatch.Truck || {});
+      const items = Array.isArray(order.OrderDetails) ? order.OrderDetails : [];
+      const driverRow = Array.isArray(dispatch.Driver) ? dispatch.Driver[0] : dispatch.Driver;
+      // Everyone else on the trip by name. The driver was told "Assigned
+      // Helpers" and a helper "Assigned Driver", so nobody knew who they were
+      // riding with.
+      const helperNames = (dispatch.DispatchHelper ?? [])
+        .filter((row) => row.status !== HELPER_STATUS.declined)
+        .map((row) => (Array.isArray(row.Helper) ? row.Helper[0] : row.Helper)?.employeeName)
+        .filter((name): name is string => Boolean(name));
       const orderStops: CrewStop[] = Array.isArray(order.BranchStops) ? order.BranchStops : [];
 
       // Prefer stops explicitly linked to this dispatch (an order can be split
@@ -209,16 +225,17 @@ export async function GET(request: Request) {
         deliveryAddress: client.businessAdd || "Various Locations",
         contactPerson: client.contactName || "N/A",
         contactNumber: client.contact || "N/A",
-        driver: dispatch._helperStatus ? "Assigned Driver" : employee.employeeName,
-        helper: dispatch._helperStatus ? employee.employeeName : "Assigned Helpers",
-        assignedVehicle: truck.plateNumber || "TBD",
-        product: "Assorted Goods",
-        quantity: "See Manifest",
-        priorityLevel: "Standard",
+        driver: driverRow?.employeeName || "No driver yet",
+        helper: helperNames.length > 0 ? helperNames.join(", ") : "No helper",
+        assignedVehicle: truck.plateNumber || "No truck yet",
+        // The cargo as booked. These were fixed strings - "Assorted Goods",
+        // "See Manifest", "Standard" - on every trip.
+        product: describeItems(items) || "Not recorded on the booking",
+        quantity: totalQuantity(items),
+        priorityLevel: readPriority(order.notes ?? null) || "Not set",
         notes: dispatch.dispatchNote || order.notes || "No notes provided.",
         dispatchNote: dispatch.dispatchNote || "",
         pod_url: dispatch.pod_url ? (signedProofs.get(dispatch.pod_url) ?? null) : null,
-        confirmBy: "End of Day",
         startBlockedReason: startBlockedReason(dispatch),
         pickupCompletedAt: dispatch.pickupCompletedAt ?? null,
         multiplePickups: pickups.map((pickup) => ({
@@ -228,7 +245,7 @@ export async function GET(request: Request) {
           contactPerson: pickup.contactPerson || "N/A",
           contactNumber: pickup.contactNum || "N/A",
           pickupTime: formatTime(pickup.expectedTime),
-          quantity: "See Manifest",
+          quantity: quantityOf(pickup.quantity),
           status: pickup.stopStatus,
           latitude: Number(pickup.pickupLat) || null,
           longitude: Number(pickup.pickupLong) || null,
@@ -241,7 +258,7 @@ export async function GET(request: Request) {
           contactPerson: stop.contactPerson,
           contactNumber: stop.contactNum,
           deliveryTime: formatTime(stop.expectedTime),
-          quantity: "TBD",
+          quantity: quantityOf(stop.quantity),
           status: stop.stopStatus,
           // 0/0 is the placeholder for a stop that was never geocoded.
           latitude: Number(stop.deliveryLat) || null,

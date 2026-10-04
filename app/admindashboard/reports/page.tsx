@@ -15,9 +15,10 @@ import {
   ClientInformation,
 } from "@/components/booking/BookingReadOnly";
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
-import { formatDateTime, todayInManila } from "@/app/lib/datetime";
+import { formatDate, formatDateTime, todayInManila } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import {
   TrendingUp,
   FileText,
@@ -140,13 +141,13 @@ function ViewOrderModal({
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
         {/* HEADER */}
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2 wrap-break-word">
-              <FileText className="w-5 h-5 shrink-0" /> Booking Details: {booking.orderId}
+            <h2 className="text-base sm:text-xl font-bold text-white tracking-wide flex items-center gap-2 wrap-break-word">
+              <FileText className="w-5 h-5 shrink-0" /> <span className="hidden sm:inline">Booking Details:</span> {booking.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Status: {booking.status} | {booking.confirmationStatus}
+              Status: {bookingStatusLabel(booking.confirmationStatus)}
             </p>
           </div>
           <button
@@ -256,6 +257,7 @@ const FilterDropdown = ({
   setValue,
   activeDropdown,
   setActiveDropdown,
+  formatOption = (option: string) => option,
 }: {
   id: string;
   label: string;
@@ -264,6 +266,8 @@ const FilterDropdown = ({
   setValue: (val: string) => void;
   activeDropdown: string | null;
   setActiveDropdown: (id: string | null) => void;
+  /** The wording shown for an option; the value set stays the option itself. */
+  formatOption?: (option: string) => string;
 }) => {
   const isOpen = activeDropdown === id;
 
@@ -276,7 +280,7 @@ const FilterDropdown = ({
         onClick={() => setActiveDropdown(isOpen ? null : id)}
         className="w-full flex items-center justify-between bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm cursor-pointer"
       >
-        <span className="truncate pr-2">{value}</span>
+        <span className="truncate pr-2">{formatOption(value)}</span>
         <ChevronDown
           className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
         />
@@ -297,7 +301,7 @@ const FilterDropdown = ({
                   : "text-slate-700"
               }`}
             >
-              {opt}
+              {formatOption(opt)}
             </button>
           ))}
         </div>
@@ -805,10 +809,10 @@ export default function ReportsForecastingPage() {
           { header: "Remarks", width: 65 },
         ],
         filteredRecords.map((record) => [
-          record.date,
+          formatDate(record.date),
           record.orderId,
           record.client,
-          record.status,
+          bookingStatusLabel(record.status),
           record.crew,
           record.remarks || "-",
         ]),
@@ -892,7 +896,7 @@ export default function ReportsForecastingPage() {
       ? [{ key: "helpers", label: selectedHelpers.length === 1 ? `Helper: ${selectedHelpers[0]}` : `${selectedHelpers.length} helpers`, clear: () => setSelectedHelpers([]) }]
       : []),
     ...(status !== STATUS_OPTIONS[0]
-      ? [{ key: "status", label: status, clear: () => setStatus(STATUS_OPTIONS[0]) }]
+      ? [{ key: "status", label: bookingStatusLabel(status), clear: () => setStatus(STATUS_OPTIONS[0]) }]
       : []),
   ];
   const clearAllFilters = () => activeFilters.forEach((filter) => filter.clear());
@@ -1105,6 +1109,7 @@ export default function ReportsForecastingPage() {
                   options={STATUS_OPTIONS}
                   value={status}
                   setValue={setStatus}
+                  formatOption={(option) => (option === STATUS_OPTIONS[0] ? "All statuses" : bookingStatusLabel(option))}
                   activeDropdown={activeDropdown}
                   setActiveDropdown={setActiveDropdown}
                 />
@@ -1238,14 +1243,14 @@ export default function ReportsForecastingPage() {
                     className="block xl:table-row bg-white border border-slate-200 rounded-xl mb-3 p-3 xl:border-0 xl:border-b xl:border-slate-100 xl:rounded-none xl:mb-0 xl:p-0 hover:bg-slate-50/80 transition-colors text-sm text-slate-800 cursor-pointer"
                   >
                     <td role="cell" className="hidden xl:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
-                      {record.date}
+                      {formatDate(record.date)}
                     </td>
                     <td role="cell" className="flex items-start justify-between gap-3 xl:table-cell pb-2 mb-1 border-b border-slate-100 xl:border-0 xl:mb-0 py-1 xl:py-3.5 px-0 xl:px-6 font-medium text-slate-900 xl:whitespace-nowrap">
                       <span className="text-base xl:text-sm font-semibold xl:font-medium wrap-break-word">{record.orderId}</span>
                       <span
                         className={`xl:hidden shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
                       >
-                        {record.status}
+                        {bookingStatusLabel(record.status)}
                       </span>
                     </td>
                     <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap">
@@ -1254,13 +1259,13 @@ export default function ReportsForecastingPage() {
                     </td>
                     <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:hidden py-1.5 px-0">
                       <span className="text-xs font-semibold text-slate-500">Delivery Date</span>
-                      <span>{record.date}</span>
+                      <span>{formatDate(record.date)}</span>
                     </td>
                     <td role="cell" className="hidden xl:table-cell py-3.5 px-4 sm:px-6 whitespace-nowrap">
                       <span
                         className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
                       >
-                        {record.status}
+                        {bookingStatusLabel(record.status)}
                       </span>
                     </td>
                     <td role="cell" className="grid grid-cols-[40%_60%] md:grid-cols-[12rem_1fr] gap-2 xl:table-cell py-1.5 xl:py-3.5 px-0 xl:px-6 xl:whitespace-nowrap text-xs text-slate-500">
@@ -1302,6 +1307,7 @@ export default function ReportsForecastingPage() {
             {Math.min(endIndex, filteredRecords.length)} of{" "}
             {filteredRecords.length} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -1323,6 +1329,7 @@ export default function ReportsForecastingPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

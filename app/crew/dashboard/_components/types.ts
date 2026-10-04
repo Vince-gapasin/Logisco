@@ -53,7 +53,6 @@ export interface DeliveryRecord {
   quantity?: string;
   priorityLevel?: string;
   notes: string;
-  confirmBy?: string;
   dispatchNote?: string; 
   pod_url?: string;      
   multiplePickups?: PickupRecord[];

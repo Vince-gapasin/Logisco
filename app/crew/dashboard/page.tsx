@@ -1506,10 +1506,12 @@ export default function CrewDashboardPage({
               <span className="whitespace-nowrap">
                 Showing {filteredDeliveries.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, filteredDeliveries.length)} of {filteredDeliveries.length} entries
               </span>
+              {totalPages > 1 && (
               <div className="flex items-center gap-2">
                 <button onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} disabled={currentPage === 1} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === 1 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Previous</button>
                 <button onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className={`min-h-tap md:min-h-0 px-4 py-1.5 inline-flex items-center justify-center border border-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap ${currentPage === totalPages || totalPages === 0 ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"}`}>Next</button>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1553,7 +1555,7 @@ export default function CrewDashboardPage({
                   <div><label className="block text-xs font-medium text-slate-700 mb-1">Company / Client Name</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.clientName}</div></div>
                   <div><label className="block text-xs font-medium text-slate-700 mb-1">Contact Person</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.contactPerson}</div></div>
                   <div><label className="block text-xs font-medium text-slate-700 mb-1">Contact Number</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.contactNumber}</div></div>
-                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Email Address</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.clientEmail || "admin@client.com"}</div></div>
+                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Email Address</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.clientEmail || "No email on file"}</div></div>
                   <div className="sm:col-span-2"><label className="block text-xs font-medium text-slate-700 mb-1">Business Address</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.address}</div></div>
                 </div>
               </div>
@@ -1563,8 +1565,8 @@ export default function CrewDashboardPage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
                   <div><label className="block text-xs font-medium text-slate-700 mb-1">Delivery Schedule</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.scheduledDate}</div></div>
                   <div><label className="block text-xs font-medium text-slate-700 mb-1">Product to Deliver</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.product}</div></div>
-                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Quantity</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.quantity || "3,500 lbs"}</div></div>
-                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Priority Level</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm font-semibold text-slate-900 truncate">{selectedDelivery.priorityLevel || "Standard"}</div></div>
+                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Quantity</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm text-slate-900 truncate">{selectedDelivery.quantity || "Not recorded"}</div></div>
+                  <div><label className="block text-xs font-medium text-slate-700 mb-1">Priority Level</label><div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-sm font-semibold text-slate-900 truncate">{selectedDelivery.priorityLevel || "Not set"}</div></div>
                 </div>
               </div>
 

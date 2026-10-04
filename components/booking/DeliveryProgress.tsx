@@ -62,7 +62,7 @@ export default function DeliveryProgress({ currentStatus, finished = false }: De
                 )}
               </div>
               <span
-                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-blue-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
+                className={`text-[10px] sm:text-[11px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-blue-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
               >
                 {stage}
               </span>

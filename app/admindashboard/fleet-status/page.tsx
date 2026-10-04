@@ -14,6 +14,8 @@ import TruckHistory from "@/components/truck/TruckHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
 import TruckTripCard from "@/components/truck/TruckTripCard";
 import type { TruckTrip } from "@/services/truck/truckService";
+import { formatDate } from "@/app/lib/datetime";
+import { useToast } from "@/components/Toast";
 import {
   Search,
   Truck,
@@ -594,7 +596,7 @@ function TruckDetailView({
                   Plate Number
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-                  {truck.plateNumber || "N/A"}
+                  {truck.plateNumber || "—"}
                 </div>
               </div>
               <div>
@@ -602,7 +604,7 @@ function TruckDetailView({
                   Type of Truck
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-                  {truck.truckType || "N/A"}
+                  {truck.truckType || "—"}
                 </div>
               </div>
               <div>
@@ -618,7 +620,7 @@ function TruckDetailView({
               Truck Model
             </label>
             <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-              {truck.truckModel || "N/A"}
+              {truck.truckModel || "—"}
             </div>
           </div>
           <div>
@@ -634,7 +636,7 @@ function TruckDetailView({
                   Last Checked
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8.5">
-                  {truck.lastChecked || "N/A"}
+                  {truck.lastChecked ? formatDate(truck.lastChecked) : "Not recorded"}
                 </div>
               </div>
             </div>
@@ -703,8 +705,10 @@ export default function FleetStatusPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Messages go through the same pop-up notice as every other screen. This
+  // page had its own banners - pinned to a corner over a truck, inline over the
+  // list - in a style found nowhere else.
+  const showToast = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
@@ -745,14 +749,6 @@ export default function FleetStatusPage() {
   const [editingTruck, setEditingTruck] = useState<TruckRecord | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
-  // A message reads once and goes, rather than sitting over the screen until
-  // the next one replaces it.
-  useEffect(() => {
-    if (!successMessage) return;
-    const timer = window.setTimeout(() => setSuccessMessage(""), 4000);
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
-
   useEffect(() => {
     // Back to page one whenever the search or the filter changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -761,7 +757,6 @@ export default function FleetStatusPage() {
 
   const fetchTrucks = useCallback(async () => {
     setIsLoading(true);
-    setErrorMessage("");
     try {
       const response = await apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>(
         showArchived ? "/api/fleet-status?archived=true" : "/api/fleet-status",
@@ -770,7 +765,7 @@ export default function FleetStatusPage() {
       const trucksArray = Array.isArray(response) ? response : (response.data || []);
       setTruckList(trucksArray.map(mapApiTruck));
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
       setTruckList([]);
     } finally {
       setIsLoading(false);
@@ -785,14 +780,13 @@ export default function FleetStatusPage() {
 
   const handleRowClick = async (id: string) => {
     try {
-      setErrorMessage("");
       const response = await apiFetch<{ data?: ApiTruck; currentTrip?: TruckTrip | null } & ApiTruck>(`/api/fleet-status/${id}`);
       // Safety fix: handle object natively or wrapped in .data
       const truckData = response.data || response;
       setSelectedTruck(mapApiTruck(truckData));
       setSelectedTrip(response.currentTrip ?? null);
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
     }
   };
 
@@ -801,8 +795,6 @@ export default function FleetStatusPage() {
     editData?: TruckRecord | null,
   ) => {
     try {
-      setErrorMessage("");
-      setSuccessMessage("");
 
       // Capacity goes as typed: the server keeps the number in it, so "5000 kg"
       // is 5000. Number("5000 kg") here was NaN, which arrived as null - an edit
@@ -825,7 +817,7 @@ export default function FleetStatusPage() {
           body: JSON.stringify(details),
         });
 
-        setSuccessMessage("Truck updated successfully.");
+        showToast("Truck updated successfully.");
         if (selectedTruck) await handleRowClick(editData.id);
       } else {
         await apiFetch<unknown>("/api/fleet-status", {
@@ -833,13 +825,13 @@ export default function FleetStatusPage() {
           body: JSON.stringify({ ...details, truckStatus: "Available" }),
         });
 
-        setSuccessMessage("Truck added successfully.");
+        showToast("Truck added successfully.");
       }
 
       await fetchTrucks();
     } catch (error) {
       const msg = getErrorMessage(error);
-      setErrorMessage(msg);
+      showToast(msg, "error");
       throw error;
     }
   };
@@ -848,26 +840,25 @@ export default function FleetStatusPage() {
     try {
       await apiFetch(`/api/fleet-status/${id}`, { method: "DELETE" });
       setSelectedTruck(null);
-      setSuccessMessage("Truck archived. It can be restored from Archived Trucks.");
+      showToast("Truck archived. It can be restored from Archived Trucks.");
       await fetchTrucks();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
       throw error;
     }
   };
 
   const handleRestoreTruck = async (id: string) => {
     try {
-      setErrorMessage("");
       await apiFetch(`/api/fleet-status/${id}`, {
         method: "PUT",
         body: JSON.stringify({ restore: true }),
       });
       setSelectedTruck(null);
-      setSuccessMessage("Truck restored as Out of Service. Set it to Available when it is ready.");
+      showToast("Truck restored as Out of Service. Set it to Available when it is ready.");
       await fetchTrucks();
     } catch (error) {
-      setErrorMessage(getErrorMessage(error));
+      showToast(getErrorMessage(error), "error");
     }
   };
 
@@ -913,16 +904,6 @@ export default function FleetStatusPage() {
   if (selectedTruck) {
     return (
       <>
-        {successMessage && (
-          <div className="fixed top-5 right-5 z-60 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
-            {successMessage}
-          </div>
-        )}
-        {errorMessage && (
-          <div className="fixed top-5 right-5 z-60 bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl text-sm">
-            {errorMessage}
-          </div>
-        )}
         <TruckDetailView
           truck={selectedTruck}
           trip={selectedTrip}
@@ -994,17 +975,6 @@ export default function FleetStatusPage() {
           )}
         </div>
       </div>
-
-      {successMessage && (
-        <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">
-          {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-          {errorMessage}
-        </div>
-      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -1093,7 +1063,7 @@ export default function FleetStatusPage() {
                           </span>
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
-                          Last Checked: {truck.lastChecked || "N/A"}
+                          Last Checked: {truck.lastChecked ? formatDate(truck.lastChecked) : "Not recorded"}
                         </div>
                         {truck.booking && (
                           <div className="text-xs text-blue-700 mt-1 break-words">
@@ -1137,6 +1107,7 @@ export default function FleetStatusPage() {
             {Math.min(startIndex + ITEMS_PER_PAGE, filteredTrucks.length)} of{" "}
             {filteredTrucks.length} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -1160,6 +1131,7 @@ export default function FleetStatusPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

@@ -50,6 +50,7 @@ import { FeedTable } from "./_components/FeedTable";
 import { ViewOrderModal } from "./_components/ViewOrderModal";
 import { ClientSearchModal } from "./_components/ClientSearchModal";
 import { SuccessModal } from "./_components/SuccessModal";
+import { formatDate, formatTime } from "@/app/lib/datetime";
 
 
 // ==========================================
@@ -165,10 +166,10 @@ export default function AdminDashboardPage() {
           const reqDate =
             scheduleMatch?.[1]?.trim() ||
             requestDateMatch?.[1]?.trim() ||
-            (created?.toLocaleDateString() ?? "");
+            (o.createdAt ?? "");
           const dateTime = rawTime
-            ? `${reqDate} @ ${rawTime}`
-            : (created?.toLocaleString() ?? reqDate);
+            ? `${formatDate(reqDate)} · ${formatTime(rawTime)}`
+            : formatDate(reqDate);
 
           // The trip it is on now, not the first one it ever had.
           const dispatchRecord = liveDispatchOf(o.DispatchOrder);

@@ -43,6 +43,8 @@ function daysForWidth(width: number): number {
 // side by side, and the taller the hour the less of the clock each one covers,
 // so at the closest step most of them stop sharing a column at all.
 const HOUR_HEIGHTS = [40, 64, 104, 168] as const;
+// Where the calendar opens, vertically: the first hour a delivery is likely.
+const WORKDAY_START_HOUR = 7;
 const DEFAULT_ZOOM = 1;
 
 // What one event occupies, for working out which ones collide.
@@ -302,6 +304,15 @@ export default function CalendarPage() {
     const displayHour = i % 12 === 0 ? 12 : i % 12;
     return `${displayHour} ${ampm}`;
   });
+
+  // Opens at the start of the working day. It opened at midnight, so the
+  // first screenful was seven empty hours before any delivery.
+  useEffect(() => {
+    const grid = weekGridRef.current;
+    if (grid) grid.scrollTop = WORKDAY_START_HOUR * hourHeight;
+    // Only when the page opens: zooming or moving months keeps where you are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Opens on today, and on the first of any other month moved to.
   useEffect(() => {

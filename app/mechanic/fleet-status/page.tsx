@@ -934,6 +934,7 @@ export default function MechanicFleetStatusPage({
                 {Math.min(endIndex, filteredFleet.length)} of{" "}
                 {filteredFleet.length} entries
               </span>
+              {totalPages > 1 && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() =>
@@ -954,6 +955,7 @@ export default function MechanicFleetStatusPage({
                   Next
                 </button>
               </div>
+              )}
             </div>
           </div>
         </>

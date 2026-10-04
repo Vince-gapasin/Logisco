@@ -5,7 +5,7 @@
 
 import type { CrewDispatchRecord } from "@/types/crew";
 import React, { useCallback, useEffect, useState } from "react";
-import { formatTime } from "@/app/lib/datetime";
+import { formatDate, formatTime } from "@/app/lib/datetime";
 import { apiFetch } from "@/app/lib/apiClient";
 import { FileText, Eye, ArrowLeft, Truck, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/Toast";
@@ -86,11 +86,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
           ...record,
           status: "Completed" as const,
           dateTime: record.scheduledDate
-            ? `${new Date(record.scheduledDate).toLocaleDateString("en-PH", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}${record.timeWindow ? ` • ${record.timeWindow}` : ""}`
+            ? `${formatDate(record.scheduledDate)}${record.timeWindow ? ` · ${record.timeWindow}` : ""}`
             : "Date not recorded",
           scheduledDate: record.scheduledDate || "Not scheduled",
           multipleDeliveries: (record.multipleDeliveries ?? []).map((stop) => ({
@@ -247,7 +243,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Email Address</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
-                    {selectedDelivery.clientEmail || "admin@client.com"}
+                    {selectedDelivery.clientEmail || "No email on file"}
                   </div>
                 </div>
                 <div className="sm:col-span-2">
@@ -280,13 +276,13 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Quantity</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                    {selectedDelivery.quantity || "3,500 lbs"}
+                    {selectedDelivery.quantity || "Not recorded"}
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Priority Level</label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs font-semibold text-slate-900">
-                    {selectedDelivery.priorityLevel || "Standard"}
+                    {selectedDelivery.priorityLevel || "Not set"}
                   </div>
                 </div>
               </div>
@@ -362,7 +358,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
                     <span className="text-slate-600">{selectedDelivery.deliveryAddress}</span>
                     <span className="text-slate-600">Contact: {selectedDelivery.contactPerson} ({selectedDelivery.contactNumber})</span>
                     <span className="text-slate-600">Delivery time: {selectedDelivery.deliveryTime}</span>
-                    <span className="text-slate-600 font-medium">Quantity: {selectedDelivery.quantity || "3,500 lbs"}</span>
+                    <span className="text-slate-600 font-medium">Quantity: {selectedDelivery.quantity || "Not recorded"}</span>
                   </div>
                 )}
               </div>
@@ -557,6 +553,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
             {Math.min(endIndex, deliveryList.length)} of{" "}
             {deliveryList.length} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -583,6 +580,7 @@ const [reportSubmitted, setReportSubmitted] = useState<boolean>(false);
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
     </div>

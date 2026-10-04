@@ -316,6 +316,7 @@ export default function UnassignedBookingsPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalBookings} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -345,6 +346,7 @@ export default function UnassignedBookingsPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

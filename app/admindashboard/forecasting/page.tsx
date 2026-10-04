@@ -4,6 +4,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useToast } from "@/components/Toast";
 import {
   TrendingUp,
   TrendingDown,
@@ -733,6 +734,7 @@ function calculateMetrics(expected: number, actual: number | null) {
 }
 
 export default function ForecastingPage() {
+  const showToast = useToast();
   const [forecast, setForecast] = useState<ForecastResponse | null>(() =>
     getCachedForecast(),
   );
@@ -1626,7 +1628,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       setIsExportModalOpen(false);
     } catch (error) {
       console.error("PDF export failed:", error);
-      window.alert("The PDF could not be generated. Please try again.");
+      showToast("The PDF could not be generated. Please try again.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -1934,7 +1936,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                   <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-blue-600 inline-block shrink-0"></span>
                     {forecast.model} · MAE {summary.accuracy.mae.toFixed(2)} · R²{" "}
-                    {summary.accuracy.rSquared?.toFixed(3) ?? "N/A"}
+                    {summary.accuracy.rSquared?.toFixed(3) ?? "—"}
                   </p>
                 </div>
               </div>
@@ -2062,7 +2064,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         Snapshot MAE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
-                        {isSnapshotLoading ? "…" : snapshotAccuracy.mae ?? "N/A"}
+                        {isSnapshotLoading ? "…" : snapshotAccuracy.mae ?? "—"}
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
@@ -2070,7 +2072,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         Snapshot RMSE
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900">
-                        {isSnapshotLoading ? "…" : snapshotAccuracy.rmse ?? "N/A"}
+                        {isSnapshotLoading ? "…" : snapshotAccuracy.rmse ?? "—"}
                       </p>
                     </div>
                   </div>

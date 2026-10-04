@@ -10,7 +10,7 @@ export function ReadField({ label, value }: { label: string; value?: string | nu
         {label}
       </label>
       <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-8">
-        {value || "N/A"}
+        {value || "—"}
       </div>
     </div>
   );

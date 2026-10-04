@@ -17,6 +17,9 @@ import {
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import ListLoadError from "@/components/ListLoadError";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
+import DayFilterSelect from "@/components/DayFilterSelect";
+import { matchesDayFilter, type DayFilter } from "@/app/lib/dayFilter";
 import {
   Search,
   FileText,
@@ -122,6 +125,7 @@ export default function FoulTripFeedPage() {
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [dayFilter, setDayFilter] = useState<DayFilter>("Any day");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<FoulTripRow | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,9 +139,10 @@ export default function FoulTripFeedPage() {
   // ==========================================
   const filteredBookings = bookings.filter(
     (booking) =>
-      booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.product.toLowerCase().includes(searchTerm.toLowerCase()),
+      matchesDayFilter(booking.scheduledDate, dayFilter) &&
+      (booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.product.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // ==========================================
@@ -285,6 +290,7 @@ export default function FoulTripFeedPage() {
             Trip Exceptions
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <DayFilterSelect value={dayFilter} onChange={(value) => { setDayFilter(value); setCurrentPage(1); }} />
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={(query) => { setSearchTerm(query); setCurrentPage(1); }} />
@@ -396,7 +402,7 @@ export default function FoulTripFeedPage() {
                             booking.confirmationStatus,
                           )}`}
                         >
-                          {booking.confirmationStatus}
+                          {bookingStatusLabel(booking.confirmationStatus)}
                         </span>
                         {booking.incident?.status === "mechanic_assigned" && (
                           <div className="mt-1.5 text-xs font-medium text-blue-600">Mechanic on the way</div>
@@ -437,6 +443,7 @@ export default function FoulTripFeedPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalBookings} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -466,6 +473,7 @@ export default function FoulTripFeedPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

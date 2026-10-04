@@ -4,6 +4,7 @@ import Link from "next/link";
 import RowOpenButton from "@/components/RowOpenButton";
 import { FileText } from "lucide-react";
 import { COLOR_STYLES, type DashboardBooking, TABS } from "./feeds";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
 
 export function FeedTable({
   tabConfig,
@@ -102,7 +103,7 @@ export function FeedTable({
                       <span
                         className={`px-3 py-1 ${badge.badgeBg} ${badge.badgeText} rounded-full text-xs sm:text-[11px] font-bold whitespace-nowrap`}
                       >
-                        {displayStatus}
+                        {bookingStatusLabel(displayStatus)}
                       </span>
                       <span className="text-gray-500 text-xs sm:text-[11px] font-medium whitespace-nowrap">
                         {b.dateTime}
@@ -142,7 +143,7 @@ export function FeedTable({
                         className="text-slate-700 font-medium block wrap-break-word sm:truncate"
                         title={b.helper}
                       >
-                        {b.helper || "N/A"}
+                        {b.helper || "—"}
                       </span>
                     </div>
                   </div>

@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import type { DashboardBooking } from "./feeds";
 import { liveDispatchOf } from "@/app/lib/bookingView";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
+import { formatDate, formatDateTime } from "@/app/lib/datetime";
 
 // ==========================================
 // VIEW BOOKING MODAL (READ-ONLY)
@@ -38,23 +40,23 @@ export function ViewOrderModal({
     notes.match(/Name:\s*(.*)/)?.[1] ||
     order.client ||
     "Walk-in Customer";
-  const cPerson = clientInfo.contactName || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "N/A";
-  const cNum = clientInfo.contact || notes.match(/\((.*?)\)/)?.[1] || "N/A";
-  const cEmail = clientInfo.emailAdd || "N/A";
-  const cAddr = clientInfo.businessAdd || "N/A";
+  const cPerson = clientInfo.contactName || notes.match(/Contact:\s*(.*?)\s*\(/)?.[1] || "—";
+  const cNum = clientInfo.contact || notes.match(/\((.*?)\)/)?.[1] || "—";
+  const cEmail = clientInfo.emailAdd || "—";
+  const cAddr = clientInfo.businessAdd || "—";
 
   const priority = notes.match(/Priority:\s*(.*)/)?.[1] || "Standard";
   const reqDate =
     notes.match(/Request Date:\s*(.*)/)?.[1] ||
-    (raw.createdAt ? new Date(raw.createdAt).toLocaleDateString() : "N/A");
-  const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "N/A";
+    (raw.createdAt ? formatDate(raw.createdAt) : "Not recorded");
+  const delSchedule = notes.match(/Delivery Schedule:\s*(.*)/)?.[1] || "—";
 
   // Pickups are rows now. Bookings made before the PickupStops table still
   // carry theirs as a "Pickup: <place> @ <time>" line inside the notes.
   const pickupLine = notes.match(/Pickup:\s*(.*)/)?.[1] || "N/A @ N/A";
   const pickupParts = pickupLine.split(" @ ");
-  const pickupAddr = pickupParts[0]?.trim() || "N/A";
-  const pickupTime = pickupParts[1]?.trim() || "N/A";
+  const pickupAddr = pickupParts[0]?.trim() || "—";
+  const pickupTime = pickupParts[1]?.trim() || "—";
 
   const pickupRows = Array.isArray(raw.PickupStops) ? raw.PickupStops : raw.PickupStops ? [raw.PickupStops] : [];
   const pickups =
@@ -63,10 +65,10 @@ export function ViewOrderModal({
           .sort((a, b) => (a.sequence ?? a.pickupID ?? 0) - (b.sequence ?? b.pickupID ?? 0))
           .map((p) => ({
             warehouseName: p.warehouseName || "Origin Location",
-            address: p.pickupAddress || p.warehouseName || "N/A",
+            address: p.pickupAddress || p.warehouseName || "—",
             contactPerson: p.contactPerson || cPerson,
             contactNum: p.contactNum || cNum,
-            expectedTime: p.expectedTime ? formatTime(String(p.expectedTime)) : "N/A",
+            expectedTime: p.expectedTime ? formatTime(String(p.expectedTime)) : "—",
             collected: /deliver|complete/i.test(p.stopStatus ?? ""),
           }))
       : [
@@ -75,7 +77,7 @@ export function ViewOrderModal({
             address: pickupAddr,
             contactPerson: cPerson,
             contactNum: cNum,
-            expectedTime: formatTime(pickupTime) || "N/A",
+            expectedTime: formatTime(pickupTime) || "—",
             collected: false,
           },
         ];
@@ -131,12 +133,12 @@ export function ViewOrderModal({
       ? stopsArr
       : [
           {
-            branchName: "N/A",
-            deliveryAddress: "N/A",
+            branchName: "—",
+            deliveryAddress: "—",
             sequence: 1,
             contactPerson: cPerson,
             contactNum: cNum,
-            expectedTime: "N/A",
+            expectedTime: "—",
             quantity: quantity,
             stopStatus: "Pending",
           },
@@ -164,13 +166,13 @@ export function ViewOrderModal({
     
     if (!hasDriver) {
       bannerBg = "bg-amber-50 border-amber-200 text-amber-800";
-      bannerContent = <><AlertTriangle className="w-5 h-5 text-amber-600" /> Assign Crew</>;
+      bannerContent = <><AlertTriangle className="w-5 h-5 text-amber-600" /> {bookingStatusLabel("Assign Crew")}</>;
     } else if (dispatchRecord?.status === "Accepted") {
       bannerBg = "bg-blue-50 border-blue-200 text-blue-800";
-      bannerContent = <><Clock className="w-5 h-5 text-blue-600" /> Waiting Crew Dispatch</>;
+      bannerContent = <><Clock className="w-5 h-5 text-blue-600" /> {bookingStatusLabel("Waiting Crew Dispatch")}</>;
     } else {
       bannerBg = "bg-orange-50 border-orange-200 text-orange-800";
-      bannerContent = <><Clock className="w-5 h-5 text-orange-600" /> Pending Crew</>;
+      bannerContent = <><Clock className="w-5 h-5 text-orange-600" /> {bookingStatusLabel("Pending Crew")}</>;
     }
   } else if (category === "In-Transit") {
     bannerBg = "bg-blue-50 border-blue-200 text-blue-800";
@@ -204,14 +206,14 @@ export function ViewOrderModal({
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto">
         <div
-          className={`flex items-center justify-between px-6 py-4 text-white border-b transition-colors ${headerClass}`}
+          className={`flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 text-white border-b transition-colors ${headerClass}`}
         >
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide">
-              Booking Details: {order.orderId}
+            <h2 className="text-base sm:text-xl font-bold text-white tracking-wide">
+              <span className="hidden sm:inline">Booking Details:</span> {order.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Created on {raw.createdAt ? new Date(raw.createdAt).toLocaleString() : "an unknown date"}
+              Created on {raw.createdAt ? formatDateTime(raw.createdAt) : "an unknown date"}
             </p>
           </div>
           <button
@@ -426,7 +428,7 @@ export function ViewOrderModal({
                             {d.branchName || "Branch"}
                           </td>
                           <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Delivery Address</span>
-                            {d.deliveryAddress || d.branchName || "N/A"}
+                            {d.deliveryAddress || d.branchName || "—"}
                           </td>
                           <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Contact Person</span>
                             {d.contactPerson || cPerson}
@@ -435,7 +437,7 @@ export function ViewOrderModal({
                             {d.contactNum || cNum}
                           </td>
                           <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:bg-slate-50"><span className="lg:hidden text-slate-500">Expected Time</span>
-                            {formatTime(d.expectedTime) || "N/A"}
+                            {formatTime(d.expectedTime) || "—"}
                           </td>
                           <td role="cell" className="grid grid-cols-[40%_60%] items-center justify-items-start gap-2 py-1 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:bg-slate-50"><span className="lg:hidden text-slate-500">Quantity</span>
                             {d.quantity || quantity}

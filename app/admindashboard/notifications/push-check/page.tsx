@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import AdminOnly from "@/components/AdminOnly";
+import { formatDateTime } from "@/app/lib/datetime";
 
 interface Device {
   employeeID: string;
@@ -141,7 +142,7 @@ function PushCheckPageContent() {
                         </p>
                         <p className="text-xs text-slate-500">
                           {device.platform}
-                          {device.lastSeenAt ? ` · last seen ${new Date(device.lastSeenAt).toLocaleString("en-PH")}` : ""}
+                          {device.lastSeenAt ? ` · last seen ${formatDateTime(device.lastSeenAt)}` : ""}
                         </p>
                         {device.dead && (
                           <p className="text-xs text-red-600">

@@ -10,6 +10,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import BookingAssignModal from "@/components/booking/BookingAssignModal";
 import { useToast } from "@/components/Toast";
 import ListLoadError from "@/components/ListLoadError";
+import { crewAnswerLabel } from "@/app/lib/statusLabels";
 import {
   isAwaitingCrewConfirmation,
   mapOrderToBookingView,
@@ -309,7 +310,7 @@ export default function AwaitingConfirmationPage() {
                                 crew.status,
                               )}`}
                             >
-                              {crew.status}
+                              {crewAnswerLabel(crew.status)}
                             </span>
                           </div>
                         ))}
@@ -326,7 +327,7 @@ export default function AwaitingConfirmationPage() {
                                 crew.status,
                               )}`}
                             >
-                              {crew.status}
+                              {crewAnswerLabel(crew.status)}
                             </span>
                           </div>
                         ))}
@@ -377,6 +378,7 @@ export default function AwaitingConfirmationPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalBookings} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -406,6 +408,7 @@ export default function AwaitingConfirmationPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

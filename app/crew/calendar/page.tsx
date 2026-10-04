@@ -30,6 +30,20 @@ export interface DeliveryEvent {
 
 // One hour row is h-16 (64px); events are positioned against that.
 const HOUR_HEIGHT_PX = 64;
+// Where the day opens: the first hour a delivery is likely. It opened at
+// midnight, seven empty hours above the first trip.
+const WORKDAY_START_HOUR = 7;
+
+/** The nearest ancestor that scrolls vertically - the portal's main area. */
+function scrollParentOf(element: HTMLElement | null): HTMLElement | null {
+  let node = element?.parentElement ?? null;
+  while (node) {
+    const overflow = getComputedStyle(node).overflowY;
+    if (overflow === "auto" || overflow === "scroll") return node;
+    node = node.parentElement;
+  }
+  return null;
+}
 const DEFAULT_EVENT_TIME = "08:00";
 
 const monthNames = [
@@ -114,6 +128,22 @@ export default function CrewCalendarPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadDeliveries();
   }, [loadDeliveries]);
+
+  // Open on the working day. The hours scroll with the whole page, so the 7 AM
+  // row of whichever view is showing is brought up to just under its sticky
+  // day header.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const row = [...document.querySelectorAll<HTMLElement>(`[data-hour="${WORKDAY_START_HOUR}"]`)].find(
+        (element) => element.offsetParent !== null,
+      );
+      const scroller = scrollParentOf(row ?? null);
+      if (!row || !scroller) return;
+      const stickyHeader = 80;
+      scroller.scrollTop += row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - stickyHeader;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -429,7 +459,7 @@ export default function CrewCalendarPage() {
 
         {/* ================= MOBILE VIEW (Single Day View) ================= */}
         <div className="flex lg:hidden flex-col flex-1">
-          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
+          <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
             <button
               onClick={handlePrevDay}
               className="p-1.5 min-w-tap min-h-tap sm:min-w-0 sm:min-h-0 inline-flex items-center justify-center rounded-lg hover:bg-gray-200 text-slate-700 cursor-pointer"
@@ -457,6 +487,7 @@ export default function CrewCalendarPage() {
               {hours.map((hour, idx) => (
                 <div
                   key={idx}
+                  data-hour={idx}
                   className="h-16 border-b border-transparent relative"
                 >
                   <span className="absolute -top-2.5 right-3 text-xs font-medium text-slate-500">
@@ -517,6 +548,7 @@ export default function CrewCalendarPage() {
                 {hours.map((hour, idx) => (
                   <div
                     key={idx}
+                    data-hour={idx}
                     className="h-16 border-b border-transparent relative"
                   >
                     <span className="absolute -top-2.5 right-3 text-xs font-medium text-slate-500">

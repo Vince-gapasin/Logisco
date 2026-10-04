@@ -112,7 +112,7 @@ export function RecordDetailView({
                   Name / Company
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
-                  {record.name || "N/A"}
+                  {record.name || "—"}
                 </div>
               </div>
               <div>
@@ -120,7 +120,7 @@ export function RecordDetailView({
                   Contact Person
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
-                  {record.contactPerson || "N/A"}
+                  {record.contactPerson || "—"}
                 </div>
               </div>
               <div>
@@ -128,7 +128,7 @@ export function RecordDetailView({
                   Contact Number
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
-                  {record.contactNumber || "N/A"}
+                  {record.contactNumber || "—"}
                 </div>
               </div>
               <div className="sm:col-span-2">
@@ -136,7 +136,7 @@ export function RecordDetailView({
                   Email Address
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 truncate">
-                  {record.emailAddress || "N/A"}
+                  {record.emailAddress || "—"}
                 </div>
               </div>
               {isPartner(record) && (
@@ -145,7 +145,7 @@ export function RecordDetailView({
                     Contract Type
                   </label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                    {record.contractType || "N/A"}
+                    {record.contractType || "—"}
                   </div>
                 </div>
               )}
@@ -194,16 +194,16 @@ export function RecordDetailView({
                             className="border-b border-slate-200 last:border-0"
                           >
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {p.warehouseName || "N/A"}
+                              {p.warehouseName || "—"}
                             </td>
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {p.warehouseAddress || "N/A"}
+                              {p.warehouseAddress || "—"}
                             </td>
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {p.contactPerson || "N/A"}
+                              {p.contactPerson || "—"}
                             </td>
                             <td className="p-2.5 truncate text-center">
-                              {p.contactNumber || "N/A"}
+                              {p.contactNumber || "—"}
                             </td>
                           </tr>
                         ))}
@@ -248,16 +248,16 @@ export function RecordDetailView({
                             className="border-b border-slate-200 last:border-0"
                           >
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {d.branchName || "N/A"}
+                              {d.branchName || "—"}
                             </td>
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {d.deliveryAddress || "N/A"}
+                              {d.deliveryAddress || "—"}
                             </td>
                             <td className="p-2.5 border-r border-slate-200 truncate">
-                              {d.contactPerson || "N/A"}
+                              {d.contactPerson || "—"}
                             </td>
                             <td className="p-2.5 truncate text-center">
-                              {d.contactNumber || "N/A"}
+                              {d.contactNumber || "—"}
                             </td>
                           </tr>
                         ))}

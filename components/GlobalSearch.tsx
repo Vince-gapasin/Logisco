@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -33,6 +33,15 @@ const PLACEHOLDERS: Record<string, string> = {
   "/crew": "Search deliveries…",
   "/mechanic": "Search trucks…",
 };
+
+// On a phone the search box is too narrow for the full hint - it was cut to
+// "Search bookin" - so it says only "Search…" there.
+const NARROW = "(max-width: 639px)";
+function subscribeNarrow(onChange: () => void) {
+  const query = window.matchMedia(NARROW);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
 
 interface Response {
   /** The text that was sent, so a late reply to an old query is never shown. */
@@ -72,6 +81,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
+  const isNarrow = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
   const [response, setResponse] = useState<Response | null>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -230,7 +240,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder={PLACEHOLDERS[basePath] ?? "Search bookings, clients…"}
+        placeholder={isNarrow ? "Search…" : (PLACEHOLDERS[basePath] ?? "Search bookings, clients…")}
         value={query}
         onChange={(event) => {
           setQuery(event.target.value);

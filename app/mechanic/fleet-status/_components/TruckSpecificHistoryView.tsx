@@ -126,14 +126,14 @@ export function TruckSpecificHistoryView({
                         <span
                           className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${stylesBefore.bgLight}`}
                         >
-                          {log.statusBefore || "N/A"}
+                          {log.statusBefore || "—"}
                         </span>
                       </td>
                       <td className="py-4 px-4 w-1/4 text-right align-middle">
                         <span
                           className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold border ${stylesAfter.bgLight}`}
                         >
-                          {log.statusAfter || "N/A"}
+                          {log.statusAfter || "—"}
                         </span>
                       </td>
                     </tr>
@@ -145,6 +145,7 @@ export function TruckSpecificHistoryView({
         </div>
 
         <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -163,6 +164,7 @@ export function TruckSpecificHistoryView({
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
     </div>

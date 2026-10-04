@@ -744,13 +744,13 @@ export default function EmployeesPage() {
                       className="hidden lg:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.address}
                     >
-                      {employee.address || "N/A"}
+                      {employee.address || "—"}
                     </td>
                     <td
                       className="hidden lg:table-cell py-3.5 px-4 sm:px-6 truncate"
                       title={employee.contactNumber}
                     >
-                      {employee.contactNumber || "N/A"}
+                      {employee.contactNumber || "—"}
                     </td>
                     <td className="hidden sm:table-cell py-3.5 px-4 sm:px-6 truncate">
                       {employee.activation_completed_at ? (
@@ -779,9 +779,9 @@ export default function EmployeesPage() {
                           : ""}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Staff listings and employee profiles will appear here
-                        once connected to your backend database or added via the
-                        form.
+                        {selectedRole !== "All Roles"
+                          ? "Try another role, or clear the search."
+                          : "Add a staff member with Add Employee and they will appear here."}
                       </p>
                     </div>
                   </td>
@@ -796,6 +796,7 @@ export default function EmployeesPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalEmployees} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() =>
@@ -827,6 +828,7 @@ export default function EmployeesPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
       )}

@@ -7,6 +7,7 @@ import RecoveryPanel from "@/components/foulTrip/RecoveryPanel";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import type { FeedBooking, FeedStopRow } from "@/app/lib/bookingView";
 import { todayInManila } from "@/app/lib/datetime";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
 
 // The foul-trip details and recovery screen. Shared by the Foul Trip feed and
 // the dashboard's Foul Trip list, so a booking opens the same way from both.
@@ -53,12 +54,19 @@ const renderStopStatus = (status?: string) => {
         <CheckCircle2 className="w-3 h-3" /> {currentStatus}
       </span>
     );
+  } else if (s === "pending") {
+    // Not reached yet. It used to read a red "NO", as if the stop had failed.
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+        <Clock className="w-3 h-3" /> Pending
+      </span>
+    );
   } else {
-    // Treat as Not Completed / Pending / No
+    // Anything else that did not complete.
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600 border border-red-200">
         <X className="w-3 h-3" />{" "}
-        {currentStatus === "Pending" ? "No" : currentStatus}
+        {currentStatus}
       </span>
     );
   }
@@ -117,7 +125,7 @@ function DeliveryProgress({ currentStatus }: { currentStatus: string }) {
                 )}
               </div>
               <span
-                className={`text-[8px] sm:text-[9px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-red-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
+                className={`text-[10px] sm:text-[11px] font-bold text-center whitespace-nowrap tracking-wide ${isActive ? "text-red-700" : isCompleted ? "text-slate-700" : "text-slate-500"}`}
               >
                 {stage}
               </span>
@@ -208,14 +216,14 @@ export default function FoulTripDetailsModal({
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
         {/* HEADER */}
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
-              <FileText className="w-5 h-5" /> Booking Details:{" "}
+            <h2 className="text-base sm:text-xl font-bold text-white tracking-wide flex items-center gap-2">
+              <FileText className="w-5 h-5" /> <span className="hidden sm:inline">Booking Details:</span>{" "}
               {booking.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Status: {booking.status} | {booking.confirmationStatus}
+              Status: {bookingStatusLabel(booking.confirmationStatus)}
             </p>
           </div>
           <button

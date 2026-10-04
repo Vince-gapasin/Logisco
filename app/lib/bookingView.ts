@@ -1,4 +1,5 @@
 import { formatTime } from "@/app/lib/datetime";
+import { formatDate } from "@/app/lib/datetime";
 import type {
   BranchStopsRow,
   ClientRow,
@@ -157,7 +158,7 @@ export function formatDisplayDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return date.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+  return formatDate(String(value));
 }
 
 // DispatchOrder.status -> the stage labels the progress tracker renders.

@@ -35,6 +35,9 @@ import {
   Clock,
 } from "lucide-react";
 import { todayInManila } from "@/app/lib/datetime";
+import { bookingStatusLabel } from "@/app/lib/statusLabels";
+import DayFilterSelect from "@/components/DayFilterSelect";
+import { matchesDayFilter, type DayFilter } from "@/app/lib/dayFilter";
 
 // ==========================================
 // DUMMY DATA (Realistic Completed records with full accumulated history)
@@ -151,14 +154,14 @@ function BookingDetailsModal({
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
         {/* HEADER */}
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-wide flex items-center gap-2">
-              <FileText className="w-5 h-5" /> Booking Details:{" "}
+            <h2 className="text-base sm:text-xl font-bold text-white tracking-wide flex items-center gap-2">
+              <FileText className="w-5 h-5" /> <span className="hidden sm:inline">Booking Details:</span>{" "}
               {booking.orderId}
             </h2>
             <p className="text-xs font-medium opacity-80 mt-0.5">
-              Status: {booking.status} | {booking.confirmationStatus}
+              Status: {bookingStatusLabel(booking.confirmationStatus)}
             </p>
           </div>
           <button
@@ -286,6 +289,7 @@ export default function CompletedFeedPage() {
 
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
+  const [dayFilter, setDayFilter] = useState<DayFilter>("Any day");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState<FeedBooking | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -295,9 +299,10 @@ export default function CompletedFeedPage() {
   // ==========================================
   const filteredBookings = bookings.filter(
     (booking) =>
-      booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.product.toLowerCase().includes(searchTerm.toLowerCase()),
+      matchesDayFilter(booking.scheduledDate, dayFilter) &&
+      (booking.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.product.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // ==========================================
@@ -355,6 +360,7 @@ export default function CompletedFeedPage() {
             Delivered Orders
           </h2>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <DayFilterSelect value={dayFilter} onChange={(value) => { setDayFilter(value); setCurrentPage(1); }} />
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <UrlSearchSync onQuery={(query) => { setSearchTerm(query); setCurrentPage(1); }} />
@@ -464,7 +470,7 @@ export default function CompletedFeedPage() {
                       <span
                         className={`inline-flex w-max items-center justify-center px-2.5 py-1.5 rounded-full text-xs sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${getStatusBadgeClass(booking.confirmationStatus)}`}
                       >
-                        {booking.confirmationStatus}
+                        {bookingStatusLabel(booking.confirmationStatus)}
                       </span>
                     </td>
                   </tr>
@@ -498,6 +504,7 @@ export default function CompletedFeedPage() {
           <span>
             Showing {startIndex} to {endIndex} of {totalBookings} entries
           </span>
+          {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -527,6 +534,7 @@ export default function CompletedFeedPage() {
               Next
             </button>
           </div>
+          )}
         </div>
       </div>
 

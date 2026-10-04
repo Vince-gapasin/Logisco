@@ -6,6 +6,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import type { SubconTripView } from "@/services/subcon/subconService";
+import { formatDate } from "@/app/lib/datetime";
 
 // Partner trips, for the coordinator to keep up to date: those still running,
 // and those finished in the last 30 days with their proofs of delivery.
@@ -24,7 +25,7 @@ const ago = (iso: string | null) => {
   const hours = (Date.now() - Date.parse(iso)) / 36e5;
   if (hours < 1) return `Updated ${Math.max(1, Math.round(hours * 60))} min ago`;
   if (hours < 48) return `Updated ${Math.round(hours)} h ago`;
-  return `Updated ${new Date(iso).toLocaleDateString("en-PH")}`;
+  return `Updated ${formatDate(iso)}`;
 };
 
 function TripRow({ trip, onOpen }: { trip: SubconTripView; onOpen: () => void }) {

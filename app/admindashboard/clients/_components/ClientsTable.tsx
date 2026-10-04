@@ -132,6 +132,7 @@ export function ClientsTable({
           {Math.min(endIndex, currentData.length)} of {currentData.length}{" "}
           entries
         </span>
+        {totalPages > 1 && (
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -153,6 +154,7 @@ export function ClientsTable({
             Next
           </button>
         </div>
+        )}
       </div>
     </div>
   );

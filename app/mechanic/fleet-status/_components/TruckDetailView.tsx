@@ -307,7 +307,7 @@ export function TruckDetailView({
                   Plate Number
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.plateNumber || "N/A"}
+                  {truck.plateNumber || "—"}
                 </div>
               </div>
               <div>
@@ -315,7 +315,7 @@ export function TruckDetailView({
                   Type of Truck
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.truckType || "N/A"}
+                  {truck.truckType || "—"}
                 </div>
               </div>
               <div>
@@ -323,7 +323,7 @@ export function TruckDetailView({
                   Truck Model
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.truckModel || "N/A"}
+                  {truck.truckModel || "—"}
                 </div>
               </div>
               <div>
@@ -331,7 +331,7 @@ export function TruckDetailView({
                   Capacity
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {truck.capacity || "N/A"}
+                  {truck.capacity || "—"}
                 </div>
               </div>
               <div>
@@ -339,7 +339,7 @@ export function TruckDetailView({
                   Last Checked
                 </label>
                 <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900">
-                  {formatDisplayDate(truck.lastChecked) || "N/A"}
+                  {formatDisplayDate(truck.lastChecked) || "—"}
                 </div>
               </div>
             </div>
@@ -360,7 +360,7 @@ export function TruckDetailView({
                       Issue to Fix / Driver&apos;s Report
                     </label>
                     <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                      {latestPreliminaryLog.driversReport || "N/A"}
+                      {latestPreliminaryLog.driversReport || "—"}
                     </div>
                   </div>
                   <div>
@@ -406,7 +406,7 @@ export function TruckDetailView({
                     Additional Issue/s
                   </label>
                   <div className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 min-h-10 whitespace-pre-wrap">
-                    {combinedIssuesList.length > 0 ? combinedIssuesList : "N/A"}
+                    {combinedIssuesList.length > 0 ? combinedIssuesList : "—"}
                   </div>
                 </div>
                 <div>

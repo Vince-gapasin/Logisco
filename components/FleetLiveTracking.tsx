@@ -599,6 +599,7 @@ export default function FleetLiveTracking() {
             Showing {filteredList.length === 0 ? 0 : startIndex + 1} to{" "}
             {Math.min(endIndex, filteredList.length)} of {filteredList.length} entries
           </div>
+          {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 w-full">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -626,6 +627,7 @@ export default function FleetLiveTracking() {
               Next
             </button>
           </div>
+          )}
           {/* Balances the grid so the buttons sit centred from sm up. */}
           <div className="hidden sm:block" />
         </div>
