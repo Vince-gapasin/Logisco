@@ -12,8 +12,8 @@ import {
   History as HistoryIcon,
   Wrench,
   Ban,
-  MoreHorizontal,
 } from "lucide-react";
+import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { HistoryLogRecord, TruckRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
@@ -52,9 +52,6 @@ export function TruckDetailView({
 }: TruckDetailViewProps) {
   const shownStatus = shownTruckStatus(truck.status, truck.booking);
   const styles = getStatusStyles(shownStatus);
-
-  // --- NEW: Dropdown State ---
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
@@ -126,9 +123,7 @@ export function TruckDetailView({
         </div>
 
         {/* RIGHT SIDE: Action Buttons */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-end w-full md:w-auto gap-2 sm:gap-3">
-          {/* The work buttons. Second on a phone, first on a desktop. */}
-          <div className="order-2 md:order-1 flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center md:justify-end w-full md:w-auto gap-2 sm:gap-3">
             {isArchived && (
               <button
                 onClick={onRestoreClick}
@@ -154,74 +149,30 @@ export function TruckDetailView({
             {!isArchived && (!isRestrictedStatus || isExplicitlyAssigned) && (!isUnderMaintenance || hasMechanicAccess) && (
               <button onClick={onUpdateStatusClick} className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"><span>Update Status</span></button>
             )}
-          </div>
 
-          {/* Looking back at the truck. First on a phone, last on a desktop. */}
-          <div className="order-1 md:order-2 flex items-center gap-2 sm:gap-3 w-full md:w-auto">
-          {/* History Button (Always visible) */}
-          <button
-            onClick={onHistoryClick}
-            className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
-          >
-            <HistoryIcon className="w-4 h-4 shrink-0" />
-            <span>History</span>
-          </button>
-
-          {!isArchived && (!isUnderMaintenance || hasMechanicAccess) && (
-            <div className="relative shrink-0">
-              {/* More Actions Dropdown Menu */}
-              <button
-                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition-colors shadow-xs cursor-pointer"
-                title="More Actions"
-              >
-                <MoreHorizontal className="w-5 h-5" />
-              </button>
-
-              {isMoreMenuOpen && (
-                <>
-                  {/* Invisible overlay to close dropdown when clicking outside */}
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsMoreMenuOpen(false)}
-                  ></div>
-
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden py-1 animate-fade-in">
-                    {/* Edit Button inside Dropdown */}
-                    <button
-                      onClick={() => {
-                        setIsMoreMenuOpen(false);
-                        onEdit(truck);
-                      }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Edit3 className="w-4 h-4 text-slate-500" /> Edit Truck
-                    </button>
-
-                    {/* Disable: takes the truck out of the fleet, keeping its history
-                        (it is then listed under Disabled Trucks).
-                        Not while it is out on a delivery - the server refuses that too. */}
-                    {!isRestrictedStatus ? (
-                      <button
-                        onClick={() => { setIsMoreMenuOpen(false); onArchiveClick(); }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
-                      >
-                        <Ban className="w-4 h-4" /> Disable Truck
-                      </button>
-                    ) : (
-                      <div
-                        title="A truck on a delivery can be disabled once it is back."
-                        className="w-full text-left px-4 py-2.5 text-sm text-slate-400 bg-slate-50 flex items-center gap-2 cursor-not-allowed"
-                      >
-                        <Ban className="w-4 h-4" /> Disable Truck
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-          </div>
+          {/* History is always there. Edit and Disable only for whoever may
+              work on the truck. Disable keeps the truck's history (it is then
+              listed under Disabled Trucks), and not while it is out on a
+              delivery - the server refuses that too. */}
+          <MoreActionsMenu
+            label={`More actions for ${truck.plateNumber}`}
+            actions={[
+              { label: "History", icon: HistoryIcon, onSelect: onHistoryClick },
+              ...(!isArchived && (!isUnderMaintenance || hasMechanicAccess)
+                ? [
+                    { label: "Edit Truck", icon: Edit3, onSelect: () => onEdit(truck) },
+                    {
+                      label: "Disable Truck",
+                      icon: Ban,
+                      danger: true,
+                      separated: true,
+                      onSelect: onArchiveClick,
+                      disabledReason: isRestrictedStatus ? "A truck on a delivery can be disabled once it is back." : undefined,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       </div>
 

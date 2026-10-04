@@ -7,6 +7,7 @@ import {
   Edit3,
   AlertTriangle,
 } from "lucide-react";
+import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type {
   ClientRecord,
   PartnerRecord,
@@ -61,22 +62,13 @@ export function RecordDetailView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => onEdit(record)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>Edit Record</span>
-          </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete</span>
-          </button>
-        </div>
+        <MoreActionsMenu
+          label={`More actions for ${record.name || tabType.slice(0, -1)}`}
+          actions={[
+            { label: "Edit Record", icon: Edit3, onSelect: () => onEdit(record) },
+            { label: "Delete", icon: Trash2, danger: true, separated: true, onSelect: () => setShowDeleteModal(true) },
+          ]}
+        />
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">

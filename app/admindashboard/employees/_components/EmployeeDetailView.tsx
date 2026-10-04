@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AVAILABILITY } from "@/app/lib/enums";
 import {
-  ChevronDown,
   Edit3,
   Trash2,
   ArrowLeft,
@@ -11,13 +10,13 @@ import {
   Loader2,
   MailCheck,
   CheckCircle2,
-  MoreHorizontal,
   UserCheck,
   UserX,
   Paperclip,
   HeartPulse,
 } from "lucide-react";
 import PerformancePanel from "@/components/employee/PerformancePanel";
+import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { EmployeeRecord } from "./types";
 import { ReadField } from "./ReadField";
 import { formatDate } from "./helpers";
@@ -54,8 +53,6 @@ export function EmployeeDetailView({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [activeTab, setActiveTab] =
     useState<EmployeeDetailTab>("overview");
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = currentRole.toLowerCase() === "admin";
   const canEdit = isAdmin;
@@ -99,20 +96,6 @@ export function EmployeeDetailView({
       : 0;
 
   const activationRemainingMinutes = Math.ceil(activationRemainingMs / 60000);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        moreMenuRef.current &&
-        !moreMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsMoreOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // EXACT LOGIC FROM YOUR UPDATED CODE, modified only to safely close the UI modal
   const confirmDelete = async () => {
@@ -253,68 +236,16 @@ export function EmployeeDetailView({
           )}
 
           {canEdit && (
-            <div ref={moreMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setIsMoreOpen((open) => !open)}
-                aria-expanded={isMoreOpen}
-                aria-haspopup="menu"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-                More
-                <ChevronDown className="h-4 w-4" />
-              </button>
-
-              {isMoreOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsMoreOpen(false);
-                      onEdit(employee);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <Edit3 className="h-4 w-4 text-blue-600" />
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsMoreOpen(false);
-                      setShowStatusModal(true);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    {employee.isActive ? (
-                      <UserX className="h-4 w-4 text-amber-600" />
-                    ) : (
-                      <UserCheck className="h-4 w-4 text-emerald-600" />
-                    )}
-                    {employee.isActive ? "Disable" : "Enable"}
-                  </button>
-                  <div className="my-1 border-t border-slate-100" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setIsMoreOpen(false);
-                      setShowDeleteModal(true);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
+            <MoreActionsMenu
+              label={`More actions for ${employeeName || "this employee"}`}
+              actions={[
+                { label: "Edit", icon: Edit3, onSelect: () => onEdit(employee) },
+                employee.isActive
+                  ? { label: "Disable", icon: UserX, onSelect: () => setShowStatusModal(true) }
+                  : { label: "Enable", icon: UserCheck, onSelect: () => setShowStatusModal(true) },
+                { label: "Delete", icon: Trash2, danger: true, separated: true, onSelect: () => setShowDeleteModal(true) },
+              ]}
+            />
           )}
         </div>
       </div>

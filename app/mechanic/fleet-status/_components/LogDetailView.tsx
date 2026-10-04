@@ -8,6 +8,7 @@ import {
   Trash2,
   ClipboardCheck,
 } from "lucide-react";
+import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { HistoryLogRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
@@ -151,22 +152,13 @@ export function LogDetailView({
 
         {/* UPDATED: Only show Edit/Delete if authorized mechanic */}
         {!readOnly && hasMechanicAccess && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onEdit(log)}
-              className="inline-flex items-center justify-center gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>Edit This Row</span>
-            </button>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete This Row</span>
-            </button>
-          </div>
+          <MoreActionsMenu
+            label="More actions for this maintenance row"
+            actions={[
+              { label: "Edit This Row", icon: Edit3, onSelect: () => onEdit(log) },
+              { label: "Delete This Row", icon: Trash2, danger: true, separated: true, onSelect: () => setShowDeleteModal(true) },
+            ]}
+          />
         )}
       </div>
 

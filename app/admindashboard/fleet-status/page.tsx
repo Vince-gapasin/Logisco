@@ -10,6 +10,7 @@ import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
 import { bookingSummary, shownTruckStatus } from "@/app/lib/truckBooking";
 import RowOpenButton from "@/components/RowOpenButton";
+import MoreActionsMenu from "@/components/MoreActionsMenu";
 import TruckHistory from "@/components/truck/TruckHistory";
 import TruckStatusControl from "@/components/truck/TruckStatusControl";
 import TruckTripCard from "@/components/truck/TruckTripCard";
@@ -552,17 +553,6 @@ function TruckDetailView({
 
         {/* RIGHT SIDE: Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          {/* Everything about past repairs lives behind this, the same as in the
-              mechanic's module - one screen, one layout, whichever side you are
-              looking from. */}
-          <button
-            onClick={onHistory}
-            className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
-          >
-            <HistoryIcon className="w-4 h-4 shrink-0" />
-            <span>History</span>
-          </button>
-
           {/* The same form the mechanics use, so the office can record an
               inspection or a progress update on a truck being repaired. */}
           {!isArchived && isGrounded && (
@@ -599,31 +589,29 @@ function TruckDetailView({
               <span>Restore Truck</span>
             </button>
           ) : (
-            <>
-              <button
-                onClick={onStatus}
-                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
-              >
-                <Wrench className="w-4 h-4 shrink-0" />
-                <span>Status</span>
-              </button>
-
-              <button
-                onClick={() => onEdit(truck)}
-                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-700 hover:bg-black text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
-              >
-                <Edit3 className="w-4 h-4 shrink-0" />
-                <span>Edit Truck</span>
-              </button>
-              <button
-                onClick={() => setShowDeleteModal(true)}
-                className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-colors cursor-pointer"
-              >
-                <Ban className="w-4 h-4 shrink-0" />
-                <span>Disable</span>
-              </button>
-            </>
+            <button
+              onClick={onStatus}
+              className="flex-none md:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 sm:py-3 md:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold transition-colors border border-slate-200 shadow-sm cursor-pointer"
+            >
+              <Wrench className="w-4 h-4 shrink-0" />
+              <span>Status</span>
+            </button>
           )}
+
+          {/* Past repairs, and what is done to the record itself. History is
+              the same screen the mechanic's module opens. */}
+          <MoreActionsMenu
+            label={`More actions for ${truck.plateNumber}`}
+            actions={[
+              { label: "History", icon: HistoryIcon, onSelect: onHistory },
+              ...(isArchived
+                ? []
+                : [
+                    { label: "Edit Truck", icon: Edit3, onSelect: () => onEdit(truck) },
+                    { label: "Disable Truck", icon: Ban, danger: true, separated: true, onSelect: () => setShowDeleteModal(true) },
+                  ]),
+            ]}
+          />
         </div>
       </div>
 
