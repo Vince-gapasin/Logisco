@@ -24,9 +24,11 @@ interface PortalSidebarProps {
   portal: Portal;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  /** The link for the page on screen was picked again. See BottomTabBar. */
+  onReselect: () => void;
 }
 
-export default function PortalSidebar({ portal, isOpen, setIsOpen }: PortalSidebarProps) {
+export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }: PortalSidebarProps) {
   const user = useSessionUser();
   const { name, items } = PORTAL_NAV[portal];
 
@@ -129,7 +131,10 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen }: PortalSideb
                     ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
                     : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
                 }`}
-                onClick={closeSidebar}
+                onClick={() => {
+                  closeSidebar();
+                  if (pathname === item.href) onReselect();
+                }}
               >
                 <Icon className="w-5 h-5 mr-3 shrink-0" />
                 <span>{item.label}</span>

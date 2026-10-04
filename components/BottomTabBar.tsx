@@ -21,12 +21,14 @@ import { PORTAL_NAV, isActive, type Portal } from "@/components/portalNav";
 interface BottomTabBarProps {
   portal: Portal;
   onMore: () => void;
+  /** The lit tab was tapped again: back to the top of that section. */
+  onReselect: () => void;
 }
 
 const TAB =
   "flex flex-1 flex-col items-center justify-center gap-0.5 min-h-14 px-1 text-xs font-medium transition-colors";
 
-export default function BottomTabBar({ portal, onMore }: BottomTabBarProps) {
+export default function BottomTabBar({ portal, onMore, onReselect }: BottomTabBarProps) {
   const pathname = usePathname();
   const { items } = PORTAL_NAV[portal];
 
@@ -44,6 +46,9 @@ export default function BottomTabBar({ portal, onMore }: BottomTabBarProps) {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
+            // A record opened on the page does not change the URL, so the link
+            // alone would go nowhere and leave the driver on the record.
+            onClick={() => { if (pathname === item.href) onReselect(); }}
             className={`${TAB} relative ${active ? "text-blue-700 font-semibold" : "text-slate-600"}`}
           >
             {/* A bar over the lit tab, so the page you are on does not rest on
