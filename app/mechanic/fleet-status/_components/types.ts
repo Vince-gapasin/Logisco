@@ -12,8 +12,6 @@ export interface TruckRecord {
   status: string;
   /** The booking it is on, when the fleet list sent one. */
   booking?: TruckTrip | null;
-  /** Taken out of the fleet (Archived Trucks). */
-  archived?: boolean;
 }
 
 // What the maintenance endpoints hand back, before this screen flattens a log

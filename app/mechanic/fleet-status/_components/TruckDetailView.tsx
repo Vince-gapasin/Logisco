@@ -109,8 +109,18 @@ export function TruckDetailView({
   // one who went to fix it. An open job is anyone's; whoever writes the next
   // log becomes the mechanic on it.
   const currentUserStr = String(currentUserId).trim();
-  const activeCycleLog = currentCycleLogs[0];
-  const isUnassignedJob = Boolean(activeCycleLog) && !activeCycleLog.primaryMechanicID;
+  // Only a repair still in progress belongs to somebody. When the newest log
+  // put the truck back in service, the last repair is over: a truck grounded
+  // again without a new log - a restored truck comes back Out of Service - is
+  // an open job, the same as one the office has just sent to maintenance. It
+  // used to stay locked to whoever finished the previous repair, so Out of
+  // Service trucks showed nobody else the Maintenance Update Form or Update
+  // Status buttons that an On Maintenance truck does.
+  const newestLog = sortedTruckLogs[0];
+  const repairInProgress =
+    newestLog?.statusAfter === "On Maintenance" || newestLog?.statusAfter === "Out of Service";
+  const activeCycleLog = repairInProgress ? currentCycleLogs[0] : undefined;
+  const isUnassignedJob = Boolean(activeCycleLog) && !activeCycleLog?.primaryMechanicID;
   const hasMechanicAccess = activeCycleLog
     ? isUnassignedJob ||
       String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
@@ -346,7 +356,10 @@ export function TruckDetailView({
           </div>
 
           {/* Section 2: Preliminary Inspection - Hides when not under maintenance */}
+          {/* The repair now under way, not the last one: a truck grounded again
+              without a new log has no inspection of its own yet. */}
           {isUnderMaintenance &&
+            repairInProgress &&
             latestPreliminaryLog &&
             (latestPreliminaryLog.driversReport ||
               latestPreliminaryLog.preliminaryRemarks) && (
@@ -395,7 +408,7 @@ export function TruckDetailView({
             )}
 
           {/* Section 3: Consolidated Maintenance Progress Updates - Hides when not under maintenance */}
-          {isUnderMaintenance && progressUpdates.length > 0 && (
+          {isUnderMaintenance && repairInProgress && progressUpdates.length > 0 && (
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs mt-6">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide flex items-center justify-between">
                 <span>3. Maintenance Progress Updates (Consolidated)</span>

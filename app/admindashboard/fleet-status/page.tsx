@@ -72,8 +72,6 @@ export interface TruckRecord {
   booking: TruckTrip | null;
   /** "Already Booked" or the stored status - what the list and filters go by. */
   shownStatus: string;
-  /** Taken out of the fleet (Archived Trucks). */
-  archived: boolean;
 }
 
 function mapApiTruck(truck: ApiTruck & { currentTrip?: TruckTrip | null }): TruckRecord {
@@ -95,7 +93,6 @@ function mapApiTruck(truck: ApiTruck & { currentTrip?: TruckTrip | null }): Truc
     fuelTypeName: truck.fuelType?.name || "",
     booking: truck.currentTrip ?? null,
     shownStatus: shownTruckStatus(truck.truckStatus || "Available", truck.currentTrip),
-    archived: truck.isActive === false,
   };
 }
 
@@ -707,7 +704,6 @@ export default function FleetStatusPage() {
   const [selectedFilter, setSelectedFilter] = useState<string>("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [truckList, setTruckList] = useState<TruckRecord[]>([]);
-  const [archivedList, setArchivedList] = useState<TruckRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Messages go through the same pop-up notice as every other screen. This
   // page had its own banners - pinned to a corner over a truck, inline over the
@@ -762,24 +758,19 @@ export default function FleetStatusPage() {
   const fetchTrucks = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Both lists, every time: the Out of Service filter lists every disabled
-      // truck, archived ones included, and Archived Trucks lists the archive.
-      const [active, archived] = await Promise.all([
-        apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>("/api/fleet-status"),
-        apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>("/api/fleet-status?archived=true"),
-      ]);
-      const rows = (response: { data?: ApiTruck[] } | ApiTruck[]) =>
-        (Array.isArray(response) ? response : (response.data || [])).map(mapApiTruck);
-      setTruckList(rows(active));
-      setArchivedList(rows(archived));
+      const response = await apiFetch<{ data?: ApiTruck[] } | ApiTruck[]>(
+        showArchived ? "/api/fleet-status?archived=true" : "/api/fleet-status",
+      );
+      // Safety fix: handle array natively or wrapped in .data
+      const trucksArray = Array.isArray(response) ? response : (response.data || []);
+      setTruckList(trucksArray.map(mapApiTruck));
     } catch (error) {
       showToast(getErrorMessage(error), "error");
       setTruckList([]);
-      setArchivedList([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     // The rows land in a network callback, not in the effect body.
@@ -871,29 +862,15 @@ export default function FleetStatusPage() {
     }
   };
 
-  // A disabled truck - Out of Service, or archived - is not part of the working
-  // fleet, so it is left out of All and the other filters. Out of Service lists
-  // every one of them; Archived Trucks lists the archived ones on their own.
-  const isDisabled = (truck: TruckRecord) => truck.archived || truck.status === "Out of Service";
-  const workingFleet = truckList.filter((truck) => !isDisabled(truck));
-  const disabledTrucks = [...truckList.filter(isDisabled), ...archivedList];
-
   // Counted off the whole list rather than the filtered one, so the pills keep
   // saying how big the fleet is while you are looking at one part of it.
-  const statusCounts = workingFleet.reduce<Record<string, number>>((tally, truck) => {
+  const statusCounts = truckList.reduce<Record<string, number>>((tally, truck) => {
     tally[truck.shownStatus] = (tally[truck.shownStatus] ?? 0) + 1;
     return tally;
   }, {});
-  statusCounts["Out of Service"] = disabledTrucks.length;
 
-  const listedTrucks = showArchived
-    ? archivedList
-    : selectedFilter === "Out of Service"
-      ? disabledTrucks
-      : workingFleet;
-
-  const filteredTrucks = listedTrucks.filter((truck) => {
-    if (!showArchived && selectedFilter !== "All" && selectedFilter !== "Out of Service" && truck.shownStatus !== selectedFilter) return false;
+  const filteredTrucks = truckList.filter((truck) => {
+    if (selectedFilter !== "All" && truck.shownStatus !== selectedFilter) return false;
     const term = searchTerm.toLowerCase();
     return (
       truck.plateNumber.toLowerCase().includes(term) ||
@@ -938,7 +915,7 @@ export default function FleetStatusPage() {
             setIsModalOpen(true);
           }}
           onDelete={handleDeleteTruck}
-          isArchived={showArchived || selectedTruck.archived}
+          isArchived={showArchived}
           onRestore={handleRestoreTruck}
         />
         {changingStatus && (
@@ -1006,7 +983,7 @@ export default function FleetStatusPage() {
               onClick={() => setSelectedFilter("All")}
               className={`min-h-tap md:min-h-0 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${selectedFilter === "All" ? "bg-slate-900 text-white shadow-md shadow-slate-900/10" : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"}`}
             >
-              All ({showArchived ? archivedList.length : workingFleet.length})
+              All ({truckList.length})
             </button>
 
             {/* The archive is one list; the status pills belong to the fleet. */}
@@ -1085,11 +1062,6 @@ export default function FleetStatusPage() {
                               <span className="ml-1.5">· {truck.fuelTypeName}</span>
                             )}
                           </span>
-                          {truck.archived && !showArchived && (
-                            <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-200 text-slate-700 align-middle">
-                              Archived
-                            </span>
-                          )}
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
                           Last Checked: {truck.lastChecked ? formatDate(truck.lastChecked) : "Not recorded"}
