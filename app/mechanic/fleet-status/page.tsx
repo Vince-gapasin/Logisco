@@ -156,6 +156,7 @@ export default function MechanicFleetStatusPage({
     lastChecked: truck.lastChecked ?? "",
     status: truck.truckStatus || "Available",
     booking: truck.currentTrip ?? null,
+    archived: truck.isActive === false,
   });
 
   // Kept in the order the server sends: most recently checked first. This used
@@ -282,6 +283,8 @@ export default function MechanicFleetStatusPage({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     void fetchTrucks();
+    // The archive too: the Out of Service filter lists every disabled truck.
+    void fetchArchived();
     void fetchLogs();
     void fetchMechanics();
     // Once, when the screen opens.
@@ -479,7 +482,7 @@ export default function MechanicFleetStatusPage({
       const archived = fleetList.find((t) => String(t.id) === String(id));
       setFleetList((prev) => prev.filter((t) => String(t.id) !== String(id)));
       if (archived) {
-        setArchivedList((prev) => [{ ...archived, status: "Out of Service" }, ...prev]);
+        setArchivedList((prev) => [{ ...archived, status: "Out of Service", archived: true }, ...prev]);
       }
       setSelectedTruck(null);
       showToast("Truck archived. It can be restored from Archived Trucks.", "success");
@@ -612,8 +615,13 @@ export default function MechanicFleetStatusPage({
   // "Already Booked" is not stored either: a truck on a booking is "On
   // Delivery" on its record, and this list calls it booked until the crew
   // starts the trip.
-  const activeFleet = fleetList;
+  //
+  // A disabled truck - Out of Service, or archived - is not part of the working
+  // fleet, so it is left out of All and the other tabs. Out of Service lists
+  // every one of them; Archived Trucks lists the archived ones on their own.
   const disabledFleet = archivedList;
+  const activeFleet = fleetList.filter((t) => t.status !== "Out of Service");
+  const allDisabled = [...fleetList.filter((t) => t.status === "Out of Service"), ...archivedList];
   const shownStatus = (t: TruckRecord) => shownTruckStatus(t.status, t.booking);
 
   const totalCount = activeFleet.length;
@@ -629,13 +637,15 @@ export default function MechanicFleetStatusPage({
   const maintenanceCount = activeFleet.filter(
     (t) => t.status === "On Maintenance",
   ).length;
-  const outOfServiceCount = activeFleet.filter(
-    (t) => t.status === "Out of Service",
-  ).length;
+  const outOfServiceCount = allDisabled.length;
   const disabledCount = disabledFleet.length;
 
   // Swap to the disabled array if the Archive view is toggled on
-  const baseFleet = showArchived ? disabledFleet : activeFleet;
+  const baseFleet = showArchived
+    ? disabledFleet
+    : selectedFilter === "Out of Service"
+      ? allDisabled
+      : activeFleet;
 
   const filteredFleet = baseFleet.filter((truck) => {
     const term = searchTerm.toLowerCase();
@@ -645,7 +655,9 @@ export default function MechanicFleetStatusPage({
       (truck.booking?.orderCode ?? "").toLowerCase().includes(term) ||
       (truck.booking?.clientName ?? "").toLowerCase().includes(term);
     const matchesTab =
+      showArchived ||
       selectedFilter === "All" ||
+      selectedFilter === "Out of Service" ||
       shownStatus(truck).toLowerCase() === selectedFilter.toLowerCase();
     return matchesSearch && matchesTab;
   });
@@ -729,7 +741,7 @@ export default function MechanicFleetStatusPage({
             setEditingTruck(truckRecord);
             setIsModalOpen(true);
           }}
-          isArchived={showArchived}
+          isArchived={showArchived || Boolean(selectedTruck.archived)}
           onArchiveClick={() => setTruckToDelete(selectedTruck.id)}
           onRestoreClick={() => void handleRestoreTruck(selectedTruck.id)}
           onUpdateStatusClick={() => {
@@ -900,6 +912,11 @@ export default function MechanicFleetStatusPage({
                               <span className="text-xs text-slate-500 font-normal ml-1 sm:ml-2">
                                 — {truck.truckType}
                               </span>
+                              {truck.archived && !showArchived && (
+                                <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-200 text-slate-700 align-middle">
+                                  Archived
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-500 mt-1">
                               Last Checked:{" "}
