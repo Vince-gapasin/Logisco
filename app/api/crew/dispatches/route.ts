@@ -12,6 +12,7 @@ import type {
 import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
 import { formatTime } from "@/app/lib/datetime";
+import { FORMER_TRUCK_COLUMNS, truckOf } from "@/app/lib/formerTruck";
 import { describeItems, quantityOf, readPriority, totalQuantity } from "@/app/lib/crewTrip";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
 
@@ -29,6 +30,7 @@ const DISPATCH_SELECT = `
     OrderDetails ( productName, quantity ),
     BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
     PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
+  ${FORMER_TRUCK_COLUMNS},
   Truck ( plateNumber, model ),
   Driver:Employee!driverID ( employeeName ),
   DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) )
@@ -162,7 +164,7 @@ export async function GET(request: Request) {
     const formattedData = allRawDispatches.map((dispatch) => {
       const order = Array.isArray(dispatch.Order) ? dispatch.Order[0] : (dispatch.Order || {});
       const client = Array.isArray(order.Client) ? order.Client[0] : (order.Client || {});
-      const truck = Array.isArray(dispatch.Truck) ? dispatch.Truck[0] : (dispatch.Truck || {});
+      const truck = truckOf(dispatch) ?? {};
       const items = Array.isArray(order.OrderDetails) ? order.OrderDetails : [];
       const driverRow = Array.isArray(dispatch.Driver) ? dispatch.Driver[0] : dispatch.Driver;
       // Everyone else on the trip by name. The driver was told "Assigned

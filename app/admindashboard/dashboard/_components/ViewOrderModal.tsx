@@ -13,6 +13,7 @@ import type { DashboardBooking } from "./feeds";
 import { liveDispatchOf } from "@/app/lib/bookingView";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import { formatDate, formatDateTime } from "@/app/lib/datetime";
+import { truckOf } from "@/app/lib/formerTruck";
 
 // ==========================================
 // VIEW BOOKING MODAL (READ-ONLY)
@@ -97,7 +98,8 @@ export function ViewOrderModal({
     return Array.isArray(proofs) && proofs.length > 0;
   });
 
-  const dispatchTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
+  // The truck as it is, or as it was if it has since been deleted.
+  const dispatchTruck = truckOf(dispatchRecord);
   const dispatchDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
 
   const truck = dispatchTruck?.plateNumber || notes.match(/Truck:\s*(.*)/)?.[1] || "Unassigned";

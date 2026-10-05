@@ -51,6 +51,7 @@ import { ViewOrderModal } from "./_components/ViewOrderModal";
 import { ClientSearchModal } from "./_components/ClientSearchModal";
 import { SuccessModal } from "./_components/SuccessModal";
 import { formatDate, formatTime } from "@/app/lib/datetime";
+import { truckOf } from "@/app/lib/formerTruck";
 
 
 // ==========================================
@@ -188,7 +189,8 @@ export default function AdminDashboardPage() {
             /Subcontractor:\s*([^\n]*)/.exec(dispatchRecord?.dispatchNote || "")?.[1]?.trim() ||
             "Partner";
 
-          const tripTruck = Array.isArray(dispatchRecord?.Truck) ? dispatchRecord?.Truck[0] : dispatchRecord?.Truck;
+          // The truck as it is, or as it was if it has since been deleted.
+          const tripTruck = truckOf(dispatchRecord);
           const tripDriver = Array.isArray(dispatchRecord?.Driver) ? dispatchRecord?.Driver[0] : dispatchRecord?.Driver;
 
           const truck =

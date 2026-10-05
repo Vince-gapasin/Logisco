@@ -13,6 +13,7 @@ import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { toArrivalLabel } from "@/services/geo/routingService";
 import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedback/deliveryFeedbackService";
 import { liveDispatchOf } from "@/app/lib/bookingView";
+import { FORMER_TRUCK_COLUMNS, truckOf, type FormerTruck } from "@/app/lib/formerTruck";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
 // capability URL - anyone holding it can read this - so the payload is limited
@@ -768,7 +769,7 @@ async function reportedProblems(orderID: string): Promise<ReportedProblem[]> {
 
 
 // What this page reads off a trip, from the select above it.
-interface TrackedDispatch {
+interface TrackedDispatch extends FormerTruck {
   dispatchID?: string;
   status?: string | null;
   completedAt?: string | null;
@@ -842,7 +843,7 @@ export async function getTrackingByToken(
          POD ( receiverName, deliveredAt ) ),
        PickupStops ( pickupID, warehouseName, expectedTime, stopStatus, sequence, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status ),
-       DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate,
+       DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
          Truck ( plateNumber, model ),
          Employee!DispatchOrder_driverID_fkey ( employeeName, contact ),
          DispatchHelper ( status, Helper:Employee!helperID ( employeeName ) ) )`,
@@ -929,7 +930,7 @@ export async function getTrackingByToken(
     }
   }
 
-  const truck = first(dispatch?.Truck);
+  const truck = truckOf(dispatch);
   const driver = first(dispatch?.Employee);
   const client = first(order.Client as { company?: string | null; emailAdd?: string | null; contact?: string | null } | null);
 

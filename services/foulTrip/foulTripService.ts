@@ -31,6 +31,7 @@ import { signPodUrls } from "@/services/storage/podService";
 import { partnerColumns, partnerNote } from "@/services/subcon/partner";
 import { formatDateTime } from "@/app/lib/datetime";
 import { selectAll } from "@/app/lib/selectAll";
+import { truckOf, type FormerTruck } from "@/app/lib/formerTruck";
 
 export const INCIDENT_STATUS = {
   open: "open",
@@ -65,7 +66,7 @@ export class FoulTripError extends Error {
   }
 }
 
-export interface IncidentRow {
+export interface IncidentRow extends FormerTruck {
   incidentID: string;
   dispatchID: string;
   orderID: string;
@@ -135,6 +136,8 @@ async function toViews(rows: Record<string, unknown>[]): Promise<IncidentView[]>
     const order = first(row.Order as Embed<{ orderCode: string; Client: Embed<{ company: string }> }>);
     const newDispatch = first(row.NewDispatch as Embed<{ dispatchID: string; status: string | null; truckID: string | null }>);
     const incident = row as unknown as IncidentRow;
+    // The truck as it is, or as it was if it has since been deleted.
+    const truck = truckOf(row as FormerTruck & { Truck?: Embed<{ plateNumber: string; truckType: string | null }> });
     const trip = first(
       row.Trip as Embed<{ driverID: string | null; DispatchHelper: { helperID: string | null; status: string | null }[] | null }>,
     );
@@ -142,8 +145,8 @@ async function toViews(rows: Record<string, unknown>[]): Promise<IncidentView[]>
       ...incident,
       orderCode: order?.orderCode ?? null,
       clientName: first(order?.Client)?.company ?? null,
-      truckPlate: first(row.Truck as Embed<{ plateNumber: string }>)?.plateNumber ?? null,
-      truckType: first(row.Truck as Embed<{ truckType: string | null }>)?.truckType ?? null,
+      truckPlate: truck?.plateNumber ?? null,
+      truckType: truck?.truckType ?? null,
       originalDriverID: trip?.driverID ?? null,
       originalHelperIDs: (trip?.DispatchHelper ?? [])
         .filter((h) => h.helperID && h.status !== HELPER_STATUS.declined)
@@ -231,14 +234,19 @@ export async function getSummary(): Promise<FoulTripSummary> {
   type IncidentLite = {
     status: string; issueType: string; reportedAt: string; resolvedAt: string | null; resolution: string | null;
   };
-  type TripLite = { status: string; Truck: Embed<{ plateNumber: string }> };
+  type TripLite = FormerTruck & { status: string; Truck: Embed<{ plateNumber: string }> };
 
   const [rows, trips] = await Promise.all([
     selectAll<IncidentLite>((a, b) =>
       supabase.from("FoulTripIncident").select("status, issueType, reportedAt, resolvedAt, resolution").range(a, b),
     ),
     selectAll<TripLite>((a, b) =>
-      supabase.from("DispatchOrder").select("status, Truck ( plateNumber )").not("truckID", "is", null).range(a, b),
+      // Own trucks' trips, including those of trucks since deleted.
+      supabase
+        .from("DispatchOrder")
+        .select("status, formerTruckPlate, Truck ( plateNumber )")
+        .or("truckID.not.is.null,formerTruckPlate.not.is.null")
+        .range(a, b),
     ),
   ]);
   const live = rows.filter((r) => r.resolution !== RESOLUTION.historical);
@@ -255,7 +263,7 @@ export async function getSummary(): Promise<FoulTripSummary> {
   // of trips are left out: two failures in five trips is noise, not a pattern.
   const perTruck = new Map<string, { trips: number; foul: number }>();
   for (const t of trips) {
-    const plate = first(t.Truck)?.plateNumber;
+    const plate = truckOf(t)?.plateNumber;
     if (!plate) continue;
     const entry = perTruck.get(plate) ?? { trips: 0, foul: 0 };
     entry.trips++;
@@ -367,7 +375,7 @@ async function handOverRemainingStops(incident: IncidentRow, newDispatchID: stri
         : Promise.resolve({ data: null }),
     ]);
     const driver = first((dispatch as { Driver?: Embed<{ employeeName: string; contact: string }> } | null)?.Driver);
-    const plate = (truck as { plateNumber?: string } | null)?.plateNumber;
+    const plate = (truck as { plateNumber?: string } | null)?.plateNumber ?? incident.formerTruckPlate;
 
     const { error: pickupError } = await supabase.from("PickupStops").insert({
       orderID: incident.orderID,

@@ -1,5 +1,6 @@
 import { formatTime } from "@/app/lib/datetime";
 import { formatDate } from "@/app/lib/datetime";
+import { truckOf } from "@/app/lib/formerTruck";
 import type {
   BranchStopsRow,
   ClientRow,
@@ -256,7 +257,8 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
   // A driver's acceptance lives on the dispatch itself; each helper carries
   // their own status on their DispatchHelper row.
   const driver = firstRelated(liveDispatch?.Driver);
-  const truck = firstRelated(liveDispatch?.Truck);
+  // The truck as it is, or as it was if it has since been deleted.
+  const truck = truckOf(liveDispatch);
   const partner = firstRelated<{ companyName?: string | null }>(liveDispatch?.SubContractor);
   const partnerFromNote = /Subcontractor:\s*([^\n]*)/.exec(liveDispatch?.dispatchNote || "")?.[1]?.trim() || "";
   const isSubcon = Boolean(liveDispatch && (liveDispatch.subConID || (!liveDispatch.truckID && partnerFromNote)));

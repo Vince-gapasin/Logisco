@@ -145,6 +145,9 @@ export interface DispatchOrderRow {
   partnerDriver: string | null;
   partnerPlate: string | null;
   partnerContact: string | null;
+  formerTruckPlate: string | null;
+  formerTruckModel: string | null;
+  formerTruckType: string | null;
 }
 
 export interface EmployeeRow {
@@ -279,6 +282,9 @@ export interface FoulTripIncidentRow {
   newDispatchID: string | null;
   /** True when the trip could not continue (a foul trip). False for an issue reported while the delivery carried on. */
   blocking: boolean;
+  formerTruckPlate: string | null;
+  formerTruckModel: string | null;
+  formerTruckType: string | null;
 }
 
 export interface FuelPriceHistoryRow {
@@ -303,6 +309,8 @@ export interface HistoryLogsMRow {
   created_at: string | null;
   statusBefore: string | null;
   statusAfter: string | null;
+  plateNumber: string | null;
+  truckType: string | null;
 }
 
 export interface LogMechanicsRow {
