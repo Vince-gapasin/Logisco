@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTrackingByToken, isTrackingToken } from "@/services/tracking/publicTrackingService";
+import { getTrackingByToken, getTrackingVersion, isTrackingToken } from "@/services/tracking/publicTrackingService";
 
 // Public on purpose: the customer tracking link is a capability URL and its
 // holder is not a logged-in user. The token is a random UUID (see
@@ -16,13 +16,17 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 
   try {
+    // The fingerprint is taken before the delivery is read, never after: a
+    // change landing between the two then shows as a new version on the
+    // page's next check and is fetched, instead of being stamped as seen.
+    const version = await getTrackingVersion(token);
     const tracking = await getTrackingByToken(token);
 
     if (!("isExpired" in tracking) && !tracking.found) {
       return NextResponse.json({ message: "Tracking link not found" }, { status: 404 });
     }
 
-    return NextResponse.json(tracking, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ...tracking, version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("GET tracking error:", error);
     return NextResponse.json({ message: "Failed to load tracking details" }, { status: 500 });

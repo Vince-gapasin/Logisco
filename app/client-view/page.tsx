@@ -49,7 +49,15 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   loading: () => <div className="h-64 sm:h-80 w-full animate-pulse bg-slate-100" />,
 });
 
-const REFRESH_INTERVAL_MS = 30_000;
+// How often an open page asks whether anything has changed. The question is
+// small - a fingerprint, not the delivery - so it can be asked often; the
+// delivery itself is only fetched when the answer is yes. It was a full fetch
+// every thirty seconds, so a customer could wait half a minute to see the
+// crew had arrived.
+const CHECK_INTERVAL_MS = 5_000;
+// Fetched in full at least this often anyway, so the times the page works out
+// from the clock ("arriving around 2:40 PM") never go stale.
+const FULL_REFRESH_MS = 60_000;
 
 // What each step is about, so the line can be read without reading it.
 const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
@@ -97,6 +105,8 @@ interface TrackingStop {
 }
 
 interface TrackingData {
+  /** Fingerprint of what this payload shows, compared on each check. */
+  version?: string;
   isExpired: boolean;
   orderNumber: string;
   clientName: string | null;
@@ -293,6 +303,9 @@ function ClientTrackerView() {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const hasData = useRef(false);
+  const seenVersion = useRef<string | null>(null);
+  const fullAt = useRef(0);
+  const checking = useRef(false);
 
   const loadTracking = useCallback(async () => {
     if (!token) return;
@@ -314,6 +327,8 @@ function ClientTrackerView() {
 
       setData(result as TrackingData);
       hasData.current = true;
+      seenVersion.current = (result as TrackingData).version ?? null;
+      fullAt.current = Date.now();
       setUpdatedAt(Date.now());
       setRefreshFailed(false);
       setState("ready");
@@ -331,12 +346,49 @@ function ClientTrackerView() {
     void loadTracking();
   }, [loadTracking]);
 
-  // Keep polling while the delivery is still running, and only while the
-  // customer actually has the page open.
-  usePolling(loadTracking, REFRESH_INTERVAL_MS, {
-    enabled: state === "ready" && !data?.isCompleted,
-    immediate: false,
-  });
+  // Asks whether anything has changed, and fetches the delivery only if it
+  // has. One at a time: on a slow connection a check still waiting is not
+  // joined by another.
+  const checkForUpdates = useCallback(async () => {
+    if (!token || checking.current) return;
+    checking.current = true;
+    try {
+      if (Date.now() - fullAt.current >= FULL_REFRESH_MS) {
+        await loadTracking();
+        return;
+      }
+      const response = await fetch(`/api/track/${token}/version`, { cache: "no-store" });
+      if (!response.ok) {
+        // A link that has gone, or a failure: the full fetch knows how to say which.
+        await loadTracking();
+        return;
+      }
+      const { version } = (await response.json()) as { version?: string };
+      if (!version || version !== seenVersion.current) await loadTracking();
+      else {
+        setUpdatedAt(Date.now());
+        setRefreshFailed(false);
+      }
+    } catch {
+      if (hasData.current) setRefreshFailed(true);
+    } finally {
+      checking.current = false;
+    }
+  }, [token, loadTracking]);
+
+  // Keep checking while the delivery is still running, and only while the
+  // customer actually has the page open. Coming back to the tab checks at once.
+  const live = state === "ready" && !data?.isCompleted;
+  usePolling(checkForUpdates, CHECK_INTERVAL_MS, { enabled: live, immediate: false });
+
+  // A phone that loses signal and gets it back checks at once too, rather
+  // than waiting out the interval.
+  useEffect(() => {
+    if (!live) return;
+    const onOnline = () => void checkForUpdates();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [live, checkForUpdates]);
 
   // On a phone the status card scrolls away under the map and the history;
   // once it has, a slim bar takes its place at the top so the answer stays in

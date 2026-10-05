@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { supabase } from "@/app/lib/supabase";
 import {
   ACCEPTED_ONWARDS,
@@ -903,32 +904,36 @@ export async function getTrackingByToken(
     })
     .sort((a, b) => a.branchID - b.branchID);
 
-  // The route driven so far, for drawing the line on the map.
-  const trail = dispatch?.dispatchID ? await getDispatchTrail(dispatch.dispatchID) : [];
+  // Everything else is read at once rather than one after another: these do
+  // not depend on each other, and in a row they made every refresh wait on
+  // eight round trips to the database.
+  const dispatchID = dispatch?.dispatchID ?? null;
+  const [trail, stepTimes, planned, location, problems, heldUp, pickupProgressAt, feedback] = await Promise.all([
+    // The route driven so far, for drawing the line on the map.
+    dispatchID ? getDispatchTrail(dispatchID) : Promise.resolve([] as TrailPoint[]),
+    // When each step of this delivery actually happened.
+    getStepTimes(
+      order.orderID as string,
+      dispatches.map((trip) => trip.dispatchID).filter((id): id is string => Boolean(id)),
+    ),
+    dispatchID ? getDispatchRoute(dispatchID) : Promise.resolve(null),
+    dispatchID && !isCompleted
+      ? supabase
+          .from("FleetLocations")
+          .select("latitude, longitude, updated_at")
+          .eq("dispatch_id", dispatchID)
+          .maybeSingle()
+          .then(({ data }) => data)
+      : Promise.resolve(null),
+    reportedProblems(order.orderID),
+    heldUpUpdates(dispatchID),
+    lastPickupProgress(dispatchID),
+    getFeedbackInvitation(dispatchID, dispatch?.status ?? null),
+  ]);
 
-  // When each step of this delivery actually happened.
-  const stepTimes = await getStepTimes(
-    order.orderID as string,
-    dispatches.map((trip) => trip.dispatchID).filter((id): id is string => Boolean(id)),
-  );
-  const planned = dispatch?.dispatchID ? await getDispatchRoute(dispatch.dispatchID) : null;
-
-  let currentLocation: TrackingPayload["currentLocation"] = null;
-  if (dispatch?.dispatchID && !isCompleted) {
-    const { data: location } = await supabase
-      .from("FleetLocations")
-      .select("latitude, longitude, updated_at")
-      .eq("dispatch_id", dispatch.dispatchID)
-      .maybeSingle();
-
-    if (location) {
-      currentLocation = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        updatedAt: location.updated_at ?? null,
-      };
-    }
-  }
+  const currentLocation: TrackingPayload["currentLocation"] = location
+    ? { latitude: location.latitude, longitude: location.longitude, updatedAt: location.updated_at ?? null }
+    : null;
 
   const truck = truckOf(dispatch);
   const driver = first(dispatch?.Employee);
@@ -1028,10 +1033,6 @@ export async function getTrackingByToken(
     .filter(Boolean);
 
   const failedStops = stops.some((stop) => FAILED_STOP.test(stop.status));
-  const problems = await reportedProblems(order.orderID);
-  const heldUp = await heldUpUpdates(dispatch?.dispatchID ?? null);
-  const pickupProgressAt = await lastPickupProgress(dispatch?.dispatchID ?? null);
-  const feedback = await getFeedbackInvitation(dispatch?.dispatchID ?? null, dispatch?.status ?? null);
 
   return {
     found: true,
@@ -1071,4 +1072,58 @@ export async function getTrackingByToken(
       collection,
     ),
   };
+}
+
+/**
+ * A short fingerprint of everything the tracking page shows, so an open page
+ * can ask "has anything changed?" every few seconds without being sent the
+ * whole delivery each time.
+ *
+ * The full payload is about ten reads - the route, the GPS trail, the audit
+ * trail, the check-ins - and it was fetched every thirty seconds whether
+ * anything had moved or not, which is why a customer could wait half a minute
+ * to see "Crew at your stop". This is three reads, run together: the booking
+ * with its stops and trips, the truck's last GPS fix, and the crew's last
+ * check-in. Anything the page shows changes one of them.
+ *
+ * Returns null for a link that does not exist.
+ */
+export async function getTrackingVersion(token: string): Promise<string | null> {
+  const { data: order, error } = await supabase
+    .from("Order")
+    .select(
+      `orderID, isActive,
+       BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( receiverName, deliveredAt ) ),
+       PickupStops ( pickupID, stopStatus, arrivedAt, completedAt ),
+       FoulTripIncident ( dispatchID, status, resolvedAt ),
+       DispatchOrder ( dispatchID, status, completedAt, truckID, driverID, subConID, partnerDriver, partnerPlate,
+         DispatchHelper ( helperID, status ) )`,
+    )
+    .eq("orderLinkToken", token)
+    .maybeSingle();
+
+  if (error) throw new Error(`Supabase tracking version error: ${error.message}`);
+  if (!order) return null;
+
+  const dispatches = (
+    Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [order.DispatchOrder]
+  ).filter(Boolean) as TrackedDispatch[];
+  const live = liveDispatchOf(dispatches);
+  const dispatchID = live?.dispatchID ?? null;
+
+  const [location, checkIn] = dispatchID
+    ? await Promise.all([
+        supabase.from("FleetLocations").select("updated_at").eq("dispatch_id", dispatchID).maybeSingle(),
+        supabase
+          .from("StallCheckIn")
+          .select("createdAt")
+          .eq("dispatchID", dispatchID)
+          .order("createdAt", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
+    : [null, null];
+
+  const fingerprint = JSON.stringify([order, location?.data?.updated_at ?? null, checkIn?.data?.createdAt ?? null]);
+  return createHash("sha1").update(fingerprint).digest("base64url").slice(0, 16);
 }
