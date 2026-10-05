@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import TimePicker from "@/components/TimePicker";
 import { usePolling } from "@/app/lib/usePolling";
 import type { SubconStopView, SubconTripView } from "@/services/subcon/subconService";
 
@@ -24,9 +25,11 @@ import type { SubconStopView, SubconTripView } from "@/services/subcon/subconSer
 const MIN_REASON = 10;
 const ISSUES = ["Broken Truck", "Accident", "Severe Traffic", "Client Rejected", "Other"];
 
-// datetime-local wants local time without a zone.
-const localNow = () => {
+// Local "YYYY-MM-DDTHH:mm", without a zone. Rounded down to the quarter hour,
+// the only minutes the time picker offers.
+const localNow = (quarter = false) => {
   const d = new Date();
+  if (quarter) d.setMinutes(d.getMinutes() - (d.getMinutes() % 15));
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 16);
 };
@@ -35,6 +38,26 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-PH"
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50";
 const label = "block text-xs font-semibold text-slate-700 mb-1";
+
+// A past moment as a date box and the quarter-hour time picker, joined back
+// into "YYYY-MM-DDTHH:mm". Nothing later than now can be chosen.
+function WhenField({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+  const [date, time = ""] = value.split("T");
+  const [today, nowTime] = localNow().split("T");
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+      <input
+        id={id}
+        type="date"
+        value={date}
+        max={today}
+        onChange={(e) => e.target.value && onChange(`${e.target.value}T${time}`)}
+        className={field}
+      />
+      <TimePicker value={time} onChange={(t) => onChange(`${date}T${t}`)} max={date === today ? nowTime : undefined} />
+    </div>
+  );
+}
 
 async function postForm(dispatchID: string, form: FormData) {
   return apiFetch(`/api/subcon-trips/${dispatchID}`, { method: "POST", body: form });
@@ -79,7 +102,7 @@ function DeliveryForm({ dispatchID, stop, onSaved }: { dispatchID: string; stop:
   const [noProof, setNoProof] = useState(false);
   const [reason, setReason] = useState("");
   const [receiver, setReceiver] = useState("");
-  const [deliveredAt, setDeliveredAt] = useState(localNow());
+  const [deliveredAt, setDeliveredAt] = useState(localNow(true));
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -155,14 +178,7 @@ function DeliveryForm({ dispatchID, stop, onSaved }: { dispatchID: string; stop:
         </div>
         <div>
           <label className={label} htmlFor={`at-${stop.branchID}`}>Delivered at *</label>
-          <input
-            id={`at-${stop.branchID}`}
-            type="datetime-local"
-            value={deliveredAt}
-            max={localNow()}
-            onChange={(e) => setDeliveredAt(e.target.value)}
-            className={field}
-          />
+          <WhenField id={`at-${stop.branchID}`} value={deliveredAt} onChange={setDeliveredAt} />
         </div>
       </div>
       <div>
@@ -202,7 +218,7 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
   const [loadError, setLoadError] = useState("");
   const [openStop, setOpenStop] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
-  const [pickupAt, setPickupAt] = useState(localNow());
+  const [pickupAt, setPickupAt] = useState(localNow(true));
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [showProblem, setShowProblem] = useState(false);
@@ -328,9 +344,9 @@ function SubconTrip({ dispatchID, onClose, onChanged }: SubconTripModalProps & {
                   <p className="mt-2 text-sm text-emerald-700">Picked up {when(trip.pickedUpAt)}</p>
                 ) : active ? (
                   <div className="mt-3 flex flex-col sm:flex-row sm:items-end gap-2">
-                    <div className="sm:w-60">
+                    <div className="sm:w-80">
                       <label className={label} htmlFor="pickup-at">Picked up at</label>
-                      <input id="pickup-at" type="datetime-local" value={pickupAt} max={localNow()} onChange={(e) => setPickupAt(e.target.value)} className={field} />
+                      <WhenField id="pickup-at" value={pickupAt} onChange={setPickupAt} />
                     </div>
                     <button
                       type="button"

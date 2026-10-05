@@ -43,6 +43,18 @@ export function isValidClockTime(value: string | null | undefined): boolean {
   return CLOCK_PATTERN.test((value ?? "").trim());
 }
 
+// New schedules are booked on the quarter hour - :00, :15, :30, :45 - which is
+// all the time picker offers. Checked separately from CLOCK_RULE so a booking
+// made before the rule, at 08:10, is still a valid time wherever it is read.
+export const QUARTER_HOUR_RULE = "Pick :00, :15, :30 or :45";
+export const QUARTER_MINUTES = [0, 15, 30, 45] as const;
+
+export function isQuarterHour(value: string | null | undefined): boolean {
+  if (!isValidClockTime(value)) return false;
+  const [, m, s = "00"] = (value ?? "").trim().split(":");
+  return Number(m) % 15 === 0 && s === "00";
+}
+
 export const MIN_QUANTITY = 1;
 
 /** Keeps a quantity box to whole, positive numbers while typing. */

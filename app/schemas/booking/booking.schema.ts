@@ -2,10 +2,12 @@ import { z } from "zod";
 import { todayInManila } from "@/app/lib/datetime";
 import {
   CLOCK_RULE,
+  isQuarterHour,
   isValidClockTime,
   MIN_QUANTITY,
   normalizePhone,
   PHONE_RULE,
+  QUARTER_HOUR_RULE,
 } from "@/app/lib/bookingRules";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
@@ -64,7 +66,13 @@ const isoDate = z
 // Seconds are allowed because the database returns "08:00:00" and an edit
 // round-trips what it was given. The rule itself lives in bookingRules, so the
 // booking form and this schema cannot drift apart about what a time is.
-const clockTime = z.string().trim().refine(isValidClockTime, CLOCK_RULE);
+// Stop times are only ever set here, on a new booking, so the quarter-hour rule
+// cannot catch an older booking's 08:10 - nothing sends it back.
+const clockTime = z
+  .string()
+  .trim()
+  .refine(isValidClockTime, CLOCK_RULE)
+  .refine((value) => !isValidClockTime(value) || isQuarterHour(value), QUARTER_HOUR_RULE);
 
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();

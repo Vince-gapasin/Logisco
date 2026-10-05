@@ -16,14 +16,17 @@ import {
   addressKey,
   CLOCK_RULE,
   findAddressClashes,
+  isQuarterHour,
   isValidClockTime,
   normalizePhone,
   parseQuantity,
   PHONE_RULE,
+  QUARTER_HOUR_RULE,
   sanitizePhoneInput,
   sanitizeQuantityInput,
 } from "@/app/lib/bookingRules";
 import SelectMenu from "@/components/SelectMenu";
+import TimePicker from "@/components/TimePicker";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
 import { todayInManila } from "@/app/lib/datetime";
@@ -417,6 +420,10 @@ function BookingForm({
       if (!value.trim()) next[key] = "Required";
       else if (parseQuantity(value) === null) next[key] = "At least 1";
     };
+    const clock = (key: string, value: string) => {
+      if (!isValidClockTime(value)) next[key] = CLOCK_RULE;
+      else if (!isQuarterHour(value)) next[key] = QUARTER_HOUR_RULE;
+    };
 
     if (!formData.clientName.trim()) next.clientName = "Company / client name is required.";
     if (!formData.contactPerson.trim()) next.contactPerson = "Contact person is required.";
@@ -430,7 +437,7 @@ function BookingForm({
       if (!p.warehouseAddress.trim()) next[`pickup_${i}_warehouseAddress`] = "Required";
       if (!p.contactPerson.trim()) next[`pickup_${i}_contactPerson`] = "Required";
       phone(`pickup_${i}_contactNumber`, p.contactNumber);
-      if (!isValidClockTime(p.pickupTime)) next[`pickup_${i}_pickupTime`] = CLOCK_RULE;
+      clock(`pickup_${i}_pickupTime`, p.pickupTime);
       quantity(`pickup_${i}_quantity`, p.quantity);
     });
     deliveryList.forEach((d, i) => {
@@ -438,7 +445,7 @@ function BookingForm({
       if (!d.deliveryAddress.trim()) next[`delivery_${i}_deliveryAddress`] = "Required";
       if (!d.contactPerson.trim()) next[`delivery_${i}_contactPerson`] = "Required";
       phone(`delivery_${i}_contactNumber`, d.contactNumber);
-      if (!isValidClockTime(d.deliveryTime)) next[`delivery_${i}_deliveryTime`] = CLOCK_RULE;
+      clock(`delivery_${i}_deliveryTime`, d.deliveryTime);
       quantity(`delivery_${i}_quantity`, d.quantity);
     });
 
@@ -778,12 +785,11 @@ function BookingForm({
                           <CellError message={errors[`pickup_${idx}_contactNumber`] && "11 digits, starting 09"} />
                         </td>
                         <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Pick Up Time *</span>
-                          <input
-                            type="time"
+                          <TimePicker
+                            size="cell"
                             value={row.pickupTime}
-                            onChange={(e) => handlePickupChange(idx, "pickupTime", e.target.value)}
-                            aria-invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
-                            className={cellClass(Boolean(errors[`pickup_${idx}_pickupTime`]))}
+                            onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
+                            invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
                           />
                           <CellError message={errors[`pickup_${idx}_pickupTime`]} />
                         </td>
@@ -898,12 +904,11 @@ function BookingForm({
                           <CellError message={errors[`delivery_${idx}_contactNumber`] && "11 digits, starting 09"} />
                         </td>
                         <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Delivery Time *</span>
-                          <input
-                            type="time"
+                          <TimePicker
+                            size="cell"
                             value={row.deliveryTime}
-                            onChange={(e) => handleDeliveryChange(idx, "deliveryTime", e.target.value)}
-                            aria-invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
-                            className={cellClass(Boolean(errors[`delivery_${idx}_deliveryTime`]))}
+                            onChange={(v) => handleDeliveryChange(idx, "deliveryTime", v)}
+                            invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
                           />
                           <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
                         </td>

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
-import { CLOCK_RULE } from "@/app/lib/bookingRules";
+import { CLOCK_RULE, isQuarterHour, QUARTER_HOUR_RULE } from "@/app/lib/bookingRules";
 import { minutesUntil } from "@/app/lib/datetime";
 
 // What the server will accept as a delivery date and a stop time.
@@ -92,7 +92,7 @@ describe("the time a stop is expected", () => {
   it("has to be a clock", () => {
     at(NOW);
     expect(stopWith("08:00").success).toBe(true);
-    expect(stopWith("23:59").success).toBe(true);
+    expect(stopWith("23:45").success).toBe(true);
     // What the database hands back when a time is read and sent again.
     expect(stopWith("08:00:00").success).toBe(true);
   });
@@ -126,6 +126,26 @@ describe("the time a stop is expected", () => {
     expect(pickup("").success).toBe(true);
     expect(pickup("06:30").success).toBe(true);
     expect(pickup("whenever").success).toBe(false);
+    expect(pickup("06:20").success).toBe(false);
+  });
+
+  it("is booked on the quarter hour", () => {
+    // :00, :15, :30 and :45 are all the time picker offers.
+    at(NOW);
+    for (const quarter of ["00:00", "08:15", "13:30", "23:45", "08:00:00"]) {
+      expect(stopWith(quarter).success, `refused ${quarter}`).toBe(true);
+    }
+    const result = stopWith("08:10");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].message).toBe(QUARTER_HOUR_RULE);
+  });
+
+  it("does not call an older booking's 08:10 an invalid clock", () => {
+    // Bookings made before the rule keep their times; only new ones are held to it.
+    expect(isQuarterHour("08:10")).toBe(false);
+    expect(isQuarterHour("08:15:30")).toBe(false);
+    expect(isQuarterHour("banana")).toBe(false);
   });
 });
 

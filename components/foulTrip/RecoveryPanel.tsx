@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
+import TimePicker from "@/components/TimePicker";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import { todayInManila } from "@/app/lib/datetime";
 
@@ -362,7 +363,7 @@ export default function RecoveryPanel({
                   </div>
                   <div>
                     <label className={label} htmlFor="rt-time">Time (optional)</label>
-                    <input id="rt-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={field} />
+                    <TimePicker id="rt-time" value={time} onChange={setTime} placeholder="Any time" allowClear />
                   </div>
                 </>
               )}
