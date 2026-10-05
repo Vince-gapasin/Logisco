@@ -298,6 +298,7 @@ const ACTION_LABELS: Record<string, string> = {
   UPDATE: "Edited",
   RETIRE: "Disabled",
   RESTORE: "Restored",
+  DELETE: "Deleted",
 };
 
 const shown = (value: unknown): string | null =>
@@ -368,6 +369,30 @@ export async function getTruckChanges(truckID: string): Promise<TruckChange[]> {
       reason,
     };
   });
+}
+
+/**
+ * Removes a disabled truck for good.
+ *
+ * Only from the Archive: a truck still in the fleet is refused here, not just
+ * hidden on the screen, so it has to be disabled first - which itself refuses a
+ * truck out on a delivery. Its trips, breakdowns and maintenance logs stay:
+ * their foreign keys let go of it, and a trigger on Truck copies its plate,
+ * model and type onto them first (migrations 20261005020000-040000).
+ *
+ * Returns the truck as it was, or null when there is no disabled truck by that id.
+ */
+export async function purgeTruck(id: string): Promise<Truck | null> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("truckID", id)
+    .eq("isActive", false)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as Truck | null;
 }
 
 /**

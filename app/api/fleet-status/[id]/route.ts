@@ -7,6 +7,7 @@ import {
   deleteTruck,
   getCurrentTrip,
   getTruckById,
+  purgeTruck,
   restoreTruck,
   toTruckPayload,
   updateTruck,
@@ -168,9 +169,69 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
 // Soft delete: trucks are referenced by dispatches and maintenance logs,
 // so the row is deactivated rather than removed.
+//
+// ?permanent=true deletes a truck that is already disabled, for good. Its
+// trips, breakdowns and maintenance logs are kept and still name it.
 export async function DELETE(request: Request, { params }: RouteContext) {
   const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
+
+  if (new URL(request.url).searchParams.get("permanent") === "true") {
+    try {
+      const { id } = await params;
+      const current = await getTruckById(id);
+      if (!current) {
+        return NextResponse.json({ message: "Truck not found" }, { status: 404 });
+      }
+      if (current.isActive !== false) {
+        return NextResponse.json(
+          { message: "Only a disabled truck can be deleted. Disable it first; it then appears in the Archive." },
+          { status: 409 },
+        );
+      }
+      // Disabling refuses a truck on a delivery, but a trip could still hold
+      // one disabled before that rule existed.
+      const trip = await getCurrentTrip(id);
+      if (trip) {
+        return NextResponse.json(
+          { message: `This truck is still on booking ${trip.orderCode ?? ""} (${trip.status}). It can be deleted once that trip is finished.` },
+          { status: 409 },
+        );
+      }
+
+      const truck = await purgeTruck(id);
+      if (!truck) {
+        return NextResponse.json({ message: "Truck not found among the disabled trucks" }, { status: 404 });
+      }
+
+      // The truck's change history is kept in the audit trail by its id, so
+      // this entry records what it was.
+      await recordAudit({
+        table: "Truck",
+        recordID: id,
+        action: "DELETE",
+        actor: auditActor(auth),
+        before: {
+          plateNumber: truck.plateNumber,
+          truckCode: truck.truckCode ?? null,
+          truckType: truck.truckType,
+          model: truck.model ?? null,
+          truckStatus: truck.truckStatus,
+        },
+        after: null,
+      });
+
+      return new NextResponse(null, { status: 204 });
+    } catch (error) {
+      console.error("PURGE truck error:", error);
+      // Something still pointing at the truck without letting go of it.
+      const isReferenced = (error as { code?: string })?.code === "23503";
+      return NextResponse.json(
+        { message: isReferenced ? "This truck is still referenced by other records and cannot be deleted." : "Failed to delete truck" },
+        { status: isReferenced ? 409 : 500 },
+      );
+    }
+  }
 
   try {
     const { id } = await params;

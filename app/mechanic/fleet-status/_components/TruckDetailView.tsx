@@ -12,6 +12,7 @@ import {
   History as HistoryIcon,
   Wrench,
   Ban,
+  Trash2,
 } from "lucide-react";
 import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { HistoryLogRecord, TruckRecord } from "./types";
@@ -27,10 +28,12 @@ interface TruckDetailViewProps {
   logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
-  /** Opened from the Archive: the only thing to do with it is restore it. */
+  /** Opened from the Archive: the only things to do with it are restore it or delete it. */
   isArchived: boolean;
   onArchiveClick: () => void;
   onRestoreClick: () => void;
+  /** Deletes it for good - offered only in the Archive. */
+  onDeleteClick: () => void;
   onUpdateStatusClick: () => void;
   onHistoryClick: () => void;
   onLogMaintenanceClick: () => void;
@@ -45,6 +48,7 @@ export function TruckDetailView({
   isArchived,
   onArchiveClick,
   onRestoreClick,
+  onDeleteClick,
   onUpdateStatusClick,
   onHistoryClick,
   onLogMaintenanceClick,
@@ -154,11 +158,15 @@ export function TruckDetailView({
           {/* History is always there. Edit and Disable only for whoever may
               work on the truck. Disable keeps the truck's history (it is then
               listed in the Archive), and not while it is out on a
-              delivery - the server refuses that too. */}
+              delivery - the server refuses that too. Delete is only for a
+              truck already in the Archive. */}
           <MoreActionsMenu
             label={`More actions for ${truck.plateNumber}`}
             actions={[
               { label: "History", icon: HistoryIcon, onSelect: onHistoryClick },
+              ...(isArchived
+                ? [{ label: "Delete Truck", icon: Trash2, danger: true, separated: true, onSelect: onDeleteClick }]
+                : []),
               ...(!isArchived && (!isUnderMaintenance || hasMechanicAccess)
                 ? [
                     { label: "Edit Truck", icon: Edit3, onSelect: () => onEdit(truck) },

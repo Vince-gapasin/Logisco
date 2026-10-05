@@ -33,6 +33,7 @@ import {
   Edit3,
   Wrench,
   Ban,
+  Trash2,
   Archive as ArchiveIcon,
   RotateCcw,
   AlertTriangle,
@@ -41,6 +42,7 @@ import {
   ClipboardList,
   ClipboardCheck,
 } from "lucide-react";
+import DeleteTruckModal from "@/components/truck/DeleteTruckModal";
 
 import type {
   Truck as ApiTruck,
@@ -468,9 +470,11 @@ interface TruckDetailViewProps {
   onEdit: (truckRecord: TruckRecord) => void;
   /** Retires it: the server's soft delete, which keeps its history. */
   onDelete: (id: string) => Promise<void>;
-  /** Opened from the archive, where the only action is to bring it back. */
+  /** Opened from the archive, where it can be brought back or deleted for good. */
   isArchived: boolean;
   onRestore: (id: string) => Promise<void>;
+  /** Deletes it for good - offered only in the archive. */
+  onPurge: (id: string) => Promise<void>;
   /** Opens this truck's repair history, as the mechanic's module does. */
   onHistory: () => void;
   /** Takes it off the road or puts it back, when the mechanic cannot. */
@@ -491,6 +495,7 @@ function TruckDetailView({
   onDelete,
   isArchived,
   onRestore,
+  onPurge,
   onHistory,
   onStatus,
   repair,
@@ -502,6 +507,7 @@ function TruckDetailView({
   const isGrounded = truck.status === "On Maintenance" || truck.status === "Out of Service";
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
 
   // Disabled in the Archive, whatever status it was left with.
   const shownStatus = isArchived ? "Disabled" : shownTruckStatus(truck.status, trip);
@@ -607,7 +613,7 @@ function TruckDetailView({
             actions={[
               { label: "History", icon: HistoryIcon, onSelect: onHistory },
               ...(isArchived
-                ? []
+                ? [{ label: "Delete Truck", icon: Trash2, danger: true, separated: true, onSelect: () => setShowPurgeModal(true) }]
                 : [
                     { label: "Edit Truck", icon: Edit3, onSelect: () => onEdit(truck) },
                     { label: "Disable Truck", icon: Ban, danger: true, separated: true, onSelect: () => setShowDeleteModal(true) },
@@ -681,6 +687,14 @@ function TruckDetailView({
           <CurrentRepairSections repair={repair} show={isGrounded && !isArchived} />
         </div>
       </div>
+
+      {showPurgeModal && (
+        <DeleteTruckModal
+          plateNumber={truck.plateNumber}
+          onCancel={() => setShowPurgeModal(false)}
+          onConfirm={() => onPurge(truck.id)}
+        />
+      )}
 
       {showDeleteModal && (
         <div className="fixed inset-0 overflow-y-auto z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -964,6 +978,19 @@ export default function FleetStatusPage() {
     }
   };
 
+  // Deleting for good, from the archive. Its trips and maintenance logs stay
+  // and keep its plate; only the truck itself goes.
+  const handlePurgeTruck = async (id: string) => {
+    try {
+      await apiFetch(`/api/fleet-status/${id}?permanent=true`, { method: "DELETE" });
+      setSelectedTruck(null);
+      showToast("Truck deleted. Its trips and maintenance history are kept.");
+      await fetchTrucks();
+    } catch (error) {
+      showToast(getErrorMessage(error), "error");
+    }
+  };
+
   const handleRestoreTruck = async (id: string) => {
     try {
       await apiFetch(`/api/fleet-status/${id}`, {
@@ -1054,6 +1081,7 @@ export default function FleetStatusPage() {
           onDelete={handleDeleteTruck}
           isArchived={showArchived}
           onRestore={handleRestoreTruck}
+          onPurge={handlePurgeTruck}
           repair={selectedRepair}
           onMaintenanceUpdate={() =>
             setLogForm({ type: selectedRepair.inProgress ? "update" : "inspection", pending: null })

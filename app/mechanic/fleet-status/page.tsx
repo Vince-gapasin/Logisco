@@ -29,6 +29,7 @@ import { formatDisplayDate } from "./_components/dates";
 import { TruckModal } from "./_components/TruckModal";
 import { LogMaintenanceModal } from "./_components/LogMaintenanceModal";
 import { useLogPhotos } from "./_components/useLogPhotos";
+import DeleteTruckModal from "@/components/truck/DeleteTruckModal";
 
 
 // ==========================================
@@ -97,6 +98,8 @@ export default function MechanicFleetStatusPage({
   const [truckToDelete, setTruckToDelete] = useState<string | number | null>(
     null,
   );
+  // The archived truck being deleted for good, while its confirmation is open.
+  const [truckToPurge, setTruckToPurge] = useState<TruckRecord | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<TruckRecord | null>(null);
@@ -492,6 +495,25 @@ export default function MechanicFleetStatusPage({
     }
   };
 
+  // Deleting for good, from the Archive. The truck's trips and maintenance
+  // logs stay and keep its plate; only the truck itself goes.
+  const handlePurgeTruck = async (id: string | number) => {
+    try {
+      const response = await authFetch(`/api/fleet-status/${id}?permanent=true`, { method: "DELETE" });
+      if (!response.ok) {
+        showToast(await serverMessage(response, "Failed to delete the truck."), "error");
+        return;
+      }
+      setArchivedList((prev) => prev.filter((t) => String(t.id) !== String(id)));
+      setSelectedTruck(null);
+      setTruckToPurge(null);
+      showToast("Truck deleted. Its trips and maintenance history are kept.", "success");
+    } catch (error) {
+      console.error("Error deleting truck:", error);
+      showToast("Error deleting the truck.", "error");
+    }
+  };
+
   const handleRestoreTruck = async (id: string | number) => {
     try {
       const response = await authFetch(`/api/fleet-status/${id}`, {
@@ -735,6 +757,7 @@ export default function MechanicFleetStatusPage({
           isArchived={showArchived}
           onArchiveClick={() => setTruckToDelete(selectedTruck.id)}
           onRestoreClick={() => void handleRestoreTruck(selectedTruck.id)}
+          onDeleteClick={() => setTruckToPurge(selectedTruck)}
           onUpdateStatusClick={() => {
             setStatusConfirmTruck(selectedTruck);
             setPendingStatusTarget("");
@@ -1099,6 +1122,14 @@ export default function MechanicFleetStatusPage({
         inheritedAdditionalMechanicID={inheritedAdditionalMechanicID}
         isSaving={isSavingLog}
       />
+
+      {truckToPurge && (
+        <DeleteTruckModal
+          plateNumber={truckToPurge.plateNumber}
+          onCancel={() => setTruckToPurge(null)}
+          onConfirm={() => handlePurgeTruck(truckToPurge.id)}
+        />
+      )}
 
       {truckToDelete && (
         <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
