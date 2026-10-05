@@ -49,14 +49,25 @@ export function toFileSlug(value: string): string {
     .slice(0, 60);
 }
 
+export interface DetailItem {
+  label: string;
+  value: string;
+  /** Takes the whole row, for a value too long to share one: an address, a note. */
+  wide?: boolean;
+}
+
 export interface ReportBuilder {
   /** A heading, with the room the thing after it needs so it is not orphaned. */
   section(title: string, subtitle?: string, keepWithNext?: number): void;
+  /** A smaller heading inside a section, with a rule above it. */
+  subsection(title: string, aside?: string): void;
+  /** Labelled values in a grid, a label over each value, wrapped to fit. */
+  details(items: DetailItem[], columns?: number): void;
   /** A line of prose, wrapped to the content width. */
   paragraph(text: string, options?: { muted?: boolean }): void;
   /** Label-and-value pairs across the page, for a summary. */
   figures(pairs: { label: string; value: string }[]): void;
-  /** A table that repeats its header on every page it runs on to. */
+  /** A table that repeats its header on every page it runs on to. Cells wrap. */
   table(columns: Column[], rows: string[][]): void;
   /** Numbers every page and hands the file to the browser. */
   save(filename: string): void;
@@ -144,6 +155,70 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
       y += lines.length * 4.4 + 2;
     },
 
+    subsection(title, aside) {
+      ensureSpace(22);
+      y += 1;
+      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+      pdf.line(margin, y, margin + contentWidth, y);
+      y += 5;
+      setText(INK, 10, "bold");
+      pdf.text(toPdfText(title), margin, y);
+      if (aside) {
+        setText(MUTED, 8.5);
+        pdf.text(toPdfText(aside), margin + contentWidth, y, { align: "right" });
+      }
+      y += 5;
+    },
+
+    details(items, columns = 2) {
+      const cellWidth = contentWidth / columns;
+      const lineHeight = 4;
+
+      // Laid out a row at a time, so a row is as tall as its tallest value
+      // and the next one starts under all of it.
+      const rows: DetailItem[][] = [];
+      let current: DetailItem[] = [];
+      for (const item of items) {
+        if (item.wide) {
+          if (current.length) rows.push(current);
+          rows.push([item]);
+          current = [];
+          continue;
+        }
+        current.push(item);
+        if (current.length === columns) {
+          rows.push(current);
+          current = [];
+        }
+      }
+      if (current.length) rows.push(current);
+
+      for (const row of rows) {
+        setText(INK, 9.5);
+        const wrapped = row.map(
+          (item) =>
+            pdf.splitTextToSize(
+              toPdfText(item.value || "-"),
+              (item.wide ? contentWidth : cellWidth) - 4,
+            ) as string[],
+        );
+        const height = 4 + Math.max(...wrapped.map((lines) => lines.length)) * lineHeight + 2.5;
+        ensureSpace(height);
+
+        row.forEach((item, index) => {
+          const left = margin + index * cellWidth;
+          setText(MUTED, 7.5);
+          pdf.text(toPdfText(item.label.toUpperCase()), left, y);
+          setText(INK, 9.5);
+          pdf.text(wrapped[index], left, y + 4.2);
+        });
+
+        y += height;
+      }
+
+      y += 1;
+    },
+
     figures(pairs) {
       if (pairs.length === 0) return;
       ensureSpace(16);
@@ -163,6 +238,7 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
     table(columns, rows) {
       const headerHeight = 7;
       const rowHeight = 6.2;
+      const lineHeight = 3.5;
 
       const drawHeader = () => {
         pdf.setFillColor(HEADER_FILL[0], HEADER_FILL[1], HEADER_FILL[2]);
@@ -184,34 +260,37 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
       drawHeader();
 
       for (const row of rows) {
+        // Wrapped within its column rather than cut at the edge of it: a cut
+        // value read as a different one ("Successfully" for "Successfully
+        // Delivered"), and a reader of the paper has no screen to check.
+        setText(INK, 8);
+        const cells = columns.map(
+          (column, index) =>
+            pdf.splitTextToSize(toPdfText(row[index] ?? ""), column.width - 4) as string[],
+        );
+        const height = rowHeight + (Math.max(1, ...cells.map((lines) => lines.length)) - 1) * lineHeight;
+
         // A row that does not fit starts a new page under a fresh header,
         // rather than under nothing.
-        if (y + rowHeight > bottomLimit) {
+        if (y + height > bottomLimit) {
           pdf.addPage();
           y = margin;
           drawHeader();
+          setText(INK, 8);
         }
 
-        setText(INK, 8);
         let x = margin;
-
         columns.forEach((column, index) => {
           const right = column.align === "right";
-          // Cut to the column rather than running into the next one. The full
-          // value is on the screen this came from.
-          const [text] = pdf.splitTextToSize(
-            toPdfText(row[index] ?? ""),
-            column.width - 4,
-          ) as string[];
-          pdf.text(text ?? "", right ? x + column.width - 2 : x + 2, y + 4.3, {
+          pdf.text(cells[index], right ? x + column.width - 2 : x + 2, y + 4.3, {
             align: right ? "right" : "left",
           });
           x += column.width;
         });
 
         pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
-        pdf.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight);
-        y += rowHeight;
+        pdf.line(margin, y + height, margin + contentWidth, y + height);
+        y += height;
       }
 
       y += 4;

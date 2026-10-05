@@ -19,6 +19,7 @@ import { formatDate, formatDateTime, todayInManila } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
 import { downloadCsv } from "@/app/lib/csvExport";
 import { exportDelivery, type ExportFormat } from "@/app/lib/deliveryExport";
+import type { BookingHistoryEntry } from "@/services/booking/bookingHistoryService";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import {
@@ -230,11 +231,18 @@ function ViewOrderModal({
   const isFullRecord = Boolean(order.rawOrder?.BranchStops);
 
   const exportThis = async (format: ExportFormat) => {
-    if (!order.rawOrder) return;
+    const rawOrder = order.rawOrder;
+    if (!rawOrder?.orderID) return;
     setIsExportMenuOpen(false);
     setExportingAs(format);
     try {
-      await exportDelivery(order.rawOrder, format);
+      // The whole history, from the audit trail the History button reads -
+      // not the few lines kept in the booking's notes.
+      const history = await apiFetch<{ data: BookingHistoryEntry[] }>(
+        `/api/bookings/${rawOrder.orderID}/history`,
+        { cache: "no-store" },
+      );
+      await exportDelivery(rawOrder, history.data ?? [], format);
     } catch (error) {
       console.error("Delivery export failed:", error);
       showToast("This delivery could not be exported. Try again.", "error");

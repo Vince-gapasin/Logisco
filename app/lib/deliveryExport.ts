@@ -3,16 +3,20 @@
 // The Reports export is a list: a line per booking, for a period. This is the
 // other thing the office is asked for - everything about one delivery, to send
 // to the client who is asking about it or to file with its paperwork. So it
-// carries what the booking record shows: who it was for, where it went, who
-// took it, and what happened at each stop.
+// reads like the booking record does: who it was for, the truck and crew, each
+// stop on the route in order, and then everything that happened to it.
 //
-// Built from the same mapper as the record on screen, so the file and the
-// screen cannot say different things about the same booking.
+// Built from the same mapper as the record on screen, and the history from the
+// same audit trail the History button reads, so the file and the screen cannot
+// say different things about the same booking.
 
 import { mapOrderToBookingView, toFeedBooking, type OrderWithRelations } from "@/app/lib/bookingView";
 import { downloadCsv, type CsvValue } from "@/app/lib/csvExport";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import { STOP_STATUS } from "@/app/lib/enums";
+import type { DetailItem } from "@/app/lib/pdfReport";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
+import type { BookingHistoryEntry } from "@/services/booking/bookingHistoryService";
 
 export type ExportFormat = "pdf" | "csv";
 
@@ -25,174 +29,223 @@ function when(value: string | null | undefined): string {
   return value ? formatDateTime(value) : "-";
 }
 
-function describe(order: OrderWithRelations) {
+/** "Name - number", without a dangling separator when one is missing. */
+function contactOf(person: string, number: string): string {
+  return orDash([person, number].map((part) => part?.trim()).filter(Boolean).join(" - "));
+}
+
+/** The stop statuses as a person would say them. */
+function stopStatusLabel(status: string): string {
+  if (status === STOP_STATUS.delivered) return "Delivered";
+  return orDash(status);
+}
+
+interface StopBlock {
+  kind: "Pickup" | "Delivery";
+  number: number;
+  name: string;
+  status: string;
+  details: DetailItem[];
+}
+
+function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
   const view = mapOrderToBookingView(order);
   const booking = toFeedBooking(view);
+  const status = bookingStatusLabel(booking.confirmationStatus) || "-";
+  // The booking itself does not keep who took it; the audit trail does.
+  const created = history.find((entry) => entry.title === "Booking created");
+  const createdBy = created && created.actorName !== "System" ? created.actorName : "";
 
-  const summary: [string, string][] = [
-    ["Order ID", orDash(view.orderId)],
-    ["Final status", orDash(bookingStatusLabel(booking.confirmationStatus))],
-    ["Delivery date", orDash(view.displayDate)],
-    ["Date created", orDash(view.dateCreated)],
-    ["Created by", orDash(view.createdBy)],
-    ["Priority", orDash(view.priorityLevel)],
-    ["Product", orDash(view.product)],
-    ["Total quantity", orDash(view.totalQuantity)],
-    ["Completed at", when(view.completedAt)],
+  const bookingDetails: DetailItem[] = [
+    { label: "Order ID", value: orDash(view.orderId) },
+    { label: "Delivery date", value: orDash(view.displayDate) },
+    { label: "Date created", value: orDash(view.dateCreated) },
+    { label: "Created by", value: orDash(createdBy) },
+    { label: "Product", value: orDash(view.product) },
+    { label: "Completed at", value: when(view.completedAt) },
   ];
 
-  const client: [string, string][] = [
-    ["Client", orDash(view.clientName)],
-    ["Contact person", orDash(view.contactPerson)],
-    ["Contact number", orDash(view.contactNumber)],
-    ["Email", orDash(view.emailAddress)],
-    ["Business address", orDash(view.businessAddress)],
+  const clientDetails: DetailItem[] = [
+    { label: "Client", value: orDash(view.clientName) },
+    { label: "Contact person", value: orDash(view.contactPerson) },
+    { label: "Contact number", value: orDash(view.contactNumber) },
+    { label: "Email", value: orDash(view.emailAddress) },
+    { label: "Business address", value: orDash(view.businessAddress), wide: true },
   ];
 
-  const crew: [string, string, string, string][] = [
-    ...(view.subconPartner ? [["Sub-con partner", view.subconPartner, "", ""] as [string, string, string, string]] : []),
-    ["Truck", orDash([view.truckPlate, view.truckModel].filter(Boolean).join(" - ")), "", ""],
-    ...view.crews.map(
-      (member) => [member.role, orDash(member.name), orDash(member.status), member.reason || ""] as [string, string, string, string],
-    ),
+  const crewDetails: DetailItem[] = [
+    ...(view.subconPartner ? [{ label: "Sub-con partner", value: view.subconPartner }] : []),
+    { label: "Truck", value: orDash([view.truckPlate, view.truckModel].filter(Boolean).join(" - ")) },
+    ...view.crews.map((member) => ({
+      label: member.role,
+      value: [orDash(member.name), member.status ? `(${member.status})` : "", member.reason ? `- ${member.reason}` : ""]
+        .filter(Boolean)
+        .join(" "),
+    })),
   ];
 
-  const pickups = view.pickups.map((stop) => [
-    String(stop.sequence),
-    orDash(stop.warehouseName),
-    orDash(stop.pickupAddress),
-    orDash([stop.contactPerson, stop.contactNum].filter(Boolean).join(" / ")),
-    orDash(formatTime(stop.expectedTime)),
-    orDash(stop.quantity),
-    orDash(stop.status),
-    when(stop.completedAt),
-  ]);
+  // The route in the order it is driven: the pickups, then the drops.
+  const stops: StopBlock[] = [
+    ...view.pickups.map((stop, index) => ({
+      kind: "Pickup" as const,
+      number: index + 1,
+      name: orDash(stop.warehouseName),
+      status: stopStatusLabel(stop.status),
+      details: [
+        { label: "Address", value: orDash(stop.pickupAddress), wide: true },
+        { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
+        { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
+        { label: "Quantity", value: orDash(stop.quantity) },
+        { label: "Arrived", value: when(stop.arrivedAt) },
+        { label: "Completed", value: when(stop.completedAt) },
+      ],
+    })),
+    ...view.stops.map((stop, index) => {
+      const proof = stop.proofs[0];
+      return {
+        kind: "Delivery" as const,
+        number: index + 1,
+        name: orDash(stop.branchName),
+        status: stopStatusLabel(stop.status),
+        details: [
+          { label: "Address", value: orDash(stop.deliveryAddress || view.businessAddress), wide: true },
+          { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
+          { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
+          { label: "Quantity", value: orDash(stop.quantity) },
+          { label: "Arrived", value: when(stop.arrivedAt) },
+          { label: "Completed", value: when(stop.completedAt) },
+          { label: "Received by", value: orDash(proof?.receiverName) },
+          ...(proof?.remarks ? [{ label: "Proof remarks", value: proof.remarks, wide: true }] : []),
+          ...(proof?.missingReason ? [{ label: "No proof because", value: proof.missingReason, wide: true }] : []),
+        ],
+      };
+    }),
+  ];
 
-  const deliveries = view.stops.map((stop) => [
-    String(stop.sequence),
-    orDash(stop.branchName),
-    orDash(stop.deliveryAddress || view.businessAddress),
-    orDash([stop.contactPerson, stop.contactNum].filter(Boolean).join(" / ")),
-    orDash(formatTime(stop.expectedTime)),
-    orDash(stop.quantity),
-    orDash(stop.status),
-    when(stop.completedAt),
-    orDash(stop.proofs[0]?.receiverName),
-  ]);
-
-  const remarks = view.remarks.map((remark) => [
-    orDash(remark.dateTime),
-    orDash([remark.staff, remark.role].filter(Boolean).join(" - ")),
-    orDash(remark.details),
-  ]);
+  // Oldest first: on paper a history is read from the top, as it happened.
+  // The screen shows it newest first because there the latest is what is
+  // being looked for.
+  const events = [...history]
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .map((entry, index) => ({
+      number: String(index + 1),
+      when: orDash(entry.dateTime),
+      what: entry.detail ? `${entry.title}: ${entry.detail}` : entry.title,
+      by:
+        entry.actorName && entry.actorName !== entry.actorRole
+          ? `${entry.actorName} (${entry.actorRole})`
+          : orDash(entry.actorName),
+    }));
 
   return {
     view,
-    booking,
-    summary,
-    client,
-    crew,
-    pickups,
-    deliveries,
-    remarks,
+    status,
+    bookingDetails,
+    clientDetails,
+    crewDetails,
+    stops,
+    events,
     reason: booking.foulDetails?.description || view.rejectionReason || "",
   };
 }
 
-export async function exportDelivery(order: OrderWithRelations, format: ExportFormat): Promise<void> {
-  const record = describe(order);
-  const { toFileSlug } = await import("@/app/lib/pdfReport");
+export async function exportDelivery(
+  order: OrderWithRelations,
+  history: BookingHistoryEntry[],
+  format: ExportFormat,
+): Promise<void> {
+  const record = describe(order, history);
+  const { startReport, toFileSlug } = await import("@/app/lib/pdfReport");
   const generatedAt = formatDateTime(new Date().toISOString());
   const base = `delivery-${toFileSlug(record.view.orderId || "record")}`;
 
   if (format === "csv") {
     // In sections, as the record reads, with a blank row between them: one
     // delivery is a document, not a table of like rows.
+    const pairs = (items: DetailItem[]): CsvValue[][] => items.map((item) => [item.label, item.value]);
     const rows: CsvValue[][] = [
       ["Delivery Record", record.view.orderId],
+      ["Final status", record.status],
       ["Generated", generatedAt],
       [],
-      ...record.summary,
+      ["BOOKING"],
+      ...pairs(record.bookingDetails),
+      ["Priority", orDash(record.view.priorityLevel)],
+      ["Total quantity", orDash(record.view.totalQuantity)],
       [],
-      ["Client"],
-      ...record.client,
+      ["CLIENT"],
+      ...pairs(record.clientDetails),
       [],
-      ["Crew and truck"],
-      ["Role", "Name", "Status", "Reason"],
-      ...record.crew,
+      ["TRUCK AND CREW"],
+      ...pairs(record.crewDetails),
       [],
-      ["Pickups"],
-      ["#", "Warehouse", "Address", "Contact", "Expected", "Qty", "Status", "Done at"],
-      ...record.pickups,
-      [],
-      ["Deliveries"],
-      ["#", "Branch", "Address", "Contact", "Expected", "Qty", "Status", "Done at", "Received by"],
-      ...record.deliveries,
+      ["ROUTE"],
+      ["Stop", "Name", "Status", "Address", "Contact", "Expected", "Quantity", "Arrived", "Completed", "Received by"],
+      ...record.stops.map((stop) => {
+        const value = (label: string) => stop.details.find((item) => item.label === label)?.value ?? "";
+        return [
+          `${stop.kind} ${stop.number}`,
+          stop.name,
+          stop.status,
+          value("Address"),
+          value("Contact"),
+          value("Expected"),
+          value("Quantity"),
+          value("Arrived"),
+          value("Completed"),
+          stop.kind === "Delivery" ? value("Received by") : "",
+        ];
+      }),
     ];
-    if (record.reason) rows.push([], ["Why it did not finish", record.reason]);
-    if (record.view.plainNotes) rows.push([], ["Notes", record.view.plainNotes]);
-    if (record.remarks.length) rows.push([], ["Remarks"], ["When", "By", "Details"], ...record.remarks);
+    if (record.reason) rows.push([], ["WHY IT DID NOT FINISH"], [record.reason]);
+    if (record.view.plainNotes) rows.push([], ["NOTES"], [record.view.plainNotes]);
+    rows.push(
+      [],
+      ["HISTORY"],
+      ["#", "Date and time", "What happened", "By"],
+      ...record.events.map((event) => [event.number, event.when, event.what, event.by]),
+    );
 
     downloadCsv(`${base}.csv`, rows);
     return;
   }
 
-  const { startReport } = await import("@/app/lib/pdfReport");
+  // Portrait, like the paperwork it is filed with. The stops are blocks
+  // rather than a table, which is what made them fit.
   const report = await startReport({
-    title: `Delivery Record - ${record.view.orderId}`,
-    // Landscape for the stop tables, which have the most columns of anything here.
-    orientation: "landscape",
-    meta: [`Client: ${record.view.clientName || "-"}`, `Generated ${generatedAt}`],
+    title: `Delivery Record ${record.view.orderId}`,
+    meta: [
+      `${record.view.clientName || "-"}  |  Delivery date: ${record.view.displayDate || "-"}`,
+      `Generated ${generatedAt}`,
+    ],
   });
 
   report.figures([
-    { label: "Final status", value: bookingStatusLabel(record.booking.confirmationStatus) || "-" },
-    { label: "Delivery date", value: record.view.displayDate || "-" },
-    { label: "Priority", value: record.view.priorityLevel || "-" },
-    { label: "Quantity", value: record.view.totalQuantity || "-" },
+    { label: "Final status", value: record.status },
+    { label: "Priority", value: orDash(record.view.priorityLevel) },
+    { label: "Stops", value: String(record.stops.length) },
+    { label: "Quantity", value: orDash(record.view.totalQuantity) },
   ]);
 
-  const pairs = [{ header: "Field", width: 50 }, { header: "Value", width: 217 }];
-
   report.section("Booking");
-  report.table(pairs, record.summary);
+  report.details(record.bookingDetails, 3);
 
   report.section("Client");
-  report.table(pairs, record.client);
+  report.details(record.clientDetails, 2);
 
-  report.section("Crew and truck");
-  report.table(
-    [
-      { header: "Role", width: 45 },
-      { header: "Name", width: 70 },
-      { header: "Status", width: 40 },
-      { header: "Reason", width: 112 },
-    ],
-    record.crew,
+  report.section("Truck and crew");
+  report.details(record.crewDetails, 2);
+
+  report.section(
+    "Route",
+    `${record.stops.filter((stop) => stop.kind === "Pickup").length} pickup(s), ${record.stops.filter((stop) => stop.kind === "Delivery").length} delivery stop(s)`,
   );
-
-  const stopColumns = (nameHeader: string, withReceiver: boolean) => [
-    { header: "#", width: 8 },
-    { header: nameHeader, width: withReceiver ? 38 : 45 },
-    { header: "Address", width: withReceiver ? 70 : 85 },
-    { header: "Contact", width: 40 },
-    { header: "Expected", width: 18 },
-    { header: "Qty", width: 12, align: "right" as const },
-    { header: "Status", width: 22 },
-    { header: "Done at", width: withReceiver ? 32 : 37 },
-    ...(withReceiver ? [{ header: "Received by", width: 27 }] : []),
-  ];
-
-  if (record.pickups.length) {
-    report.section("Pickups", `${record.pickups.length} stop${record.pickups.length === 1 ? "" : "s"}`);
-    report.table(stopColumns("Warehouse", false), record.pickups);
+  if (record.stops.length === 0) {
+    report.paragraph("No stops recorded.", { muted: true });
   }
-
-  report.section("Deliveries", `${record.deliveries.length} stop${record.deliveries.length === 1 ? "" : "s"}`);
-  if (record.deliveries.length) {
-    report.table(stopColumns("Branch", true), record.deliveries);
-  } else {
-    report.paragraph("No delivery stops recorded.", { muted: true });
+  for (const stop of record.stops) {
+    report.subsection(`${stop.kind} ${stop.number}: ${stop.name}`, stop.status);
+    report.details(stop.details, 3);
   }
 
   if (record.reason) {
@@ -205,16 +258,19 @@ export async function exportDelivery(order: OrderWithRelations, format: ExportFo
     report.paragraph(record.view.plainNotes);
   }
 
-  if (record.remarks.length) {
-    report.section("Remarks");
+  report.section("History", `${record.events.length} recorded, oldest first`, 16);
+  if (record.events.length) {
     report.table(
       [
-        { header: "When", width: 45 },
-        { header: "By", width: 60 },
-        { header: "Details", width: 162 },
+        { header: "#", width: 8 },
+        { header: "Date and time", width: 34 },
+        { header: "What happened", width: 96 },
+        { header: "By", width: 42 },
       ],
-      record.remarks,
+      record.events.map((event) => [event.number, event.when, event.what, event.by]),
     );
+  } else {
+    report.paragraph("Nothing recorded for this booking.", { muted: true });
   }
 
   report.save(`${base}.pdf`);
