@@ -1407,7 +1407,6 @@ export default function CrewDashboardPage({
           <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 pl-1 lg:pl-0">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Crew Delivery Dashboard</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Manage your assigned delivery schedules and confirm pending bookings.</p>
             </div>
             
             <div className="relative w-full md:w-72 shrink-0">
