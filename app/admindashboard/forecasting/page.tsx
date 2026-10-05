@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
 import { downloadCsv } from "@/app/lib/csvExport";
+import { saveFile, SaveFileError, savedMessage } from "@/app/lib/saveFile";
 import {
   TrendingUp,
   TrendingDown,
@@ -1250,7 +1251,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
   const formattedVariance = `${totalVariance >= 0 ? "+" : ""}${totalVariance.toLocaleString()} (${variancePercentage >= 0 ? "+" : ""}${variancePercentage.toFixed(1)}%)`;
 
-  const handleExcelExport = () => {
+  const handleExcelExport = async () => {
     if (!historyRecords.length || !forecast || !summary) return;
 
     const csvRows = [
@@ -1272,8 +1273,15 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
         calculateMetrics(row.expectedVolume, row.actualVolume).status,
       ]),
     ];
-    downloadCsv(`forecast-table-${toFileSlug(remarkScopeLabel)}.csv`, csvRows);
-    setIsExportModalOpen(false);
+    const filename = `forecast-table-${toFileSlug(remarkScopeLabel)}.csv`;
+    try {
+      const said = savedMessage(await downloadCsv(filename, csvRows), filename);
+      if (said) showToast(said, "success");
+      setIsExportModalOpen(false);
+    } catch (error) {
+      console.error("CSV export failed:", error);
+      showToast(error instanceof SaveFileError ? error.message : "The CSV could not be saved. Please try again.", "error");
+    }
   };
 
   const reportScopeTitle =
@@ -1615,11 +1623,17 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
         });
       }
 
-      pdf.save(`forecast-report-${toFileSlug(remarkScopeLabel)}.pdf`);
+      // Not pdf.save(), whose download link does nothing inside the phone app.
+      const filename = `forecast-report-${toFileSlug(remarkScopeLabel)}.pdf`;
+      const said = savedMessage(await saveFile(pdf.output("blob"), filename), filename);
+      if (said) showToast(said, "success");
       setIsExportModalOpen(false);
     } catch (error) {
       console.error("PDF export failed:", error);
-      showToast("The PDF could not be generated. Please try again.", "error");
+      showToast(
+        error instanceof SaveFileError ? error.message : "The PDF could not be generated. Please try again.",
+        "error",
+      );
     } finally {
       setIsExporting(false);
     }
@@ -1629,7 +1643,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     if (exportFormat === "pdf") {
       await handlePdfExport();
     } else {
-      handleExcelExport();
+      await handleExcelExport();
     }
   };
 

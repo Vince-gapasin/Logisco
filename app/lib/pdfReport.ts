@@ -17,6 +17,8 @@
 // or a curly quote comes out as mojibake or as nothing. Every string drawn goes
 // through toPdfText first, which turns them into something the font has.
 
+import { saveFile, type SaveResult } from "@/app/lib/saveFile";
+
 export interface Column {
   header: string;
   /** Millimetres. The caller's widths should add up to the content width. */
@@ -84,8 +86,8 @@ export interface ReportBuilder {
   figures(pairs: { label: string; value: string }[]): void;
   /** A table that repeats its header on every page it runs on to. Cells wrap. */
   table(columns: Column[], rows: string[][]): void;
-  /** Numbers every page and hands the file to the browser. */
-  save(filename: string): void;
+  /** Numbers every page and hands the file over: a download, or on the phone app, Downloads. */
+  save(filename: string): Promise<SaveResult>;
 }
 
 export interface ReportOptions {
@@ -372,7 +374,9 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
         });
       }
 
-      pdf.save(filename);
+      // Not pdf.save(), which clicks a download link - and inside the phone
+      // app that click does nothing. See saveFile.
+      return saveFile(pdf.output("blob"), filename);
     },
   };
 }

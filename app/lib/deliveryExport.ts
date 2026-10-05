@@ -13,6 +13,7 @@
 import { mapOrderToBookingView, toFeedBooking, type OrderWithRelations } from "@/app/lib/bookingView";
 import { downloadCsv, type CsvValue } from "@/app/lib/csvExport";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import type { SaveResult } from "@/app/lib/saveFile";
 import { STOP_STATUS } from "@/app/lib/enums";
 import type { DetailItem } from "@/app/lib/pdfReport";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
@@ -153,7 +154,7 @@ export async function exportDelivery(
   order: OrderWithRelations,
   history: BookingHistoryEntry[],
   format: ExportFormat,
-): Promise<void> {
+): Promise<{ filename: string; result: SaveResult }> {
   const record = describe(order, history);
   const { startReport, toFileSlug } = await import("@/app/lib/pdfReport");
   const generatedAt = formatDateTime(new Date().toISOString());
@@ -206,8 +207,7 @@ export async function exportDelivery(
       ...record.events.map((event) => [event.number, event.when, event.what, event.by]),
     );
 
-    downloadCsv(`${base}.csv`, rows);
-    return;
+    return { filename: `${base}.csv`, result: await downloadCsv(`${base}.csv`, rows) };
   }
 
   // Portrait, like the paperwork it is filed with. Each part of the booking
@@ -269,5 +269,5 @@ export async function exportDelivery(
     report.paragraph("Nothing recorded for this booking.", { muted: true });
   }
 
-  report.save(`${base}.pdf`);
+  return { filename: `${base}.pdf`, result: await report.save(`${base}.pdf`) };
 }

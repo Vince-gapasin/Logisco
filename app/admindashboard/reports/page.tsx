@@ -18,6 +18,7 @@ import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import { formatDate, formatDateTime, todayInManila } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
 import { downloadCsv } from "@/app/lib/csvExport";
+import { SaveFileError, savedMessage } from "@/app/lib/saveFile";
 import { exportDelivery, type ExportFormat } from "@/app/lib/deliveryExport";
 import type { BookingHistoryEntry } from "@/services/booking/bookingHistoryService";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
@@ -242,10 +243,15 @@ function ViewOrderModal({
         `/api/bookings/${rawOrder.orderID}/history`,
         { cache: "no-store" },
       );
-      await exportDelivery(rawOrder, history.data ?? [], format);
+      const { filename, result } = await exportDelivery(rawOrder, history.data ?? [], format);
+      const said = savedMessage(result, filename);
+      if (said) showToast(said, "success");
     } catch (error) {
       console.error("Delivery export failed:", error);
-      showToast("This delivery could not be exported. Try again.", "error");
+      showToast(
+        error instanceof SaveFileError ? error.message : "This delivery could not be exported. Try again.",
+        "error",
+      );
     } finally {
       setExportingAs(null);
     }
@@ -1079,7 +1085,7 @@ export default function ReportsForecastingPage() {
       if (format === "csv") {
         // A plain table, a row per booking, so it sorts and filters in a
         // spreadsheet. What it is of is in the filename.
-        downloadCsv(`${filename}.csv`, [
+        const saved = await downloadCsv(`${filename}.csv`, [
           ["Delivery Date", "Order ID", "Client", "Final Status", "Driver", "Helper", "Remarks"],
           ...rows.map((record) => [
             formatDate(record.date),
@@ -1091,6 +1097,8 @@ export default function ReportsForecastingPage() {
             record.remarks,
           ]),
         ]);
+        const said = savedMessage(saved, `${filename}.csv`);
+        if (said) showToast(said, "success");
         setIsExportOpen(false);
         return;
       }
@@ -1134,11 +1142,15 @@ export default function ReportsForecastingPage() {
         ]),
       );
 
-      report.save(`${filename}.pdf`);
+      const said = savedMessage(await report.save(`${filename}.pdf`), `${filename}.pdf`);
+      if (said) showToast(said, "success");
       setIsExportOpen(false);
     } catch (error) {
       console.error("Export failed:", error);
-      showToast("The report could not be built. Try again.", "error");
+      showToast(
+        error instanceof SaveFileError ? error.message : "The report could not be built. Try again.",
+        "error",
+      );
     } finally {
       setIsExporting(false);
     }
