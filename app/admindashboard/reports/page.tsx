@@ -17,6 +17,8 @@ import {
 import { hasDriverAccepted, haveHelpersAccepted } from "@/app/lib/enums";
 import { formatDate, formatDateTime, todayInManila } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
+import { downloadCsv } from "@/app/lib/csvExport";
+import { exportDelivery, type ExportFormat } from "@/app/lib/deliveryExport";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import {
@@ -70,11 +72,116 @@ export interface ReportRecord {
   client: string;
   status: string;
   crew: string;
+  driver: string;
+  helper: string;
   remarks: string;
   rawOrder?: OrderWithRelations;
   dispatchStatus?: string;
   driverConfirmed?: boolean;
   helperConfirmed?: boolean;
+}
+
+/**
+ * What narrows the records. The table and the export each hold one: the export
+ * starts from the table's and can be changed without disturbing it.
+ */
+interface ReportFilters {
+  timeframe: string;
+  status: string;
+  clients: string[];
+  drivers: string[];
+  helpers: string[];
+  customStartDate: string;
+  customEndDate: string;
+}
+
+function matchesReportFilters(rec: ReportRecord, filters: ReportFilters): boolean {
+  const { timeframe, status, clients, drivers, helpers, customStartDate, customEndDate } = filters;
+
+  if (status !== "Final Status" && rec.status !== status) return false;
+  if (clients.length > 0 && !clients.includes(rec.client)) return false;
+  if (drivers.length > 0 && !drivers.includes(rec.driver)) return false;
+  if (helpers.length > 0 && !helpers.includes(rec.helper)) return false;
+
+  if (timeframe === "All Time") return true;
+
+  const d = new Date(rec.date);
+  const t = new Date();
+  d.setHours(0, 0, 0, 0);
+  t.setHours(0, 0, 0, 0);
+
+  if (timeframe === "Today" && d.getTime() !== t.getTime()) return false;
+
+  if (timeframe === "Tomorrow") {
+    const tomorrow = new Date(t);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (d.getTime() !== tomorrow.getTime()) return false;
+  }
+
+  if (timeframe === "Last 7 Days") {
+    const last7 = new Date(t);
+    last7.setDate(last7.getDate() - 7);
+    if (d < last7 || d > t) return false;
+  }
+
+  if (timeframe === "Last 30 Days") {
+    const last30 = new Date(t);
+    last30.setDate(last30.getDate() - 30);
+    if (d < last30 || d > t) return false;
+  }
+
+  if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear()) return false;
+
+  if (
+    timeframe === "This Month" &&
+    (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())
+  )
+    return false;
+
+  if (timeframe === "This Week") {
+    const startOfWeek = new Date(t);
+    startOfWeek.setDate(t.getDate() - t.getDay());
+    if (d < startOfWeek) return false;
+  }
+
+  if (timeframe === "Up to Date" && d > t) return false;
+
+  if (timeframe === "Custom Date Range") {
+    if (customStartDate) {
+      const start = new Date(customStartDate);
+      start.setHours(0, 0, 0, 0);
+      if (d < start) return false;
+    }
+    if (customEndDate) {
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+      if (d > end) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * What a report is of, in the words the filters are set in.
+ *
+ * On the page because a table of records without them is a table of some
+ * records, and the reader of a printed one has no way of knowing which.
+ */
+function describeReportFilters(filters: ReportFilters): string[] {
+  const { timeframe, status, clients, drivers, helpers, customStartDate, customEndDate } = filters;
+  const said = [`Period: ${timeframe}`];
+
+  if (timeframe === "Custom Date Range") {
+    said[0] = `Period: ${customStartDate ? formatDate(customStartDate) : "the beginning"} to ${customEndDate ? formatDate(customEndDate) : "today"}`;
+  }
+
+  said.push(`Final status: ${status === "Final Status" ? "all" : bookingStatusLabel(status)}`);
+  said.push(clients.length > 0 ? `Clients: ${clients.join(", ")}` : "Clients: all");
+  if (drivers.length > 0) said.push(`Drivers: ${drivers.join(", ")}`);
+  if (helpers.length > 0) said.push(`Helpers: ${helpers.join(", ")}`);
+
+  return said;
 }
 
 // ==========================================
@@ -111,8 +218,30 @@ function ViewOrderModal({
   onOpenHistory: (orderID: string) => void;
 }) {
   const crewSectionRef = useRef<HTMLDivElement | null>(null);
+  const showToast = useToast();
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportingAs, setExportingAs] = useState<ExportFormat | null>(null);
 
   if (!isOpen || !order) return null;
+
+  // The list row carries only summary columns; the stops arrive once the
+  // full booking has been fetched, and a file without them would be missing
+  // most of what it is for.
+  const isFullRecord = Boolean(order.rawOrder?.BranchStops);
+
+  const exportThis = async (format: ExportFormat) => {
+    if (!order.rawOrder) return;
+    setIsExportMenuOpen(false);
+    setExportingAs(format);
+    try {
+      await exportDelivery(order.rawOrder, format);
+    } catch (error) {
+      console.error("Delivery export failed:", error);
+      showToast("This delivery could not be exported. Try again.", "error");
+    } finally {
+      setExportingAs(null);
+    }
+  };
 
   // Through the same two mappers the feeds use, so the sections receive exactly
   // what they receive there.
@@ -232,6 +361,48 @@ function ViewOrderModal({
             <History className="w-4 h-4 shrink-0" />
             History
           </button>
+
+          {/* This delivery on its own, as opposed to the page's Export, which
+              is a list of them. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsExportMenuOpen((open) => !open)}
+              disabled={!isFullRecord || exportingAs !== null}
+              aria-haspopup="menu"
+              aria-expanded={isExportMenuOpen}
+              title={isFullRecord ? "Export this delivery" : "Loading the full record..."}
+              className="w-auto px-3.5 sm:px-6 py-2 sm:py-2.5 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportingAs || !isFullRecord ? (
+                <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 shrink-0" />
+              )}
+              Export
+            </button>
+            {isExportMenuOpen && (
+              <div
+                role="menu"
+                className="absolute bottom-full right-0 mb-2 w-44 bg-white border border-slate-200 rounded-xl shadow-lg py-1 z-10"
+              >
+                {([
+                  ["pdf", "PDF document"],
+                  ["csv", "CSV spreadsheet"],
+                ] as const).map(([format, title]) => (
+                  <button
+                    key={format}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => void exportThis(format)}
+                    className="min-h-tap md:pointer-fine:min-h-0 w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
@@ -416,6 +587,214 @@ const MultiSelectDropdown = ({
   );
 };
 
+// Asked before anything is built: what range, what records, and as what.
+//
+// It starts from the filters the table is set to, since that is usually what
+// was meant, but its own choices stay its own - changing the export's period
+// does not change what is on the screen behind it.
+function ExportRecordsDialog({
+  initialFilters,
+  records,
+  clientOptions,
+  driverOptions,
+  helperOptions,
+  isExporting,
+  onClose,
+  onExport,
+}: {
+  initialFilters: ReportFilters;
+  records: ReportRecord[];
+  clientOptions: string[];
+  driverOptions: string[];
+  helperOptions: string[];
+  isExporting: boolean;
+  onClose: () => void;
+  onExport: (filters: ReportFilters, format: ExportFormat) => void;
+}) {
+  const [filters, setFilters] = useState<ReportFilters>(initialFilters);
+  const [format, setFormat] = useState<ExportFormat>("pdf");
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+
+  const set = <K extends keyof ReportFilters>(key: K) =>
+    (value: ReportFilters[K] | ((prev: ReportFilters[K]) => ReportFilters[K])) =>
+      setFilters((prev) => ({
+        ...prev,
+        [key]: typeof value === "function" ? (value as (p: ReportFilters[K]) => ReportFilters[K])(prev[key]) : value,
+      }));
+
+  const matching = useMemo(
+    () => records.filter((rec) => matchesReportFilters(rec, filters)).length,
+    [records, filters],
+  );
+
+  const dateInput =
+    "w-full bg-white border border-slate-200 text-sm text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm";
+
+  return (
+    <div
+      className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !isExporting) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-records-title"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-full flex flex-col overflow-hidden"
+      >
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200">
+          <h2 id="export-records-title" className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Download className="w-5 h-5 shrink-0 text-blue-600" /> Export delivery records
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isExporting}
+            aria-label="Close"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3">
+          <FilterDropdown
+            id="export-timeframe"
+            label="Date range"
+            options={TIMEFRAME_OPTIONS}
+            value={filters.timeframe}
+            setValue={set("timeframe")}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          {filters.timeframe === "Custom Date Range" && (
+            <div className="grid grid-cols-2 gap-2 animate-fade-in">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">Start</label>
+                <input
+                  type="date"
+                  value={filters.customStartDate}
+                  max={filters.customEndDate || undefined}
+                  onChange={(e) => set("customStartDate")(e.target.value)}
+                  className={dateInput}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">End</label>
+                <input
+                  type="date"
+                  value={filters.customEndDate}
+                  min={filters.customStartDate || undefined}
+                  onChange={(e) => set("customEndDate")(e.target.value)}
+                  className={dateInput}
+                />
+              </div>
+            </div>
+          )}
+          <FilterDropdown
+            id="export-status"
+            label="Final Status"
+            options={STATUS_OPTIONS}
+            value={filters.status}
+            setValue={set("status")}
+            formatOption={(option) => (option === STATUS_OPTIONS[0] ? "All statuses" : bookingStatusLabel(option))}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+          />
+          <MultiSelectDropdown
+            id="export-client"
+            label="Client"
+            options={clientOptions}
+            selectedValues={filters.clients}
+            setSelectedValues={set("clients")}
+            activeDropdown={activeDropdown}
+            setActiveDropdown={setActiveDropdown}
+            placeholder="All Clients"
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <MultiSelectDropdown
+              id="export-drivers"
+              label="Drivers"
+              options={driverOptions}
+              selectedValues={filters.drivers}
+              setSelectedValues={set("drivers")}
+              activeDropdown={activeDropdown}
+              setActiveDropdown={setActiveDropdown}
+              placeholder="All Drivers"
+            />
+            <MultiSelectDropdown
+              id="export-helpers"
+              label="Helpers"
+              options={helperOptions}
+              selectedValues={filters.helpers}
+              setSelectedValues={set("helpers")}
+              activeDropdown={activeDropdown}
+              setActiveDropdown={setActiveDropdown}
+              placeholder="All Helpers"
+            />
+          </div>
+
+          <fieldset>
+            <legend className="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">Format</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                ["pdf", "PDF", "A printable report"],
+                ["csv", "CSV", "For Excel or Sheets"],
+              ] as const).map(([value, title, note]) => (
+                <label
+                  key={value}
+                  className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${
+                    format === value ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="export-format"
+                    value={value}
+                    checked={format === value}
+                    onChange={() => setFormat(value)}
+                    className="mt-0.5 w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">{title}</span>
+                    <span className="block text-xs text-slate-500">{note}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+          <p className="text-xs text-slate-600">
+            <span className="font-bold text-slate-900">{matching}</span> record{matching === 1 ? "" : "s"} will be exported
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isExporting}
+              className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg text-xs sm:text-sm transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onExport(filters, format)}
+              disabled={isExporting || matching === 0}
+              className="px-4 py-2 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-black text-white font-semibold rounded-lg text-xs sm:text-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isExporting ? "Building..." : `Export ${format.toUpperCase()}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsForecastingPage() {
   // Delivery records, or the partner trips the coordinator keeps up to date.
   const showToast = useToast();
@@ -583,6 +962,8 @@ export default function ReportsForecastingPage() {
               client: displayClient,
               status: category,
               crew: crewString,
+              driver: driverName,
+              helper: helperName,
               // Why it did not finish, where that was recorded: a driver's
               // reason for declining, or the coordinator's for cancelling. It
               // used to read "Retrieved from DB" on every row, which is not a
@@ -638,96 +1019,23 @@ export default function ReportsForecastingPage() {
   // ==========================================
   // FILTERING LOGIC
   // ==========================================
-  const filteredRecords = useMemo(() => {
-    return records.filter((rec) => {
-      if (status !== "Final Status" && rec.status !== status) return false;
+  const currentFilters: ReportFilters = useMemo(
+    () => ({
+      timeframe,
+      status,
+      clients: selectedClients,
+      drivers: selectedDrivers,
+      helpers: selectedHelpers,
+      customStartDate,
+      customEndDate,
+    }),
+    [timeframe, status, selectedClients, selectedDrivers, selectedHelpers, customStartDate, customEndDate],
+  );
 
-      // Client Filter (Multi-select)
-      if (selectedClients.length > 0 && !selectedClients.includes(rec.client))
-        return false;
-
-      // Extract specific driver/helper values from the combined crew string for filtering
-      const recDriverMatch = rec.crew.match(/Driver:\s*(.*?)\s*\|/);
-      const recDriver = recDriverMatch
-        ? recDriverMatch[1].trim()
-        : "Unassigned";
-      if (selectedDrivers.length > 0 && !selectedDrivers.includes(recDriver))
-        return false;
-
-      const recHelperMatch = rec.crew.match(/Helper:\s*(.*)/);
-      const recHelper = recHelperMatch ? recHelperMatch[1].trim() : "None";
-      if (selectedHelpers.length > 0 && !selectedHelpers.includes(recHelper))
-        return false;
-
-      if (timeframe !== "All Time") {
-        const d = new Date(rec.date);
-        const t = new Date();
-        d.setHours(0, 0, 0, 0);
-        t.setHours(0, 0, 0, 0);
-
-        if (timeframe === "Today" && d.getTime() !== t.getTime()) return false;
-
-        if (timeframe === "Tomorrow") {
-          const tomorrow = new Date(t);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          if (d.getTime() !== tomorrow.getTime()) return false;
-        }
-
-        if (timeframe === "Last 7 Days") {
-          const last7 = new Date(t);
-          last7.setDate(last7.getDate() - 7);
-          if (d < last7 || d > t) return false;
-        }
-
-        if (timeframe === "Last 30 Days") {
-          const last30 = new Date(t);
-          last30.setDate(last30.getDate() - 30);
-          if (d < last30 || d > t) return false;
-        }
-
-        if (timeframe === "This Year" && d.getFullYear() !== t.getFullYear())
-          return false;
-
-        if (
-          timeframe === "This Month" &&
-          (d.getMonth() !== t.getMonth() || d.getFullYear() !== t.getFullYear())
-        )
-          return false;
-
-        if (timeframe === "This Week") {
-          const startOfWeek = new Date(t);
-          startOfWeek.setDate(t.getDate() - t.getDay());
-          if (d < startOfWeek) return false;
-        }
-
-        if (timeframe === "Up to Date" && d > t) return false;
-
-        if (timeframe === "Custom Date Range") {
-          if (customStartDate) {
-            const start = new Date(customStartDate);
-            start.setHours(0, 0, 0, 0);
-            if (d < start) return false;
-          }
-          if (customEndDate) {
-            const end = new Date(customEndDate);
-            end.setHours(23, 59, 59, 999);
-            if (d > end) return false;
-          }
-        }
-      }
-
-      return true;
-    });
-  }, [
-    records,
-    timeframe,
-    selectedClients,
-    selectedDrivers,
-    selectedHelpers,
-    status,
-    customStartDate,
-    customEndDate,
-  ]);
+  const filteredRecords = useMemo(
+    () => records.filter((rec) => matchesReportFilters(rec, currentFilters)),
+    [records, currentFilters],
+  );
 
   // Summary Math
   const totalHistorical = filteredRecords.length;
@@ -738,39 +1046,18 @@ export default function ReportsForecastingPage() {
     (r) => r.status === "Foul Trip",
   ).length;
 
-  /**
-   * What the report is of, in the words the filters are set in.
-   *
-   * On the page because a table of records without them is a table of some
-   * records, and the reader of a printed one has no way of knowing which.
-   */
-  const filterSummary = useMemo(() => {
-    const said = [`Period: ${timeframe}`];
-
-    if (timeframe === "Custom Range" && (customStartDate || customEndDate)) {
-      said[0] = `Period: ${customStartDate || "the beginning"} to ${customEndDate || "today"}`;
-    }
-
-    said.push(`Final status: ${status}`);
-    said.push(
-      selectedClients.length > 0 ? `Clients: ${selectedClients.join(", ")}` : "Clients: all",
-    );
-    if (selectedDrivers.length > 0) said.push(`Drivers: ${selectedDrivers.join(", ")}`);
-    if (selectedHelpers.length > 0) said.push(`Helpers: ${selectedHelpers.join(", ")}`);
-
-    return said;
-  }, [timeframe, status, selectedClients, selectedDrivers, selectedHelpers, customStartDate, customEndDate]);
-
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   /**
-   * The records as a printable report.
+   * The records the export dialog was set to, as a printable report or a CSV.
    *
-   * Every row the filters match, not the page of them on screen: pagination is
-   * how a long table is read, not a limit on what was asked for.
+   * Every row those filters match, not the page of them on screen: pagination
+   * is how a long table is read, not a limit on what was asked for.
    */
-  const exportRecords = async () => {
-    if (filteredRecords.length === 0) {
+  const exportRecords = async (filters: ReportFilters, format: ExportFormat) => {
+    const rows = records.filter((rec) => matchesReportFilters(rec, filters));
+    if (rows.length === 0) {
       showToast("There is nothing to export with these filters.", "error");
       return;
     }
@@ -779,26 +1066,47 @@ export default function ReportsForecastingPage() {
     try {
       const { startReport, toFileSlug } = await import("@/app/lib/pdfReport");
       const generatedAt = formatDateTime(new Date().toISOString());
+      const filename = `delivery-records-${toFileSlug(filters.timeframe)}-${toFileSlug(generatedAt)}`;
+
+      if (format === "csv") {
+        // A plain table, a row per booking, so it sorts and filters in a
+        // spreadsheet. What it is of is in the filename.
+        downloadCsv(`${filename}.csv`, [
+          ["Delivery Date", "Order ID", "Client", "Final Status", "Driver", "Helper", "Remarks"],
+          ...rows.map((record) => [
+            formatDate(record.date),
+            record.orderId,
+            record.client,
+            bookingStatusLabel(record.status),
+            record.driver,
+            record.helper,
+            record.remarks,
+          ]),
+        ]);
+        setIsExportOpen(false);
+        return;
+      }
 
       const report = await startReport({
         title: "Delivery Records",
         // Landscape because six columns of a delivery record do not fit across
         // a portrait page without cutting the ones that carry the detail.
         orientation: "landscape",
-        meta: [...filterSummary, `Generated ${generatedAt}`],
+        meta: [...describeReportFilters(filters), `Generated ${generatedAt}`],
       });
 
-      const delivered = successfulDeliveries;
-      const rate = totalHistorical > 0 ? Math.round((delivered / totalHistorical) * 100) : 0;
+      const delivered = rows.filter((r) => r.status === "Delivered").length;
+      const foul = rows.filter((r) => r.status === "Foul Trip").length;
+      const rate = Math.round((delivered / rows.length) * 100);
 
       report.figures([
-        { label: "Records", value: String(totalHistorical) },
+        { label: "Records", value: String(rows.length) },
         { label: "Delivered", value: String(delivered) },
-        { label: "Foul trips", value: String(foulTrips) },
+        { label: "Foul trips", value: String(foul) },
         { label: "Delivered rate", value: `${rate}%` },
       ]);
 
-      report.section("Records", `${totalHistorical} matching this filter`, 24);
+      report.section("Records", `${rows.length} matching this filter`, 24);
       report.table(
         [
           { header: "Delivery Date", width: 25 },
@@ -808,7 +1116,7 @@ export default function ReportsForecastingPage() {
           { header: "Crew", width: 58 },
           { header: "Remarks", width: 65 },
         ],
-        filteredRecords.map((record) => [
+        rows.map((record) => [
           formatDate(record.date),
           record.orderId,
           record.client,
@@ -818,7 +1126,8 @@ export default function ReportsForecastingPage() {
         ]),
       );
 
-      report.save(`delivery-records-${toFileSlug(timeframe)}-${toFileSlug(generatedAt)}.pdf`);
+      report.save(`${filename}.pdf`);
+      setIsExportOpen(false);
     } catch (error) {
       console.error("Export failed:", error);
       showToast("The report could not be built. Try again.", "error");
@@ -970,12 +1279,12 @@ export default function ReportsForecastingPage() {
           <div className="flex flex-row gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => void exportRecords()}
-              disabled={isExporting || view !== "records"}
+              onClick={() => setIsExportOpen(true)}
+              disabled={isLoading || view !== "records"}
               className="w-auto sm:w-40 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 text-xs sm:text-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed px-3"
             >
               <Download className="w-4 h-4 shrink-0" />
-              <span>{isExporting ? "Building..." : "Export PDF"}</span>
+              <span>Export</span>
             </button>
 
             <Link
@@ -1337,6 +1646,19 @@ export default function ReportsForecastingPage() {
       </div>
 
       </>
+      )}
+
+      {isExportOpen && (
+        <ExportRecordsDialog
+          initialFilters={currentFilters}
+          records={records}
+          clientOptions={clientOptions}
+          driverOptions={driverOptions}
+          helperOptions={helperOptions}
+          isExporting={isExporting}
+          onClose={() => setIsExportOpen(false)}
+          onExport={(filters, format) => void exportRecords(filters, format)}
+        />
       )}
 
       {/* Reused View Booking Modal */}

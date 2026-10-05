@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/Toast";
+import { downloadCsv } from "@/app/lib/csvExport";
 import {
   TrendingUp,
   TrendingDown,
@@ -1271,17 +1272,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
         calculateMetrics(row.expectedVolume, row.actualVolume).status,
       ]),
     ];
-    const csv = csvRows
-      .map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
-      .join("\n");
-    const url = URL.createObjectURL(
-      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `forecast-table-${toFileSlug(remarkScopeLabel)}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`forecast-table-${toFileSlug(remarkScopeLabel)}.csv`, csvRows);
     setIsExportModalOpen(false);
   };
 
