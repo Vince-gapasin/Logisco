@@ -33,6 +33,7 @@ import {
   Edit3,
   Wrench,
   Ban,
+  Archive as ArchiveIcon,
   RotateCcw,
   AlertTriangle,
   Loader2,
@@ -502,7 +503,8 @@ function TruckDetailView({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const shownStatus = shownTruckStatus(truck.status, trip);
+  // Disabled in the Archive, whatever status it was left with.
+  const shownStatus = isArchived ? "Disabled" : shownTruckStatus(truck.status, trip);
   const styles = getStatusStyles(shownStatus);
 
   const confirmDelete = async () => {
@@ -690,7 +692,7 @@ function TruckDetailView({
             <p className="text-sm text-slate-600 mb-6">
               <strong className="text-slate-900">{truck.plateNumber}</strong> will
               be disabled: it leaves the fleet and can no longer be booked. Its
-              history is kept, and it can be restored from Disabled Trucks.
+              history is kept, and it can be restored from the Archive.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -954,7 +956,7 @@ export default function FleetStatusPage() {
     try {
       await apiFetch(`/api/fleet-status/${id}`, { method: "DELETE" });
       setSelectedTruck(null);
-      showToast("Truck disabled. It can be restored from Disabled Trucks.");
+      showToast("Truck disabled. It can be restored from the Archive.");
       await fetchTrucks();
     } catch (error) {
       showToast(getErrorMessage(error), "error");
@@ -1088,7 +1090,7 @@ export default function FleetStatusPage() {
       <div className="mb-6 flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-            {showArchived ? "Disabled Trucks" : "Fleet Status"}
+            {showArchived ? "Archive" : "Fleet Status"}
           </h1>
           </div>
         <div className="flex flex-row gap-2">
@@ -1100,8 +1102,8 @@ export default function FleetStatusPage() {
             }}
             className="w-auto sm:w-44 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
           >
-            <Ban className="w-4 h-4 shrink-0" />
-            <span>{showArchived ? "Active Fleet" : "Disabled Trucks"}</span>
+            {showArchived ? <Truck className="w-4 h-4 shrink-0" /> : <ArchiveIcon className="w-4 h-4 shrink-0" />}
+            <span>{showArchived ? "Active Fleet" : "Archive"}</span>
           </button>
           {!showArchived && (
             <button
@@ -1181,7 +1183,12 @@ export default function FleetStatusPage() {
                 </tr>
               ) : currentTrucks.length > 0 ? (
                 currentTrucks.map((truck) => {
-                  const currentStyles = getStatusStyles(truck.shownStatus);
+                  // A truck in the Archive reads "Disabled", whatever status it was left with:
+                  // disabling stores Out of Service on it, which means something else - a
+                  // working truck with an outside repair company - and made the archive look
+                  // like the out-of-service list.
+                  const rowStatus = showArchived ? "Disabled" : truck.shownStatus;
+                  const currentStyles = getStatusStyles(rowStatus);
                   return (
                     <tr
                       key={truck.id}
@@ -1219,7 +1226,7 @@ export default function FleetStatusPage() {
                           <div
                             className={`w-28 sm:w-36 h-8 inline-flex items-center justify-center gap-1.5 text-xs font-semibold rounded-md border shadow-xs ${currentStyles.btn}`}
                           >
-                            <span>{truck.shownStatus}</span>
+                            <span>{rowStatus}</span>
                           </div>
                         </div>
                       </td>

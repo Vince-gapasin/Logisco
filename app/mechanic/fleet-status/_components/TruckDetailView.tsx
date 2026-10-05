@@ -27,7 +27,7 @@ interface TruckDetailViewProps {
   logs: HistoryLogRecord[];
   onBack: () => void;
   onEdit: (truckRecord: TruckRecord) => void;
-  /** Opened from Disabled Trucks: the only thing to do with it is restore it. */
+  /** Opened from the Archive: the only thing to do with it is restore it. */
   isArchived: boolean;
   onArchiveClick: () => void;
   onRestoreClick: () => void;
@@ -50,7 +50,8 @@ export function TruckDetailView({
   onLogMaintenanceClick,
   currentUserId,
 }: TruckDetailViewProps) {
-  const shownStatus = shownTruckStatus(truck.status, truck.booking);
+  // Disabled in the Archive, whatever status it was left with.
+  const shownStatus = isArchived ? "Disabled" : shownTruckStatus(truck.status, truck.booking);
   const styles = getStatusStyles(shownStatus);
 
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -152,7 +153,7 @@ export function TruckDetailView({
 
           {/* History is always there. Edit and Disable only for whoever may
               work on the truck. Disable keeps the truck's history (it is then
-              listed under Disabled Trucks), and not while it is out on a
+              listed in the Archive), and not while it is out on a
               delivery - the server refuses that too. */}
           <MoreActionsMenu
             label={`More actions for ${truck.plateNumber}`}
