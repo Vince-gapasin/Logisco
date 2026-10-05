@@ -302,10 +302,13 @@ export default function LiveRouteMap({
     [trail],
   );
 
+  // Framed from the start: the map is not ready yet when the effects below
+  // first run, so fitting it there left it zoomed in on the first truck with
+  // the rest of the fleet, or the stops, out of view.
   const initialViewState = useMemo(() => {
-    const firstTruck = points.find((p) => p.kind === "truck") ?? points[0];
-    if (!firstTruck) return FALLBACK_CENTER;
-    return { latitude: firstTruck.latitude, longitude: firstTruck.longitude, zoom: 12 };
+    if (points.length === 0) return FALLBACK_CENTER;
+    if (points.length === 1) return { latitude: points[0].latitude, longitude: points[0].longitude, zoom: 14 };
+    return { bounds: boundsOf(points), fitBoundsOptions: { padding: FIT_PADDING, maxZoom: 15 } };
     // Only read on the map's first render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
