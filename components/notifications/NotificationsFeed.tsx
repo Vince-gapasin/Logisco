@@ -57,6 +57,7 @@ const DESTINATIONS: [string, string][] = [
   ["/admindashboard/feeds/foul-trip", "Foul Trip Feed"],
   ["/admindashboard/fleet-tracking", "Live Tracking"],
   ["/admindashboard/fleet-status", "Fleet Status"],
+  ["/admindashboard/history-logs", "History Logs"],
   ["/admindashboard/employees", "Employees"],
   ["/admindashboard/reports", "Reports"],
   ["/admindashboard/calendar", "Calendar"],
@@ -91,7 +92,7 @@ const PORTAL_HOME: Record<Portal, string> = {
 const CROSS_PORTAL: Record<Portal, [string, string | null][]> = {
   admin: [
     ["/mechanic/fleet-status", "/admindashboard/fleet-status"],
-    ["/mechanic/history-logs", "/admindashboard/fleet-status"],
+    ["/mechanic/history-logs", "/admindashboard/history-logs"],
     ["/mechanic/roadside", "/admindashboard/feeds/foul-trip"],
     ["/mechanic", null],
     // A trip the crew carries on with, or a booking changed under them: the

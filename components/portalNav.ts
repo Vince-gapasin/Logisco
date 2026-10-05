@@ -37,6 +37,7 @@ export const PORTAL_NAV: Record<Portal, { name: string; items: NavItem[] }> = {
       { href: "/admindashboard/employees", label: "Employee Directory", icon: UserSquare2 },
       { href: "/admindashboard/fleet-status", label: "Fleet Status", icon: Truck },
       { href: "/admindashboard/fleet-tracking", label: "Fleet Live Tracking", icon: MapPin },
+      { href: "/admindashboard/history-logs", label: "History Logs", icon: Wrench },
       { href: "/admindashboard/reports", label: "Reports & Forecast", icon: FileText, also: ["/admindashboard/forecasting"] },
     ],
   },

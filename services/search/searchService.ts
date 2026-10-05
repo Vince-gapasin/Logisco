@@ -436,9 +436,6 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
   let employeeQuery = supabase.from("Employee").select("employeeID, employeeName, role, isActive");
   for (const clause of eachTokenIn(["employeeName"], tokens)) employeeQuery = employeeQuery.or(clause);
 
-  let truckQuery = supabase.from("Truck").select(TRUCK_COLUMNS);
-  for (const clause of eachTokenIn(["plateNumber", "model"], tokens)) truckQuery = truckQuery.or(clause);
-
   // Cancelled bookings are included. No booking screen lists them, so they
   // link to Reports, which lists every booking ever made.
   const [byCode, byClient, clients, employees, trucks] = await Promise.all([
@@ -458,10 +455,10 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
       .limit(CANDIDATES),
     clientQuery.order("company").limit(CANDIDATES),
     employeeQuery.order("employeeName").limit(CANDIDATES),
-    truckQuery.order("plateNumber").limit(CANDIDATES),
+    truckCandidates(q, "/admindashboard"),
   ]);
 
-  for (const { error } of [byCode, byClient, clients, employees, trucks]) {
+  for (const { error } of [byCode, byClient, clients, employees]) {
     if (error) throw new Error(error.message);
   }
 
@@ -594,9 +591,8 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
     );
   }
 
-  for (const truck of (trucks.data ?? []) as TruckRow[]) {
-    const candidate = truckCandidate(q, truck, "/admindashboard/fleet-status");
-    if (candidate) candidates.push({ ...candidate, score: candidate.score + (bonus.truck ?? 0) });
+  for (const candidate of trucks) {
+    candidates.push({ ...candidate, score: candidate.score + (bonus.truck ?? 0) });
   }
 
   return rankResults(candidates);
@@ -661,14 +657,17 @@ async function searchCrew(employeeID: string, q: string): Promise<SearchResult[]
   return rankResults(candidates, { perGroup: MAX_RESULTS });
 }
 
-// -------------------------------------------------------------- mechanic
+// -------------------------------------------------------------- trucks
 
-async function searchFleet(q: string, basePath: string): Promise<SearchResult[]> {
+/**
+ * Trucks for either portal: the fleet, archived ones included, and the
+ * deleted ones - gone from Truck, but their history logs keep the plate.
+ */
+async function truckCandidates(q: string, basePath: string): Promise<Candidate[]> {
   const tokens = tokensOf(q);
   let trucks = supabase.from("Truck").select(TRUCK_COLUMNS);
   for (const clause of eachTokenIn(["plateNumber", "model"], tokens)) trucks = trucks.or(clause);
 
-  // A deleted truck is gone from Truck; its history logs keep its plate.
   let logs = supabase.from("HistoryLogsM").select("plateNumber, truckType").is("truckID", null);
   for (const clause of eachTokenIn(["plateNumber"], tokens)) logs = logs.or(clause);
 
@@ -706,8 +705,13 @@ async function searchFleet(q: string, basePath: string): Promise<SearchResult[]>
       },
     });
   }
+  return candidates;
+}
 
-  return rankResults(candidates, { perGroup: MAX_RESULTS });
+// -------------------------------------------------------------- mechanic
+
+async function searchFleet(q: string, basePath: string): Promise<SearchResult[]> {
+  return rankResults(await truckCandidates(q, basePath), { perGroup: MAX_RESULTS });
 }
 
 // ------------------------------------------------------------------ entry
