@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Hourglass, Loader2, Medal, Trophy } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { DEFAULT_PERIOD, type Period, PeriodSelect } from "@/components/employee/PeriodSelect";
 import { ratingVerdict, Stars } from "@/components/employee/ratingDisplay";
 
 // Each role's employees, best first, by the rating on their own profile.
@@ -35,7 +36,7 @@ const MEDALS = ["text-amber-500", "text-slate-400", "text-orange-700"];
 
 export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void }) {
   const [role, setRole] = useState<Role>("Driver");
-  const [allTime, setAllTime] = useState(false);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
   const [ranking, setRanking] = useState<Ranking | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -44,7 +45,7 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
     setState("loading");
     try {
       const result = await apiFetch<{ data: Ranking }>(
-        `/api/employees/rankings?role=${role}&days=${allTime ? "all" : "180"}`,
+        `/api/employees/rankings?role=${role}&days=${period}`,
       );
       setRanking(result.data);
       setState("ready");
@@ -52,7 +53,7 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
       setMessage(error instanceof Error ? error.message : "Could not load the rankings.");
       setState("error");
     }
-  }, [role, allTime]);
+  }, [role, period]);
 
   useEffect(() => {
     // The ranking arrives in a network callback, not in the effect body.
@@ -67,9 +68,6 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
           <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-500" /> Performance Rankings
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Each role is ranked only against its own. {ranking ? ranking.windowLabel : ""}
-          </p>
         </div>
 
         <div className="flex flex-col xl:flex-row gap-3 xl:items-center">
@@ -90,22 +88,8 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
               </button>
             ))}
           </div>
-          <div className="flex gap-1 rounded-lg border border-slate-200 p-0.5 self-start xl:self-auto">
-            {[
-              [false, "Last 180 days"],
-              [true, "All time"],
-            ].map(([value, label]) => (
-              <button
-                key={String(value)}
-                type="button"
-                onClick={() => setAllTime(value as boolean)}
-                className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors whitespace-nowrap ${
-                  allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {label as string}
-              </button>
-            ))}
+          <div className="self-start xl:self-auto">
+            <PeriodSelect value={period} onChange={setPeriod} />
           </div>
         </div>
       </div>

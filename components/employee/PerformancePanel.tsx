@@ -42,6 +42,7 @@ import {
 import { authFetch } from "@/app/lib/apiClient";
 import { formatDateTime } from "@/app/lib/datetime";
 import { DECLINE_CODES, type DeclineCode } from "@/app/lib/enums";
+import { DEFAULT_PERIOD, type Period, PERIODS, PeriodSelect } from "./PeriodSelect";
 import { rateVerdict, ratingVerdict, Stars } from "./ratingDisplay";
 
 interface ScoreComponent {
@@ -363,40 +364,17 @@ function LateStopRow({
   );
 }
 
-/** The period switch both views share. */
-function PeriodToggle({ allTime, onChange }: { allTime: boolean; onChange: (allTime: boolean) => void }) {
-  return (
-    <div className="flex gap-1 rounded-lg border border-slate-200 p-0.5">
-      {[
-        [false, "Last 180 days"],
-        [true, "All time"],
-      ].map(([value, label]) => (
-        <button
-          key={String(value)}
-          type="button"
-          onClick={() => onChange(value as boolean)}
-          className={`min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-            allTime === value ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          {label as string}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** The verdict: a big number, five stars and one word. */
 function Headline({
   data,
   report,
-  allTime,
+  period,
   onPeriod,
 }: {
   data: PerformanceData;
   report: Report;
-  allTime: boolean;
-  onPeriod: (allTime: boolean) => void;
+  period: Period;
+  onPeriod: (period: Period) => void;
 }) {
   const { rating, withheld } = report;
   const verdict = rating === null ? null : ratingVerdict(rating);
@@ -407,10 +385,12 @@ function Headline({
         <div className="min-w-0">
           <div className="text-lg font-bold text-slate-900">{data.employeeName}</div>
           <div className="text-xs text-slate-500">
-            {data.role} · {data.window.label}
+            {data.role} ·{" "}
+            {/* The menu's own words for the period, where the server's matches one. */}
+            {PERIODS.find(([days]) => days === String(data.window.days ?? "all"))?.[1] ?? data.window.label}
           </div>
         </div>
-        <PeriodToggle allTime={allTime} onChange={onPeriod} />
+        <PeriodSelect value={period} onChange={onPeriod} />
       </div>
 
       {rating !== null && verdict ? (
@@ -695,14 +675,14 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
   const [data, setData] = useState<PerformanceData | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
-  const [allTime, setAllTime] = useState(false);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const load = useCallback(async () => {
     setState("loading");
 
     try {
       const response = await authFetch(
-        `/api/employees/${employeeID}/performance?days=${allTime ? "all" : "180"}`,
+        `/api/employees/${employeeID}/performance?days=${period}`,
       );
       const result = await response.json().catch(() => ({}));
 
@@ -718,7 +698,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
       setMessage("Could not reach the server.");
       setState("error");
     }
-  }, [employeeID, allTime]);
+  }, [employeeID, period]);
 
   useEffect(() => {
     // The record arrives in a network callback, not in the effect body.
@@ -793,7 +773,7 @@ export default function PerformancePanel({ employeeID }: { employeeID: string })
 
   return (
     <div className="space-y-5 text-sm">
-      <Headline data={data} report={report} allTime={allTime} onPeriod={setAllTime} />
+      <Headline data={data} report={report} period={period} onPeriod={setPeriod} />
 
       <StrengthsAndGaps measures={report.measures} />
 
