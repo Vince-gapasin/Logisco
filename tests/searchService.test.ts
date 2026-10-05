@@ -85,3 +85,139 @@ describe("matching a driver's own trips", () => {
     expect(looselyContains(null, "x")).toBe(false);
   });
 });
+
+const { codeRemainder, likeClauses, orderCodeClauses, queryShape, rankResults, scoreMatch } = await import(
+  "@/services/search/searchService"
+);
+
+const code = (value: string) => [{ value, prefix: "ORD-" }];
+
+describe("scoring a match", () => {
+  it("ranks exact over start over word start over middle", () => {
+    const exact = scoreMatch("cruz", [{ value: "Cruz" }])!;
+    const start = scoreMatch("cruz", [{ value: "Cruz Logistics" }])!;
+    const word = scoreMatch("cruz", [{ value: "Dela Cruz Trading" }])!;
+    const middle = scoreMatch("cruz", [{ value: "Veracruz Foods" }])!;
+    expect(exact).toBeGreaterThan(start);
+    expect(start).toBeGreaterThan(word);
+    expect(word).toBeGreaterThan(middle);
+  });
+
+  it("only matches two characters at the start of a word", () => {
+    expect(scoreMatch("an", [{ value: "Andaya" }])).not.toBeNull();
+    expect(scoreMatch("an", [{ value: "Juan Santos" }])).toBeNull();
+  });
+
+  it("ignores the ORD- prefix every booking code carries", () => {
+    expect(scoreMatch("or", code("ORD-482913-K7AN"))).toBeNull();
+    expect(scoreMatch("ord", code("ORD-482913-K7AN"))).toBeNull();
+    expect(scoreMatch("48", code("ORD-482913-K7AN"))).not.toBeNull();
+    expect(scoreMatch("k7an", code("ORD-482913-K7AN"))).not.toBeNull();
+    expect(scoreMatch("ord-4829", code("ORD-482913-K7AN"))).not.toBeNull();
+    expect(scoreMatch("ord4829", code("ORD-482913-K7AN"))).not.toBeNull();
+    expect(scoreMatch("ORD-482913-K7AN", code("ORD-482913-K7AN"))).toBe(100);
+  });
+
+  it("matches a plate however it is spaced", () => {
+    expect(scoreMatch("abc1234", [{ value: "ABC 1234" }])).toBeGreaterThanOrEqual(95);
+    expect(scoreMatch("abc-1234", [{ value: "ABC 1234" }])).toBeGreaterThanOrEqual(95);
+  });
+
+  it("ignores accents", () => {
+    expect(scoreMatch("paranaque", [{ value: "Parañaque Hub" }])).not.toBeNull();
+    expect(scoreMatch("muñoz", [{ value: "Munoz Trading" }])).not.toBeNull();
+  });
+
+  it("needs every word, in any field and any order", () => {
+    const fields = [{ value: "KFC" }, ...code("ORD-482913-K7AN")];
+    expect(scoreMatch("kfc 4829", fields)).not.toBeNull();
+    expect(scoreMatch("4829 kfc", fields)).not.toBeNull();
+    expect(scoreMatch("kfc jollibee", fields)).toBeNull();
+  });
+
+  it("counts a supporting field for less", () => {
+    const main = scoreMatch("juan", [{ value: "Juan Hauling" }])!;
+    const contact = scoreMatch("juan", [{ value: "Acme" }, { value: "Juan Reyes", secondary: true }])!;
+    expect(main).toBeGreaterThan(contact);
+  });
+});
+
+describe("reading what kind of thing was typed", () => {
+  it("tells codes from names", () => {
+    expect(queryShape("ORD-4829")).toBe("code");
+    expect(queryShape("1234")).toBe("code");
+    expect(queryShape("ABC 1234")).toBe("code");
+    expect(queryShape("kfc")).toBe("name");
+    expect(queryShape("k7an")).toBe("mixed");
+  });
+
+  it("keeps only the part of a code after its prefix", () => {
+    expect(codeRemainder("or")).toBeNull();
+    expect(codeRemainder("ORD-")).toBeNull();
+    expect(codeRemainder("ord-12")).toBe("12");
+    expect(codeRemainder("ordonez")).toBe("ordonez");
+  });
+});
+
+describe("the database filters", () => {
+  it("asks for word starts only for two characters", () => {
+    expect(likeClauses("company", "an")).toEqual([
+      'company.ilike."an%"',
+      'company.ilike."% an%"',
+      'company.ilike."%-an%"',
+    ]);
+  });
+
+  it("also asks for a plate typed without its space", () => {
+    expect(likeClauses("plateNumber", "abc1234")).toContain('plateNumber.ilike."%abc%1234%"');
+  });
+
+  it("never matches order codes on the prefix alone", () => {
+    expect(orderCodeClauses("ord")).toEqual([]);
+    expect(orderCodeClauses("48")[0]).toBe('orderCode.ilike."ORD-48%"');
+  });
+});
+
+describe("ranking the list", () => {
+  const r = (type: "client" | "booking" | "truck", id: string) => ({
+    id,
+    type,
+    title: id,
+    subtitle: "",
+    href: "/",
+  });
+
+  it("orders kinds by their best match, not a fixed order", () => {
+    const ranked = rankResults([
+      { result: r("client", "c1"), score: 20 },
+      { result: r("booking", "b1"), score: 80 },
+      { result: r("client", "c2"), score: 60 },
+    ]);
+    expect(ranked.map((x) => x.id)).toEqual(["b1", "c2", "c1"]);
+  });
+
+  it("lifts a single exact match to the top", () => {
+    const ranked = rankResults([
+      { result: r("client", "c1"), score: 60 },
+      { result: r("truck", "t1"), score: 100 },
+    ]);
+    expect(ranked[0]).toMatchObject({ id: "t1", top: true });
+  });
+
+  it("does not crown one of two exact matches", () => {
+    const ranked = rankResults([
+      { result: r("client", "c1"), score: 100 },
+      { result: r("truck", "t1"), score: 100 },
+    ]);
+    expect(ranked.some((x) => x.top)).toBe(false);
+  });
+
+  it("caps each kind and the whole list", () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({ result: r("client", `c${i}`), score: 50 }));
+    expect(rankResults(many)).toHaveLength(4);
+    const mixed = ["client", "booking", "truck"].flatMap((type) =>
+      Array.from({ length: 6 }, (_, i) => ({ result: r(type as "client", `${type}${i}`), score: 50 })),
+    );
+    expect(rankResults(mixed, { perGroup: 6, total: 12 })).toHaveLength(12);
+  });
+});

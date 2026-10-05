@@ -50,20 +50,59 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-// Bolds the part of a result that matches what was typed. A plain indexOf
-// rather than a RegExp, so nothing typed can be read as a pattern.
+// Lower case with accents dropped, one character at a time so positions in
+// the folded text are positions in the original.
+function foldChars(value: string): string {
+  return value
+    .split("")
+    .map((c) => c.normalize("NFD")[0].toLowerCase()[0])
+    .join("");
+}
+
+// Where each typed word appears, preferring the start of a word as the
+// search does. Plain indexOf rather than a RegExp, so nothing typed can be
+// read as a pattern.
+function matchRanges(text: string, query: string): [number, number][] {
+  const folded = foldChars(text);
+  const ranges: [number, number][] = [];
+  for (const word of foldChars(query).split(/\s+/).filter(Boolean)) {
+    let found = -1;
+    for (let at = folded.indexOf(word); at >= 0; at = folded.indexOf(word, at + 1)) {
+      if (found < 0) found = at;
+      if (at === 0 || /[\s\-./'&@#]/.test(folded[at - 1])) {
+        found = at;
+        break;
+      }
+    }
+    if (found >= 0) ranges.push([found, found + word.length]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push([...range]);
+  }
+  return merged;
+}
+
+// Bolds the parts of a result that match what was typed.
 function Highlight({ text, query }: { text: string; query: string }) {
-  const at = text.toLowerCase().indexOf(query.toLowerCase());
-  if (!query || at < 0) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, at)}
-      <mark className="bg-amber-100 text-inherit rounded-sm px-0.5 -mx-0.5">
-        {text.slice(at, at + query.length)}
-      </mark>
-      {text.slice(at + query.length)}
-    </>
-  );
+  const ranges = matchRanges(text, query);
+  if (ranges.length === 0) return <>{text}</>;
+  const parts: React.ReactNode[] = [];
+  let from = 0;
+  for (const [start, end] of ranges) {
+    parts.push(text.slice(from, start));
+    parts.push(
+      <mark key={start} className="bg-amber-100 text-inherit rounded-sm px-0.5 -mx-0.5">
+        {text.slice(start, end)}
+      </mark>,
+    );
+    from = end;
+  }
+  parts.push(text.slice(from));
+  return <>{parts}</>;
 }
 
 export default function GlobalSearch({ basePath }: { basePath: string }) {
@@ -272,7 +311,8 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
               {results.map((result, index) => {
                 const group = GROUPS[result.type];
                 const Icon = group.icon;
-                const startsGroup = index === 0 || results[index - 1].type !== result.type;
+                const previous = results[index - 1];
+                const startsGroup = !previous || previous.top || previous.type !== result.type;
                 const selected = index === active;
                 return (
                   <React.Fragment key={result.id}>
@@ -281,7 +321,7 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                         role="presentation"
                         className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
                       >
-                        {group.label}
+                        {result.top ? "Top result" : group.label}
                       </li>
                     )}
                     <li
