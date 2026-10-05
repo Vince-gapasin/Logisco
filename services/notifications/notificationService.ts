@@ -135,6 +135,14 @@ function relativeTime(value: string | null | undefined): string {
   return days === 1 ? "Yesterday" : `${days} days ago`;
 }
 
+// Where a standing condition is dealt with, already searched for the booking
+// or truck it is about - each of these lists reads ?q= on arrival. These had
+// no link at all, so the feed could only say what was wrong, not take anyone
+// to it.
+function searchLink(page: string, term: string | null | undefined): string {
+  return term ? `${page}?q=${encodeURIComponent(term)}` : page;
+}
+
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -167,6 +175,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         message: `New assignment for ${label}${client?.company ? ` (Client: ${client.company})` : ""}. Open it to accept or decline.`,
         time: "",
         type: "assignment",
+        link: searchLink("/crew/dashboard", order?.orderCode),
         truckPlate: truck?.plateNumber ?? undefined,
         entityKey: `DispatchOrder:${dispatch.dispatchID}`,
         supersededBy: ["CREW_ASSIGNED"],
@@ -178,6 +187,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
         message: `${label} is in transit. Remember to upload proof of delivery at every stop.`,
         time: "",
         type: "reminder",
+        link: searchLink("/crew/dashboard", order?.orderCode),
         truckPlate: truck?.plateNumber ?? undefined,
       });
     }
@@ -209,6 +219,7 @@ async function crewNotifications(employeeID: string): Promise<AppNotification[]>
       message: `You are assigned as helper on ${order?.orderCode ?? dispatch.dispatchID}${client?.company ? ` (Client: ${client.company})` : ""}. Please confirm.`,
       time: "",
       type: "assignment",
+      link: searchLink("/crew/dashboard", order?.orderCode),
       entityKey: `DispatchOrder:${dispatch.dispatchID}`,
       supersededBy: ["CREW_ASSIGNED"],
     });
@@ -247,6 +258,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         message: `${order.orderCode}${company} has no active crew assigned.`,
         time: relativeTime(order.createdAt),
         type: "approval",
+        link: searchLink("/admindashboard/calendar/unassigned-bookings", order.orderCode),
       });
     } else if (AWAITING_CREW_STATUSES.includes(live.status ?? "")) {
       notifications.push({
@@ -255,6 +267,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         message: `${order.orderCode}${company} is assigned but the crew has not confirmed yet.`,
         time: relativeTime(order.createdAt),
         type: "reminder",
+        link: searchLink("/admindashboard/calendar/awaiting-confirmation", order.orderCode),
       });
     }
   }
@@ -288,6 +301,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         : `${order?.orderCode ?? "A booking"}${company} was interrupted and needs recovery.`,
       time: relativeTime(incident.reportedAt),
       type: enRoute ? "reminder" : "warning",
+      link: searchLink("/admindashboard/feeds/foul-trip", order?.orderCode),
     });
   }
 
@@ -307,6 +321,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
       message: `${truck.plateNumber} is currently ${truck.truckStatus.toLowerCase()} and unavailable for dispatch.`,
       time: "",
       type: "warning",
+      link: searchLink("/admindashboard/fleet-status", truck.plateNumber),
       truckPlate: truck.plateNumber,
     });
   }
@@ -337,6 +352,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
       message: `${truck?.plateNumber ?? "A truck"} broke down (${job.issueType}). Open Roadside Jobs for the location.`,
       time: relativeTime(job.mechanicAssignedAt),
       type: "assignment",
+      link: "/mechanic/roadside",
       truckPlate: truck?.plateNumber,
     });
   }
@@ -361,6 +377,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
         message: `${truck.plateNumber} (${truck.truckType}) is marked ${truck.truckStatus.toLowerCase()} and needs servicing.`,
         time: relativeTime(truck.lastChecked),
         type: "assignment",
+        link: searchLink("/mechanic/fleet-status", truck.plateNumber),
         truckPlate: truck.plateNumber,
         vehicleType: truck.truckType,
         issue: `Status: ${truck.truckStatus}`,
@@ -378,6 +395,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
           : `${truck.plateNumber} has no recorded maintenance check.`,
         time: relativeTime(truck.lastChecked),
         type: "reminder",
+        link: searchLink("/mechanic/fleet-status", truck.plateNumber),
         truckPlate: truck.plateNumber,
         vehicleType: truck.truckType,
       });
