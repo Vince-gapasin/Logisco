@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Medal, Trophy } from "lucide-react";
+import { Hourglass, Loader2, Medal, Trophy } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { ratingVerdict, Stars } from "@/components/employee/ratingDisplay";
 
 // Each role's employees, best first, by the rating on their own profile.
 //
@@ -28,14 +29,6 @@ interface Ranking {
   windowLabel: string;
   ranked: Ranked[];
   unrated: Ranked[];
-}
-
-/** The same colours the profile's rating uses. */
-function tone(rating: number): string {
-  if (rating >= 4.5) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (rating >= 3.5) return "bg-blue-50 text-blue-700 border-blue-200";
-  if (rating >= 2.5) return "bg-amber-50 text-amber-700 border-amber-200";
-  return "bg-red-50 text-red-700 border-red-200";
 }
 
 const MEDALS = ["text-amber-500", "text-slate-400", "text-orange-700"];
@@ -140,8 +133,7 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   <th className="py-3.5 px-3 w-14 text-center">#</th>
                   <th className="py-3.5 px-3">Employee</th>
-                  <th className="py-3.5 px-3 text-center w-24">Rating</th>
-                  <th className="hidden sm:table-cell py-3.5 px-3">Likely range</th>
+                  <th className="py-3.5 px-3">Rating</th>
                   <th className="hidden md:table-cell py-3.5 px-3 text-right">Based on</th>
                 </tr>
               </thead>
@@ -161,15 +153,10 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
                       )}
                     </td>
                     <td className="py-3.5 px-3 font-medium text-slate-900">{entry.employeeName}</td>
-                    <td className="py-3.5 px-3 text-center">
-                      <span className={`inline-block min-w-12 px-2 py-0.5 rounded-md border text-sm font-bold ${tone(entry.rating ?? 0)}`}>
-                        {entry.rating?.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="hidden sm:table-cell py-3.5 px-3 text-xs text-slate-500">
-                      {entry.ratingRange
-                        ? `${entry.ratingRange.low.toFixed(1)} - ${entry.ratingRange.high.toFixed(1)}`
-                        : "—"}
+                    <td className="py-3.5 px-3">
+                      {entry.rating !== null && (
+                        <RatingCell rating={entry.rating} range={entry.ratingRange} />
+                      )}
                     </td>
                     <td className="hidden md:table-cell py-3.5 px-3 text-xs text-slate-500 text-right">{entry.evidence}</td>
                   </tr>
@@ -190,7 +177,10 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
                     onClick={() => onOpen(entry.employeeID)}
                     className="py-2.5 flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 cursor-pointer hover:bg-slate-50/80 px-2 rounded-lg"
                   >
-                    <span className="text-sm font-medium text-slate-800">{entry.employeeName}</span>
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+                      <Hourglass className="w-4 h-4 text-slate-400 shrink-0" />
+                      {entry.employeeName}
+                    </span>
                     <span className="text-xs text-slate-500 sm:text-right sm:max-w-md">{entry.withheld}</span>
                   </li>
                 ))}
@@ -199,6 +189,25 @@ export function RankingsView({ onOpen }: { onOpen: (employeeID: string) => void 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The number, its stars and its word; the likely range on hover. */
+function RatingCell({ rating, range }: { rating: number; range: Ranked["ratingRange"] }) {
+  const verdict = ratingVerdict(rating);
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-1"
+      title={range ? `Likely between ${range.low.toFixed(1)} and ${range.high.toFixed(1)}` : undefined}
+    >
+      <span className={`inline-block min-w-12 text-center px-2 py-0.5 rounded-md border text-base font-bold ${verdict.bg} ${verdict.text} ${verdict.border}`}>
+        {rating.toFixed(1)}
+      </span>
+      <span className="hidden sm:inline-block">
+        <Stars rating={rating} size="w-4 h-4" />
+      </span>
+      <span className={`text-xs font-semibold ${verdict.text}`}>{verdict.word}</span>
     </div>
   );
 }
