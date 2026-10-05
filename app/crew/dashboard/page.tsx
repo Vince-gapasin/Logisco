@@ -1194,6 +1194,7 @@ export default function CrewDashboardPage({
                   plannedRoute={plannedRoute}
                   heightClass="h-80 sm:h-100 md:h-120"
                   emptyMessage="Waiting for a GPS signal. Start the delivery to begin tracking."
+                  trafficToggle
                 />
               </div>
             </div>

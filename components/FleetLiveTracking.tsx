@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AlertTriangle, Search, FileText, Radio, Copy, Check } from "lucide-react";
+import { AlertTriangle, Search, FileText, Radio, Copy, Check, LocateFixed } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
 import { describeSilence, CHECK_IN_LABELS, type CheckInState } from "@/app/lib/stallRules";
@@ -236,6 +236,15 @@ export default function FleetLiveTracking() {
   const [routeFor, setRouteFor] = useState<string>("");
   const [plannedRoute, setPlannedRoute] = useState<[number, number][]>([]);
 
+  // A truck picked from the list, for the map to fly to. On a phone the map is
+  // scrolled off the top by then, so it is brought back into view as well.
+  const [focus, setFocus] = useState<{ id: string; at: number } | null>(null);
+  const mapCardRef = useRef<HTMLDivElement | null>(null);
+  const locate = (dispatchID: string) => {
+    setFocus((current) => ({ id: dispatchID, at: (current?.at ?? 0) + 1 }));
+    mapCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const loadPlannedRoute = useCallback(async () => {
     if (!routeFor) {
       setPlannedRoute([]);
@@ -364,7 +373,7 @@ export default function FleetLiveTracking() {
       )}
 
       {/* Live Map */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-5">
+      <div ref={mapCardRef} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-5 scroll-mt-4">
         <div className="px-4 sm:px-6 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Radio className="w-4 h-4 text-blue-600" />
@@ -382,6 +391,9 @@ export default function FleetLiveTracking() {
           points={mapPoints}
           plannedRoute={plannedRoute}
           emptyMessage="No truck has reported a GPS position yet. Positions appear here once a driver starts a delivery in the crew app."
+          focus={focus}
+          cluster
+          trafficToggle
         />
       </div>
 
@@ -424,15 +436,26 @@ export default function FleetLiveTracking() {
                         <span className="md:hidden text-xs font-semibold text-slate-500">Truck</span>
                         <div className="text-right md:text-left text-sm text-slate-600 wrap-break-word">
                           <span className="block">{record.truck}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
-                            }
-                            className="mt-0.5 min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
-                          >
-                            {routeFor === record.dispatchID ? "Hide route" : "Show route"}
-                          </button>
+                          <span className="mt-0.5 inline-flex flex-wrap items-center justify-end md:justify-start gap-x-3">
+                            {hasFix && (
+                              <button
+                                type="button"
+                                onClick={() => locate(record.dispatchID)}
+                                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                              >
+                                <LocateFixed className="h-3 w-3" /> Locate
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRouteFor((current) => (current === record.dispatchID ? "" : record.dispatchID))
+                              }
+                              className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-medium text-blue-600 hover:underline"
+                            >
+                              {routeFor === record.dispatchID ? "Hide route" : "Show route"}
+                            </button>
+                          </span>
                         </div>
                       </td>
 

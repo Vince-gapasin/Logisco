@@ -8,7 +8,8 @@ import Map, {
   Source,
   type MapRef,
 } from "react-map-gl/mapbox";
-import { LocateFixed, MapPin, Maximize, Minimize, Minus, Package, Plus, ScanSearch, Truck } from "lucide-react";
+import type { GeoJSONSource } from "mapbox-gl";
+import { LocateFixed, MapPin, Maximize, Minimize, Minus, Package, Plus, ScanSearch, TrafficCone, Truck } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 export interface MapPoint {
@@ -47,6 +48,15 @@ interface LiveRouteMapProps {
   heightClass?: string;
   /** Shown when there is nothing to plot yet. */
   emptyMessage?: string;
+  /**
+   * Fly to this point and open its label. `at` goes up with every request, so
+   * asking for the same truck twice still moves the map.
+   */
+  focus?: { id: string; at: number } | null;
+  /** Trucks close together become one numbered bubble. For the fleet map. */
+  cluster?: boolean;
+  /** Offers the live traffic layer. */
+  trafficToggle?: boolean;
 }
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -66,6 +76,24 @@ const JUMP_KM = 3;
 const GLIDE_MS = 1200;
 
 const FIT_PADDING = 64;
+
+// Trucks closer than this on screen share a bubble, up to the zoom where a
+// street's worth of trucks can be told apart.
+const CLUSTER_RADIUS_PX = 48;
+const CLUSTER_MAX_ZOOM = 14;
+const CLUSTER_SOURCE = "truck-clusters";
+
+// Mapbox's live traffic. Only slow and worse is drawn: free-flowing roads in
+// green would paint the whole city and bury the route.
+const TRAFFIC_COLOURS = { moderate: "#f59e0b", heavy: "#ef4444", severe: "#991b1b" } as const;
+const TRAFFIC_KEY = "logisco.map.traffic";
+
+interface Bubble {
+  clusterID: number;
+  count: number;
+  latitude: number;
+  longitude: number;
+}
 
 function Placeholder({ message }: { message: string }) {
   return (
@@ -246,6 +274,9 @@ export default function LiveRouteMap({
   plannedRoute = [],
   heightClass = "h-96",
   emptyMessage = "No GPS positions to show yet.",
+  focus = null,
+  cluster = false,
+  trafficToggle = false,
 }: LiveRouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -266,6 +297,105 @@ export default function LiveRouteMap({
     followingRef.current = on;
     setFollowingState(on);
   }, []);
+
+  // Remembered per browser: a coordinator who wants traffic on wants it on
+  // every time they open the board.
+  const [traffic, setTraffic] = useState(() => {
+    if (!trafficToggle || typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(TRAFFIC_KEY) === "on";
+    } catch {
+      return false;
+    }
+  });
+  // The route line it is slid beneath, when switched on over a map that
+  // already has one.
+  const [trafficBelow, setTrafficBelow] = useState<string | undefined>(undefined);
+  const toggleTraffic = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    setTrafficBelow(["route-trail-line", "route-planned-casing"].find((id) => map?.getLayer(id)));
+    setTraffic((on) => {
+      try {
+        window.localStorage.setItem(TRAFFIC_KEY, on ? "off" : "on");
+      } catch {
+        // Private browsing: it simply is not remembered.
+      }
+      return !on;
+    });
+  }, []);
+
+  // Grouping. Mapbox works out the groups from the trucks' positions; the
+  // bubbles and the trucks left over are drawn here as ordinary markers, so
+  // they look like every other pin. Worked out again whenever the map settles.
+  const clustering = cluster && trucks.length > 1;
+  const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [grouped, setGrouped] = useState<Set<string>>(() => new Set());
+
+  const clusterData = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: trucks.map((truck) => ({
+        type: "Feature" as const,
+        properties: { id: truck.id },
+        geometry: { type: "Point" as const, coordinates: [truck.longitude, truck.latitude] },
+      })),
+    }),
+    [trucks],
+  );
+
+  const regroup = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !clustering) return;
+    if (!map.getSource(CLUSTER_SOURCE) || !map.isSourceLoaded(CLUSTER_SOURCE)) return;
+
+    const next = new globalThis.Map<number, Bubble>();
+    const single = new Set<string>();
+    for (const feature of map.querySourceFeatures(CLUSTER_SOURCE)) {
+      const props = feature.properties ?? {};
+      if (props.cluster) {
+        const [longitude, latitude] = (feature.geometry as GeoJSON.Point).coordinates;
+        next.set(props.cluster_id as number, {
+          clusterID: props.cluster_id as number,
+          count: props.point_count as number,
+          latitude,
+          longitude,
+        });
+      } else if (typeof props.id === "string") {
+        single.add(props.id);
+      }
+    }
+
+    // A truck in view that Mapbox did not hand back on its own is inside a
+    // bubble. One out of view is left alone: it is not drawn either way.
+    const bounds = map.getBounds();
+    const hidden = new Set(
+      trucks
+        .filter((t) => !single.has(t.id) && bounds?.contains([t.longitude, t.latitude]))
+        .map((t) => t.id),
+    );
+    const list = [...next.values()];
+    const key = (b: Bubble[]) => b.map((x) => `${x.clusterID}:${x.count}`).join();
+
+    // Only when something changed: setting state on every settle would
+    // re-render, and the map settles again.
+    setBubbles((current) => (key(current) === key(list) ? current : list));
+    setGrouped((current) =>
+      current.size === hidden.size && [...hidden].every((id) => current.has(id)) ? current : hidden,
+    );
+  }, [clustering, trucks]);
+
+  const openBubble = useCallback(
+    (bubble: Bubble) => {
+      const map = mapRef.current?.getMap();
+      const source = map?.getSource(CLUSTER_SOURCE) as GeoJSONSource | undefined;
+      source?.getClusterExpansionZoom(bubble.clusterID, (error, zoom) => {
+        if (error || zoom == null) return;
+        setFollowing(false);
+        map?.easeTo({ center: [bubble.longitude, bubble.latitude], zoom: zoom + 0.5, duration: 500 });
+      });
+    },
+    [setFollowing],
+  );
 
   // Ticks so a truck goes grey when it falls silent, without a new fix.
   const [now, setNow] = useState(() => Date.now());
@@ -334,6 +464,21 @@ export default function LiveRouteMap({
     setFollowing(true);
     fit(trucks.length > 0 ? trucks : points);
   }, [fit, trucks, points, setFollowing]);
+
+  // Asked to look at one point, from a list beside the map.
+  const focusAt = focus?.at;
+  useEffect(() => {
+    if (!focus) return;
+    const point = points.find((p) => p.id === focus.id);
+    const map = mapRef.current;
+    if (!point || !map) return;
+    setFollowing(false);
+    setSelected(point);
+    // Past the zoom where trucks are grouped, so it is not inside a bubble.
+    map.easeTo({ center: [point.longitude, point.latitude], zoom: Math.max(map.getZoom(), CLUSTER_MAX_ZOOM + 1), duration: 700 });
+    // Only when asked again, not whenever the truck reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusAt]);
 
   useEffect(() => {
     if (points.length === 0) return;
@@ -408,7 +553,7 @@ export default function LiveRouteMap({
 
   const hasPickups = points.some((p) => p.kind === "stop" && p.stopKind === "pickup");
   const hasDeliveries = points.some((p) => p.kind === "stop" && p.stopKind !== "pickup");
-  const showLegend = plannedRoute.length > 1 || trail.length > 1 || (hasPickups && hasDeliveries);
+  const showLegend = plannedRoute.length > 1 || trail.length > 1 || (hasPickups && hasDeliveries) || traffic;
 
   return (
     <div
@@ -424,7 +569,57 @@ export default function LiveRouteMap({
         attributionControl={false}
         // Only a drag by a person stops following; the map's own moves do not.
         onDragStart={() => setFollowing(false)}
+        onIdle={clustering ? regroup : undefined}
       >
+        {/*
+          Live traffic, under the routes so the road ahead stays readable on
+          top of it. Listed first, so on a fresh map it is added first; switched
+          on later, it is slid beneath whichever route line is already there.
+        */}
+        {traffic && (
+          <Source id="traffic" type="vector" url="mapbox://mapbox.mapbox-traffic-v1">
+            <Layer
+              id="traffic-line"
+              type="line"
+              source-layer="traffic"
+              beforeId={trafficBelow}
+              filter={["in", ["get", "congestion"], ["literal", Object.keys(TRAFFIC_COLOURS)]]}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+              paint={{
+                "line-color": [
+                  "match",
+                  ["get", "congestion"],
+                  "moderate",
+                  TRAFFIC_COLOURS.moderate,
+                  "heavy",
+                  TRAFFIC_COLOURS.heavy,
+                  TRAFFIC_COLOURS.severe,
+                ],
+                "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1.5, 16, 4],
+                "line-opacity": 0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {/*
+          The trucks again, for Mapbox to group. Drawn invisibly: a source with
+          no layer is never loaded, and the pins people see are the markers
+          below.
+        */}
+        {clustering && (
+          <Source
+            id={CLUSTER_SOURCE}
+            type="geojson"
+            data={clusterData}
+            cluster
+            clusterRadius={CLUSTER_RADIUS_PX}
+            clusterMaxZoom={CLUSTER_MAX_ZOOM}
+          >
+            <Layer id="truck-clusters-probe" type="circle" paint={{ "circle-radius": 1, "circle-opacity": 0 }} />
+          </Source>
+        )}
+
         {/*
           Where it has been, underneath and muted. It is raw GPS - it wanders
           off the road between fixes - and it is the less useful of the two to
@@ -463,9 +658,35 @@ export default function LiveRouteMap({
           </Source>
         )}
 
-        {points.map((point) => (
-          <PointMarker key={point.id} point={point} now={now} onSelect={setSelected} />
-        ))}
+        {points
+          .filter((point) => !(clustering && grouped.has(point.id)))
+          .map((point) => (
+            <PointMarker key={point.id} point={point} now={now} onSelect={setSelected} />
+          ))}
+
+        {clustering &&
+          bubbles.map((bubble) => (
+            <Marker
+              key={bubble.clusterID}
+              latitude={bubble.latitude}
+              longitude={bubble.longitude}
+              anchor="center"
+              style={{ zIndex: 3 }}
+              onClick={(event) => {
+                event.originalEvent.stopPropagation();
+                openBubble(bubble);
+              }}
+            >
+              <button
+                type="button"
+                aria-label={`${bubble.count} trucks here - zoom in`}
+                className="flex h-10 min-w-10 items-center justify-center gap-1 rounded-full border-[3px] border-white bg-blue-600 px-2 text-sm font-bold text-white shadow-lg ring-4 ring-blue-600/25 transition-transform hover:scale-110"
+              >
+                <Truck className="h-3.5 w-3.5" />
+                {bubble.count}
+              </button>
+            </Marker>
+          ))}
 
         {selected && (
           <Popup
@@ -508,6 +729,11 @@ export default function LiveRouteMap({
             <ScanSearch className="h-4 w-4" />
           </ControlButton>
         )}
+        {trafficToggle && (
+          <ControlButton label={traffic ? "Hide traffic" : "Show traffic"} onClick={toggleTraffic} active={traffic}>
+            <TrafficCone className="h-4 w-4" />
+          </ControlButton>
+        )}
         <ControlButton label={fullScreen ? "Exit full screen" : "Full screen"} onClick={toggleFullScreen}>
           {fullScreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </ControlButton>
@@ -538,6 +764,18 @@ export default function LiveRouteMap({
                 <span className="h-1 w-6 rounded-full bg-slate-400" />
                 <span className="text-xs font-medium text-slate-700">Already travelled</span>
               </li>
+            )}
+            {traffic && (
+              <>
+                <li className="flex items-center gap-2">
+                  <span className="h-1 w-6 rounded-full" style={{ background: TRAFFIC_COLOURS.moderate }} />
+                  <span className="text-xs font-medium text-slate-700">Slow traffic</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1 w-6 rounded-full" style={{ background: TRAFFIC_COLOURS.heavy }} />
+                  <span className="text-xs font-medium text-slate-700">Heavy traffic</span>
+                </li>
+              </>
             )}
             {hasPickups && hasDeliveries && (
               <>
