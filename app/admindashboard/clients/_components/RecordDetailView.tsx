@@ -27,6 +27,37 @@ interface RecordDetailViewProps {
   onDelete: (id: string | number) => void;
 }
 
+/**
+ * One warehouse or branch as a card, below laptop width. The four-column
+ * table cut every value down to a few letters on a phone.
+ */
+function AddressCard({
+  index,
+  name,
+  rows,
+}: {
+  index: number;
+  name?: string;
+  rows: [string, string | undefined][];
+}) {
+  return (
+    <div className="border border-slate-200 rounded-lg bg-slate-50 p-3 text-xs">
+      <p className="font-semibold text-slate-900 text-sm wrap-break-word pb-2 mb-2 border-b border-slate-200">
+        <span className="text-slate-500 font-medium mr-1">{index}.</span>
+        {name || "—"}
+      </p>
+      <dl className="space-y-1.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[40%_60%] gap-2">
+            <dt className="text-slate-500 font-medium">{label}</dt>
+            <dd className="font-medium text-slate-700 wrap-break-word">{value || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export function RecordDetailView({
   record,
   tabType,
@@ -161,7 +192,22 @@ export function RecordDetailView({
                   2. Pickup Addresses
                 </div>
                 {record.pickupAddresses && record.pickupAddresses.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <>
+                  <div className="lg:hidden space-y-2">
+                    {record.pickupAddresses.map((p, idx) => (
+                      <AddressCard
+                        key={idx}
+                        index={idx + 1}
+                        name={p.warehouseName}
+                        rows={[
+                          ["Address", p.warehouseAddress],
+                          ["Contact Person", p.contactPerson],
+                          ["Contact Number", p.contactNumber],
+                        ]}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-left border-collapse text-xs table-fixed">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
@@ -185,16 +231,16 @@ export function RecordDetailView({
                             key={idx}
                             className="border-b border-slate-200 last:border-0"
                           >
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {p.warehouseName || "—"}
                             </td>
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {p.warehouseAddress || "—"}
                             </td>
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {p.contactPerson || "—"}
                             </td>
-                            <td className="p-2.5 truncate text-center">
+                            <td className="p-2.5 align-top wrap-break-word text-center">
                               {p.contactNumber || "—"}
                             </td>
                           </tr>
@@ -202,6 +248,7 @@ export function RecordDetailView({
                       </tbody>
                     </table>
                   </div>
+                  </>
                 ) : (
                   <div className="text-xs text-slate-500 py-2">
                     No pickup addresses recorded.
@@ -215,7 +262,22 @@ export function RecordDetailView({
                 </div>
                 {record.deliveryAddresses &&
                 record.deliveryAddresses.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <>
+                  <div className="lg:hidden space-y-2">
+                    {record.deliveryAddresses.map((d, idx) => (
+                      <AddressCard
+                        key={idx}
+                        index={idx + 1}
+                        name={d.branchName}
+                        rows={[
+                          ["Address", d.deliveryAddress],
+                          ["Contact Person", d.contactPerson],
+                          ["Contact Number", d.contactNumber],
+                        ]}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-left border-collapse text-xs table-fixed">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
@@ -239,16 +301,16 @@ export function RecordDetailView({
                             key={idx}
                             className="border-b border-slate-200 last:border-0"
                           >
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {d.branchName || "—"}
                             </td>
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {d.deliveryAddress || "—"}
                             </td>
-                            <td className="p-2.5 border-r border-slate-200 truncate">
+                            <td className="p-2.5 border-r border-slate-200 align-top wrap-break-word">
                               {d.contactPerson || "—"}
                             </td>
-                            <td className="p-2.5 truncate text-center">
+                            <td className="p-2.5 align-top wrap-break-word text-center">
                               {d.contactNumber || "—"}
                             </td>
                           </tr>
@@ -256,6 +318,7 @@ export function RecordDetailView({
                       </tbody>
                     </table>
                   </div>
+                  </>
                 ) : (
                   <div className="text-xs text-slate-500 py-2">
                     No delivery addresses recorded.
