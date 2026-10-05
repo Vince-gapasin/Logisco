@@ -356,7 +356,10 @@ export default function AdminDashboardPage() {
 
       setDrivers(assignableCrew(allEmployees, "Driver"));
       setHelpers(assignableCrew(allEmployees, "Helper"));
-      setAllDrivers((empRes.data ?? []).filter((employee) => employee.role?.trim() === "Driver"));
+      // The crew filter: every driver who could be on a trip, busy or not. Same
+      // rule as above minus availability, so somebody whose account was never
+      // set up - and so was never on a delivery - is not offered as a filter.
+      setAllDrivers(assignableCrew(empRes.data ?? [], "Driver"));
 
       setSubcontractors(subconRes.data || []);
     } catch (error) {
@@ -701,13 +704,13 @@ export default function AdminDashboardPage() {
       <style>{`.feed-scrollbar::-webkit-scrollbar { width: 6px; } .feed-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 4px; } .feed-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } .feed-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }`}</style>
 
       {/* HEADER SECTION WITH FILTER */}
-      <div className="flex flex-row flex-wrap justify-between items-center gap-3 sm:gap-4 mb-6 relative">
+      <div className="flex flex-row flex-wrap justify-between items-center gap-3 sm:gap-4 mb-6 relative z-20">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Overview</h1>
           </div>
 
         {/* Buttons Flex Container */}
-        <div className="flex flex-row flex-wrap items-center gap-2 sm:gap-3 relative z-10">
+        <div className="flex flex-row flex-wrap items-center gap-2 sm:gap-3 sm:relative">
           <button
             onClick={() => {
               setSelectedClientForBooking("");
@@ -734,7 +737,7 @@ export default function AdminDashboardPage() {
           </button>
           {/* Filter Dropdown Panel */}
           {isFilterOpen && (
-            <div className="absolute top-full mt-2 right-0 w-[calc(100vw-2rem)] max-w-xs sm:max-w-none sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in origin-top-right">
+            <div className="absolute top-full mt-2 inset-x-0 sm:inset-x-auto sm:right-0 sm:w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 animate-fade-in origin-top-right">
               <div className="flex justify-between items-center mb-2 border-b border-slate-100 pb-1.5">
                 <h3 className="font-bold text-xs text-slate-800">Filters</h3>
                 <button
@@ -759,7 +762,7 @@ export default function AdminDashboardPage() {
                         dateRange: e.target.value,
                       }))
                     }
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">All Time</option>
                     <option value="Today">Today</option>
@@ -823,7 +826,7 @@ export default function AdminDashboardPage() {
                         setIsCrewDropdownOpen(!isCrewDropdownOpen);
                         setIsClientDropdownOpen(false);
                       }}
-                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-base sm:text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">{selectedCrewLabel}</span>
                       <ChevronDown
@@ -925,7 +928,7 @@ export default function AdminDashboardPage() {
                         setIsClientDropdownOpen(!isClientDropdownOpen);
                         setIsCrewDropdownOpen(false);
                       }}
-                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-tap md:pointer-fine:min-h-0 w-full border border-slate-300 bg-white rounded-lg px-3 py-2 text-base sm:text-sm text-left flex items-center justify-between text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <span className="truncate pr-2">
                         {selectedClientLabel}
