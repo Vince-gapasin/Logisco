@@ -28,6 +28,19 @@ const INK: readonly [number, number, number] = [15, 23, 42];
 const MUTED: readonly [number, number, number] = [100, 116, 139];
 const LINE: readonly [number, number, number] = [226, 232, 240];
 const HEADER_FILL: readonly [number, number, number] = [241, 245, 249];
+const LABEL_FILL: readonly [number, number, number] = [248, 250, 252];
+
+type Rgb = readonly [number, number, number];
+
+/** A status badge's colours, by what the status means rather than its exact words. */
+function badgeTone(status: string): { fill: Rgb; text: Rgb } {
+  const s = status.toLowerCase();
+  if (/(deliver|complete|done|accepted|returned)/.test(s)) return { fill: [220, 252, 231], text: [21, 128, 61] };
+  if (/(foul|cancel|declin|reject|fail)/.test(s)) return { fill: [254, 226, 226], text: [185, 28, 28] };
+  if (/(transit|route|arrived)/.test(s)) return { fill: [219, 234, 254], text: [29, 78, 216] };
+  if (/(pending|unassigned|waiting)/.test(s)) return { fill: [254, 243, 199], text: [180, 83, 9] };
+  return { fill: [241, 245, 249], text: [51, 65, 85] };
+}
 
 /** What the built-in fonts can draw, from what people actually type. */
 export function toPdfText(value: string): string {
@@ -59,10 +72,12 @@ export interface DetailItem {
 export interface ReportBuilder {
   /** A heading, with the room the thing after it needs so it is not orphaned. */
   section(title: string, subtitle?: string, keepWithNext?: number): void;
-  /** A smaller heading inside a section, with a rule above it. */
-  subsection(title: string, aside?: string): void;
-  /** Labelled values in a grid, a label over each value, wrapped to fit. */
-  details(items: DetailItem[], columns?: number): void;
+  /**
+   * A boxed group of labelled values under a shaded title bar, like a form:
+   * the label beside its value on a ruled row, so the eye can run down
+   * either. A status, when given, is a coloured badge at the right of the bar.
+   */
+  panel(title: string, items: DetailItem[], options?: { columns?: 1 | 2; status?: string }): void;
   /** A line of prose, wrapped to the content width. */
   paragraph(text: string, options?: { muted?: boolean }): void;
   /** Label-and-value pairs across the page, for a summary. */
@@ -155,31 +170,20 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
       y += lines.length * 4.4 + 2;
     },
 
-    subsection(title, aside) {
-      ensureSpace(22);
-      y += 1;
-      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
-      pdf.line(margin, y, margin + contentWidth, y);
-      y += 5;
-      setText(INK, 10, "bold");
-      pdf.text(toPdfText(title), margin, y);
-      if (aside) {
-        setText(MUTED, 8.5);
-        pdf.text(toPdfText(aside), margin + contentWidth, y, { align: "right" });
-      }
-      y += 5;
-    },
-
-    details(items, columns = 2) {
-      const cellWidth = contentWidth / columns;
+    panel(title, items, { columns = 2, status } = {}) {
+      const barHeight = 8;
+      const labelWidth = columns === 2 ? 30 : 38;
+      const columnWidth = contentWidth / columns;
       const lineHeight = 4;
+      const padTop = 4.8;
+      const padBottom = 2.4;
 
-      // Laid out a row at a time, so a row is as tall as its tallest value
-      // and the next one starts under all of it.
+      // A row at a time: a row is as tall as its tallest value, and a wide
+      // item (an address, a remark) has the row to itself.
       const rows: DetailItem[][] = [];
       let current: DetailItem[] = [];
       for (const item of items) {
-        if (item.wide) {
+        if (item.wide && columns > 1) {
           if (current.length) rows.push(current);
           rows.push([item]);
           current = [];
@@ -193,46 +197,107 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
       }
       if (current.length) rows.push(current);
 
-      for (const row of rows) {
-        setText(INK, 9.5);
-        const wrapped = row.map(
+      setText(INK, 9);
+      const measured = rows.map((row) => {
+        const wide = row.length === 1 && row[0].wide;
+        const cells = row.map(
           (item) =>
             pdf.splitTextToSize(
               toPdfText(item.value || "-"),
-              (item.wide ? contentWidth : cellWidth) - 4,
+              (wide ? contentWidth : columnWidth) - labelWidth - 5,
             ) as string[],
         );
-        const height = 4 + Math.max(...wrapped.map((lines) => lines.length)) * lineHeight + 2.5;
-        ensureSpace(height);
+        setText(MUTED, 7.5, "bold");
+        const labels = row.map(
+          (item) => pdf.splitTextToSize(toPdfText(item.label.toUpperCase()), labelWidth - 4) as string[],
+        );
+        setText(INK, 9);
+        const lines = Math.max(...cells.map((c) => c.length), ...labels.map((l) => l.length));
+        const height = padTop + (lines - 1) * lineHeight + padBottom;
+        return { row, wide, cells, labels, height };
+      });
+
+      const drawBar = (continued: boolean) => {
+        pdf.setFillColor(HEADER_FILL[0], HEADER_FILL[1], HEADER_FILL[2]);
+        pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+        pdf.rect(margin, y, contentWidth, barHeight, "FD");
+        setText(INK, 9.5, "bold");
+        pdf.text(toPdfText(continued ? `${title} (continued)` : title), margin + 3, y + 5.5);
+
+        if (status && !continued) {
+          const label = toPdfText(status).toUpperCase();
+          const tone = badgeTone(status);
+          setText(tone.text, 7, "bold");
+          const width = pdf.getTextWidth(label) + 5;
+          const left = margin + contentWidth - 3 - width;
+          pdf.setFillColor(tone.fill[0], tone.fill[1], tone.fill[2]);
+          pdf.roundedRect(left, y + 1.6, width, 4.8, 2.4, 2.4, "F");
+          pdf.text(label, left + 2.5, y + 4.95);
+        }
+        y += barHeight;
+      };
+
+      // The bar and its first row stay together.
+      ensureSpace(barHeight + (measured[0]?.height ?? 0) + 2);
+      drawBar(false);
+
+      for (const { row, cells, labels, height } of measured) {
+        if (y + height > bottomLimit) {
+          pdf.addPage();
+          y = margin;
+          drawBar(true);
+        }
 
         row.forEach((item, index) => {
-          const left = margin + index * cellWidth;
-          setText(MUTED, 7.5);
-          pdf.text(toPdfText(item.label.toUpperCase()), left, y);
-          setText(INK, 9.5);
-          pdf.text(wrapped[index], left, y + 4.2);
+          const left = margin + index * columnWidth;
+
+          // The label in a shaded cell of its own, so the values line up in a
+          // column a reader can run down without reading the labels again.
+          pdf.setFillColor(LABEL_FILL[0], LABEL_FILL[1], LABEL_FILL[2]);
+          pdf.rect(left, y, labelWidth, height, "F");
+          setText(MUTED, 7.5, "bold");
+          pdf.text(labels[index], left + 2.5, y + padTop - 0.2, { lineHeightFactor: lineHeight / (7.5 * 0.3528) });
+
+          setText(INK, 9);
+          pdf.text(cells[index], left + labelWidth + 2.5, y + padTop, { lineHeightFactor: lineHeight / (9 * 0.3528) });
+
+          pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+          pdf.line(left + labelWidth, y, left + labelWidth, y + height);
+          if (index > 0) pdf.line(left, y, left, y + height);
         });
 
+        // Each row draws its own box, so a panel that runs on to the next page
+        // is closed at the bottom of one and reopened at the top of the other.
+        pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+        pdf.rect(margin, y, contentWidth, height, "S");
         y += height;
       }
 
-      y += 1;
+      y += 5;
     },
 
     figures(pairs) {
       if (pairs.length === 0) return;
-      ensureSpace(16);
+      const height = 17;
+      ensureSpace(height + 4);
+
+      // In a box of their own: the headline of the report, set apart from
+      // the detail under it.
+      pdf.setFillColor(LABEL_FILL[0], LABEL_FILL[1], LABEL_FILL[2]);
+      pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
+      pdf.roundedRect(margin, y, contentWidth, height, 2, 2, "FD");
 
       const width = contentWidth / pairs.length;
       pairs.forEach((pair, index) => {
-        const left = margin + index * width;
-        setText(MUTED, 8);
-        pdf.text(toPdfText(pair.label.toUpperCase()), left, y);
-        setText(INK, 14, "bold");
-        pdf.text(toPdfText(pair.value), left, y + 6.5);
+        const left = margin + index * width + 4;
+        if (index > 0) pdf.line(margin + index * width, y + 3, margin + index * width, y + height - 3);
+        setText(MUTED, 7.5, "bold");
+        pdf.text(toPdfText(pair.label.toUpperCase()), left, y + 6);
+        setText(INK, 13, "bold");
+        pdf.text(toPdfText(pair.value), left, y + 12.8);
       });
 
-      y += 13;
+      y += height + 6;
     },
 
     table(columns, rows) {

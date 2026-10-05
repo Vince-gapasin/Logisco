@@ -94,8 +94,8 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
       details: [
         { label: "Address", value: orDash(stop.pickupAddress), wide: true },
         { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
-        { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
         { label: "Quantity", value: orDash(stop.quantity) },
+        { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
         { label: "Arrived", value: when(stop.arrivedAt) },
         { label: "Completed", value: when(stop.completedAt) },
       ],
@@ -110,8 +110,8 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
         details: [
           { label: "Address", value: orDash(stop.deliveryAddress || view.businessAddress), wide: true },
           { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
-          { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
           { label: "Quantity", value: orDash(stop.quantity) },
+          { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
           { label: "Arrived", value: when(stop.arrivedAt) },
           { label: "Completed", value: when(stop.completedAt) },
           { label: "Received by", value: orDash(proof?.receiverName) },
@@ -210,8 +210,10 @@ export async function exportDelivery(
     return;
   }
 
-  // Portrait, like the paperwork it is filed with. The stops are blocks
-  // rather than a table, which is what made them fit.
+  // Portrait, like the paperwork it is filed with. Each part of the booking
+  // is a boxed panel, a label beside each value, and each stop is a panel of
+  // its own with its status as a badge - the stops were a table once, and a
+  // table that wide could not be read without cutting its cells.
   const report = await startReport({
     title: `Delivery Record ${record.view.orderId}`,
     meta: [
@@ -227,25 +229,19 @@ export async function exportDelivery(
     { label: "Quantity", value: orDash(record.view.totalQuantity) },
   ]);
 
-  report.section("Booking");
-  report.details(record.bookingDetails, 3);
-
-  report.section("Client");
-  report.details(record.clientDetails, 2);
-
-  report.section("Truck and crew");
-  report.details(record.crewDetails, 2);
+  report.panel("Booking", record.bookingDetails);
+  report.panel("Client", record.clientDetails);
+  report.panel("Truck and crew", record.crewDetails);
 
   report.section(
     "Route",
-    `${record.stops.filter((stop) => stop.kind === "Pickup").length} pickup(s), ${record.stops.filter((stop) => stop.kind === "Delivery").length} delivery stop(s)`,
+    `${record.stops.filter((stop) => stop.kind === "Pickup").length} pickup(s), ${record.stops.filter((stop) => stop.kind === "Delivery").length} delivery stop(s), in the order driven`,
   );
   if (record.stops.length === 0) {
     report.paragraph("No stops recorded.", { muted: true });
   }
   for (const stop of record.stops) {
-    report.subsection(`${stop.kind} ${stop.number}: ${stop.name}`, stop.status);
-    report.details(stop.details, 3);
+    report.panel(`${stop.kind} ${stop.number}: ${stop.name}`, stop.details, { status: stop.status });
   }
 
   if (record.reason) {
