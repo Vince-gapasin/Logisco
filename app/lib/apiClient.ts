@@ -47,6 +47,18 @@ export function invalidateApiCache(prefix?: string): void {
   }
 }
 
+/** A refused request, keeping the status and body for callers that need more than the message. */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
   if (!token) {
@@ -74,7 +86,7 @@ async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T
         : `Request failed with status ${response.status}`;
 
     if (response.status === 401) clearStoredSession();
-    throw new Error(message);
+    throw new ApiError(message, response.status, result);
   }
 
   return result as T;

@@ -112,6 +112,10 @@ export const createOrderSchema = z.object({
 
   // Optional so older clients that still only send the notes line keep working.
   pickups: z.array(pickupStopSchema).optional().default([]),
+
+  // Sent on the second try, once the coordinator has been told the crew may
+  // run late and chose to book it as it stands.
+  acknowledgeTightSchedule: z.boolean().optional().default(false),
 });
 // ==========================================
 // EDITING A BOOKING AFTER IT IS MADE

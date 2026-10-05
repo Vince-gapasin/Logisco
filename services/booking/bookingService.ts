@@ -521,6 +521,12 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
 export class BookingNotPossible extends Error {}
 
 /**
+ * Held back because the itinerary can be driven only with nothing to spare.
+ * Not a refusal: the coordinator decides, and sends it again acknowledged.
+ */
+export class BookingNeedsConfirmation extends Error {}
+
+/**
  * The drive through an itinerary, and what that says about its times.
  *
  * Routed once, here, at the only moment the whole itinerary is in hand. It is
@@ -620,6 +626,16 @@ export async function createBooking(dto: CreateOrderDto) {
 
   if (feasibility.verdict === "impossible") {
     throw new BookingNotPossible(feasibility.message ?? "This itinerary cannot be driven in time.");
+  }
+
+  // Drivable, but the crew may well arrive late. That used to be said only
+  // after the booking was made, when the times could no longer be changed
+  // without editing it. Now nothing is written until the coordinator has
+  // seen it and chosen to keep the times.
+  if (feasibility.verdict === "tight" && !dto.acknowledgeTightSchedule) {
+    throw new BookingNeedsConfirmation(
+      feasibility.message ?? "These times leave the crew nothing to spare. They may arrive late.",
+    );
   }
 
   // 1. Generate Unique Identifiers
@@ -751,10 +767,9 @@ export async function createBooking(dto: CreateOrderDto) {
     orderID: newOrderID,
     orderCode: orderCode,
     trackingToken: orderLinkToken,
-    // Drivable, but with nothing to spare. Worth saying while the client is
-    // still on the phone.
-    // Said while the client is still on the phone: either the itinerary is
-    // drivable with nothing to spare, or it was never checked.
-    warning: feasibility.message,
+    // Said while the client is still on the phone when the itinerary was never
+    // checked. A tight one was already asked about and accepted, so it is not
+    // repeated.
+    warning: feasibility.verdict === "tight" ? null : feasibility.message,
   };
 }

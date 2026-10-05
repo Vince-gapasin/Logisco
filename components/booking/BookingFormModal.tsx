@@ -78,7 +78,15 @@ export interface BookingFormResult {
   /** No truck or no driver: the booking waits in Unassigned Bookings. */
   unassigned: boolean;
   resolvedNames: { truck: string; driver: string; helper1: string; helper2: string };
+  /** Set once the coordinator has chosen to keep times the crew may run late on. */
+  acknowledgeTightSchedule?: boolean;
 }
+
+/**
+ * What came of a save: null when the booking was made, a message when it was
+ * refused, or the server asking whether to keep times the crew may run late on.
+ */
+export type BookingSubmitOutcome = string | null | { confirmTightSchedule: string };
 
 interface BookingFormModalProps {
   isOpen: boolean;
@@ -91,7 +99,7 @@ interface BookingFormModalProps {
   subcontractors: Partial<SubContractorRow>[];
   preSelectedClientID?: string;
   /** Returns a message when the booking was refused, so the form can stay up. */
-  onSubmitSuccess: (data: BookingFormResult) => void | Promise<string | null>;
+  onSubmitSuccess: (data: BookingFormResult) => void | Promise<BookingSubmitOutcome>;
 }
 
 const TITLES: Record<BookingFormVariant, string> = {
@@ -235,6 +243,8 @@ function BookingForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmUnassigned, setConfirmUnassigned] = useState<BookingFormResult | null>(null);
+  // The server held the booking back: the crew may arrive late on these times.
+  const [confirmTight, setConfirmTight] = useState<{ result: BookingFormResult; message: string } | null>(null);
 
   const availableTrucks = useMemo(() => freeCrew?.trucks ?? (trucks ?? []).map(toTruck), [freeCrew, trucks]);
   const availableDrivers = useMemo(() => freeCrew?.drivers ?? (drivers ?? []).map(toPerson), [freeCrew, drivers]);
@@ -507,15 +517,23 @@ function BookingForm({
       setConfirmUnassigned(result);
       return;
     }
-    // Closed only once the booking is actually made. It used to close here and
-    // let the request run on behind it, so anything the server refused took the
-    // whole form with it and the coordinator typed it again from memory.
+    await submit(result);
+  };
+
+  // Closed only once the booking is actually made. It used to close here and
+  // let the request run on behind it, so anything the server refused took the
+  // whole form with it and the coordinator typed it again from memory.
+  const submit = async (result: BookingFormResult) => {
     setSubmitError(null);
     setSaving(true);
     try {
-      const refused = await onSubmitSuccess(result);
-      if (refused) {
-        setSubmitError(refused);
+      const outcome = await onSubmitSuccess(result);
+      if (outcome && typeof outcome === "object") {
+        setConfirmTight({ result, message: outcome.confirmTightSchedule });
+        return;
+      }
+      if (outcome) {
+        setSubmitError(outcome);
         return;
       }
       onClose();
@@ -1103,12 +1121,56 @@ function BookingForm({
                 onClick={() => {
                   const result = confirmUnassigned;
                   setConfirmUnassigned(null);
-                  onSubmitSuccess(result);
-                  onClose();
+                  // Through the same save, so a tight schedule is still asked
+                  // about and a refusal still keeps the form open.
+                  void submit(result);
                 }}
                 className="min-h-tap px-5 py-2 rounded-xl bg-blue-600 text-sm font-semibold text-white"
               >
                 Create unassigned booking
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmTight && (
+        <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/60" role="dialog" aria-modal="true" aria-labelledby="tight-title">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl my-auto">
+            <h3 id="tight-title" className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> The crew may arrive late
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">{confirmTight.message}</p>
+            <p className="mt-2 text-sm text-slate-600">Nothing has been saved yet.</p>
+            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmTight(null);
+                  onClose();
+                }}
+                className="min-h-tap px-5 py-2 rounded-xl bg-slate-200 text-sm font-semibold text-slate-800"
+              >
+                Cancel booking
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmTight(null)}
+                className="min-h-tap px-5 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800"
+              >
+                Change the times
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  const { result } = confirmTight;
+                  setConfirmTight(null);
+                  void submit({ ...result, acknowledgeTightSchedule: true });
+                }}
+                className="min-h-tap px-5 py-2 rounded-xl bg-amber-600 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Book anyway
               </button>
             </div>
           </div>

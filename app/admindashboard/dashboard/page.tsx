@@ -11,7 +11,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { apiFetch } from "@/app/lib/apiClient";
+import { ApiError, apiFetch } from "@/app/lib/apiClient";
 import type {
   ClientRow,
   EmployeeRow,
@@ -26,7 +26,7 @@ import {
 } from "@/app/lib/enums";
 import { assignableCrew } from "@/app/lib/crewEligibility";
 import { useRouter } from "next/navigation";
-import BookingFormModal, { type BookingFormResult } from "@/components/booking/BookingFormModal";
+import BookingFormModal, { type BookingFormResult, type BookingSubmitOutcome } from "@/components/booking/BookingFormModal";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
@@ -434,7 +434,7 @@ export default function AdminDashboardPage() {
     void fetchOrders();
   };
 
-  const handleModalSubmit = async (data: BookingFormResult): Promise<string | null> => {
+  const handleModalSubmit = async (data: BookingFormResult): Promise<BookingSubmitOutcome> => {
     try {
       let detailedNotes = "";
       if (!data.clientID) {
@@ -510,6 +510,7 @@ export default function AdminDashboardPage() {
             expectedTime: p.pickupTime || undefined,
             quantity: parseQuantity(p.quantity) ?? undefined,
           })),
+        acknowledgeTightSchedule: data.acknowledgeTightSchedule === true,
       };
 
       const res = await apiFetch<{
@@ -523,8 +524,8 @@ export default function AdminDashboardPage() {
       });
       const newOrderID = res.orderID;
 
-      // Drivable, but with nothing to spare. Said now, while the client is
-      // still on the phone and the times can still be moved.
+      // A tight schedule is asked about before it is saved; what is left here
+      // is a booking whose times could not be checked at all.
       if (res.warning) showToast(res.warning, "info");
 
       if (data.subconPartner) {
@@ -572,6 +573,12 @@ export default function AdminDashboardPage() {
       await fetchOrders();
       return null;
     } catch (err) {
+      // Nothing was saved: the crew may run late on these times, and the
+      // coordinator chooses whether to change them, book anyway, or cancel.
+      if (err instanceof ApiError && err.status === 409) {
+        const body = err.body as { needsConfirmation?: string } | null;
+        if (body?.needsConfirmation === "tightSchedule") return { confirmTightSchedule: err.message };
+      }
       console.error(err);
       // Handed back to the form, which stays open holding everything that was
       // typed. It used to be thrown over the dashboard as a toast, with the

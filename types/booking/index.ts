@@ -107,6 +107,8 @@ export interface CreateOrderDto {
   items: CreateOrderItemDto[];
   stops: CreateBranchStopDto[];
   pickups?: CreatePickupStopDto[];
+  /** The coordinator has seen that the times are tight and is booking anyway. */
+  acknowledgeTightSchedule?: boolean;
 }
 
 // ==========================================

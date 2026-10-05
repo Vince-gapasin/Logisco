@@ -5,7 +5,7 @@ import { notify, OFFICE } from "@/services/notifications/notify";
 import { sendBookingTrackingLink } from "@/services/email/bookingEmail";
 import { getBookings, createBooking } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
-import { BookingNotPossible } from "@/services/booking/bookingService";
+import { BookingNeedsConfirmation, BookingNotPossible } from "@/services/booking/bookingService";
 
 // ============================================
 // GET ALL BOOKINGS
@@ -89,6 +89,13 @@ export async function POST(request: Request) {
       // fault. It is told apart from a real failure so it does not read as one.
       if (error instanceof BookingNotPossible) {
         return NextResponse.json({ message: error.message }, { status: 422 });
+      }
+      // Nothing was saved. The form asks whether to keep these times.
+      if (error instanceof BookingNeedsConfirmation) {
+        return NextResponse.json(
+          { message: error.message, needsConfirmation: "tightSchedule" },
+          { status: 409 },
+        );
       }
       throw error;
     }
