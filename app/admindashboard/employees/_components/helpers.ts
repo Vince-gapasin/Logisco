@@ -160,7 +160,7 @@ export function getInitialFormState(): EmployeeFormState {
     emergencyContactNumber: "",
     relationship: "",
     skills: "",
-    certificates: null,
+    certificates: [],
     remarks: "",
   };
 }

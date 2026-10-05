@@ -96,7 +96,8 @@ export interface EmployeeFormState {
   relationship: string;
 
   skills: string;
-  certificates: File | null;
+  /** Chosen in the form, uploaded once the employee is saved. */
+  certificates: File[];
   remarks: string;
 }
 

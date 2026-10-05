@@ -208,6 +208,22 @@ export default function EmployeesPage() {
   // CREATE / UPDATE
   // ==========================================
 
+  // The files chosen in the form, once the employee exists to hang them on.
+  // Returns what went wrong, worded to follow "Employee saved, but ", or null.
+  const uploadAttachments = async (employeeID: string, files: File[]) => {
+    if (files.length === 0) return null;
+
+    const body = new FormData();
+    files.forEach((file) => body.append("files", file));
+
+    try {
+      await apiFetch(`/api/employees/${employeeID}/attachments`, { method: "POST", body });
+      return null;
+    } catch (error) {
+      return `the attachments were not uploaded: ${getErrorMessage(error)}`;
+    }
+  };
+
   const handleModalSubmit = async (
     formData: EmployeeFormState,
     editData?: EmployeeRecord | null,
@@ -300,7 +316,7 @@ export default function EmployeesPage() {
           updatePayload.relationship !== (editData.relationship || null) ||
           updatePayload.skills !== (editData.skills || null) ||
           updatePayload.remarks !== (editData.remarks || null) ||
-          Boolean(formData.certificates);
+          formData.certificates.length > 0;
 
         if (!hasChanges) {
           setErrorMessage("No changes were made.");
@@ -314,11 +330,14 @@ export default function EmployeesPage() {
           body: JSON.stringify(updatePayload),
         });
 
+        const uploadProblem = await uploadAttachments(editData.id, formData.certificates);
+
         if (selectedEmployee) {
           await handleRowClick(editData.id);
         }
 
-        setSuccessMessage("Employee updated successfully.");
+        if (uploadProblem) setErrorMessage(`Employee updated, but ${uploadProblem}`);
+        else setSuccessMessage("Employee updated successfully.");
         setEditingEmployee(null);
       } else {
         const createPayload = {
@@ -356,14 +375,21 @@ export default function EmployeesPage() {
           remarks: formData.remarks || null,
         };
 
-        await apiFetch<EmployeeApiResponse>("/api/employees", {
+        const created = await apiFetch<EmployeeApiResponse>("/api/employees", {
           method: "POST",
           body: JSON.stringify(createPayload),
         });
 
-        setSuccessMessage(
-          "Employee created successfully. You can activate the login account from the employee profile.",
+        const uploadProblem = await uploadAttachments(
+          created.data?.employeeID ?? createPayload.employeeID,
+          formData.certificates,
         );
+
+        if (uploadProblem) setErrorMessage(`Employee created, but ${uploadProblem}`);
+        else
+          setSuccessMessage(
+            "Employee created successfully. You can activate the login account from the employee profile.",
+          );
       }
 
       setIsModalOpen(false);

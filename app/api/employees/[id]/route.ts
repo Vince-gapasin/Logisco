@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { AVAILABILITY } from "@/app/lib/enums";
 import { notify, OFFICE } from "@/services/notifications/notify";
+import { removeAllEmployeeAttachmentObjects } from "@/services/storage/employeeAttachmentService";
 
 import {
   requireAuth,
@@ -371,6 +372,9 @@ export async function DELETE(
         }
       );
     }
+
+    // Their files go with them. The rows already have (ON DELETE CASCADE).
+    await removeAllEmployeeAttachmentObjects(idValidation.data);
 
     await recordAudit({
       table: "Employee",

@@ -12,13 +12,13 @@ import {
   CheckCircle2,
   UserCheck,
   UserX,
-  Paperclip,
   HeartPulse,
 } from "lucide-react";
 import PerformancePanel from "@/components/employee/PerformancePanel";
 import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { EmployeeRecord } from "./types";
 import { ReadField } from "./ReadField";
+import { EmployeeAttachments } from "./EmployeeAttachments";
 import { formatDate } from "./helpers";
 
 // ==========================================
@@ -414,18 +414,7 @@ export function EmployeeDetailView({
           )}
 
           {activeTab === "attachments" && (
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-                <Paperclip className="h-5 w-5" />
-              </div>
-              <h2 className="text-base font-bold text-slate-900">
-                Employee Attachments
-              </h2>
-              <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
-                Medical documents, certificates, and other employee files will
-                appear here when attachment storage is connected.
-              </p>
-            </div>
+            <EmployeeAttachments employeeID={employee.id} canEdit={canEdit} />
           )}
 
           {activeTab === "performance" && showsPerformance && (

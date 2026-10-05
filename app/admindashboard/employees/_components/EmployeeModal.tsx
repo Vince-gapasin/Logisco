@@ -73,7 +73,7 @@ export function EmployeeModal({
         emergencyContactNumber: editData.emergencyContactNumber,
         relationship: editData.relationship,
         skills: editData.skills,
-        certificates: null,
+        certificates: [],
         remarks: editData.remarks,
       });
     } else {
@@ -98,10 +98,10 @@ export function EmployeeModal({
     const { name, value } = event.target;
 
     if (name === "certificates" && event.target instanceof HTMLInputElement) {
-      const file = event.target.files?.[0] ?? null;
+      const files = Array.from(event.target.files ?? []);
       setFormData((previous) => ({
         ...previous,
-        certificates: file,
+        certificates: files,
       }));
     } else {
       setFormData((previous) => ({
@@ -705,17 +705,20 @@ export function EmployeeModal({
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
-                  Upload Certificates (PDF, JPG, PNG, DOCX)
+                  Add Attachments (PDF, JPG, PNG, WEBP, DOCX)
                 </label>
                 <input
                   type="file"
                   name="certificates"
-                  accept=".pdf,.jpg,.jpeg,.png,.docx"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-700 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
                 <p className="text-xs sm:text-[10px] text-slate-500 mt-1">
-                  Certificate upload is not connected yet.
+                  {formData.certificates.length > 0
+                    ? `${formData.certificates.length} file${formData.certificates.length === 1 ? "" : "s"} will be added when you save.`
+                    : "Up to 10 files, 10 MB each. Saved files are under the profile's Attachments tab."}
                 </p>
               </div>
               <div>
