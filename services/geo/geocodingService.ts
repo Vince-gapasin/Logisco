@@ -102,6 +102,13 @@ async function askMapbox(query: string, types?: string): Promise<GeocodeMatch | 
   };
 }
 
+// The city an address names, as "<somewhere> City". The last one wins:
+// "Bonifacio Global City, Taguig City" is in Taguig.
+function namedCity(address: string): string | null {
+  const parts = address.split(",").map((part) => part.trim());
+  return [...parts].reverse().find((part) => /\bcity\b/i.test(part)) ?? null;
+}
+
 /**
  * Why a match is refused.
  *
@@ -120,6 +127,17 @@ async function askMapbox(query: string, types?: string): Promise<GeocodeMatch | 
 function whyRefused(query: string, match: GeocodeMatch): string | null {
   if (match.place && !mentionsPlace(query, match.place)) {
     return `matched ${match.label}, which is in ${match.place}`;
+  }
+
+  // An address that names its city must land in that city, not merely in a
+  // town named somewhere in the address. "Lucena City, Quezon" matched the
+  // town of Quezon, 60 km east, because "Quezon" is the province. A match
+  // that names no town cannot show it is in the city, so it is refused too:
+  // "Diversion Road, Lucena City" found a stretch of the Maharlika Highway
+  // 35 km away that Mapbox puts in no town at all.
+  const city = namedCity(query);
+  if (city && normalizePlace(city) !== normalizePlace(match.place ?? "")) {
+    return `matched ${match.label}, which is in ${match.place ?? "no named town"}, not ${city}`;
   }
 
   const isPrecise = match.featureType === "street" || match.featureType === "address";
@@ -148,6 +166,17 @@ export async function geocodeAddress(address: string): Promise<Coordinates | nul
       const place = await askMapbox(query, PLACE_TYPES);
       if (place && !whyRefused(query, place)) {
         return { latitude: place.latitude, longitude: place.longitude, matchedAddress: place.label };
+      }
+
+      // Last, the city on its own. With the rest of the address around it
+      // Mapbox found a Davao Street and a Manila Street in Taytay; asked for
+      // "Davao City" or "San Juan City" alone, it finds the city.
+      const city = namedCity(query);
+      if (city) {
+        const cityMatch = await askMapbox(city, "place");
+        if (cityMatch && !whyRefused(city, cityMatch)) {
+          return { latitude: cityMatch.latitude, longitude: cityMatch.longitude, matchedAddress: cityMatch.label };
+        }
       }
 
       console.warn(`Geocoding rejected for "${query}": ${refused}`);

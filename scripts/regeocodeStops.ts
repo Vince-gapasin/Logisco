@@ -25,19 +25,6 @@ loadEnvConfig(process.cwd());
 const APPLY = process.argv.includes("--apply");
 const MAX_DRIFT_KM = 3;
 
-// Addresses Mapbox gets wrong, pinned to the town centre by hand.
-//   Lucena:   "Lucena City, Quezon" matches the town of Quezon, Quezon, 60 km
-//             east, and passes the refusal check because "Quezon" is in the
-//             address.
-//   Davao, San Juan: refused outright (a street called Davao; a Manila Street
-//             in Taytay), so they would otherwise keep their regional point.
-const LUCENA = { latitude: 13.9414, longitude: 121.6234 };
-const OVERRIDES: Record<string, { latitude: number; longitude: number }> = {
-  "Lucena City, Quezon": LUCENA,
-  "Diversion Road, Lucena City, Quezon": LUCENA,
-  "Davao City, Davao del Sur": { latitude: 7.0731, longitude: 125.6128 },
-  "San Juan City, Metro Manila": { latitude: 14.6019, longitude: 121.0355 },
-};
 
 interface Target {
   table: "BranchStops" | "PickupStops";
@@ -70,11 +57,6 @@ async function main() {
 
   async function locate(address: string): Promise<Point | null> {
     if (cache.has(address)) return cache.get(address)!;
-
-    if (OVERRIDES[address]) {
-      cache.set(address, { ...OVERRIDES[address], fallback: "pinned by hand" });
-      return cache.get(address)!;
-    }
 
     let point: Point | null = await geocodeAddress(address);
     if (!point) {
