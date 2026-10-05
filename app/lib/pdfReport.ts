@@ -173,12 +173,12 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
     },
 
     panel(title, items, { columns = 2, status } = {}) {
-      const barHeight = 8;
+      const barHeight = 7;
       const labelWidth = columns === 2 ? 30 : 38;
       const columnWidth = contentWidth / columns;
       const lineHeight = 4;
-      const padTop = 4.8;
-      const padBottom = 2.4;
+      const padTop = 4.4;
+      const padBottom = 2;
 
       // A row at a time: a row is as tall as its tallest value, and a wide
       // item (an address, a remark) has the row to itself.
@@ -224,7 +224,7 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
         pdf.setDrawColor(LINE[0], LINE[1], LINE[2]);
         pdf.rect(margin, y, contentWidth, barHeight, "FD");
         setText(INK, 9.5, "bold");
-        pdf.text(toPdfText(continued ? `${title} (continued)` : title), margin + 3, y + 5.5);
+        pdf.text(toPdfText(continued ? `${title} (continued)` : title), margin + 3, y + 4.9);
 
         if (status && !continued) {
           const label = toPdfText(status).toUpperCase();
@@ -233,8 +233,8 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
           const width = pdf.getTextWidth(label) + 5;
           const left = margin + contentWidth - 3 - width;
           pdf.setFillColor(tone.fill[0], tone.fill[1], tone.fill[2]);
-          pdf.roundedRect(left, y + 1.6, width, 4.8, 2.4, 2.4, "F");
-          pdf.text(label, left + 2.5, y + 4.95);
+          pdf.roundedRect(left, y + 1.1, width, 4.8, 2.4, 2.4, "F");
+          pdf.text(label, left + 2.5, y + 4.45);
         }
         y += barHeight;
       };
@@ -275,12 +275,12 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
         y += height;
       }
 
-      y += 5;
+      y += 3.5;
     },
 
     figures(pairs) {
       if (pairs.length === 0) return;
-      const height = 17;
+      const height = 15;
       ensureSpace(height + 4);
 
       // In a box of their own: the headline of the report, set apart from
@@ -294,12 +294,12 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
         const left = margin + index * width + 4;
         if (index > 0) pdf.line(margin + index * width, y + 3, margin + index * width, y + height - 3);
         setText(MUTED, 7.5, "bold");
-        pdf.text(toPdfText(pair.label.toUpperCase()), left, y + 6);
+        pdf.text(toPdfText(pair.label.toUpperCase()), left, y + 5.4);
         setText(INK, 13, "bold");
-        pdf.text(toPdfText(pair.value), left, y + 12.8);
+        pdf.text(toPdfText(pair.value), left, y + 11.6);
       });
 
-      y += height + 6;
+      y += height + 5;
     },
 
     table(columns, rows) {

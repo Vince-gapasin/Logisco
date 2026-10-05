@@ -4,7 +4,8 @@
 // other thing the office is asked for - everything about one delivery, to send
 // to the client who is asking about it or to file with its paperwork. So it
 // reads like the booking record does: who it was for, the truck and crew, each
-// stop on the route in order, and then everything that happened to it.
+// stop on the route in order. The CSV adds everything that happened to it; the
+// PDF leaves that out so it stays on one page.
 //
 // Built from the same mapper as the record on screen, and the history from the
 // same audit trail the History button reads, so the file and the screen cannot
@@ -165,7 +166,7 @@ export async function exportDelivery(
     // delivery is a document, not a table of like rows.
     const pairs = (items: DetailItem[]): CsvValue[][] => items.map((item) => [item.label, item.value]);
     const rows: CsvValue[][] = [
-      ["Delivery Record", record.view.orderId],
+      ["Delivery Report", record.view.orderId],
       ["Final status", record.status],
       ["Generated", generatedAt],
       [],
@@ -215,7 +216,7 @@ export async function exportDelivery(
   // its own with its status as a badge - the stops were a table once, and a
   // table that wide could not be read without cutting its cells.
   const report = await startReport({
-    title: `Delivery Record ${record.view.orderId}`,
+    title: `Delivery Report ${record.view.orderId}`,
     meta: [
       `${record.view.clientName || "-"}  |  Delivery date: ${record.view.displayDate || "-"}`,
       `Generated ${generatedAt}`,
@@ -229,7 +230,13 @@ export async function exportDelivery(
     { label: "Quantity", value: orDash(record.view.totalQuantity) },
   ]);
 
-  report.panel("Booking", record.bookingDetails);
+  // The notes and why it did not finish sit in the booking panel rather than
+  // under headings of their own, which is what kept this to one page.
+  report.panel("Booking", [
+    ...record.bookingDetails,
+    ...(record.reason ? [{ label: "Why it did not finish", value: record.reason, wide: true }] : []),
+    ...(record.view.plainNotes ? [{ label: "Notes", value: record.view.plainNotes, wide: true }] : []),
+  ]);
   report.panel("Client", record.clientDetails);
   report.panel("Truck and crew", record.crewDetails);
 
@@ -244,30 +251,9 @@ export async function exportDelivery(
     report.panel(`${stop.kind} ${stop.number}: ${stop.name}`, stop.details, { status: stop.status });
   }
 
-  if (record.reason) {
-    report.section("Why it did not finish", undefined, 8);
-    report.paragraph(record.reason);
-  }
-
-  if (record.view.plainNotes) {
-    report.section("Notes", undefined, 8);
-    report.paragraph(record.view.plainNotes);
-  }
-
-  report.section("History", `${record.events.length} recorded, oldest first`, 16);
-  if (record.events.length) {
-    report.table(
-      [
-        { header: "#", width: 8 },
-        { header: "Date and time", width: 34 },
-        { header: "What happened", width: 96 },
-        { header: "By", width: 42 },
-      ],
-      record.events.map((event) => [event.number, event.when, event.what, event.by]),
-    );
-  } else {
-    report.paragraph("Nothing recorded for this booking.", { muted: true });
-  }
+  // No history here: the office wants this on one page, and the history -
+  // a line for every step of the trip - is what ran it on to a second. It
+  // is in the CSV, and behind the History button.
 
   return { filename: `${base}.pdf`, result: await report.save(`${base}.pdf`) };
 }
