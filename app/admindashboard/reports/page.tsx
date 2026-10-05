@@ -22,6 +22,8 @@ import { SaveFileError, savedMessage } from "@/app/lib/saveFile";
 import { exportDelivery, type ExportFormat } from "@/app/lib/deliveryExport";
 import type { BookingHistoryEntry } from "@/services/booking/bookingHistoryService";
 import SubconTripsPanel from "@/components/subcon/SubconTripsPanel";
+import UrlSearchSync from "@/components/UrlSearchSync";
+import UrlOpenSync from "@/components/UrlOpenSync";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import {
   TrendingUp,
@@ -1287,6 +1289,29 @@ export default function ReportsForecastingPage() {
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh]">
       <div className="space-y-6">
+        {/* The header search sends here what no other screen lists: a
+            cancelled booking (?open=ORD-...) and a deleted client's bookings
+            (?client=Name). Every other filter is cleared so nothing hides them. */}
+        <UrlOpenSync
+          rows={records}
+          ready={!isLoading}
+          onOpen={(record: ReportRecord) => {
+            setView("records");
+            void handleRowClick(record);
+          }}
+        />
+        <UrlSearchSync
+          param="client"
+          onQuery={(client) => {
+            setView("records");
+            setTimeframe(TIMEFRAME_OPTIONS[0]);
+            setStatus(STATUS_OPTIONS[0]);
+            setSelectedDrivers([]);
+            setSelectedHelpers([]);
+            setSelectedClients([client]);
+            setCurrentPage(1);
+          }}
+        />
         {/* HEADER SECTION ALIGNED WITH THE BUTTON */}
         <div className="flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-4">
           <div>

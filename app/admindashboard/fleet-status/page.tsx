@@ -1176,6 +1176,15 @@ export default function FleetStatusPage() {
           <div className="relative w-full lg:w-80">
             <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <UrlSearchSync onQuery={setSearchTerm} />
+            {/* The header search says which list the truck is on: ?archived=1 for the Archive. */}
+            <UrlSearchSync
+              param="archived"
+              onQuery={(value) => {
+                setShowArchived(value === "1");
+                setSelectedFilter("All");
+                setCurrentPage(1);
+              }}
+            />
             <input
               type="text"
               placeholder={isPhone ? "Search trucks…" : "Search by Plate No, Type or Booking..."}

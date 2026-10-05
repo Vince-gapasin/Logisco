@@ -49,7 +49,9 @@ function Sync({ rows, ready, onOpen }: UrlOpenSyncProps) {
     // Not in this list: leave the coordinator on it rather than on nothing.
     if (row) onOpenRef.current(row as never);
 
-    const rest = new URLSearchParams(params.toString());
+    // The address bar as it is now: a UrlSearchSync on the same page may
+    // already have removed its own param.
+    const rest = new URLSearchParams(window.location.search);
     rest.delete("open");
     const remaining = rest.toString();
     window.history.replaceState(null, "", remaining ? `${pathname}?${remaining}` : pathname);

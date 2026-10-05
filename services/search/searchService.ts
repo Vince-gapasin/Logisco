@@ -8,7 +8,12 @@
 // Results are scoped by role on the server, never by the client:
 //   office (Admin, Coordinator) - bookings, clients, employees, trucks
 //   crew   (Driver, Helper)     - only the deliveries assigned to them
-//   Mechanic                    - trucks
+//   Mechanic                    - trucks, and the history of deleted ones
+//
+// Archived and cancelled records are found too, marked with a badge and
+// ranked below live ones, and linked to the one screen that still lists
+// them: the fleet Archive, Reports for a cancelled booking or a deleted
+// client, the history logs for a deleted truck.
 //
 // How results are chosen. The database is asked for a generous handful of
 // candidates per kind (CANDIDATES); each candidate is then scored here on how
@@ -36,6 +41,8 @@ export interface SearchResult {
   href: string;
   /** The one clear best answer, shown above the groups. */
   top?: boolean;
+  /** Set on a record that is no longer live: "Archived", "Cancelled"... */
+  badge?: string;
 }
 
 export const MIN_QUERY_LENGTH = 2;
@@ -51,6 +58,14 @@ const MAX_RESULTS = 12;
 const EXACT = 95;
 
 const ORDER_CODE_PREFIX = "ORD-";
+
+/**
+ * Taken off an archived or cancelled record's score, so a live record that
+ * matches as well comes first - but a closer archived match still wins.
+ */
+const ARCHIVED_PENALTY = 15;
+
+const REPORTS = "/admindashboard/reports";
 
 // Letters in any script (so "Parañaque" survives), digits, spaces, and the
 // punctuation that turns up in names, order codes and plate numbers.
@@ -328,6 +343,7 @@ interface OrderRow {
   orderID: string;
   orderCode: string;
   createdAt: string | null;
+  isActive: boolean | null;
   DispatchOrder: { status: string | null }[] | null;
   FoulTripIncident: { status: string; blocking?: boolean }[] | null;
   Client: Embed<{ clientID: string | null; company: string | null }>;
@@ -337,12 +353,14 @@ interface ClientRow {
   clientID: string;
   company: string;
   contactName: string | null;
+  isActive: boolean | null;
 }
 
 interface EmployeeRow {
   employeeID: string;
   employeeName: string;
   role: string | null;
+  isActive: boolean | null;
 }
 
 interface TruckRow {
@@ -351,6 +369,7 @@ interface TruckRow {
   model: string | null;
   truckType: string | null;
   truckStatus: string | null;
+  isActive: boolean | null;
 }
 
 interface TripRow {
@@ -373,13 +392,26 @@ function truckFields(truck: TruckRow): SearchField[] {
   return [{ value: truck.plateNumber }, { value: truck.model, secondary: true }];
 }
 
-function truckResult(truck: TruckRow, href: string): SearchResult {
+const TRUCK_COLUMNS = "truckID, plateNumber, model, truckType, truckStatus, isActive";
+
+/** A truck, linked to the fleet screen's active list or its Archive. */
+function truckCandidate(q: string, truck: TruckRow, fleetPath: string): Candidate | null {
+  const score = scoreMatch(q, truckFields(truck));
+  if (score === null) return null;
+  const archived = truck.isActive === false;
   return {
-    id: `truck-${truck.truckID}`,
-    type: "truck",
-    title: truck.plateNumber,
-    subtitle: [truck.model || truck.truckType, truck.truckStatus].filter(Boolean).join(" · "),
-    href,
+    score: archived ? score - ARCHIVED_PENALTY : score,
+    result: {
+      id: `truck-${truck.truckID}`,
+      type: "truck",
+      title: truck.plateNumber,
+      // An archived truck reads "Disabled" in the Archive, whatever status it was left with.
+      subtitle: [truck.model || truck.truckType, archived ? "" : truck.truckStatus].filter(Boolean).join(" · "),
+      // ?archived= picks the list, so the truck is found even if the screen
+      // was last left on the other one.
+      href: `${withQuery(fleetPath, truck.plateNumber)}&archived=${archived ? 1 : 0}`,
+      ...(archived && { badge: "Archived" }),
+    },
   };
 }
 
@@ -394,32 +426,26 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
   const bonus = SHAPE_BONUS[queryShape(q)];
 
   const bookingColumns =
-    "orderID, orderCode, createdAt, DispatchOrder ( status ), FoulTripIncident ( status, blocking )";
+    "orderID, orderCode, createdAt, isActive, DispatchOrder ( status ), FoulTripIncident ( status, blocking )";
   const codeFilter = anyTokenIn(orderCodeClauses, tokens);
 
-  let clientQuery = supabase.from("Client").select("clientID, company, contactName").eq("isActive", true);
+  // Archived rows are asked for too; each result says which it is.
+  let clientQuery = supabase.from("Client").select("clientID, company, contactName, isActive");
   for (const clause of eachTokenIn(["company", "contactName"], tokens)) clientQuery = clientQuery.or(clause);
 
-  let employeeQuery = supabase
-    .from("Employee")
-    .select("employeeID, employeeName, role")
-    .eq("isActive", true);
+  let employeeQuery = supabase.from("Employee").select("employeeID, employeeName, role, isActive");
   for (const clause of eachTokenIn(["employeeName"], tokens)) employeeQuery = employeeQuery.or(clause);
 
-  let truckQuery = supabase
-    .from("Truck")
-    .select("truckID, plateNumber, model, truckType, truckStatus")
-    .eq("isActive", true);
+  let truckQuery = supabase.from("Truck").select(TRUCK_COLUMNS);
   for (const clause of eachTokenIn(["plateNumber", "model"], tokens)) truckQuery = truckQuery.or(clause);
 
-  // Cancelled bookings are left out: every booking screen lists active
-  // orders only, so a cancelled one would lead to a screen that cannot show it.
+  // Cancelled bookings are included. No booking screen lists them, so they
+  // link to Reports, which lists every booking ever made.
   const [byCode, byClient, clients, employees, trucks] = await Promise.all([
     codeFilter
       ? supabase
           .from("Order")
           .select(`${bookingColumns}, Client ( clientID, company )`)
-          .eq("isActive", true)
           .or(codeFilter)
           .order("createdAt", { ascending: false })
           .limit(CANDIDATES)
@@ -427,7 +453,6 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
     supabase
       .from("Order")
       .select(`${bookingColumns}, Client!inner ( clientID, company )`)
-      .eq("isActive", true)
       .or(anyTokenIn((token) => likeClauses("company", token), tokens), { referencedTable: "Client" })
       .order("createdAt", { ascending: false })
       .limit(CANDIDATES),
@@ -442,17 +467,19 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
 
   const candidates: Candidate[] = [];
   const add = (result: SearchResult, score: number | null) => {
-    if (score !== null) candidates.push({ result, score: score + (bonus[result.type] ?? 0) });
+    if (score === null) return;
+    const penalty = result.badge ? ARCHIVED_PENALTY : 0;
+    candidates.push({ result, score: score + (bonus[result.type] ?? 0) - penalty });
   };
 
   // Clients first, since which of them are shown decides which bookings are.
   const clientMatches = ((clients.data ?? []) as ClientRow[])
-    .map((client) => ({
-      client,
-      score: scoreMatch(q, [{ value: client.company }, { value: client.contactName, secondary: true }]),
-    }))
-    .filter((match): match is { client: ClientRow; score: number } => match.score !== null)
-    .sort((a, b) => b.score - a.score)
+    .map((client) => {
+      const score = scoreMatch(q, [{ value: client.company }, { value: client.contactName, secondary: true }]);
+      return { client, score, rank: score === null ? null : score - (client.isActive === false ? ARCHIVED_PENALTY : 0) };
+    })
+    .filter((match): match is { client: ClientRow; score: number; rank: number } => match.score !== null)
+    .sort((a, b) => b.rank - a.rank)
     .slice(0, PER_GROUP);
 
   // A client shown in the list stands for its bookings: they are counted on
@@ -474,6 +501,8 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
 
   for (const { client, score } of clientMatches) {
     const count = bookingCounts.get(client.clientID) ?? 0;
+    // A deleted client is on no client list; Reports still has its bookings.
+    const deleted = client.isActive === false;
     add(
       {
         id: `client-${client.clientID}`,
@@ -482,7 +511,10 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
         subtitle: [client.contactName ? `Contact: ${client.contactName}` : "Client", count ? plural(count, "booking") : ""]
           .filter(Boolean)
           .join(" · "),
-        href: withQuery("/admindashboard/clients", client.company),
+        href: deleted
+          ? `${REPORTS}?client=${encodeURIComponent(client.company)}`
+          : withQuery("/admindashboard/clients", client.company),
+        ...(deleted && { badge: "Archived" }),
       },
       score,
     );
@@ -501,22 +533,36 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
       continue;
     }
 
+    let score = scoreMatch(q, [{ value: order.orderCode, prefix: ORDER_CODE_PREFIX }, companyField]);
+    if (score === null) continue;
+
     const dispatches = Array.isArray(order.DispatchOrder) ? order.DispatchOrder : [];
-    const where = bookingDestination(dispatches.map((d) => d?.status));
-    if (!where) continue;
+    const where = order.isActive === false ? null : bookingDestination(dispatches.map((d) => d?.status));
     // The foul-trip screen lists open incidents only. A failed trip that was
-    // closed without a recovery trip appears on no screen, so no link.
-    if (
-      where.path.endsWith("/foul-trip") &&
+    // closed without a recovery trip appears on no booking screen.
+    const closedFoulTrip =
+      where?.path.endsWith("/foul-trip") &&
       !(order.FoulTripIncident ?? []).some(
         (i) => i.blocking !== false && (i.status === "open" || i.status === "mechanic_assigned"),
-      )
-    ) {
+      );
+    const company = client?.company || "Walk-in customer";
+
+    if (!where || closedFoulTrip) {
+      // Cancelled, or a foul trip closed without recovery: only Reports lists it.
+      add(
+        {
+          id: `booking-${order.orderID}`,
+          type: "booking",
+          title: order.orderCode,
+          subtitle: `${company} · ${where ? "Foul trip, closed" : "Cancelled"}`,
+          href: `${REPORTS}?open=${encodeURIComponent(order.orderCode)}`,
+          badge: where ? "Closed" : "Cancelled",
+        },
+        score,
+      );
       continue;
     }
 
-    let score = scoreMatch(q, [{ value: order.orderCode, prefix: ORDER_CODE_PREFIX }, companyField]);
-    if (score === null) continue;
     // Among equal matches, a booking still under way, then a recent one.
     if (where.label !== "Completed") score += 5;
     if (order.createdAt && now - new Date(order.createdAt).getTime() < 30 * DAY_MS) score += 3;
@@ -526,13 +572,14 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
         id: `booking-${order.orderID}`,
         type: "booking",
         title: order.orderCode,
-        subtitle: `${client?.company || "Walk-in customer"} · ${where.label}`,
+        subtitle: `${company} · ${where.label}`,
         href: withQuery(where.path, order.orderCode),
       },
       score,
     );
   }
 
+  // The employee list shows deactivated people too, so the link is the same.
   for (const employee of (employees.data ?? []) as EmployeeRow[]) {
     add(
       {
@@ -541,13 +588,15 @@ async function searchOffice(q: string): Promise<SearchResult[]> {
         title: employee.employeeName,
         subtitle: employee.role || "Employee",
         href: withQuery("/admindashboard/employees", employee.employeeName),
+        ...(employee.isActive === false && { badge: "Deactivated" }),
       },
       scoreMatch(q, [{ value: employee.employeeName }]),
     );
   }
 
   for (const truck of (trucks.data ?? []) as TruckRow[]) {
-    add(truckResult(truck, withQuery("/admindashboard/fleet-status", truck.plateNumber)), scoreMatch(q, truckFields(truck)));
+    const candidate = truckCandidate(q, truck, "/admindashboard/fleet-status");
+    if (candidate) candidates.push({ ...candidate, score: candidate.score + (bonus.truck ?? 0) });
   }
 
   return rankResults(candidates);
@@ -615,22 +664,49 @@ async function searchCrew(employeeID: string, q: string): Promise<SearchResult[]
 // -------------------------------------------------------------- mechanic
 
 async function searchFleet(q: string, basePath: string): Promise<SearchResult[]> {
-  let query = supabase
-    .from("Truck")
-    .select("truckID, plateNumber, model, truckType, truckStatus")
-    .eq("isActive", true);
-  for (const clause of eachTokenIn(["plateNumber", "model"], tokensOf(q))) query = query.or(clause);
+  const tokens = tokensOf(q);
+  let trucks = supabase.from("Truck").select(TRUCK_COLUMNS);
+  for (const clause of eachTokenIn(["plateNumber", "model"], tokens)) trucks = trucks.or(clause);
 
-  const { data, error } = await query.order("plateNumber").limit(CANDIDATES);
-  if (error) throw new Error(error.message);
+  // A deleted truck is gone from Truck; its history logs keep its plate.
+  let logs = supabase.from("HistoryLogsM").select("plateNumber, truckType").is("truckID", null);
+  for (const clause of eachTokenIn(["plateNumber"], tokens)) logs = logs.or(clause);
+
+  const [truckRows, logRows] = await Promise.all([
+    trucks.order("plateNumber").limit(CANDIDATES),
+    // Several logs per truck, so more rows for the same number of plates.
+    logs.order("plateNumber").limit(CANDIDATES * 5),
+  ]);
+  if (truckRows.error) throw new Error(truckRows.error.message);
+  if (logRows.error) throw new Error(logRows.error.message);
 
   const candidates: Candidate[] = [];
-  for (const truck of (data ?? []) as TruckRow[]) {
-    const score = scoreMatch(q, truckFields(truck));
-    if (score !== null) {
-      candidates.push({ score, result: truckResult(truck, withQuery(`${basePath}/fleet-status`, truck.plateNumber)) });
-    }
+  const plates = new Set<string>();
+  for (const truck of (truckRows.data ?? []) as TruckRow[]) {
+    plates.add(fold(truck.plateNumber));
+    const candidate = truckCandidate(q, truck, `${basePath}/fleet-status`);
+    if (candidate) candidates.push(candidate);
   }
+
+  // One result per deleted plate, however many logs it left.
+  for (const log of (logRows.data ?? []) as { plateNumber: string | null; truckType: string | null }[]) {
+    if (!log.plateNumber || plates.has(fold(log.plateNumber))) continue;
+    plates.add(fold(log.plateNumber));
+    const score = scoreMatch(q, [{ value: log.plateNumber }]);
+    if (score === null) continue;
+    candidates.push({
+      score: score - ARCHIVED_PENALTY,
+      result: {
+        id: `deleted-truck-${log.plateNumber}`,
+        type: "truck",
+        title: log.plateNumber,
+        subtitle: [log.truckType, "Maintenance history"].filter(Boolean).join(" · "),
+        href: withQuery(`${basePath}/history-logs`, log.plateNumber),
+        badge: "Deleted",
+      },
+    });
+  }
+
   return rankResults(candidates, { perGroup: MAX_RESULTS });
 }
 

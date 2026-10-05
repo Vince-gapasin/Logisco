@@ -344,8 +344,17 @@ export default function GlobalSearch({ basePath }: { basePath: string }) {
                         <Icon className="w-4 h-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-900">
-                          <Highlight text={result.title} query={trimmed} />
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={`truncate text-sm font-semibold ${result.badge ? "text-slate-500" : "text-slate-900"}`}
+                          >
+                            <Highlight text={result.title} query={trimmed} />
+                          </span>
+                          {result.badge && (
+                            <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                              {result.badge}
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate text-xs text-slate-500">
                           <Highlight text={result.subtitle} query={trimmed} />

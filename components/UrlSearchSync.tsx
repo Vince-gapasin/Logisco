@@ -4,8 +4,13 @@ import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 interface UrlSearchSyncProps {
-  /** Receives the ?q= value - normally the page's own setSearchTerm. */
+  /** Receives the param's value - normally the page's own setSearchTerm. */
   onQuery: (query: string) => void;
+  /**
+   * The param to read, ?q= unless named. A page can hold several - the fleet
+   * reads ?archived= beside ?q= to open on its Archive.
+   */
+  param?: string;
 }
 
 // Lets the header search land on a list with that list's own filter set.
@@ -15,10 +20,10 @@ interface UrlSearchSyncProps {
 // coming back from a detail view, say - over whatever had been typed since.
 // Removing it also means searching the same thing twice still works, because
 // the second search changes the URL again.
-function Sync({ onQuery }: UrlSearchSyncProps) {
+function Sync({ onQuery, param = "q" }: UrlSearchSyncProps) {
   const params = useSearchParams();
   const pathname = usePathname();
-  const query = params.get("q");
+  const query = params.get(param);
 
   // The latest callback, read through a ref so that a caller passing an
   // inline function - a new identity every render - cannot make the search
@@ -32,13 +37,16 @@ function Sync({ onQuery }: UrlSearchSyncProps) {
     if (query === null) return;
     onQueryRef.current(query);
 
-    const rest = new URLSearchParams(params.toString());
-    rest.delete("q");
+    // Read from the address bar as it is now, not from `params`: when a page
+    // holds two of these, the other may already have removed its own param,
+    // and the snapshot here would put it back.
+    const rest = new URLSearchParams(window.location.search);
+    rest.delete(param);
     const remaining = rest.toString();
     // Native replaceState is integrated with the Next router in this version,
     // so useSearchParams sees the change without a navigation round trip.
     window.history.replaceState(null, "", remaining ? `${pathname}?${remaining}` : pathname);
-  }, [query, params, pathname]);
+  }, [query, param, pathname]);
 
   return null;
 }
