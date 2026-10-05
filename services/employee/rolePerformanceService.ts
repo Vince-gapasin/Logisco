@@ -31,6 +31,7 @@ const rows = <T,>(value: Embed<T> | undefined): T[] => (Array.isArray(value) ? v
 interface LogRow {
   id: string;
   truckID: string | null;
+  plateNumber: string | null;
   created_at: string | null;
   date: string | null;
   statusBefore: string | null;
@@ -65,7 +66,7 @@ export async function gatherMechanicFacts(employeeID: string, from: string | nul
     supabase
       .from("HistoryLogsM")
       .select(
-        "id, truckID, created_at, date, statusBefore, statusAfter, LogMechanics ( role, employeeID ), LogNotes ( phase, issue, remarks ), LogPhotos ( phase )",
+        "id, truckID, plateNumber, created_at, date, statusBefore, statusAfter, LogMechanics ( role, employeeID ), LogNotes ( phase, issue, remarks ), LogPhotos ( phase )",
       )
       .order("created_at", { ascending: true })
       .range(start, end),
@@ -91,7 +92,9 @@ export async function gatherMechanicFacts(employeeID: string, from: string | nul
 
   const byTruck = new Map<string, LogRow[]>();
   for (const log of logs) {
-    const key = log.truckID ?? "";
+    // A deleted truck's logs have lost their truckID; the plate they kept
+    // still tells one truck's repairs from another's.
+    const key = log.truckID ?? `deleted:${log.plateNumber ?? ""}`;
     if (!byTruck.has(key)) byTruck.set(key, []);
     byTruck.get(key)!.push(log);
   }

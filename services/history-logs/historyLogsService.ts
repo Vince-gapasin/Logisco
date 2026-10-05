@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { selectAll } from "@/app/lib/selectAll";
 
 // A maintenance history log is one HistoryLogsM row plus child rows in
 // LogMechanics, LogNotes and LogPhotos (one per phase). supabase-js has no
@@ -33,6 +34,9 @@ interface RawLog {
   created_at?: string | null;
   statusBefore?: string | null;
   statusAfter?: string | null;
+  /** The truck as it was when the log was written - all that is left once it is deleted. */
+  plateNumber?: string | null;
+  truckType?: string | null;
   Truck?: { plateNumber?: string | null; truckType?: string | null } | null;
   LogMechanics?: MechanicRow[] | null;
   LogNotes?: PhaseRow[] | null;
@@ -79,18 +83,22 @@ export function validateHistoryLog(body: LogBody, isCreate: boolean): string | n
 }
 
 export async function getHistoryLogs() {
-  const { data: rawLogs, error } = await supabase
-    .from("HistoryLogsM")
-    .select(
-      // LogPhotos.photoUrl holds a base64 image: fetch only the phase here so
-      // the list stays small, and load images through getLogPhotos on demand.
-      "id,truckID,date,statusBefore,statusAfter,created_at,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase)",
-    )
-    .order("created_at", { ascending: false });
+  // Paged: PostgREST stops at 1,000 rows without saying so, and the history
+  // only grows.
+  const rawLogs = await selectAll<RawLog>((from, to) =>
+    supabase
+      .from("HistoryLogsM")
+      .select(
+        // LogPhotos.photoUrl holds a base64 image: fetch only the phase here so
+        // the list stays small, and load images through getLogPhotos on demand.
+        "id,truckID,date,statusBefore,statusAfter,created_at,plateNumber,truckType,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase)",
+      )
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to),
+  );
 
-  if (error) throw error;
-
-  return ((rawLogs ?? []) as RawLog[]).map((log) => {
+  return rawLogs.map((log) => {
     const primaryMech = log.LogMechanics?.find((m: MechanicRow) => m.role === "Primary");
     const addMech = log.LogMechanics?.find((m: MechanicRow) => m.role === "Additional");
 
@@ -105,8 +113,9 @@ export async function getHistoryLogs() {
     return {
       id: log.id,
       truckID: log.truckID,
-      plateNumber: log.Truck?.plateNumber,
-      truckType: log.Truck?.truckType,
+      // The truck as it is now, or as it was if it has since been deleted.
+      plateNumber: log.Truck?.plateNumber ?? log.plateNumber,
+      truckType: log.Truck?.truckType ?? log.truckType,
       date: log.date,
       createdAt: log.created_at,
       statusBefore: log.statusBefore,

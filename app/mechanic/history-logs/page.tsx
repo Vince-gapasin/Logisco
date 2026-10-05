@@ -15,6 +15,10 @@
 // which mixed every truck's repairs together and answered neither question.
 // Levels 2 and 3 are the same views the fleet screen uses, so a truck's repair
 // record reads the same whichever way it was reached.
+//
+// A deleted truck stays here. Its logs keep the plate and type they were
+// written against, and lose only their truckID, so the page rebuilds the truck
+// from them - one entry per plate - and labels it Deleted.
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,6 +28,7 @@ import UrlSearchSync from "@/components/UrlSearchSync";
 import { authFetch } from "@/app/lib/apiClient";
 import { useToast } from "@/components/Toast";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
+import { TRUCK_STATUS } from "@/app/lib/enums";
 import {
   ArrowLeft,
   ClipboardCheck,
@@ -31,12 +36,13 @@ import {
   History as HistoryIcon,
   Loader2,
   Search,
+  X,
   Truck,
   User,
   Wrench,
 } from "lucide-react";
 import type { EmployeeOption, HistoryLogRecord, TruckRecord } from "../fleet-status/_components/types";
-import { formatDisplayDate } from "../fleet-status/_components/dates";
+import { formatDisplayDate, formatInputDate } from "../fleet-status/_components/dates";
 import { TruckSpecificHistoryView } from "../fleet-status/_components/TruckSpecificHistoryView";
 import { LogDetailView } from "../fleet-status/_components/LogDetailView";
 import { LogMaintenanceModal } from "../fleet-status/_components/LogMaintenanceModal";
@@ -45,10 +51,21 @@ import { useLogPhotos } from "../fleet-status/_components/useLogPhotos";
 
 const ITEMS_PER_PAGE = 10;
 
-/** A truck as this page shows it: its record, and whether it was archived. */
+/** A truck as this page shows it: its record, and whether it was archived or deleted. */
 interface HistoryTruck extends TruckRecord {
   archived: boolean;
+  deleted: boolean;
 }
+
+/** Which truck a log belongs to: its truckID, or - once that truck is deleted - the plate it kept. */
+const truckKeyOf = (log: HistoryLogRecord) =>
+  log.truckID ? String(log.truckID) : `deleted:${log.plateNumber || "Unknown"}`;
+
+/** The status a truck is listed under. */
+const shownStatus = (truck: HistoryTruck) =>
+  truck.deleted ? "Deleted" : truck.archived ? "Disabled" : truck.status;
+
+const STATUS_FILTERS = ["All", ...Object.values(TRUCK_STATUS), "Disabled", "Deleted"];
 
 function toTruck(row: Partial<TruckRow>, archived: boolean): HistoryTruck {
   return {
@@ -61,8 +78,42 @@ function toTruck(row: Partial<TruckRow>, archived: boolean): HistoryTruck {
     lastChecked: row.lastChecked ?? "",
     status: row.truckStatus || "Available",
     archived,
+    deleted: false,
   };
 }
+
+/** A deleted truck, as much of it as its logs remember. */
+function fromLog(log: HistoryLogRecord): HistoryTruck {
+  return {
+    id: truckKeyOf(log),
+    plateNumber: log.plateNumber || "Unknown",
+    truckType: log.truckType || "",
+    truckModel: "",
+    capacity: "",
+    lastChecked: "",
+    status: "Deleted",
+    archived: true,
+    deleted: true,
+  };
+}
+
+/** Logs by the truck they belong to, keeping their order. */
+function groupByTruck(list: HistoryLogRecord[]) {
+  const map = new Map<string, HistoryLogRecord[]>();
+  for (const log of list) {
+    const key = truckKeyOf(log);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(log);
+  }
+  return map;
+}
+
+/** A log's date as YYYY-MM-DD, to compare against the date filters. */
+const filterLabel = "block text-xs font-semibold text-slate-600 mb-1";
+const filterInput =
+  "w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500";
+
+const logDay = (log: HistoryLogRecord) => formatInputDate(log.date || log.created_at || "");
 
 const logTime = (log: HistoryLogRecord) => {
   const t = new Date(log.created_at || log.date).getTime();
@@ -119,6 +170,10 @@ export default function MechanicHistoryLogsPage() {
   const [currentUser, setCurrentUser] = useState({ employeeID: "", employeeName: "Mechanic" });
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [mechanicFilter, setMechanicFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   // Where the mechanic is: a truck, its full history, one record.
@@ -188,27 +243,51 @@ export default function MechanicHistoryLogsPage() {
 
   const { logs: logsWithPhotos, seed: seedLogPhotos } = useLogPhotos(logs, selectedTruckID);
 
-  // Each truck's logs, newest first, and the one most recently written.
-  const logsByTruck = useMemo(() => {
-    const map = new Map<string, HistoryLogRecord[]>();
+  // The logs the mechanic and date filters let through. With either set, a
+  // truck is listed only for the work that matches, and only if there is some.
+  const logFilterOn = Boolean(mechanicFilter || dateFrom || dateTo);
+  const filteredLogs = useMemo(
+    () =>
+      logsWithPhotos.filter((log) => {
+        if (mechanicFilter && String(log.primaryMechanicID ?? "") !== mechanicFilter && String(log.additionalMechanicID ?? "") !== mechanicFilter) {
+          return false;
+        }
+        const day = logDay(log);
+        if (dateFrom && day < dateFrom) return false;
+        if (dateTo && day > dateTo) return false;
+        return true;
+      }),
+    [logsWithPhotos, mechanicFilter, dateFrom, dateTo],
+  );
+
+  // Each truck's logs, newest first - all of them, and the filtered ones.
+  const logsByTruck = useMemo(() => groupByTruck(logsWithPhotos), [logsWithPhotos]);
+  const filteredByTruck = useMemo(() => groupByTruck(filteredLogs), [filteredLogs]);
+
+  // The fleet as recorded, plus the deleted trucks the logs remember.
+  const allTrucks = useMemo(() => {
+    const known = new Set(trucks.map((truck) => String(truck.id)));
+    const deleted = new Map<string, HistoryTruck>();
     for (const log of logsWithPhotos) {
-      const key = String(log.truckID ?? "");
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(log);
+      const key = truckKeyOf(log);
+      if (!known.has(key) && !deleted.has(key)) deleted.set(key, fromLog(log));
     }
-    return map;
-  }, [logsWithPhotos]);
+    return [...trucks, ...deleted.values()];
+  }, [trucks, logsWithPhotos]);
 
   // The general history: every truck that is in the fleet, plus any archived
-  // one that still has repairs on record, the most recently worked on first.
+  // or deleted one that still has repairs on record, the most recently worked
+  // on first.
   const rows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return trucks
+    return allTrucks
       .filter((truck) => !truck.archived || (logsByTruck.get(String(truck.id))?.length ?? 0) > 0)
+      .filter((truck) => statusFilter === "All" || shownStatus(truck) === statusFilter)
       .map((truck) => {
-        const truckLogs = logsByTruck.get(String(truck.id)) ?? [];
+        const truckLogs = filteredByTruck.get(String(truck.id)) ?? [];
         return { truck, latest: truckLogs[0] ?? null, count: truckLogs.length };
       })
+      .filter(({ count }) => !logFilterOn || count > 0)
       .filter(({ truck, latest }) =>
         !term ||
         truck.plateNumber.toLowerCase().includes(term) ||
@@ -216,12 +295,31 @@ export default function MechanicHistoryLogsPage() {
         (latest ? mechanicsOf(latest).toLowerCase().includes(term) : false),
       )
       .sort((a, b) => (b.latest ? logTime(b.latest) : 0) - (a.latest ? logTime(a.latest) : 0));
-  }, [trucks, logsByTruck, searchTerm]);
+  }, [allTrucks, logsByTruck, filteredByTruck, logFilterOn, statusFilter, searchTerm]);
+
+  // Everyone who has worked on a log, including mechanics no longer employed.
+  const mechanicOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const log of logs) {
+      if (log.primaryMechanicID && log.mechanicName) names.set(String(log.primaryMechanicID), log.mechanicName);
+      if (log.additionalMechanicID && log.additionalMechanic) names.set(String(log.additionalMechanicID), log.additionalMechanic);
+    }
+    return [...names].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [logs]);
+
+  const filtersOn = logFilterOn || statusFilter !== "All";
+  const clearFilters = () => {
+    setStatusFilter("All");
+    setMechanicFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setCurrentPage(1);
+  };
 
   const totalPages = Math.max(1, Math.ceil(rows.length / ITEMS_PER_PAGE));
   const pageRows = rows.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const selectedTruck = trucks.find((truck) => String(truck.id) === selectedTruckID) ?? null;
+  const selectedTruck = allTrucks.find((truck) => String(truck.id) === selectedTruckID) ?? null;
   const truckLogs = selectedTruckID ? (logsByTruck.get(selectedTruckID) ?? []) : [];
   const selectedLog = logsWithPhotos.find((log) => String(log.id) === selectedLogID) ?? null;
 
@@ -312,7 +410,7 @@ export default function MechanicHistoryLogsPage() {
       <>
         <LogDetailView
           log={selectedLog}
-          truckLogs={logsWithPhotos.filter((log) => String(log.truckID) === String(selectedLog.truckID))}
+          truckLogs={logsWithPhotos.filter((log) => truckKeyOf(log) === truckKeyOf(selectedLog))}
           onBack={() => setSelectedLogID(null)}
           onEdit={openEdit}
           onDelete={handleDelete}
@@ -329,7 +427,7 @@ export default function MechanicHistoryLogsPage() {
       <>
         <TruckSpecificHistoryView
           truck={selectedTruck}
-          logs={logsWithPhotos}
+          logs={truckLogs}
           onBack={() => setShowTruckHistory(false)}
           onSelectLog={(log) => setSelectedLogID(String(log.id))}
           onEditLog={openEdit}
@@ -344,7 +442,7 @@ export default function MechanicHistoryLogsPage() {
   if (selectedTruck) {
     const latest = truckLogs[0] ?? null;
     const phase = latest ? phaseOf(latest) : null;
-    const styles = getStatusStyles(selectedTruck.status);
+    const styles = getStatusStyles(shownStatus(selectedTruck));
 
     return (
       <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -366,7 +464,7 @@ export default function MechanicHistoryLogsPage() {
                 {selectedTruck.truckType}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${styles.bgLight.split(" border")[0]}`}>
-                {selectedTruck.archived ? "Disabled" : selectedTruck.status}
+                {shownStatus(selectedTruck)}
               </span>
             </div>
           </div>
@@ -518,6 +616,62 @@ export default function MechanicHistoryLogsPage() {
           </div>
         </div>
 
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-100 grid grid-cols-2 lg:flex lg:flex-wrap lg:items-end gap-3">
+          <label className="block col-span-1 lg:w-44">
+            <span className={filterLabel}>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+              className={`${filterInput} cursor-pointer`}
+            >
+              {STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>{status === "All" ? "All statuses" : status}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block col-span-1 lg:w-52">
+            <span className={filterLabel}>Mechanic</span>
+            <select
+              value={mechanicFilter}
+              onChange={(e) => { setMechanicFilter(e.target.value); setCurrentPage(1); }}
+              className={`${filterInput} cursor-pointer`}
+            >
+              <option value="">Any mechanic</option>
+              {mechanicOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block col-span-1 lg:w-40">
+            <span className={filterLabel}>Logged from</span>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+              className={filterInput}
+            />
+          </label>
+          <label className="block col-span-1 lg:w-40">
+            <span className={filterLabel}>Logged to</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+              className={filterInput}
+            />
+          </label>
+          {filtersOn && (
+            <button
+              onClick={clearFilters}
+              className="col-span-2 lg:col-span-1 min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" /> Clear filters
+            </button>
+          )}
+        </div>
+
         {loadError && <p className="mx-5 mt-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{loadError}</p>}
 
         {isLoading ? (
@@ -528,6 +682,11 @@ export default function MechanicHistoryLogsPage() {
           <div className="py-16 text-center">
             <FileText className="w-8 h-8 mx-auto text-slate-400 mb-2" />
             <p className="text-sm font-semibold text-slate-800">No trucks found</p>
+            {filtersOn && (
+              <button onClick={clearFilters} className="mt-2 text-xs font-semibold text-blue-700 hover:underline cursor-pointer">
+                Clear the filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto px-4 sm:px-6">
@@ -541,7 +700,7 @@ export default function MechanicHistoryLogsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                 {pageRows.map(({ truck, latest, count }) => {
-                  const styles = getStatusStyles(truck.status);
+                  const styles = getStatusStyles(shownStatus(truck));
                   const phase = latest ? phaseOf(latest) : null;
                   return (
                     <tr
@@ -563,6 +722,7 @@ export default function MechanicHistoryLogsPage() {
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
                           {count} {count === 1 ? "record" : "records"}
+                          {logFilterOn ? " matching" : ""}
                           {truck.lastChecked ? ` · Last checked ${formatDisplayDate(truck.lastChecked)}` : ""}
                         </div>
                       </td>
@@ -581,7 +741,7 @@ export default function MechanicHistoryLogsPage() {
                       </td>
                       <td className="md:py-4 md:px-4 align-middle md:text-right">
                         <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold border ${styles.bgLight}`}>
-                          {truck.archived ? "Disabled" : truck.status}
+                          {shownStatus(truck)}
                         </span>
                       </td>
                     </tr>

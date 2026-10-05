@@ -2,9 +2,22 @@
 
 import { useState } from "react";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search, X } from "lucide-react";
 import type { HistoryLogRecord, TruckRecord } from "./types";
-import { formatDisplayDate } from "./dates";
+import { formatDisplayDate, formatInputDate } from "./dates";
+
+const PHASES = ["Preliminary inspection", "Maintenance update", "Final maintenance log"] as const;
+
+/** Which phase a log records, as the history page names them. */
+function phaseOf(log: HistoryLogRecord): (typeof PHASES)[number] {
+  if (log.issue || log.remarks || log.photoUrl || log.hasFinalPhoto) return "Final maintenance log";
+  if (log.additionalIssue || log.progressRemarks || log.progressPhotoUrl || log.hasProgressPhoto) return "Maintenance update";
+  return "Preliminary inspection";
+}
+
+const filterLabel = "block text-xs font-semibold text-slate-600 mb-1";
+const filterInput =
+  "w-full bg-slate-50 border border-slate-200 text-sm text-slate-900 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500";
 
 // ==========================================
 // TRUCK SPECIFIC HISTORY VIEW (Displays list of logs for 1 truck)
@@ -25,6 +38,9 @@ export function TruckSpecificHistoryView({
   onSelectLog,
 }: TruckSpecificHistoryViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -50,12 +66,32 @@ export function TruckSpecificHistoryView({
     return matchID || matchPlate;
   });
 
+  // Every log here is the same truck's, so the search reads what was written
+  // and who wrote it, not the plate.
   const filteredLogs = truckLogs.filter((log) => {
-    const searchLower = (searchTerm || "").toLowerCase();
-    const p = String(log.plateNumber || "").toLowerCase();
-    const t = String(log.truckType || "").toLowerCase();
-    return p.includes(searchLower) || t.includes(searchLower);
+    const term = searchTerm.trim().toLowerCase();
+    if (term) {
+      const text = [
+        log.mechanicName, log.additionalMechanic, log.driversReport, log.preliminaryRemarks,
+        log.additionalIssue, log.progressRemarks, log.issue, log.remarks,
+      ].join(" ").toLowerCase();
+      if (!text.includes(term)) return false;
+    }
+    if (phaseFilter && phaseOf(log) !== phaseFilter) return false;
+    const day = formatInputDate(log.date || log.created_at || "");
+    if (dateFrom && day < dateFrom) return false;
+    if (dateTo && day > dateTo) return false;
+    return true;
   });
+
+  const filtersOn = Boolean(searchTerm || phaseFilter || dateFrom || dateTo);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setPhaseFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setCurrentPage(1);
+  };
 
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -77,6 +113,63 @@ export function TruckSpecificHistoryView({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-100 grid grid-cols-2 lg:flex lg:flex-wrap lg:items-end gap-3">
+          <label className="block col-span-2 lg:flex-1 lg:min-w-56">
+            <span className={filterLabel}>Search</span>
+            <span className="relative block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Issue, remarks, mechanic..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className={`${filterInput} pl-9 placeholder:text-slate-500`}
+              />
+            </span>
+          </label>
+          <label className="block col-span-2 lg:w-52">
+            <span className={filterLabel}>Entry</span>
+            <select
+              value={phaseFilter}
+              onChange={(e) => { setPhaseFilter(e.target.value); setCurrentPage(1); }}
+              className={`${filterInput} cursor-pointer`}
+            >
+              <option value="">Every entry</option>
+              {PHASES.map((phase) => (
+                <option key={phase} value={phase}>{phase}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block col-span-1 lg:w-40">
+            <span className={filterLabel}>From</span>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+              className={filterInput}
+            />
+          </label>
+          <label className="block col-span-1 lg:w-40">
+            <span className={filterLabel}>To</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+              className={filterInput}
+            />
+          </label>
+          {filtersOn && (
+            <button
+              onClick={clearFilters}
+              className="col-span-2 lg:col-span-1 min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" /> Clear filters
+            </button>
+          )}
+        </div>
+
         <div className="overflow-x-auto px-4 sm:px-6">
           <table className="w-full max-w-5xl mx-auto text-left border-collapse table-fixed my-2">
             <thead>
@@ -94,7 +187,7 @@ export function TruckSpecificHistoryView({
                 <tr>
                   <td colSpan={4} className="py-16 sm:py-20 text-center">
                     <div className="text-slate-500">
-                      No logs found for this truck.
+                      {filtersOn ? "No logs match these filters." : "No logs found for this truck."}
                     </div>
                   </td>
                 </tr>
@@ -145,6 +238,11 @@ export function TruckSpecificHistoryView({
         </div>
 
         <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-700 bg-white">
+          <span>
+            {filtersOn
+              ? `${filteredLogs.length} of ${truckLogs.length} ${truckLogs.length === 1 ? "log" : "logs"}`
+              : `${truckLogs.length} ${truckLogs.length === 1 ? "log" : "logs"}`}
+          </span>
           {totalPages > 1 && (
           <div className="flex items-center gap-2">
             <button
