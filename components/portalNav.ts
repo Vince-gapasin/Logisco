@@ -35,9 +35,9 @@ export const PORTAL_NAV: Record<Portal, { name: string; items: NavItem[] }> = {
       { href: "/admindashboard/calendar", label: "Calendar", icon: Calendar },
       { href: "/admindashboard/clients", label: "Clients & Partners", icon: Users },
       { href: "/admindashboard/employees", label: "Employee Directory", icon: UserSquare2 },
-      { href: "/admindashboard/fleet-status", label: "Fleet Status", icon: Truck },
+      // History Logs opens from a button on Fleet Status, so it keeps this lit.
+      { href: "/admindashboard/fleet-status", label: "Fleet Status", icon: Truck, also: ["/admindashboard/history-logs"] },
       { href: "/admindashboard/fleet-tracking", label: "Fleet Live Tracking", icon: MapPin },
-      { href: "/admindashboard/history-logs", label: "History Logs", icon: Wrench },
       { href: "/admindashboard/reports", label: "Reports & Forecast", icon: FileText, also: ["/admindashboard/forecasting"] },
     ],
   },

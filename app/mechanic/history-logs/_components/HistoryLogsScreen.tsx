@@ -22,6 +22,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { EmployeeRow, TruckRow } from "@/types/database";
 import RowOpenButton from "@/components/RowOpenButton";
 import UrlSearchSync from "@/components/UrlSearchSync";
@@ -594,7 +595,17 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
   // --------------------------------------------- level 1: general history
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] relative">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-3 sm:gap-4">
+        {/* The office reaches this page from Fleet Status, not the sidebar. */}
+        {office && (
+          <Link
+            href="/admindashboard/fleet-status"
+            className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 shadow-xs cursor-pointer shrink-0"
+            aria-label="Back to Fleet Status"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+        )}
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900">History Logs</h1>
       </div>
 

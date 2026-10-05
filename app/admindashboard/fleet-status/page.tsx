@@ -5,6 +5,7 @@
 "use client";
 
 import UrlSearchSync from "@/components/UrlSearchSync";
+import Link from "next/link";
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { getStatusStyles } from "@/app/lib/truckStatusStyles";
@@ -1122,6 +1123,14 @@ export default function FleetStatusPage() {
           </h1>
           </div>
         <div className="flex flex-row gap-2">
+          {/* Every truck's maintenance history, the deleted trucks' included. */}
+          <Link
+            href="/admindashboard/history-logs"
+            className="w-auto sm:w-36 h-9 sm:h-11 inline-flex items-center justify-center gap-1.5 sm:gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl shadow-sm transition-all duration-200 border border-slate-300 cursor-pointer px-3"
+          >
+            <HistoryIcon className="w-4 h-4 shrink-0" />
+            <span>History</span>
+          </Link>
           <button
             onClick={() => {
               setShowArchived(!showArchived);
