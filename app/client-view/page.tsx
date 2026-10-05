@@ -501,18 +501,24 @@ function ClientTrackerView() {
             latitude: data.currentLocation.latitude,
             longitude: data.currentLocation.longitude,
             kind: "truck" as const,
+            lastSeen: data.currentLocation.updatedAt,
           },
         ]
       : []),
+    // Numbered in the order the trip takes them, before the stops without a
+    // position are dropped, so the numbers match the list below the map.
     ...data.stops
-      .filter((stop) => stop.latitude !== null && stop.longitude !== null)
-      .map((stop) => ({
+      .map((stop, index) => ({ stop, order: index + 1 }))
+      .filter(({ stop }) => stop.latitude !== null && stop.longitude !== null)
+      .map(({ stop, order }) => ({
         id: `stop-${stop.branchID}`,
         label: stop.branchName,
         detail: stop.status,
         latitude: stop.latitude as number,
         longitude: stop.longitude as number,
         kind: "stop" as const,
+        order,
+        stopKind: "delivery" as const,
         done: /complete|delivered/i.test(stop.status),
         problem: /foul|fail|cancel/i.test(stop.status) || interrupted,
       })),

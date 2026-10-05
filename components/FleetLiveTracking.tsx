@@ -306,6 +306,7 @@ export default function FleetLiveTracking() {
           latitude: record.latitude as number,
           longitude: record.longitude as number,
           kind: "truck" as const,
+          lastSeen: record.lastUpdated,
         })),
     [filteredList],
   );

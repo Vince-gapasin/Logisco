@@ -1,15 +1,14 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Layer,
   Marker,
-  NavigationControl,
   Popup,
   Source,
   type MapRef,
 } from "react-map-gl/mapbox";
-import { MapPin, Truck } from "lucide-react";
+import { LocateFixed, MapPin, Maximize, Minimize, Minus, Package, Plus, ScanSearch, Truck } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 export interface MapPoint {
@@ -22,6 +21,12 @@ export interface MapPoint {
   done?: boolean;
   /** A stop on a trip that was interrupted, or that failed. */
   problem?: boolean;
+  /** A stop's place in the run, drawn on its pin: 1, 2, 3. */
+  order?: number;
+  /** Whether a stop is collected from or delivered to. Pickups are square pins. */
+  stopKind?: "pickup" | "delivery";
+  /** When a truck last sent its position. Long enough ago and it is greyed out. */
+  lastSeen?: string | null;
 }
 
 export interface TrailPointInput {
@@ -49,11 +54,189 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 // Metro Manila, used only until the first real position arrives.
 const FALLBACK_CENTER = { latitude: 14.5995, longitude: 120.9842, zoom: 10 };
 
+// A parked truck still sends its position every three minutes (the crew app's
+// heartbeat), so silence past five means the signal is gone, not that the truck
+// has stopped. Grey, rather than the blue of a truck we can see.
+const STALE_AFTER_MS = 5 * 60_000;
+
+// Further than this between two fixes is not driving: the first fix, or a
+// phone that was off. The truck is moved there at once rather than slid
+// across the city.
+const JUMP_KM = 3;
+const GLIDE_MS = 1200;
+
+const FIT_PADDING = 64;
+
 function Placeholder({ message }: { message: string }) {
   return (
     <div className="flex h-full w-full items-center justify-center bg-slate-100 px-6 text-center">
       <p className="text-sm text-slate-600 max-w-sm">{message}</p>
     </div>
+  );
+}
+
+function distanceKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLng = (b.longitude - a.longitude) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+function boundsOf(points: { latitude: number; longitude: number }[]): [[number, number], [number, number]] {
+  const longitudes = points.map((p) => p.longitude);
+  const latitudes = points.map((p) => p.latitude);
+  return [
+    [Math.min(...longitudes), Math.min(...latitudes)],
+    [Math.max(...longitudes), Math.max(...latitudes)],
+  ];
+}
+
+function silentFor(lastSeen: string | null | undefined, now: number): number | null {
+  if (!lastSeen) return null;
+  const at = new Date(lastSeen).getTime();
+  return Number.isNaN(at) ? null : now - at;
+}
+
+function lastSeenLabel(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `Last seen ${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `Last seen ${hours} h ago` : `Last seen ${Math.floor(hours / 24)} d ago`;
+}
+
+/**
+ * A position that slides to each new fix instead of jumping, so a truck
+ * reporting every few seconds reads as driving rather than teleporting.
+ */
+function useGlide(latitude: number, longitude: number) {
+  const [shown, setShown] = useState({ latitude, longitude });
+  const shownRef = useRef(shown);
+
+  useEffect(() => {
+    const from = shownRef.current;
+    const to = { latitude, longitude };
+    if (from.latitude === to.latitude && from.longitude === to.longitude) return;
+
+    const set = (next: { latitude: number; longitude: number }) => {
+      shownRef.current = next;
+      setShown(next);
+    };
+
+    if (distanceKm(from, to) > JUMP_KM) {
+      set(to);
+      return;
+    }
+
+    let frame = 0;
+    const start = performance.now();
+    const step = (time: number) => {
+      const t = Math.min(1, (time - start) / GLIDE_MS);
+      const ease = 1 - (1 - t) ** 3;
+      set({
+        latitude: from.latitude + (to.latitude - from.latitude) * ease,
+        longitude: from.longitude + (to.longitude - from.longitude) * ease,
+      });
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [latitude, longitude]);
+
+  return shown;
+}
+
+function PointMarker({
+  point,
+  now,
+  onSelect,
+}: {
+  point: MapPoint;
+  now: number;
+  onSelect: (point: MapPoint) => void;
+}) {
+  const position = useGlide(point.latitude, point.longitude);
+  const isTruck = point.kind === "truck";
+  const silence = isTruck ? silentFor(point.lastSeen, now) : null;
+  const stale = silence !== null && silence > STALE_AFTER_MS;
+  const pickup = point.stopKind === "pickup";
+
+  const colour = isTruck
+    ? stale
+      ? "bg-slate-400 text-white"
+      : "bg-blue-600 text-white"
+    : point.done
+      ? "bg-emerald-500 text-white"
+      : point.problem
+        ? "bg-red-600 text-white"
+        : pickup
+          ? "bg-amber-600 text-white"
+          : "bg-slate-700 text-white";
+
+  return (
+    <Marker
+      latitude={position.latitude}
+      longitude={position.longitude}
+      anchor="bottom"
+      // Trucks over stops: the thing being followed should never be hidden.
+      style={{ zIndex: isTruck ? 2 : 1 }}
+      onClick={(event) => {
+        event.originalEvent.stopPropagation();
+        onSelect(point);
+      }}
+    >
+      <div className="relative flex flex-col items-center">
+        <button
+          type="button"
+          aria-label={point.order ? `${point.label}, stop ${point.order}` : point.label}
+          className={`flex h-7 min-w-7 items-center justify-center border-2 border-white px-1 text-xs font-bold shadow-md transition-transform hover:scale-110 ${
+            pickup ? "rounded-md" : "rounded-full"
+          } ${colour}`}
+        >
+          {isTruck ? (
+            <Truck className="h-4 w-4" />
+          ) : point.order ? (
+            point.order
+          ) : pickup ? (
+            <Package className="h-4 w-4" />
+          ) : (
+            <MapPin className="h-4 w-4" />
+          )}
+        </button>
+        {stale && silence !== null && (
+          <span className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-white/95 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+            {lastSeenLabel(silence)}
+          </span>
+        )}
+      </div>
+    </Marker>
+  );
+}
+
+function ControlButton({
+  label,
+  onClick,
+  active = false,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={active || undefined}
+      className={`flex h-9 w-9 items-center justify-center first:rounded-t-lg last:rounded-b-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
+        active ? "text-blue-600" : "text-slate-700 hover:bg-slate-100"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -65,7 +248,31 @@ export default function LiveRouteMap({
   emptyMessage = "No GPS positions to show yet.",
 }: LiveRouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const [selected, setSelected] = useState<MapPoint | null>(null);
+  // "native": the browser's full screen. "page": the map covering the page,
+  // for an iPhone, which does not let a page take over the screen.
+  const [fullScreen, setFullScreen] = useState<"native" | "page" | null>(null);
+
+  const trucks = useMemo(() => points.filter((p) => p.kind === "truck"), [points]);
+  const soleTruck = trucks.length === 1 ? trucks[0] : null;
+
+  // With one truck on the map, the map keeps it in view as it moves. Dragging
+  // the map stops that - somebody looking at a stop does not want to be pulled
+  // back - and the Re-center button starts it again.
+  const [following, setFollowingState] = useState(true);
+  const followingRef = useRef(true);
+  const setFollowing = useCallback((on: boolean) => {
+    followingRef.current = on;
+    setFollowingState(on);
+  }, []);
+
+  // Ticks so a truck goes grey when it falls silent, without a new fix.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Refit only when the set of plotted points changes, so the map does not
   // jump away from wherever the user has panned on every refresh.
@@ -99,28 +306,86 @@ export default function LiveRouteMap({
     const firstTruck = points.find((p) => p.kind === "truck") ?? points[0];
     if (!firstTruck) return FALLBACK_CENTER;
     return { latitude: firstTruck.latitude, longitude: firstTruck.longitude, zoom: 12 };
-  }, [points]);
+    // Only read on the map's first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
+  const fit = useCallback((targets: { latitude: number; longitude: number }[]) => {
     const map = mapRef.current;
-    if (!map || points.length === 0) return;
-
-    if (points.length === 1) {
-      map.easeTo({ center: [points[0].longitude, points[0].latitude], zoom: 13, duration: 600 });
+    if (!map || targets.length === 0) return;
+    if (targets.length === 1) {
+      map.easeTo({ center: [targets[0].longitude, targets[0].latitude], zoom: Math.max(map.getZoom(), 14), duration: 600 });
       return;
     }
+    map.fitBounds(boundsOf(targets), { padding: FIT_PADDING, duration: 600, maxZoom: 15 });
+  }, []);
 
-    const longitudes = points.map((p) => p.longitude);
-    const latitudes = points.map((p) => p.latitude);
-    map.fitBounds(
-      [
-        [Math.min(...longitudes), Math.min(...latitudes)],
-        [Math.max(...longitudes), Math.max(...latitudes)],
-      ],
-      { padding: 64, duration: 600, maxZoom: 14 },
-    );
+  /** Everything on the map: the truck and every stop. */
+  const showAll = useCallback(() => {
+    setFollowing(false);
+    fit(points);
+  }, [fit, points, setFollowing]);
+
+  /** Back to the truck, following it again; or to every truck on a fleet map. */
+  const recenter = useCallback(() => {
+    setFollowing(true);
+    fit(trucks.length > 0 ? trucks : points);
+  }, [fit, trucks, points, setFollowing]);
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    fit(points);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointKey]);
+
+  // Following: keep the truck in the middle as it moves, at whatever zoom the
+  // user has chosen. Only on a move - the first fix is framed with the stops
+  // above, and Re-center does its own framing.
+  const truckLat = soleTruck?.latitude;
+  const truckLng = soleTruck?.longitude;
+  const lastTruck = useRef<string | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (truckLat === undefined || truckLng === undefined) return;
+    const key = `${truckLat},${truckLng}`;
+    const moved = lastTruck.current !== null && lastTruck.current !== key;
+    lastTruck.current = key;
+    if (!map || !moved || !followingRef.current) return;
+    map.easeTo({ center: [truckLng, truckLat], duration: GLIDE_MS });
+  }, [truckLat, truckLng]);
+
+  const toggleFullScreen = useCallback(() => {
+    const frame = frameRef.current;
+    if (fullScreen === "native") void document.exitFullscreen();
+    else if (fullScreen === "page") setFullScreen(null);
+    else if (frame?.requestFullscreen && document.fullscreenEnabled) {
+      frame.requestFullscreen().catch(() => setFullScreen("page"));
+    } else setFullScreen("page");
+  }, [fullScreen]);
+
+  useEffect(() => {
+    const onChange = () => setFullScreen(document.fullscreenElement === frameRef.current ? "native" : null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    // The canvas has to be told its box changed size.
+    const timer = window.setTimeout(() => mapRef.current?.resize(), 50);
+    if (fullScreen !== "page") return () => window.clearTimeout(timer);
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullScreen(null);
+    };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(timer);
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [fullScreen]);
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -138,8 +403,15 @@ export default function LiveRouteMap({
     );
   }
 
+  const hasPickups = points.some((p) => p.kind === "stop" && p.stopKind === "pickup");
+  const hasDeliveries = points.some((p) => p.kind === "stop" && p.stopKind !== "pickup");
+  const showLegend = plannedRoute.length > 1 || trail.length > 1 || (hasPickups && hasDeliveries);
+
   return (
-    <div className={`${heightClass} relative w-full overflow-hidden`}>
+    <div
+      ref={frameRef}
+      className={`${fullScreen === "page" ? "fixed inset-0 z-90 h-dvh" : `relative ${fullScreen === "native" ? "h-full" : heightClass}`} w-full overflow-hidden bg-slate-100`}
+    >
       <Map
         ref={mapRef}
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -147,9 +419,9 @@ export default function LiveRouteMap({
         mapStyle="mapbox://styles/mapbox/streets-v12"
         style={{ width: "100%", height: "100%" }}
         attributionControl={false}
+        // Only a drag by a person stops following; the map's own moves do not.
+        onDragStart={() => setFollowing(false)}
       >
-        <NavigationControl position="top-right" showCompass={false} />
-
         {/*
           Where it has been, underneath and muted. It is raw GPS - it wanders
           off the road between fixes - and it is the less useful of the two to
@@ -189,56 +461,67 @@ export default function LiveRouteMap({
         )}
 
         {points.map((point) => (
-          <Marker
-            key={point.id}
-            latitude={point.latitude}
-            longitude={point.longitude}
-            anchor="bottom"
-            onClick={(event) => {
-              event.originalEvent.stopPropagation();
-              setSelected(point);
-            }}
-          >
-            <button
-              type="button"
-              aria-label={point.label}
-              className={`flex h-7 w-7 items-center justify-center rounded-full border-2 border-white shadow-md transition-transform hover:scale-110 ${
-                point.kind === "truck"
-                  ? "bg-blue-600 text-white"
-                  : point.done
-                    ? "bg-emerald-500 text-white"
-                    : point.problem
-                      ? "bg-red-600 text-white"
-                      : "bg-slate-700 text-white"
-              }`}
-            >
-              {point.kind === "truck" ? (
-                <Truck className="h-4 w-4" />
-              ) : (
-                <MapPin className="h-4 w-4" />
-              )}
-            </button>
-          </Marker>
+          <PointMarker key={point.id} point={point} now={now} onSelect={setSelected} />
         ))}
 
         {selected && (
           <Popup
-            latitude={selected.latitude}
-            longitude={selected.longitude}
+            // The live point, so a truck's popup goes with the truck.
+            latitude={(points.find((p) => p.id === selected.id) ?? selected).latitude}
+            longitude={(points.find((p) => p.id === selected.id) ?? selected).longitude}
             anchor="top"
             onClose={() => setSelected(null)}
             closeButton
             closeOnClick={false}
           >
             <div className="px-1 py-0.5">
-              <p className="text-xs font-bold text-slate-900">{selected.label}</p>
+              <p className="text-xs font-bold text-slate-900">
+                {selected.order ? `${selected.stopKind === "pickup" ? "Pickup" : "Stop"} ${selected.order} - ` : ""}
+                {selected.label}
+              </p>
               {selected.detail && <p className="mt-0.5 text-xs sm:text-[11px] text-slate-600">{selected.detail}</p>}
             </div>
           </Popup>
         )}
       </Map>
 
-      {(plannedRoute.length > 1 || trail.length > 1) && (
+      {/* Zoom, back to the truck, everything, full screen. */}
+      <div className="absolute right-3 top-3 flex flex-col divide-y divide-slate-200 rounded-lg bg-white shadow-md ring-1 ring-slate-200">
+        <ControlButton label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>
+          <Plus className="h-4 w-4" />
+        </ControlButton>
+        <ControlButton label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>
+          <Minus className="h-4 w-4" />
+        </ControlButton>
+        <ControlButton
+          label={trucks.length > 1 ? "Show all trucks" : trucks.length === 1 ? "Re-center on truck" : "Re-center"}
+          onClick={recenter}
+          active={Boolean(soleTruck) && following}
+        >
+          <LocateFixed className="h-4 w-4" />
+        </ControlButton>
+        {trucks.length > 0 && points.length > trucks.length && (
+          <ControlButton label="Show truck and all stops" onClick={showAll}>
+            <ScanSearch className="h-4 w-4" />
+          </ControlButton>
+        )}
+        <ControlButton label={fullScreen ? "Exit full screen" : "Full screen"} onClick={toggleFullScreen}>
+          {fullScreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </ControlButton>
+      </div>
+
+      {/* Said plainly once following has stopped, where a thumb can reach it. */}
+      {soleTruck && !following && (
+        <button
+          type="button"
+          onClick={recenter}
+          className="absolute bottom-3 right-3 inline-flex min-h-tap items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-sm font-semibold text-white shadow-lg hover:bg-blue-700 md:pointer-fine:min-h-9"
+        >
+          <LocateFixed className="h-4 w-4" /> Re-center
+        </button>
+      )}
+
+      {showLegend && (
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-white/95 px-3 py-2 shadow-sm ring-1 ring-slate-200">
           <ul className="space-y-1.5">
             {plannedRoute.length > 1 && (
@@ -252,6 +535,18 @@ export default function LiveRouteMap({
                 <span className="h-1 w-6 rounded-full bg-slate-400" />
                 <span className="text-xs font-medium text-slate-700">Already travelled</span>
               </li>
+            )}
+            {hasPickups && hasDeliveries && (
+              <>
+                <li className="flex items-center gap-2">
+                  <span className="mx-1.5 h-3 w-3 rounded-sm bg-amber-600" />
+                  <span className="text-xs font-medium text-slate-700">Pickup</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="mx-1.5 h-3 w-3 rounded-full bg-slate-700" />
+                  <span className="text-xs font-medium text-slate-700">Delivery</span>
+                </li>
+              </>
             )}
           </ul>
         </div>

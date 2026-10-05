@@ -51,6 +51,7 @@ import {
   stopLiveTracking,
 } from "./_components/liveTracking";
 import { formatDispatchNote, generateDynamicStops, stopName } from "./_components/stops";
+import NavigateButtons, { canNavigateTo, type NavigateTarget } from "./_components/NavigateButtons";
 
 
 const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
@@ -482,26 +483,34 @@ export default function CrewDashboardPage({
           },
         ]
       : []),
+    // Numbered in the order they are run, before the ones without a position
+    // are dropped, so "Pickup 2" on the map is Pickup Address #2 below it.
     ...(selectedDelivery?.multiplePickups ?? [])
-      .filter((pickup) => pickup.latitude != null && pickup.longitude != null)
-      .map((pickup, index) => ({
+      .map((pickup, index) => ({ pickup, index }))
+      .filter(({ pickup }) => pickup.latitude != null && pickup.longitude != null)
+      .map(({ pickup, index }) => ({
         id: `pickup-${pickup.pickupID ?? index}`,
         label: pickup.warehouse || "Pickup point",
         detail: pickup.pickupTime ? `Collect ${formatTime(String(pickup.pickupTime))}` : undefined,
         latitude: pickup.latitude as number,
         longitude: pickup.longitude as number,
         kind: "stop" as const,
+        order: index + 1,
+        stopKind: "pickup" as const,
         done: /deliver|complete/i.test(pickup.status ?? ""),
       })),
     ...(selectedDelivery?.multipleDeliveries ?? [])
-      .filter((stop) => stop.latitude != null && stop.longitude != null)
-      .map((stop, index) => ({
+      .map((stop, index) => ({ stop, index }))
+      .filter(({ stop }) => stop.latitude != null && stop.longitude != null)
+      .map(({ stop, index }) => ({
         id: `stop-${stop.branchID ?? index}`,
         label: stop.branch || "Delivery stop",
         detail: stop.deliveryTime ? `Expected ${formatTime(String(stop.deliveryTime))}` : undefined,
         latitude: stop.latitude as number,
         longitude: stop.longitude as number,
         kind: "stop" as const,
+        order: index + 1,
+        stopKind: "delivery" as const,
         done: /deliver|complete/i.test(stop.status ?? ""),
       })),
   ];
@@ -992,6 +1001,13 @@ export default function CrewDashboardPage({
   // The departure step is not a stop, so nothing is asked there.
   const activeStop = dynamicStops[currentStepIndex];
   const activeStopData = activeStop?.data;
+
+  // Where the Navigate buttons go: this stop, or before departure the first
+  // stop ahead. Nothing once the run is over.
+  const headingTo = activeStopData ?? dynamicStops.slice(currentStepIndex + 1).find((s) => s.data)?.data;
+  const navigateTarget: NavigateTarget | null = headingTo
+    ? { name: stopName(headingTo), address: headingTo.address, latitude: headingTo.latitude, longitude: headingTo.longitude }
+    : null;
   const activeStopKey = activeStopData
     ? "warehouse" in activeStopData
       ? `pickup:${activeStopData.pickupID ?? activeStopData.warehouse}`
@@ -1209,6 +1225,7 @@ export default function CrewDashboardPage({
                      <div><p className="text-xs text-slate-500 font-medium">Product / Quantity</p><p className="font-semibold text-slate-800">{selectedDelivery.product} - {selectedDelivery.quantity || 'N/A'}</p></div>
                    </div>
                 )}
+                {canNavigateTo(navigateTarget) && <NavigateButtons target={navigateTarget} />}
               </div>
 
               {/* PICKUP ADDRESSES LIST */}
