@@ -49,6 +49,45 @@ async function findActiveDispatchFor(
   return data?.[0] ?? null;
 }
 
+// The helpers, of those given, who already have a seat on another live trip.
+//
+// Trucks and drivers were checked for this and helpers never were, so one
+// helper could be put on two trucks leaving at the same time. A helper who
+// declined a trip has left it and does not count. Filtered here rather than in
+// the query: the column can be empty, and PostgREST's neq drops empty rows.
+async function helpersOnAnotherTrip(helperIDs: string[], excludeDispatchID?: string): Promise<string[]> {
+  if (helperIDs.length === 0) return [];
+
+  let query = supabase
+    .from("DispatchHelper")
+    .select("helperID, status, DispatchOrder!inner ( status )")
+    .in("helperID", helperIDs)
+    .in("DispatchOrder.status", ACTIVE_DISPATCH_STATUSES);
+
+  if (excludeDispatchID) query = query.neq("dispatchID", excludeDispatchID);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Supabase Dispatch Error: ${error.message}`);
+
+  return [
+    ...new Set(
+      ((data ?? []) as { helperID: string; status: string | null }[])
+        .filter((row) => row.status !== HELPER_STATUS.declined)
+        .map((row) => row.helperID),
+    ),
+  ];
+}
+
+// The database refuses a second live trip for one truck, driver or booking
+// (see the one_active_per_* indexes). That only happens when two people
+// assign at the same moment, so it is said that way.
+function describeAssignError(error: { message: string; code?: string }): string {
+  if (error.code === "23505") {
+    return "Someone else just assigned this booking, truck or driver. Refresh and try again.";
+  }
+  return `Failed to assign dispatch order: ${error.message}`;
+}
+
 export interface StatusActor {
   actor?: { employeeID: string; name: string } | null;
   /** Why, when it was not a person choosing: "Foul trip: Broken Truck". */
@@ -95,6 +134,27 @@ async function setTruckStatus(truckID: string, truckStatus: string, by: StatusAc
 export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
   if (!dto.truckID) throw new Error("No truck selected.");
   if (!dto.driverID) throw new Error("No driver selected.");
+
+  // 0. Validate the booking. Nothing checked it, so a double-click on Assign -
+  // or two coordinators at once - made two trips for one booking. The second
+  // got none of the stops, and the crew screen, finding none linked, showed it
+  // every stop on the booking, so two crews could deliver the same drops.
+  // A foul trip's recovery comes through here too; its failed trip is already
+  // Foul Trip, which is not live, so it does not block its own replacement.
+  const { data: order, error: orderErr } = await supabase
+    .from("Order")
+    .select("orderID, isActive, DispatchOrder ( dispatchID, status )")
+    .eq("orderID", orderID)
+    .maybeSingle();
+
+  if (orderErr) throw new Error(`Supabase Order Error: ${orderErr.message}`);
+  if (!order) throw new Error("Booking not found.");
+  if (order.isActive === false) throw new Error("This booking has been cancelled.");
+
+  const trips = (order.DispatchOrder as { dispatchID: string; status: string }[] | null) ?? [];
+  if (trips.some((trip) => ACTIVE_DISPATCH_STATUSES.includes(trip.status))) {
+    throw new Error("This booking already has a trip. Re-assign that trip instead of adding another.");
+  }
 
   // 1. Validate Truck
   const { data: truck, error: truckErr } = await supabase
@@ -148,6 +208,12 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
     throw new Error("Selected driver is already assigned to an active dispatch.");
   }
 
+  const busyHelper = (await helpersOnAnotherTrip(helperIDs))[0];
+  if (busyHelper) {
+    const name = byID.get(busyHelper)?.employeeName?.trim() || "Selected helper";
+    throw new Error(`${name} is already assigned to an active dispatch.`);
+  }
+
   // 3. INSERT the Dispatch Record
   const { data: dispatch, error: assignErr } = await supabase
     .from("DispatchOrder")
@@ -161,7 +227,7 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
     .single();
 
   if (assignErr) {
-    throw new Error(`Failed to assign dispatch order: ${assignErr.message}`);
+    throw new Error(describeAssignError(assignErr));
   }
 
   try {
@@ -264,6 +330,30 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
   }
 
   const newHelperIDs = [...new Set([dto.helper1ID, dto.helper2ID].filter((id): id is string => Boolean(id)))];
+
+  // The helpers were taken on trust here: any id became a helper, whatever
+  // their role, whether they could sign in, and whatever else they were on.
+  if (newHelperIDs.length > 0) {
+    const { data: helpers, error: helpersErr } = await supabase
+      .from("Employee")
+      .select("employeeID, employeeName, role, isActive, activation_completed_at")
+      .in("employeeID", newHelperIDs);
+
+    if (helpersErr) throw new Error(`Supabase Employee Error: ${helpersErr.message}`);
+
+    const helperByID = new Map((helpers ?? []).map((person) => [person.employeeID, person]));
+    for (const helperID of newHelperIDs) {
+      const helperProblem = whyNotAssignable(helperByID.get(helperID), EMPLOYEE_ROLE.helper);
+      if (helperProblem) throw new Error(helperProblem);
+    }
+
+    const busyHelper = (await helpersOnAnotherTrip(newHelperIDs, dispatchID))[0];
+    if (busyHelper) {
+      const name = helperByID.get(busyHelper)?.employeeName?.trim() || "Selected helper";
+      throw new Error(`${name} is already assigned to another active dispatch.`);
+    }
+  }
+
   // 2. Apply the new assignment, resetting crew confirmation
   const { error: updateErr } = await supabase
     .from("DispatchOrder")
@@ -275,7 +365,11 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
     })
     .eq("dispatchID", dispatchID);
 
-  if (updateErr) throw new Error(`Failed to re-assign dispatch: ${updateErr.message}`);
+  if (updateErr) {
+    throw new Error(
+      updateErr.code === "23505" ? describeAssignError(updateErr) : `Failed to re-assign dispatch: ${updateErr.message}`,
+    );
+  }
 
   const { error: deleteErr } = await supabase
     .from("DispatchHelper")

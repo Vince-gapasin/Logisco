@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/app/lib/auth";
+import { OFFICE_ROLES, requireAuth, requireRole } from "@/app/lib/auth";
 import { synchronizeLatestFuelPrice } from "@/services/externalFactors/fuelPriceService";
 
 export const runtime = "nodejs";
@@ -27,6 +27,14 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { message: auth.error },
           { status: auth.status },
+        );
+      }
+
+      const roleError = requireRole(auth.employee.role, OFFICE_ROLES);
+      if (roleError) {
+        return NextResponse.json(
+          { message: roleError.error },
+          { status: roleError.status },
         );
       }
     }

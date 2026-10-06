@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorize } from "@/app/lib/auth";
+import { authorize, FLEET_ROLES, OFFICE_ROLES } from "@/app/lib/auth";
 import {
   announceCheckerDown,
   announceRecovery,
@@ -67,8 +67,10 @@ function summarise(trips: StalledTrip[]) {
 }
 
 /** What the board draws. Reads only. */
+// The fleet board's roles: it is every trip on the road, which is not the
+// crew's to see.
 export async function GET(request: Request) {
-  const { response } = await authorize(request);
+  const { response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   try {
@@ -97,9 +99,11 @@ export async function GET(request: Request) {
 
 /** The scheduled run, which is the only thing that notifies anybody. */
 export async function POST(request: Request) {
-  // The schedule with the shared secret, or a signed-in member of staff.
+  // The schedule with the shared secret, or the office. Not any signed-in
+  // account: a run sends alerts, and it is recorded as the schedule having run,
+  // so a driver pressing it would hide a dead schedule from System Health.
   if (!fromTheSchedule(request)) {
-    const { response } = await authorize(request);
+    const { response } = await authorize(request, OFFICE_ROLES);
     if (response) return response;
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAuth, requireRole } from "@/app/lib/auth";
+import { OFFICE_ROLES, requireAuth, requireRole } from "@/app/lib/auth";
 import {
   createMonthlyForecastSnapshot,
   evaluateCompletedForecastSnapshots,
@@ -15,6 +15,14 @@ export async function GET(request: Request) {
       return NextResponse.json(
         { message: auth.error },
         { status: auth.status },
+      );
+    }
+
+    const roleError = requireRole(auth.employee.role, OFFICE_ROLES);
+    if (roleError) {
+      return NextResponse.json(
+        { message: roleError.error },
+        { status: roleError.status },
       );
     }
 
