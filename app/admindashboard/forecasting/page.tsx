@@ -490,6 +490,7 @@ function formatMonth(date: string) {
 
 type RemarkRow = {
   period: string;
+  periodStart?: string;
   expectedVolume: number;
   actualVolume: number | null;
   dayCount?: number;
@@ -502,24 +503,50 @@ function countDays(periodStart: string, periodEnd?: string) {
   return Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
 }
 
-function pluralize(count: number, word: string) {
-  return `${count} ${word}${count === 1 ? "" : "s"}`;
+/** "1 delivery", "12 deliveries". */
+function deliveries(count: number) {
+  const rounded = Math.round(count);
+  return `${rounded.toLocaleString("en-US")} ${rounded === 1 ? "delivery" : "deliveries"}`;
 }
 
-function formatNumber(value: number) {
-  return value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+/** The forecast as a person would say it: "about 38" (never "about 0"). */
+function aboutExpected(expected: number) {
+  return `about ${Math.max(1, Math.round(expected)).toLocaleString("en-US")}`;
 }
 
-function formatSignedPercent(actual: number, expected: number) {
-  if (expected === 0) return "no forecast to compare";
-  const percentage = ((actual - expected) / expected) * 100;
-  return `${percentage >= 0 ? "+" : ""}${percentage.toFixed(1)}%`;
+/** How a period compared with what we expected, in everyday words. */
+function howItWent(expected: number, actual: number) {
+  // Small numbers: 1 delivery against "about 1" is simply as expected.
+  if (Math.round(actual) === Math.max(1, Math.round(expected))) {
+    return "close to what we expected";
+  }
+  const status = overallTrendStatus(expected, actual);
+  if (status === "Normal") return "close to what we expected";
+  const percentage = expected === 0 ? 0 : ((actual - expected) / expected) * 100;
+  if (status === "Above Normal") {
+    return percentage > 25 ? "much busier than expected" : "a bit busier than expected";
+  }
+  return percentage < -25 ? "much slower than expected" : "a bit slower than expected";
+}
+
+const TREND_FILTER_WORDS: Record<Exclude<TrendFilter, "Any">, string> = {
+  "Above Normal": "busier than expected",
+  Normal: "close to what we expected",
+  "Below Normal": "slower than expected",
+};
+
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 // Builds the remarks from exactly what the filters are showing, so they
-// change with the view, year, month, week and trend status.
+// change with the view, year, month, week and trend status. Written for
+// anyone to read: short sentences, everyday words, no percentages.
 function buildFilterRemarks({
-  rows,
+  rows: allRows,
   totalRowCount,
   scopeLabel,
   unit,
@@ -534,123 +561,141 @@ function buildFilterRemarks({
   scopeMonths: ForecastRecord[];
 }): string[] {
   const remarks: string[] = [];
-  const scopeTitle = scopeLabel.charAt(0).toUpperCase() + scopeLabel.slice(1);
+  const yearRange = scopeLabel.match(/^(\d{4})–(\d{4})$/);
+  const scope = yearRange ? `${yearRange[1]} to ${yearRange[2]}` : scopeLabel;
+  const opening = yearRange ? `From ${scope}` : `In ${scope}`;
+  const plural = (n: number) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  // "the week of May 1 – May 7" reads better than the bare range mid-sentence.
+  const named = (row: RemarkRow) => (unit === "week" ? `the week of ${row.period}` : row.period);
+
+  // Periods that haven't started yet (e.g. November in October) are not
+  // part of what happened, so they are left out entirely.
+  const today = todayKey();
+  const rows = allRows.filter(
+    (row) => !row.periodStart || row.periodStart.slice(0, 10) <= today,
+  );
+
   const completed = rows.filter(
     (row): row is RemarkRow & { actualVolume: number } =>
       row.actualVolume !== null,
   );
-  const pendingCount = rows.length - completed.length;
+  const unfinished = rows.filter((row) => row.actualVolume === null);
 
   if (trendFilter !== "Any") {
     remarks.push(
-      `Showing only ${trendFilter} ${unit}s: ${rows.length} of ${totalRowCount} ${unit}s in ${scopeLabel} match.`,
+      `You're only seeing the ${unit}s that were ${TREND_FILTER_WORDS[trendFilter]}: ${rows.length} out of ${plural(totalRowCount)}.`,
     );
   }
 
   if (rows.length === 0) {
-    remarks.push(`No ${unit}s in ${scopeLabel} match the selected filters.`);
+    remarks.push(`There's nothing to show for ${scope} with these filters.`);
     return remarks;
   }
 
+  // 1. What happened overall.
   if (completed.length === 0) {
     remarks.push(
-      `${scopeTitle} has no completed deliveries yet. ${pluralize(pendingCount, unit)} still in progress, with ${formatNumber(
+      `${scope.charAt(0).toUpperCase() + scope.slice(1)} isn't over yet, so there are no finished deliveries to report. We're expecting ${aboutExpected(
         rows.reduce((sum, row) => sum + row.expectedVolume, 0),
-      )} deliveries forecast.`,
+      )}.`,
     );
   } else {
     const actual = completed.reduce((sum, row) => sum + row.actualVolume, 0);
     const expected = completed.reduce((sum, row) => sum + row.expectedVolume, 0);
-    const status = overallTrendStatus(expected, actual);
     remarks.push(
-      `${scopeTitle}: ${formatNumber(actual)} completed deliveries against a forecast of ${formatNumber(
-        expected,
-      )} (${formatSignedPercent(actual, expected)}), which is ${status.toLowerCase()}.` +
-        (pendingCount > 0
-          ? ` ${pluralize(pendingCount, unit)} still in progress.`
-          : ""),
+      `${opening}, we completed ${deliveries(actual)}. We expected ${aboutExpected(expected)}, so it was ${howItWent(expected, actual)}.`,
     );
   }
 
+  if (unfinished.length === 1 && completed.length > 0) {
+    const name = named(unfinished[0]);
+    remarks.push(`${name.charAt(0).toUpperCase() + name.slice(1)} isn't over yet, so it isn't counted above.`);
+  } else if (unfinished.length > 1 && completed.length > 0) {
+    remarks.push(`${plural(unfinished.length)} aren't over yet, so they aren't counted above.`);
+  }
+
+  // A part-year (the current year so far) or a short end-of-month week
+  // (e.g. the 29th to 31st) would always look like the slowest, so only
+  // full periods are compared with each other.
+  const comparable = completed.filter(
+    (row) =>
+      !row.period.includes("(year to date)") &&
+      (unit !== "week" || (row.dayCount ?? 7) >= 7),
+  );
+
+  // 2. The period that turned out most different from what we expected.
   if (completed.length >= 2) {
-    const largestGap = [...completed].sort(
+    const biggest = [...completed].sort(
       (a, b) =>
         Math.abs(b.actualVolume - b.expectedVolume) -
         Math.abs(a.actualVolume - a.expectedVolume),
     )[0];
-    const gap = largestGap.actualVolume - largestGap.expectedVolume;
-    if (gap !== 0) {
+    if (Math.round(biggest.actualVolume) !== Math.round(biggest.expectedVolume)) {
       remarks.push(
-        `${largestGap.period} had the largest gap: ${formatNumber(
-          largestGap.actualVolume,
-        )} delivered vs ${formatNumber(largestGap.expectedVolume)} forecast (${formatSignedPercent(
-          largestGap.actualVolume,
-          largestGap.expectedVolume,
-        )}).`,
+        `The biggest surprise was ${named(biggest)}: we expected ${aboutExpected(
+          biggest.expectedVolume,
+        )} deliveries but completed ${Math.round(biggest.actualVolume)}.`,
       );
     }
   }
 
-  // Short end-of-month weeks (e.g. the 29th–31st) would always look like the
-  // slowest week, so only full weeks are compared against each other.
-  const comparable = completed.filter(
-    (row) => unit !== "week" || (row.dayCount ?? 7) >= 7,
-  );
-
+  // 3. Busiest and slowest, then the most recent change.
   if (comparable.length >= 2) {
-    const peak = [...comparable].sort((a, b) => b.actualVolume - a.actualVolume)[0];
-    const low = [...comparable].sort((a, b) => a.actualVolume - b.actualVolume)[0];
-    if (peak.actualVolume !== low.actualVolume) {
+    const busiest = [...comparable].sort((a, b) => b.actualVolume - a.actualVolume)[0];
+    const slowest = [...comparable].sort((a, b) => a.actualVolume - b.actualVolume)[0];
+    if (busiest.actualVolume !== slowest.actualVolume) {
       remarks.push(
-        `Busiest ${unit} was ${peak.period} with ${formatNumber(
-          peak.actualVolume,
-        )} deliveries; the slowest was ${low.period} with ${formatNumber(low.actualVolume)}.`,
+        `The busiest ${unit} was ${busiest.period} with ${deliveries(
+          busiest.actualVolume,
+        )}. The slowest was ${slowest.period} with ${deliveries(slowest.actualVolume)}.`,
       );
     }
 
     const latest = comparable[comparable.length - 1];
     const previous = comparable[comparable.length - 2];
-    const change = latest.actualVolume - previous.actualVolume;
+    const change = Math.round(latest.actualVolume) - Math.round(previous.actualVolume);
     remarks.push(
       change === 0
-        ? `Deliveries held steady at ${formatNumber(latest.actualVolume)} from ${previous.period} to ${latest.period}.`
-        : `Deliveries ${change > 0 ? "rose" : "fell"} from ${formatNumber(
+        ? `Deliveries stayed the same from ${named(previous)} to ${named(latest)}, at ${Math.round(latest.actualVolume)}.`
+        : `Deliveries went ${change > 0 ? "up" : "down"} from ${Math.round(
             previous.actualVolume,
-          )} in ${previous.period} to ${formatNumber(latest.actualVolume)} in ${latest.period}.`,
+          )} in ${named(previous)} to ${Math.round(latest.actualVolume)} in ${named(latest)}.`,
     );
   }
 
+  // 4. Weather.
   const weatherMonths = scopeMonths.filter(
     (record) => record.factors.totalRainfall !== null,
   );
   if (weatherMonths.length === 1) {
     const month = weatherMonths[0];
+    const rainyDays = Math.round(month.factors.rainyDays ?? 0);
     remarks.push(
-      `Weather in ${month.period}: ${month.factors.totalRainfall?.toFixed(1)} mm of rain over ${Math.round(
-        month.factors.rainyDays ?? 0,
-      )} rainy days` +
+      (rainyDays === 0
+        ? `It didn't rain in ${month.period}`
+        : `It rained on ${rainyDays} day${rainyDays === 1 ? "" : "s"} in ${month.period}`) +
         (month.factors.averageTemperature !== null
-          ? `, averaging ${month.factors.averageTemperature.toFixed(1)}°C.`
+          ? `, and it was around ${Math.round(month.factors.averageTemperature)}°C on average.`
           : "."),
     );
   } else if (weatherMonths.length > 1) {
-    const wettest = [...weatherMonths].sort(
+    const rainiest = [...weatherMonths].sort(
       (a, b) => (b.factors.totalRainfall ?? 0) - (a.factors.totalRainfall ?? 0),
     )[0];
-    if ((wettest.factors.totalRainfall ?? 0) > 0) {
+    const rainyDays = Math.round(rainiest.factors.rainyDays ?? 0);
+    if ((rainiest.factors.totalRainfall ?? 0) > 0) {
       remarks.push(
-        `Wettest month in ${scopeLabel} was ${wettest.period} with ${wettest.factors.totalRainfall?.toFixed(
-          1,
-        )} mm of rain over ${Math.round(wettest.factors.rainyDays ?? 0)} rainy days` +
-          (wettest.actualVolume !== null
-            ? `; ${formatNumber(wettest.actualVolume)} deliveries were completed vs ${formatNumber(
-                wettest.expectedVolume,
-              )} forecast.`
-            : "."),
+        `The rainiest month was ${rainiest.period}, with rain on ${rainyDays} day${rainyDays === 1 ? "" : "s"}.` +
+          (rainiest.actualVolume !== null
+            ? ` We completed ${deliveries(rainiest.actualVolume)} that month, compared with ${aboutExpected(
+                rainiest.expectedVolume,
+              )} expected.`
+            : ""),
       );
     }
   }
 
+  // 5. Fuel.
   const dieselPrices = scopeMonths
     .map((record) => record.factors.averageDieselPrice)
     .filter((price): price is number => price !== null);
@@ -658,7 +703,7 @@ function buildFilterRemarks({
     const averageDiesel =
       dieselPrices.reduce((sum, price) => sum + price, 0) / dieselPrices.length;
     remarks.push(
-      `Average NCR diesel price for ${scopeLabel}: ₱${averageDiesel.toFixed(2)} per liter.`,
+      `Diesel cost about ₱${averageDiesel.toFixed(2)} per liter in Metro Manila during ${scope}.`,
     );
   }
 
