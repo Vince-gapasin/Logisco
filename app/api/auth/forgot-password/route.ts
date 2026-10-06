@@ -27,7 +27,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const origin = new URL(request.url).origin;
+  // The link carries the session tokens, so where it points is the whole
+  // matter. It was built from the address the request arrived on, which the
+  // caller chooses - only Supabase's redirect allow-list stood between a forged
+  // Host header and a reset link that hands the tokens to someone else's site.
+  // APP_URL is what the activation email uses; the request address is only
+  // trusted on a developer's own machine.
+  const appUrl = process.env.APP_URL?.trim().replace(/\/+$/, "");
+  const origin = appUrl || (process.env.NODE_ENV !== "production" ? new URL(request.url).origin : "");
+
+  if (!origin) {
+    console.error("Forgot password: APP_URL is not set, so no reset link can be sent.");
+    return NextResponse.json(
+      { message: "Password reset is not set up on this server. Ask an administrator." },
+      { status: 503 },
+    );
+  }
 
   const { error } = await supabaseAuth.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/reset-password`,
