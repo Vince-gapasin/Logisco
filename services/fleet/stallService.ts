@@ -10,6 +10,8 @@ import {
   assessStall,
   crewCheckInLink,
   crewHelpAlert,
+  crewUnreachedAlert,
+  crewUnreachedDedupeKey,
   crewHelpDedupeKey,
   delayContinuingAlert,
   delayDedupeKey,
@@ -22,14 +24,25 @@ import {
   stallAlert,
   stallDedupeKey,
   STOP_AT_RISK_MIN,
+  thresholdFor,
+  whyCrewUnreached,
   type CrewCheckIn,
+  type CrewUnreached,
   type StallCause,
   type StallContext,
+  type StallMessage,
   type StallThreshold,
   type StallVerdict,
 } from "@/app/lib/stallRules";
 import { expectedAt } from "@/app/lib/performance";
-import { crewOf, notify, OFFICE, tripLabel } from "@/services/notifications/notify";
+import {
+  crewOf,
+  notify,
+  notifyWithOutcome,
+  OFFICE,
+  tripLabel,
+  type Severity,
+} from "@/services/notifications/notify";
 import {
   checkerDownAlert,
   checkerDownDedupeKey,
@@ -375,6 +388,22 @@ export async function checkForStalledTrips(
       continue;
     }
 
+    // Standing still within reach of one of its own stops, and the crew have not
+    // said they arrived. The office is left alone for the first hour - loading
+    // takes time - but the crew are asked from fifteen minutes like anybody else
+    // whose truck has stopped: it costs them one tap, and a truck that set off
+    // and never left the depot is exactly this case.
+    if (verdict.reason === "at a stop" && !progress.atDeclaredStop && verdict.quietSince) {
+      const rung = thresholdFor(verdict.silentFor);
+      if (rung) {
+        const raised = telling
+          ? await raiseCrewQuestion(trip, rung, verdict.silentFor, verdict.quietSince)
+          : false;
+        found.push({ ...trip, verdict, checkIn, raised });
+        continue;
+      }
+    }
+
     if (!verdict.stalled || !verdict.threshold || !trip.lastReportedAt) {
       if (verdict.silentFor > 0) {
         found.push({ ...trip, verdict, checkIn, raised: false });
@@ -436,9 +465,28 @@ async function raiseDelayContinuing(
   checkIn: CrewCheckIn,
   minutesSinceAnswer: number,
 ): Promise<boolean> {
-  const alert = delayContinuingAlert(await labelFor(trip), checkIn.state, minutesSinceAnswer);
-  const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
+  const label = await labelFor(trip);
+  const asked = delayContinuingAlert(label, checkIn.state, minutesSinceAnswer);
   let told = 0;
+  let unreached: CrewUnreached | null = null;
+
+  // The crew first, so the office is told the truth about whether they were
+  // asked. In their own words, and pointed at the trip with the question open:
+  // the office link is under /admindashboard, which the crew portal refuses.
+  if (asked.crew) {
+    const result = await askCrewDirectly(
+      trip,
+      asked.crew,
+      "action",
+      delayDedupeKey(trip.dispatchID, checkIn.at, "crew"),
+    );
+    told += result.told;
+    unreached = result.unreached;
+  }
+
+  const alert = unreached
+    ? delayContinuingAlert(label, checkIn.state, minutesSinceAnswer, false)
+    : asked;
 
   told += await notify({
     event: "TRUCK_STALLED",
@@ -448,28 +496,90 @@ async function raiseDelayContinuing(
     severity: "action",
     roles: OFFICE,
     dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at, "office"),
-    entity,
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
     link: "/admindashboard/fleet-tracking",
   });
 
-  // Asked in their own words, and pointed at the trip with the question open:
-  // the office link is under /admindashboard, which the crew portal refuses.
-  if (alert.crew) {
-    const crew = await crewOf(trip.dispatchID);
-    if (crew.length > 0) {
-      told += await notify({
-        event: "TRUCK_STALLED",
-        title: alert.crew.title,
-        body: alert.crew.body,
-        severity: "action",
-        employeeIDs: crew,
-        dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at, "crew"),
-        entity,
-        link: crewCheckInLink(trip.dispatchID),
-      });
-    }
-  }
+  if (unreached) told += await raiseCrewUnreached(trip, label, minutesSinceAnswer, unreached, checkIn.at);
 
+  return told > 0;
+}
+
+/**
+ * Asks the crew, on the channel that vibrates, and says whether it landed.
+ *
+ * Every crew stall alert goes through here. They used to go out on the general
+ * channel, which Android created without vibration, and the only measure of
+ * success was that a row had been written - so a crew with no phone signed in
+ * counted as asked.
+ */
+async function askCrewDirectly(
+  trip: LiveTrip,
+  message: StallMessage,
+  severity: Severity,
+  dedupeKey: string,
+): Promise<{ told: number; unreached: CrewUnreached | null }> {
+  const crew = await crewOf(trip.dispatchID);
+  if (crew.length === 0) return { told: 0, unreached: whyCrewUnreached(0, null) };
+
+  const outcome = await notifyWithOutcome({
+    event: "TRUCK_STALLED",
+    title: message.title,
+    body: message.body,
+    severity,
+    employeeIDs: crew,
+    dedupeKey,
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    link: crewCheckInLink(trip.dispatchID),
+    channel: "alerts",
+  });
+
+  return { told: outcome.recipients, unreached: whyCrewUnreached(crew.length, outcome) };
+}
+
+/** The crew could not be alerted, so the office has to ring them. Once per silence. */
+async function raiseCrewUnreached(
+  trip: LiveTrip,
+  label: string,
+  silentFor: number,
+  why: CrewUnreached,
+  since: string,
+): Promise<number> {
+  const alert = crewUnreachedAlert(label, silentFor, why);
+  return notify({
+    event: "CREW_UNREACHED",
+    title: alert.title,
+    body: alert.body,
+    severity: "action",
+    roles: OFFICE,
+    dedupeKey: crewUnreachedDedupeKey(trip.dispatchID, since),
+    entity: { table: "DispatchOrder", id: trip.dispatchID },
+    link: "/admindashboard/fleet-tracking",
+  });
+}
+
+/**
+ * Asks the crew only - for a truck standing near one of its own stops, where
+ * the office is not bothered for the first hour but the crew still are.
+ */
+async function raiseCrewQuestion(
+  trip: LiveTrip,
+  rung: StallThreshold,
+  silentFor: number,
+  quietSince: string,
+): Promise<boolean> {
+  const label = await labelFor(trip);
+  const message = stallAlert(rung, label, silentFor, "unknown", { atStop: true }).crew;
+  if (!message) return false;
+
+  const asked = await askCrewDirectly(
+    trip,
+    message,
+    "action",
+    stallDedupeKey(trip.dispatchID, rung, quietSince, "crew"),
+  );
+  let told = asked.told;
+  if (asked.unreached) told += await raiseCrewUnreached(trip, label, silentFor, asked.unreached, quietSince);
   return told > 0;
 }
 
@@ -504,9 +614,30 @@ async function raiseStall(
   cause: StallCause,
   context: StallContext = {},
 ): Promise<boolean> {
-  const alert = stallAlert(threshold, await labelFor(trip), silentFor, cause, context);
-  const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
+  const label = await labelFor(trip);
+  const asked = stallAlert(threshold, label, silentFor, cause, context);
   let told = 0;
+  let unreached: CrewUnreached | null = null;
+
+  // The crew first, so the office's alert can say truthfully whether they were
+  // asked. In their own words, on the channel that vibrates, and pointed at the
+  // trip with the question open: the office link is under /admindashboard,
+  // which the crew portal refuses them, and the bare dashboard has no buttons
+  // to answer with.
+  if (asked.crew) {
+    const result = await askCrewDirectly(
+      trip,
+      asked.crew,
+      asked.severity,
+      stallDedupeKey(trip.dispatchID, threshold, quietSince, "crew"),
+    );
+    told += result.told;
+    unreached = result.unreached;
+  }
+
+  const alert = unreached
+    ? stallAlert(threshold, label, silentFor, cause, { ...context, crewReached: false })
+    : asked;
 
   // Fifteen minutes is for the board and the crew, not for the office's phones.
   if (alert.notifyOffice) {
@@ -517,29 +648,14 @@ async function raiseStall(
       severity: alert.severity,
       roles: OFFICE,
       dedupeKey: stallDedupeKey(trip.dispatchID, threshold, quietSince, "office"),
-      entity,
+      entity: { table: "DispatchOrder", id: trip.dispatchID },
       link: "/admindashboard/fleet-tracking",
     });
   }
 
-  // Told separately, in their own words, and pointed at the trip itself with
-  // the question open: the office link is under /admindashboard, which the crew
-  // portal refuses them, and the bare dashboard has no buttons to answer with.
-  if (alert.crew) {
-    const crew = await crewOf(trip.dispatchID);
-    if (crew.length > 0) {
-      told += await notify({
-        event: "TRUCK_STALLED",
-        title: alert.crew.title,
-        body: alert.crew.body,
-        severity: alert.severity,
-        employeeIDs: crew,
-        dedupeKey: stallDedupeKey(trip.dispatchID, threshold, quietSince, "crew"),
-        entity,
-        link: crewCheckInLink(trip.dispatchID),
-      });
-    }
-  }
+  // Including at fifteen, where the office would otherwise hear nothing: a crew
+  // who cannot be alerted is the office's to ring, straight away.
+  if (unreached) told += await raiseCrewUnreached(trip, label, silentFor, unreached, quietSince);
 
   return told > 0;
 }

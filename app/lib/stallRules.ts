@@ -341,6 +341,11 @@ export interface StallVerdict {
     | "crew asked for help";
 }
 
+/** The highest rung this much silence has passed, or null below the first. */
+export function thresholdFor(minutes: number): StallThreshold | null {
+  return [...STALL_THRESHOLDS_MIN].reverse().find((rung) => minutes >= rung) ?? null;
+}
+
 /**
  * A length of time as somebody would say it.
  *
@@ -467,7 +472,7 @@ export function assessStall({
   // A day of silence is a trip nobody closed, not a truck in trouble.
   if (silentFor >= LEFT_OPEN_AFTER_MIN) return quiet("left open", silentFor, atStop);
 
-  const passed = [...STALL_THRESHOLDS_MIN].reverse().find((minutes) => silentFor >= minutes) ?? null;
+  const passed = thresholdFor(silentFor);
 
   // Why it has gone quiet, as far as anybody can tell.
   //
@@ -663,6 +668,11 @@ export interface StallContext {
    * problem being worked and a problem being watched.
    */
   answered?: boolean;
+  /**
+   * Whether the crew's own alert reached a phone. False only when it is known
+   * not to have; the office is then not told the crew "have been asked".
+   */
+  crewReached?: boolean;
 }
 
 /** How a threatened delivery time reads, in one clause. */
@@ -683,7 +693,7 @@ export function stallAlert(
   cause: StallCause = "unknown",
   context: StallContext = {},
 ): StallAlert {
-  const { atStop = false, atRisk = null, answered = false } = context;
+  const { atStop = false, atRisk = null, answered = false, crewReached = true } = context;
 
   // Where it is stuck changes what the office should do about it, so it is said
   // rather than left to be inferred from a map.
@@ -730,7 +740,11 @@ export function stallAlert(
       notifyOffice: true,
       office: {
         title: atRisk ? `No position for ${forHowLong}, delivery at risk` : `No position for ${forHowLong}`,
-        body: `${quiet}${risk} The crew have been asked to get in touch.`,
+        body:
+          `${quiet}${risk} ` +
+          (crewReached
+            ? "The crew have been asked to get in touch."
+            : "The crew's phones could not be reached, so they have not been asked - call them."),
       },
       crew: askTheCrew(silentFor),
     };
@@ -822,6 +836,8 @@ export function delayContinuingAlert(
   tripLabel: string,
   state: CheckInState,
   minutesSinceAnswer: number,
+  /** False when the crew's question is known not to have reached a phone. */
+  crewReached = true,
 ): DelayContinuingAlert {
   const said = CHECK_IN_LABELS[state];
   const forHowLong = describeSilence(minutesSinceAnswer);
@@ -832,9 +848,11 @@ export function delayContinuingAlert(
       title: `Still ${said.toLowerCase()} after ${forHowLong}`,
       body:
         `${tripLabel}: the crew reported "${said}" ${forHowLong} ago and it is still going. ` +
-        (asking
-          ? `They have been asked whether it has cleared. `
-          : `They are on a meal break and have not been disturbed. `) +
+        (!asking
+          ? `They are on a meal break and have not been disturbed. `
+          : crewReached
+            ? `They have been asked whether it has cleared. `
+            : `Their phones could not be reached to ask whether it has cleared - call them. `) +
         `Decide whether the client should be told or the load moved.`,
     },
     crew: asking
@@ -966,6 +984,66 @@ export function checkInTripFromLink(link: string | null | undefined): string | n
   if (!link || !link.startsWith("/crew/dashboard?")) return null;
   const params = new URLSearchParams(link.slice(link.indexOf("?") + 1));
   return params.get("checkin") === "1" ? params.get("trip") || null : null;
+}
+
+/**
+ * Why a crew alert did not reach anybody's phone, when it did not.
+ *
+ * Nothing was being checked. The stall check counted the people a notification
+ * was written for, so a crew with no phone signed in - or a server with no push
+ * credential at all - were "told", and the office was assured the crew had been
+ * asked. The office is the only one who can pick up the phone instead, and it
+ * cannot do that for a failure it does not know about.
+ *
+ * Firebase accepting the message is as far as anybody can see. A phone with
+ * notifications turned off accepts it and shows nothing; that case still reads
+ * as reached.
+ */
+export type CrewUnreached = "no crew" | "not written" | "push off" | "no phone" | "refused";
+
+export function whyCrewUnreached(
+  crewCount: number,
+  outcome: {
+    recipients: number;
+    duplicate: boolean;
+    push: { configured: boolean; devices: number; sent: number } | null;
+  } | null,
+): CrewUnreached | null {
+  if (crewCount === 0) return "no crew";
+  // Already said, earlier: whether that landed was judged then.
+  if (!outcome || outcome.duplicate) return null;
+  if (outcome.recipients === 0 || !outcome.push) return "not written";
+  if (!outcome.push.configured) return "push off";
+  if (outcome.push.devices === 0) return "no phone";
+  if (outcome.push.sent === 0) return "refused";
+  return null;
+}
+
+const UNREACHED_WORDS: Record<CrewUnreached, string> = {
+  "no crew": "there is no crew on this trip to ask",
+  "not written": "the alert could not be recorded",
+  "push off": "push notifications are not set up on the server",
+  "no phone": "none of the crew is signed in to the app on a phone",
+  refused: "every crew phone refused it - the app may be signed out or uninstalled",
+};
+
+/** Telling the office the crew were not reached, so somebody calls instead. */
+export function crewUnreachedAlert(tripLabel: string, silentFor: number, why: CrewUnreached): StallMessage {
+  return {
+    title: "Could not alert the crew",
+    body:
+      `${tripLabel}: the truck has not moved for ${describeSilence(silentFor)}, and the crew's phones ` +
+      `were not alerted because ${UNREACHED_WORDS[why]}. Call them.`,
+  };
+}
+
+/**
+ * Once per silence, not once per rung: the phone that could not be reached at
+ * fifteen minutes will not be reachable at thirty either, and saying so at every
+ * rung is a drumbeat. A new silence, or a new answer, is a new key.
+ */
+export function crewUnreachedDedupeKey(dispatchID: string, since: string): string {
+  return `crew-unreached:${dispatchID}:${since}`;
 }
 
 /** One key per trip per answer, so every new cry for help is heard. */

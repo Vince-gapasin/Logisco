@@ -65,6 +65,9 @@ export async function POST(request: Request) {
     body: "Sent from the server. If this arrived, push is working.",
     link: "/",
     notificationID: `push-status-${Date.now()}`,
+    // The channel the stall alerts use, so a test also shows whether the phone
+    // vibrates for them. Needs the app opened once since that channel was added.
+    channel: "alerts",
   });
 
   return NextResponse.json({

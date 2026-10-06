@@ -6,6 +6,7 @@ import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { apiFetch } from "@/app/lib/apiClient";
 import { askCrew } from "@/app/lib/stallAsk";
+import { PUSH_CHANNELS } from "@/app/lib/pushChannels";
 import { checkInTripFromLink } from "@/app/lib/stallRules";
 
 // Push, for the phone app.
@@ -66,14 +67,29 @@ export default function PushRegistration() {
         }
 
         // Android 8 and later drop a notification with no channel to land in.
+        // Created on every launch, which is harmless: Android keeps the first
+        // version of a channel and ignores later attempts to change it.
         if (Capacitor.getPlatform() === "android") {
           await PushNotifications.createChannel({
-            id: "logisco",
+            id: PUSH_CHANNELS.general,
             name: "Logisco",
             description: "Deliveries, foul trips and fleet updates",
             importance: 5,
             visibility: 1,
           }).catch((error) => console.error("Could not create the notification channel:", error));
+
+          // The ones that must be felt as well as seen. "logisco" above was
+          // made without vibration - the plugin defaults it off - and Android
+          // will not let an existing channel be changed, so this is a new one.
+          await PushNotifications.createChannel({
+            id: PUSH_CHANNELS.alerts,
+            name: "Truck alerts",
+            description: "Asked when the truck has stopped - vibrates and sounds",
+            importance: 5,
+            visibility: 1,
+            vibration: true,
+            lights: true,
+          }).catch((error) => console.error("Could not create the alerts channel:", error));
         }
 
         listeners.push(

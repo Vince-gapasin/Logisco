@@ -10,6 +10,7 @@
 
 import { createSign } from "node:crypto";
 import { supabase } from "@/app/lib/supabase";
+import { PUSH_CHANNELS, type PushChannel } from "@/app/lib/pushChannels";
 
 interface ServiceAccount {
   project_id: string;
@@ -22,6 +23,19 @@ export interface PushMessage {
   body: string;
   link: string | null;
   notificationID: string;
+  /** Which Android channel it lands in. See PUSH_CHANNELS. */
+  channel?: PushChannel;
+}
+
+
+/** What happened to a push, for a caller that needs to know whether it landed. */
+export interface PushOutcome {
+  /** FIREBASE_SERVICE_ACCOUNT is set and Google accepted it. */
+  configured: boolean;
+  /** Phones registered to these people and not known to be dead. */
+  devices: number;
+  /** Phones Firebase accepted the message for. */
+  sent: number;
 }
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -130,27 +144,39 @@ export async function pushDiagnosis(): Promise<PushDiagnosis> {
 
 /** Sends to every live device of the given people. Returns how many were reached. */
 export async function sendPush(employeeIDs: string[], message: PushMessage): Promise<number> {
-  const account = serviceAccount();
-  if (!account || employeeIDs.length === 0) return 0;
+  return (await pushTo(employeeIDs, message)).sent;
+}
 
+/**
+ * Sends, and says why when nothing went out: no credential, no phone, or every
+ * phone refused. Firebase accepting a message is as far as anybody can see - a
+ * phone with notifications turned off accepts it and shows nothing.
+ */
+export async function pushTo(employeeIDs: string[], message: PushMessage): Promise<PushOutcome> {
+  const account = serviceAccount();
+  if (!account) return { configured: false, devices: 0, sent: 0 };
+  if (employeeIDs.length === 0) return { configured: true, devices: 0, sent: 0 };
+
+  let devices = 0;
   try {
-    const { data: devices, error } = await supabase
+    const { data: rows, error } = await supabase
       .from("DeviceToken")
       .select("tokenID, token")
       .in("employeeID", employeeIDs)
       .is("failedAt", null);
     if (error) throw new Error(error.message);
-    if (!devices?.length) return 0;
+    devices = rows?.length ?? 0;
+    if (!rows?.length) return { configured: true, devices: 0, sent: 0 };
 
     const token = await accessToken(account);
-    if (!token) return 0;
+    if (!token) return { configured: false, devices, sent: 0 };
 
     const url = `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`;
     const dead: string[] = [];
     let sent = 0;
 
     await Promise.all(
-      devices.map(async (device) => {
+      rows.map(async (device) => {
         const response = await fetch(url, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -169,7 +195,7 @@ export async function sendPush(employeeIDs: string[], message: PushMessage): Pro
                 // the phone is in use, and readable on the lock screen
                 // without unlocking it.
                 notification: {
-                  channel_id: "logisco",
+                  channel_id: PUSH_CHANNELS[message.channel ?? "general"],
                   notification_priority: "PRIORITY_MAX",
                   visibility: "PUBLIC",
                   default_sound: true,
@@ -207,10 +233,10 @@ export async function sendPush(employeeIDs: string[], message: PushMessage): Pro
     if (dead.length) {
       await supabase.from("DeviceToken").update({ failedAt: new Date().toISOString() }).in("tokenID", dead);
     }
-    return sent;
+    return { configured: true, devices, sent };
   } catch (error) {
     console.error("[Push] Not sent:", error instanceof Error ? error.message : error);
-    return 0;
+    return { configured: true, devices, sent: 0 };
   }
 }
 

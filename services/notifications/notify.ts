@@ -7,7 +7,8 @@
 
 import { supabase } from "@/app/lib/supabase";
 import { EMPLOYEE_ROLE } from "@/app/lib/enums";
-import { sendPush } from "@/services/notifications/pushService";
+import { pushTo, type PushOutcome } from "@/services/notifications/pushService";
+import type { PushChannel } from "@/app/lib/pushChannels";
 
 export type Severity = "info" | "action" | "urgent";
 
@@ -32,6 +33,18 @@ export interface NotifyInput {
   actor?: { employeeID?: string | null; name?: string | null } | null;
   /** Someone rarely needs telling what they just did themselves. */
   includeActor?: boolean;
+  /** The Android channel: "alerts" vibrates, "general" does not. */
+  channel?: PushChannel;
+}
+
+/** What notifying actually achieved, for a caller that must know it landed. */
+export interface NotifyOutcome {
+  /** People the notification was written for; 0 when nothing was written. */
+  recipients: number;
+  /** The same thing was already said: the dedupe key took the hit. */
+  duplicate: boolean;
+  /** What happened to the push, when one was attempted. */
+  push: PushOutcome | null;
 }
 
 async function employeesInRoles(roles: string[]): Promise<string[]> {
@@ -50,6 +63,19 @@ async function employeesInRoles(roles: string[]): Promise<string[]> {
  * how many people were told, or 0 if nothing could be written.
  */
 export async function notify(input: NotifyInput): Promise<number> {
+  return (await notifyWithOutcome(input)).recipients;
+}
+
+/**
+ * The same, and says whether any phone was reached.
+ *
+ * notify counts the people a notification was written for, which says nothing
+ * about whether it reached them: a crew with no phone signed in, or a server
+ * with no push credential, counted as told. Where that difference matters -
+ * asking a crew whether they are alright - this is what to call.
+ */
+export async function notifyWithOutcome(input: NotifyInput): Promise<NotifyOutcome> {
+  const nothing: NotifyOutcome = { recipients: 0, duplicate: false, push: null };
   try {
     const byRole = await employeesInRoles(input.roles ?? []);
     const named = (input.employeeIDs ?? []).filter((id): id is string => Boolean(id));
@@ -58,7 +84,7 @@ export async function notify(input: NotifyInput): Promise<number> {
     if (!input.includeActor && input.actor?.employeeID) {
       recipients.delete(input.actor.employeeID);
     }
-    if (recipients.size === 0) return 0;
+    if (recipients.size === 0) return nothing;
 
     const { data: notification, error } = await supabase
       .from("Notification")
@@ -79,7 +105,7 @@ export async function notify(input: NotifyInput): Promise<number> {
 
     // Someone already wrote this exact thing: the dedupe key took the hit.
     if (error) {
-      if (error.code === "23505") return 0;
+      if (error.code === "23505") return { ...nothing, duplicate: true };
       throw new Error(error.message);
     }
 
@@ -95,17 +121,18 @@ export async function notify(input: NotifyInput): Promise<number> {
     // the server stops the moment it answers the request, so a push that was
     // merely started is killed in flight and never reaches anyone. It is
     // still best-effort - sendPush swallows its own failures.
-    await sendPush([...recipients], {
+    const push = await pushTo([...recipients], {
       title: input.title,
       body: input.body,
       link: input.link ?? null,
       notificationID: notification.notificationID as string,
+      channel: input.channel,
     });
 
-    return recipients.size;
+    return { recipients: recipients.size, duplicate: false, push };
   } catch (error) {
     console.error(`[Notify] ${input.event} not sent:`, error instanceof Error ? error.message : error);
-    return 0;
+    return nothing;
   }
 }
 
