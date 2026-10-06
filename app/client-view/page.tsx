@@ -481,14 +481,27 @@ function ClientTrackerView() {
   // worded alike, which invited the reading that somebody had just worked the
   // booked one out. And while the order is still to be collected, the booked
   // time ahead is the collection's - so the customer's own time is said too.
-  const timeLine = data.isCompleted
+  //
+  // Set apart and large, because it is the one thing most people open the page
+  // for: as a line of grey text among the date and the address it was missed.
+  const arrival: { label: string; time: string; note: string | null; live: boolean } | null = data.isCompleted
     ? null
     : data.liveEta
-      ? `Arriving in about ${data.liveEta.minutes} min - around ${data.liveEta.arrivalTime}`
+      ? {
+          label: "Estimated arrival",
+          time: data.liveEta.arrivalTime,
+          note: `About ${data.liveEta.minutes} min away`,
+          live: true,
+        }
       : collecting && data.estimatedArrival
-        ? `Collection by ${data.estimatedArrival}${data.deliveryArrival ? `, delivery expected by ${data.deliveryArrival}` : ""}`
+        ? {
+            label: "Collection expected by",
+            time: data.estimatedArrival,
+            note: data.deliveryArrival ? `Delivery to you expected by ${data.deliveryArrival}` : null,
+            live: false,
+          }
         : data.estimatedArrival
-          ? `Expected by ${data.estimatedArrival}`
+          ? { label: "Expected to arrive by", time: data.estimatedArrival, note: "The booked time", live: false }
           : null;
 
   const mapPoints: MapPoint[] = [
@@ -592,12 +605,6 @@ function ClientTrackerView() {
                   </span>
                 </p>
               )}
-              {timeLine && (
-                <p className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-slate-500 shrink-0" />
-                  <span>{timeLine}</span>
-                </p>
-              )}
               {!data.isCompleted && data.nextStopName && (
                 <p className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-slate-500 shrink-0" />
@@ -609,6 +616,29 @@ function ClientTrackerView() {
             </div>
           </div>
         </div>
+
+        {arrival && (
+          <div
+            className={`mt-4 flex items-center gap-3 rounded-xl border px-4 py-3 ${
+              arrival.live ? "border-blue-200 bg-white" : "border-slate-200 bg-white"
+            }`}
+          >
+            <div
+              className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${
+                arrival.live ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              <Clock className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{arrival.label}</p>
+              <p className={`text-2xl sm:text-3xl font-bold leading-tight tabular-nums ${arrival.live ? "text-blue-700" : "text-slate-900"}`}>
+                {arrival.time}
+              </p>
+              {arrival.note && <p className="text-xs text-slate-600">{arrival.note}</p>}
+            </div>
+          </div>
+        )}
 
         {/* How far along it is, in five steps anyone can read. */}
         <ol className="mt-6 grid grid-cols-5 gap-1" aria-label="Delivery progress">

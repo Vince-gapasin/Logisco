@@ -16,7 +16,7 @@
 // see app/lib/performance.ts.
 
 import { supabase } from "@/app/lib/supabase";
-import { DELIVERY_STATUS } from "@/app/lib/enums";
+import { DELIVERY_STATUS, FINISHED_DELIVERY_STATUSES, type DeliveryStatus } from "@/app/lib/enums";
 
 /** Long enough for a real complaint, short enough not to be a document. */
 const MAX_COMMENT = 1000;
@@ -50,7 +50,11 @@ interface TrackedTrip {
   orderID: string;
   dispatchID: string;
   status: string;
+  /** Every delivery address on the order has been delivered. */
+  deliveriesDone: boolean;
 }
+
+const DELIVERED_STOP = /complete|delivered/i;
 
 /**
  * The trip behind a tracking token.
@@ -61,7 +65,7 @@ interface TrackedTrip {
 async function tripBehindToken(token: string): Promise<TrackedTrip | null> {
   const { data, error } = await supabase
     .from("Order")
-    .select("orderID, isActive, DispatchOrder ( dispatchID, status, completedAt )")
+    .select("orderID, isActive, DispatchOrder ( dispatchID, status, completedAt ), BranchStops ( stopStatus )")
     .eq("orderLinkToken", token)
     .maybeSingle();
 
@@ -77,7 +81,10 @@ async function tripBehindToken(token: string): Promise<TrackedTrip | null> {
   const trip = dispatches[dispatches.length - 1];
   if (!trip?.dispatchID) return null;
 
-  return { orderID: data.orderID as string, dispatchID: trip.dispatchID, status: trip.status };
+  const stops = (data.BranchStops ?? []) as { stopStatus: string | null }[];
+  const deliveriesDone = stops.length > 0 && stops.every((stop) => DELIVERED_STOP.test(stop.stopStatus ?? ""));
+
+  return { orderID: data.orderID as string, dispatchID: trip.dispatchID, status: trip.status, deliveriesDone };
 }
 
 async function existingAnswer(dispatchID: string): Promise<FeedbackAnswers | null> {
@@ -129,7 +136,9 @@ export async function recordClientFeedback(
   const trip = await tripBehindToken(token);
   if (!trip) throw new FeedbackError("Tracking link not found.", 404);
 
-  if (trip.status !== DELIVERY_STATUS.completed) {
+  // Done once the last address is, the same as the tracking page says - not
+  // once the truck is back at base.
+  if (!FINISHED_DELIVERY_STATUSES.includes(trip.status as DeliveryStatus) && !trip.deliveriesDone) {
     throw new FeedbackError("This delivery is not finished yet.", 409);
   }
 

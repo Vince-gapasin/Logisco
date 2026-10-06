@@ -3,9 +3,11 @@ import { supabase } from "@/app/lib/supabase";
 import {
   ACCEPTED_ONWARDS,
   DELIVERY_STATUS,
+  FINISHED_DELIVERY_STATUSES,
   HELPER_STATUS,
   ON_THE_ROAD_ONWARDS,
   STOP_STATUS,
+  type DeliveryStatus,
 } from "@/app/lib/enums";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
@@ -871,7 +873,6 @@ export async function getTrackingByToken(
   const live = liveDispatchOf(dispatches);
   const dispatch = live && live.status !== DELIVERY_STATUS.rejected ? live : null;
 
-  const isCompleted = dispatch?.status === DELIVERY_STATUS.completed;
   const completedAt = dispatch?.completedAt ? new Date(dispatch.completedAt).getTime() : null;
   const expiredByAge = completedAt !== null && Date.now() - completedAt > LINK_LIFETIME_AFTER_COMPLETION_MS;
 
@@ -905,6 +906,16 @@ export async function getTrackingByToken(
     })
     .sort((a, b) => a.branchID - b.branchID);
 
+  // Finished, for the client, once the last delivery address is - not when the
+  // truck is back at base. The drive home is the company's business, and the
+  // page used to keep telling a customer holding their goods that the delivery
+  // was still on its way. A breakdown on that drive home does not undo it.
+  const deliveriesDone = stops.length > 0 && stops.every((stop) => isStopDone(stop.status));
+  const isCompleted =
+    FINISHED_DELIVERY_STATUSES.includes(dispatch?.status as DeliveryStatus) || (Boolean(dispatch) && deliveriesDone);
+  // What the rest of the page reads the trip as: complete, once it is complete.
+  const tripStatus = isCompleted ? DELIVERY_STATUS.completed : (dispatch?.status ?? null);
+
   // Everything else is read at once rather than one after another: these do
   // not depend on each other, and in a row they made every refresh wait on
   // eight round trips to the database.
@@ -929,7 +940,7 @@ export async function getTrackingByToken(
     reportedProblems(order.orderID),
     heldUpUpdates(dispatchID),
     lastPickupProgress(dispatchID),
-    getFeedbackInvitation(dispatchID, dispatch?.status ?? null),
+    getFeedbackInvitation(dispatchID, tripStatus),
   ]);
 
   const currentLocation: TrackingPayload["currentLocation"] = location
@@ -983,7 +994,8 @@ export async function getTrackingByToken(
   }
 
   let deliveryStatus = "Awaiting dispatch";
-  if (dispatch?.status === DELIVERY_STATUS.foulTrip) {
+  if (isCompleted) deliveryStatus = "Delivery completed";
+  else if (dispatch?.status === DELIVERY_STATUS.foulTrip) {
     // What is being done about it, without any of the incident's details:
     // this page is public.
     // A trip can have several incidents (repaired, then broke down again);
@@ -1000,7 +1012,6 @@ export async function getTrackingByToken(
           ? "Delayed: arranging a replacement truck"
           : "Trip interrupted";
   }
-  else if (isCompleted) deliveryStatus = "Delivery completed";
   // A partner carrier has no app, so there is no live position to show.
   else if (dispatch?.subConID && dispatch.status === DELIVERY_STATUS.inTransit) deliveryStatus = "In transit with our partner carrier";
   else if (dispatch?.subConID) deliveryStatus = "Handed to our partner carrier";
@@ -1063,7 +1074,7 @@ export async function getTrackingByToken(
     stops,
     feedback,
     steps: buildSteps(
-      dispatch?.status ?? null,
+      tripStatus,
       stops,
       isCompleted || failedStops,
       problems,
