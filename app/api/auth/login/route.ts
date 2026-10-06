@@ -5,6 +5,11 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/app/lib/supabase";
 import { supabaseAuth } from "@/app/lib/supabaseAuth";
 import { getHomeRoute, normalizeRole } from "@/app/lib/routeAccess";
+import {
+  clearFailedSignIns,
+  recordFailedSignIn,
+  signInIsLocked,
+} from "@/services/auth/loginThrottleService";
 
 export async function POST(request: Request) {
   try {
@@ -29,15 +34,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Checked before the password, so a locked account answers the same
+    // whether or not the guess was right - otherwise the lock would still let
+    // someone learn the password, just more slowly.
+    if (await signInIsLocked(email)) {
+      return NextResponse.json(
+        { message: "Too many failed sign-ins. Wait 15 minutes, or reset your password." },
+        { status: 429 },
+      );
+    }
+
     const { data: authData, error: authError } =
       await supabaseAuth.auth.signInWithPassword({ email, password });
 
     if (authError || !authData.user || !authData.session) {
+      await recordFailedSignIn(email);
       return NextResponse.json(
         { message: "Invalid email or password" },
         { status: 401 },
       );
     }
+
+    await clearFailedSignIns(email);
 
     const { data: employee, error: employeeError } = await supabase
       .from("Employee")
