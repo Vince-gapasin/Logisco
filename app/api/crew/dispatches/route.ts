@@ -91,19 +91,36 @@ interface CrewDispatch extends Partial<DispatchOrderRow> {
   _helperStatus?: string | null;
 }
 
+// About 3.7 KB of ids per request, well inside the URL limit.
+const HELPER_ID_BATCH = 100;
+
 export async function GET(request: Request) {
   const { auth, response } = await authorize(request, CREW_ROLES);
   if (response) return response;
 
   const employee = auth.employee;
 
+  // The dashboard asks for ?recentDays=30 and polls it every thirty seconds; it
+  // was being sent every trip the person had ever finished, each with its stops
+  // and signed photos. Delivery History and the calendar still ask for all.
+  // Only trips with a finish time older than the window are left out: a foul
+  // trip or a cancellation has none, and those stay as they always were.
+  const recentDays = Number(new URL(request.url).searchParams.get("recentDays"));
+  const finishedSince =
+    Number.isInteger(recentDays) && recentDays > 0
+      ? new Date(Date.now() - Math.min(recentDays, 365) * 86_400_000).toISOString()
+      : null;
+  const recentOnly = finishedSince ? `completedAt.is.null,completedAt.gte."${finishedSince}"` : null;
+
   try {
     // 1. Dispatches where the user is the DRIVER
-    const { data: driverDispatches, error: driverErr } = await supabase
+    let driverQuery = supabase
       .from("DispatchOrder")
       .select(DISPATCH_SELECT)
       .eq("driverID", employee.employeeID)
       .neq("status", DELIVERY_STATUS.rejected);
+    if (recentOnly) driverQuery = driverQuery.or(recentOnly);
+    const { data: driverDispatches, error: driverErr } = await driverQuery;
 
     if (driverErr) throw new Error(`Driver dispatch query failed: ${driverErr.message}`);
 
@@ -118,15 +135,31 @@ export async function GET(request: Request) {
 
     let helperDispatches: CrewDispatch[] = [];
     if (helperAssignments && helperAssignments.length > 0) {
-      const { data: hData, error: hDataErr } = await supabase
-        .from("DispatchOrder")
-        .select(DISPATCH_SELECT)
-        .in("dispatchID", helperAssignments.map((h) => h.dispatchID))
-        .neq("status", DELIVERY_STATUS.rejected);
+      // In batches: the ids go in the request URL, and a helper's whole
+      // history in one URL outgrows what the server will accept.
+      const ids = helperAssignments.map((h) => h.dispatchID);
+      const batches: string[][] = [];
+      for (let start = 0; start < ids.length; start += HELPER_ID_BATCH) {
+        batches.push(ids.slice(start, start + HELPER_ID_BATCH));
+      }
 
-      if (hDataErr) throw new Error(`Helper dispatch query failed: ${hDataErr.message}`);
+      const answers = await Promise.all(
+        batches.map((batch) => {
+          let query = supabase
+            .from("DispatchOrder")
+            .select(DISPATCH_SELECT)
+            .in("dispatchID", batch)
+            .neq("status", DELIVERY_STATUS.rejected);
+          if (recentOnly) query = query.or(recentOnly);
+          return query;
+        }),
+      );
 
-      helperDispatches = (hData || []).map((dispatch) => ({
+      const failed = answers.find((answer) => answer.error)?.error;
+      if (failed) throw new Error(`Helper dispatch query failed: ${failed.message}`);
+      const hData = answers.flatMap((answer) => answer.data ?? []);
+
+      helperDispatches = hData.map((dispatch) => ({
         ...dispatch,
         _helperStatus: helperAssignments.find((h) => h.dispatchID === dispatch.dispatchID)?.status,
       }));

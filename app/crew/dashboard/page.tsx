@@ -3,6 +3,7 @@
 // ==========================================
 "use client";
 
+import Link from "next/link";
 import RowOpenButton from "@/components/RowOpenButton";
 import { useToast } from "@/components/Toast";
 import UrlSearchSync from "@/components/UrlSearchSync";
@@ -86,6 +87,10 @@ interface CrewDashboardProps {
 
 type ViewMode = "list" | "update-status";
 type TabFilter = "Active" | "Assigned" | "Completed";
+
+// How far back the History tab here reaches. The full record is on the
+// Delivery History page, which does not poll.
+const RECENT_DAYS = 30;
 
 export default function CrewDashboardPage({
   isOpen,
@@ -192,7 +197,9 @@ export default function CrewDashboardPage({
           return;
         }
 
-        const response = await fetch("/api/crew/dispatches", {
+        // Polled every thirty seconds, so only the recent past: Delivery
+        // History has the rest.
+        const response = await fetch(`/api/crew/dispatches?recentDays=${RECENT_DAYS}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -1463,6 +1470,15 @@ export default function CrewDashboardPage({
                   <span className="truncate">History ({completedCount})</span>
                 </button>
               </div>
+              {selectedFilter === "Completed" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  The last {RECENT_DAYS} days.{" "}
+                  <Link href="/crew/delivery-history" className="font-semibold text-blue-600 hover:underline">
+                    Older trips are in Delivery History
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
 
             <div className="overflow-x-auto">
