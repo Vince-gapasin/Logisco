@@ -65,8 +65,10 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
 
       {/* THE SIDEBAR ASIDE */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shadow-2xl shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
+          // The shadow only while open: shut, the drawer sits just past the
+          // left edge and a 50px blur would still fall across the page.
+          isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         }`}
       >
         {/* Subtle Ambient Glow Effects */}
