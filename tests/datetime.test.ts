@@ -49,3 +49,21 @@ describe("formatting a time that has already been formatted", () => {
     expect(formatTime("14:30")).toBe("2:30 PM");
   });
 });
+
+describe("a stored timestamp with no zone on it", () => {
+  // The audit trail keeps UTC without saying so. Read in a browser in Manila,
+  // a trip started at 1:09 PM showed the client 5:09 AM.
+  it("is read as UTC, wherever it is rendered", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "Asia/Manila";
+    try {
+      expect(formatDateTime("2026-10-06 05:09:19.531162")).toMatch(/Oct 6, 2026.*1:09\s?PM/i);
+      expect(formatDateTime("2026-10-06T05:09:19.531162")).toMatch(/1:09\s?PM/i);
+      expect(formatTime("2026-10-06T05:09:19")).toMatch(/1:09\s?PM/i);
+      // A timestamp that names its zone is left as it says.
+      expect(formatDateTime("2026-10-06T05:09:19+00:00")).toMatch(/1:09\s?PM/i);
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+});

@@ -20,6 +20,18 @@ const ALREADY_READABLE = /\d\s*(AM|PM)$/i;
 // reads the same wherever it was rendered.
 const ZONE = "Asia/Manila";
 
+// A full date and time with no zone on the end: "2026-10-06 05:09:19.53" or
+// "2026-10-06T05:09:19". The audit trail's "timestamp" column is a timestamp
+// without time zone, filled by now() on a database that runs in UTC, so it
+// comes back as UTC with nothing saying so. A browser reads a bare time as its
+// own local time: a trip started at 1:09 PM showed the client 5:09 AM.
+const ZONELESS_STAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+/** A stored timestamp as the instant it is, a zoneless one read as UTC. */
+function toInstant(value: string): Date {
+  return new Date(ZONELESS_STAMP.test(value) ? `${value.replace(" ", "T")}Z` : value);
+}
+
 /**
  * "08:00", "08:00:00" or a full timestamp as "8:00 AM". Anything it cannot
  * read is handed back untouched, so a stray value never becomes "Invalid
@@ -41,7 +53,7 @@ export function formatTime(value: string | null | undefined): string {
     return `${hour12}:${minutes} ${period}`;
   }
 
-  const stamp = new Date(trimmed);
+  const stamp = toInstant(trimmed);
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: ZONE });
 }
@@ -56,7 +68,7 @@ export function formatDate(value: string | null | undefined): string {
   if (!value) return "";
   const trimmed = value.trim();
   const dayOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  const stamp = dayOnly ? new Date(Date.UTC(Number(dayOnly[1]), Number(dayOnly[2]) - 1, Number(dayOnly[3]), 12)) : new Date(trimmed);
+  const stamp = dayOnly ? new Date(Date.UTC(Number(dayOnly[1]), Number(dayOnly[2]) - 1, Number(dayOnly[3]), 12)) : toInstant(trimmed);
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: ZONE });
 }
@@ -64,7 +76,7 @@ export function formatDate(value: string | null | undefined): string {
 /** A date and time together: "Sep 22, 2026, 8:00 AM". */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "";
-  const stamp = new Date(value);
+  const stamp = toInstant(value.trim());
   if (Number.isNaN(stamp.getTime())) return value;
   return stamp.toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: ZONE });
 }
