@@ -46,8 +46,11 @@ interface AuditRow {
 
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
+/** The booking's stops by name, keyed as stopKeyOf keys them: "branch:12", "pickup:7". */
+type StopNames = Map<string, string>;
+
 /** Turns one audited action into a line someone can read. */
-function describe(row: AuditRow): { title: string; detail: string } | null {
+function describe(row: AuditRow, stopNames: StopNames): { title: string; detail: string } | null {
   const data = (row.newData ?? {}) as Record<string, unknown>;
   const before = (row.oldData ?? {}) as Record<string, unknown>;
   const as = text(data.as) || "crew";
@@ -122,10 +125,11 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
       const stop = (data.stop ?? null) as
         | { branchID?: number | string; pickupID?: number | string }
         | null;
+      // By name: a number meant nothing to whoever read it.
       const which = stop?.branchID != null
-        ? `Delivery stop #${stop.branchID}`
+        ? `Delivered at ${stopNames.get(`branch:${stop.branchID}`) ?? `stop #${stop.branchID}`}`
         : stop?.pickupID != null
-          ? `Pickup #${stop.pickupID}`
+          ? `Collected at ${stopNames.get(`pickup:${stop.pickupID}`) ?? `pickup #${stop.pickupID}`}`
           : "";
 
       return {
@@ -194,11 +198,18 @@ function describe(row: AuditRow): { title: string; detail: string } | null {
         title: "Office answered a stall alert",
         detail: `${text(data.reason) || "No note given."} The alert is quiet for an hour.`,
       };
-    case "DispatchOrder/CREW_ARRIVED":
+    case "DispatchOrder/CREW_ARRIVED": {
+      // The arrive route records the stop as a column of its own.
+      const place = data.branchID != null
+        ? stopNames.get(`branch:${data.branchID}`)
+        : data.pickupID != null
+          ? stopNames.get(`pickup:${data.pickupID}`)
+          : undefined;
       return {
-        title: "Crew arrived at a stop",
+        title: place ? `Crew arrived at ${place}` : "Crew arrived at a stop",
         detail: "They reported reaching it, so the trip is not counted as quiet while they work.",
       };
+    }
     case "DispatchOrder/EMERGENCY":
       return {
         title: `Foul trip reported: ${text(data.issueType) || "problem"}`,
@@ -272,11 +283,14 @@ export async function getBookingHistory(orderID: string): Promise<BookingHistory
     .limit(200);
   if (error) throw new Error(error.message);
 
-  const proofs = await proofsByStop(trips.map((trip) => trip.dispatchID), orderID);
+  const [proofs, stopNames] = await Promise.all([
+    proofsByStop(trips.map((trip) => trip.dispatchID), orderID),
+    stopNamesOf(orderID),
+  ]);
 
   return ((data ?? []) as AuditRow[])
     .map((row) => {
-      const described = describe(row);
+      const described = describe(row, stopNames);
       if (!described) return null;
       const by = (row.newData?.by ?? {}) as { name?: string; role?: string };
       return {
@@ -291,6 +305,18 @@ export async function getBookingHistory(orderID: string): Promise<BookingHistory
       } satisfies BookingHistoryEntry;
     })
     .filter((entry): entry is BookingHistoryEntry => entry !== null);
+}
+
+/** The names of a booking's drop-off branches and pickup warehouses. */
+async function stopNamesOf(orderID: string): Promise<StopNames> {
+  const [drops, pickups] = await Promise.all([
+    supabase.from("BranchStops").select("branchID, branchName").eq("orderID", orderID),
+    supabase.from("PickupStops").select("pickupID, warehouseName").eq("orderID", orderID),
+  ]);
+  const names: StopNames = new Map();
+  for (const stop of drops.data ?? []) if (stop.branchName) names.set(`branch:${stop.branchID}`, stop.branchName as string);
+  for (const stop of pickups.data ?? []) if (stop.warehouseName) names.set(`pickup:${stop.pickupID}`, stop.warehouseName as string);
+  return names;
 }
 
 /**
