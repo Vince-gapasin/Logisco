@@ -407,24 +407,24 @@ export function expectedAt(
  */
 export function minutesLate(
   dueAt: string | null | undefined,
-  completedAt: string | null | undefined,
+  arrivedAt: string | null | undefined,
 ): number | null {
-  if (!dueAt || !completedAt) return null;
+  if (!dueAt || !arrivedAt) return null;
 
   const due = Date.parse(dueAt);
-  const done = Date.parse(completedAt);
-  if (Number.isNaN(due) || Number.isNaN(done)) return null;
+  const arrived = Date.parse(arrivedAt);
+  if (Number.isNaN(due) || Number.isNaN(arrived)) return null;
 
-  return Math.round((done - due) / 60_000);
+  return Math.round((arrived - due) / 60_000);
 }
 
 /** Whether a stop made its slot. Null when there is nothing to compare. */
 export function wasOnTime(
   dueAt: string | null | undefined,
-  completedAt: string | null | undefined,
+  arrivedAt: string | null | undefined,
   graceMin = ON_TIME_GRACE_MIN,
 ): boolean | null {
-  const late = minutesLate(dueAt, completedAt);
+  const late = minutesLate(dueAt, arrivedAt);
   return late === null ? null : late <= graceMin;
 }
 

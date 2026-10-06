@@ -308,9 +308,20 @@ interface StopRow {
   branchName: string | null;
   dispatchID: string | null;
   expectedTime: string | null;
+  arrivedAt: string | null;
   completedAt: string | null;
   stopStatus: string | null;
 }
+
+/**
+ * The moment a stop is judged on: when the crew got there.
+ *
+ * Not when they finished. Unloading takes half an hour or so, and timing a slot
+ * from the end of it marked crews late who had arrived on time. A stop with no
+ * recorded arrival falls back to its completion, the nearest thing there is.
+ */
+const arrivalOf = (stop: { arrivedAt: string | null; completedAt: string | null }) =>
+  stop.arrivedAt ?? stop.completedAt;
 
 async function readStops(dispatchIDs: string[]): Promise<StopRow[]> {
   if (dispatchIDs.length === 0) return [];
@@ -318,7 +329,7 @@ async function readStops(dispatchIDs: string[]): Promise<StopRow[]> {
   return selectAllIn<StopRow, string>(dispatchIDs, (chunk, from, to) =>
     supabase
       .from("BranchStops")
-      .select("branchID, branchName, dispatchID, expectedTime, completedAt, stopStatus")
+      .select("branchID, branchName, dispatchID, expectedTime, arrivedAt, completedAt, stopStatus")
       .in("dispatchID", chunk)
       .range(from, to),
   );
@@ -434,13 +445,14 @@ async function computeCompany(): Promise<CompanyFigures> {
     selectAll<{
       branchID: number;
       expectedTime: string | null;
+      arrivedAt: string | null;
       completedAt: string | null;
       stopStatus: string | null;
       Order: Embed<{ notes: string | null; deliverySchedule: string | null }>;
     }>((from, to) =>
       supabase
         .from("BranchStops")
-        .select("branchID, expectedTime, completedAt, stopStatus, Order ( notes, deliverySchedule )")
+        .select("branchID, expectedTime, arrivedAt, completedAt, stopStatus, Order ( notes, deliverySchedule )")
         .not("completedAt", "is", null)
         .gte("completedAt", since)
         .range(from, to),
@@ -479,7 +491,7 @@ async function computeCompany(): Promise<CompanyFigures> {
     const scheduled =
       (order?.deliverySchedule ?? "").trim().slice(0, 10) ||
       readNote(order?.notes ?? "", "Delivery Schedule").trim();
-    const madeIt = wasOnTime(expectedAt(scheduled, stop.expectedTime), stop.completedAt);
+    const madeIt = wasOnTime(expectedAt(scheduled, stop.expectedTime), arrivalOf(stop));
     if (madeIt === null) continue;
     stopsJudged++;
     if (madeIt) stopsOnTime++;
@@ -646,7 +658,7 @@ async function gatherFacts(trips: Trip[], role: string): Promise<PerformanceFact
 
   for (const stop of delivered) {
     const dueAt = expectedAt(stop.dispatchID ? scheduleOf.get(stop.dispatchID) : null, stop.expectedTime);
-    const madeIt = wasOnTime(dueAt, stop.completedAt);
+    const madeIt = wasOnTime(dueAt, arrivalOf(stop));
 
     // No scheduled date means nobody can say whether this was late. It is left
     // out of the punctuality figure entirely and counted nowhere, rather than
@@ -812,7 +824,7 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
       branchName: stop?.branchName ?? "Stop",
       reason: excuse.reason,
       notes: excuse.notes,
-      minutesLate: stop ? minutesLate(dueAtOf(stop), stop.completedAt) : null,
+      minutesLate: stop ? minutesLate(dueAtOf(stop), arrivalOf(stop)) : null,
       excusedAt: excuse.excusedAt,
       excusedBy: first(excuse.Employee)?.employeeName ?? null,
     };
@@ -823,7 +835,7 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
     .map((stop) => {
       if (excuses.has(stop.branchID)) return null;
 
-      const late = minutesLate(dueAtOf(stop), stop.completedAt);
+      const late = minutesLate(dueAtOf(stop), arrivalOf(stop));
       if (late === null || late <= ON_TIME_GRACE_MIN) return null;
 
       return {

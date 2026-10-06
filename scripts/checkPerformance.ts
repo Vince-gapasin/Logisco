@@ -13,7 +13,8 @@
 import { supabase } from "../app/lib/supabase";
 import { selectAll } from "../app/lib/selectAll";
 import { isStopDelivered } from "../app/lib/enums";
-import { minutesLate, ON_TIME_GRACE_MIN, signalsNotWorthScoring } from "../app/lib/performance";
+import { readNote } from "../app/lib/bookingNotes";
+import { expectedAt, minutesLate, ON_TIME_GRACE_MIN, signalsNotWorthScoring } from "../app/lib/performance";
 import { getEmployeePerformance } from "../services/employee/performanceService";
 
 function median(values: number[]): number | null {
@@ -35,18 +36,28 @@ async function main() {
   const stops = await selectAll<{
     branchID: number;
     expectedTime: string | null;
+    arrivedAt: string | null;
     completedAt: string | null;
     stopStatus: string | null;
+    Order: { notes: string | null; deliverySchedule: string | null } | { notes: string | null; deliverySchedule: string | null }[] | null;
   }>((from, to) =>
     supabase
       .from("BranchStops")
-      .select("branchID, expectedTime, completedAt, stopStatus")
+      .select("branchID, expectedTime, arrivedAt, completedAt, stopStatus, Order ( notes, deliverySchedule )")
       .range(from, to),
   );
 
   const delivered = stops.filter((stop) => isStopDelivered(stop.stopStatus) && stop.completedAt);
   const lateness = delivered
-    .map((stop) => minutesLate(stop.expectedTime, stop.completedAt))
+    .map((stop) => {
+      // The slot is the booking's date plus the stop's time of day, judged on
+      // arrival - the same comparison the service makes.
+      const order = Array.isArray(stop.Order) ? (stop.Order[0] ?? null) : stop.Order;
+      const scheduled =
+        (order?.deliverySchedule ?? "").trim().slice(0, 10) ||
+        readNote(order?.notes ?? "", "Delivery Schedule").trim();
+      return minutesLate(expectedAt(scheduled, stop.expectedTime), stop.arrivedAt ?? stop.completedAt);
+    })
     .filter((minutes): minutes is number => minutes !== null);
 
   const onTime = lateness.filter((minutes) => minutes <= ON_TIME_GRACE_MIN).length;
