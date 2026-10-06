@@ -32,7 +32,7 @@ interface TimePickerProps {
   disabled?: boolean;
 }
 
-const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const DAY = 24 * 60;
 const PANEL_WIDTH = 288;
 
