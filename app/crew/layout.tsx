@@ -2,12 +2,13 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 
 import ProtectedPortal from "@/components/ProtectedPortal";
 import SharedHeader from "@/components/SharedHeader";
 import { ToastProvider } from "@/components/Toast";
 import PortalSidebar from "@/components/PortalSidebar";
+import StallWatch from "@/components/crew/StallWatch";
 
 export default function CrewLayout({
   children,
@@ -52,6 +53,11 @@ export default function CrewLayout({
             </main>
           </div>
         </div>
+        {/* "Are you alright?", on every crew screen rather than only the trip's.
+            Suspense because it reads the address for alerts opened from a link. */}
+        <Suspense fallback={null}>
+          <StallWatch />
+        </Suspense>
       </ToastProvider>
     </ProtectedPortal>
   );

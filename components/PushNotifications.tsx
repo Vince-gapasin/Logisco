@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { apiFetch } from "@/app/lib/apiClient";
+import { askCrew } from "@/app/lib/stallAsk";
+import { checkInTripFromLink } from "@/app/lib/stallRules";
 
 // Push, for the phone app.
 //
@@ -96,6 +98,24 @@ export default function PushRegistration() {
         listeners.push(
           await PushNotifications.addListener("registrationError", (error) => {
             console.error("Push registration was refused:", error);
+          }),
+        );
+
+        // A push that lands while the app is open is not shown by Android - it
+        // is handed here and nowhere else. For most notifications the bell is
+        // enough. For "are you alright?" it is not: the crew are standing still
+        // with the app in front of them, which is exactly when they must be
+        // asked, so it opens the question on whatever screen they are on.
+        listeners.push(
+          await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+            const trip = checkInTripFromLink(notification.data?.link);
+            if (!trip) return;
+            askCrew({
+              trip,
+              from: "office",
+              title: notification.title,
+              body: notification.body,
+            });
           }),
         );
 

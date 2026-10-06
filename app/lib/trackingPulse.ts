@@ -161,11 +161,22 @@ export function markMovement(trip: string | number, at: number): void {
  * behind by an earlier trip, which is not an answer about this one.
  */
 export function minutesSinceMove(trip: string | number, now = Date.now()): number | null {
+  return since(lastMovedAt(trip), now);
+}
+
+/**
+ * When this trip's truck last moved, or null if that is not known.
+ *
+ * The moment itself rather than minutes since it, for whoever needs to tell one
+ * stretch of standing still from the next: two stops can both be twenty minutes
+ * long, and only the timestamp says they are different stops.
+ */
+export function lastMovedAt(trip: string | number): number | null {
   if (move === null && !recoveredMove) {
     recoveredMove = true;
     move = readStored(MOVE_STORAGE_KEY);
   }
-  return since(forTrip(move, String(trip)), now);
+  return forTrip(move, String(trip));
 }
 
 /** Only for tests: forgets both clocks. */

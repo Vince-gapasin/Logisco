@@ -51,7 +51,25 @@ const OPTIONS: { state: CheckInState; icon: typeof Coffee; tone: string }[] = [
   { state: "need_help", icon: AlertTriangle, tone: "border-red-300 hover:border-red-500 bg-red-50/50" },
 ];
 
-export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string | number }) {
+export default function StallCheckInPrompt({
+  dispatchID,
+  force = false,
+  heading,
+  onAnswered,
+  onDismiss,
+}: {
+  dispatchID: string | number;
+  /**
+   * Show it whatever this phone's own clock says. For when the server has
+   * already decided the crew should be asked - a helper's phone, or one whose
+   * clock was lost, has no movement record of its own to wait for.
+   */
+  force?: boolean;
+  /** What the office said, when it was the office that asked. */
+  heading?: { title: string; body: string } | null;
+  onAnswered?: (state: CheckInState) => void;
+  onDismiss?: () => void;
+}) {
   const [stillFor, setStillFor] = useState<number | null>(null);
   // Whether the movement figure can be trusted. If this phone has not reached
   // the server for a while, the last thing it heard is all it knows - the truck
@@ -98,18 +116,20 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
         }
 
         setSent(result.message ?? "Thank you.");
+        onAnswered?.(state);
       } catch {
         setError("No signal. Try again when you have one.");
       } finally {
         setSending(null);
       }
     },
-    [dispatchID],
+    [dispatchID, onAnswered],
   );
 
   // Nothing to ask about: either no position has landed yet for this trip, so
   // there is no baseline to measure from, or the truck is moving.
-  if (dismissed || stillFor === null || stillFor < ASK_AFTER_MIN) return null;
+  if (dismissed) return null;
+  if (!force && (stillFor === null || stillFor < ASK_AFTER_MIN)) return null;
 
   if (sent) {
     return (
@@ -124,17 +144,23 @@ export default function StallCheckInPrompt({ dispatchID }: { dispatchID: string 
     <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Still here?</p>
+          <p className="text-sm font-semibold text-slate-900">{heading?.title ?? "Still here?"}</p>
           <p className="text-xs text-slate-600 mt-0.5">
-            {outOfTouch
-              ? "We have lost signal from this phone, so the office cannot see where you are."
-              : `The truck has not moved for ${stillFor} minutes.`}{" "}
+            {heading?.body ??
+              (outOfTouch
+                ? "We have lost signal from this phone, so the office cannot see where you are."
+                : stillFor !== null
+                  ? `The truck has not moved for ${stillFor} minutes.`
+                  : "The office cannot see the truck moving.")}{" "}
             One tap tells the office why - and the customer sees the reason on their tracking page.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setDismissed(true)}
+          onClick={() => {
+            setDismissed(true);
+            onDismiss?.();
+          }}
           aria-label="Dismiss"
           className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1 rounded-lg text-slate-500 hover:text-slate-600 hover:bg-white/60 shrink-0"
         >

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   assessStall,
+  checkInTripFromLink,
   CHECK_IN_QUIETENS_MIN,
+  crewCheckInLink,
   crewHelpAlert,
   crewHelpDedupeKey,
   isCallForHelp,
@@ -161,10 +163,12 @@ describe("saying how long in words", () => {
 });
 
 describe("what each threshold is worth saying", () => {
-  it("tells nobody at fifteen minutes", () => {
+  it("asks the crew at fifteen minutes, without pushing the office", () => {
+    // A truck standing still with the app open used to get nothing on the phone
+    // for the whole first quarter hour.
     const alert = stallAlert(15, "ORD-1 (Acme)", 15);
     expect(alert.notifyOffice).toBe(false);
-    expect(alert.crew).toBeNull();
+    expect(alert.crew?.title).toMatch(/are you alright/i);
     expect(alert.severity).toBe("info");
   });
 
@@ -209,7 +213,7 @@ describe("what each threshold is worth saying", () => {
   it("writes to the crew in their own words, not the office's", () => {
     // The driver used to be told to "call the driver, or report a foul trip",
     // and to be informed that "the crew have been asked to confirm".
-    for (const threshold of [30, 45, 120, 360] as const) {
+    for (const threshold of STALL_THRESHOLDS_MIN) {
       const crew = stallAlert(threshold, "ORD-1 (Acme)", threshold + 1).crew!;
       expect(crew.body).not.toMatch(/call the driver|report a foul trip|the crew have been/i);
       expect(crew.body).toMatch(/tell your coordinator/i);
@@ -231,6 +235,35 @@ describe("saying a thing once", () => {
 
   it("is a different key when the truck has moved since and gone quiet again", () => {
     expect(stallDedupeKey("d1", 30, minutesAgo(40))).not.toBe(stallDedupeKey("d1", 30, minutesAgo(90)));
+  });
+
+  it("starts a fresh set of rungs when the crew finish a stop and stand still again", () => {
+    // Moved 100 minutes ago; finished a stop 40 minutes ago without moving since.
+    // The clock runs from the stop, and so must the key - keyed on the movement,
+    // the 15/30 rungs had already been spent on the first silence and the
+    // second one went unmentioned.
+    const first = assessStall({
+      lastReportedAt: minutesAgo(100),
+      status: "In Transit",
+      metresToNearestStop: 5_000,
+      now: new Date(NOW.getTime() - 60 * 60_000),
+    });
+    const second = assessStall({
+      lastReportedAt: minutesAgo(100),
+      lastCrewUpdateAt: minutesAgo(40),
+      status: "In Transit",
+      metresToNearestStop: 5_000,
+      now: NOW,
+    });
+    expect(first.threshold).toBe(30);
+    expect(second.threshold).toBe(30);
+    expect(stallDedupeKey("d1", 30, second.quietSince!)).not.toBe(stallDedupeKey("d1", 30, first.quietSince!));
+  });
+
+  it("keeps the key it always had when the crew have said nothing", () => {
+    const reported = minutesAgo(40);
+    const verdict = assessStall({ lastReportedAt: reported, status: "In Transit", metresToNearestStop: 5_000, now: NOW });
+    expect(verdict.quietSince).toBe(reported);
   });
 
   it("does not let the office's notification silence the crew's", () => {
@@ -409,5 +442,20 @@ describe("telling a stopped truck from a dead phone", () => {
   it("keeps the old both-causes wording when the cause is unknown", () => {
     const unknown = stallAlert(45, "ORD-1 (Acme)", 46);
     expect(unknown.office.body).toMatch(/the two look the same from here/i);
+  });
+});
+
+describe("where a crew stall alert takes them", () => {
+  it("opens the trip with the question already asked", () => {
+    const link = crewCheckInLink("3f2c9a1e-0000-4000-8000-000000000001");
+    expect(link.startsWith("/crew/dashboard?")).toBe(true);
+    expect(checkInTripFromLink(link)).toBe("3f2c9a1e-0000-4000-8000-000000000001");
+  });
+
+  it("ignores links that are not a check-in", () => {
+    expect(checkInTripFromLink("/crew/dashboard")).toBeNull();
+    expect(checkInTripFromLink("/admindashboard/fleet-tracking")).toBeNull();
+    expect(checkInTripFromLink("/crew/dashboard?trip=abc")).toBeNull();
+    expect(checkInTripFromLink(undefined)).toBeNull();
   });
 });

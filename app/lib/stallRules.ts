@@ -310,6 +310,17 @@ export interface StallVerdict {
   /** The highest threshold passed, or null when none has been. */
   threshold: StallThreshold | null;
   /**
+   * The moment the clock is counting from, exactly as it was stored: the last
+   * movement, or the crew's last stop update when that is later.
+   *
+   * What a rung is said once against. It used to be the last movement alone, so
+   * a crew who finished a stop and then sat still restarted the clock but not
+   * the key - the fifteen, thirty and forty-five minute rungs had already been
+   * spent on the earlier silence, and the second one went unmentioned until two
+   * hours.
+   */
+  quietSince: string | null;
+  /**
    * What the crew said, and how long ago, when they have answered.
    *
    * Carried so an alert about a delay the crew have already explained can say
@@ -378,6 +389,7 @@ export function assessStall({
   };
 
   const contactSilence = minutesSince(lastContactAt);
+  let quietSince: string | null = null;
 
   const quiet = (
     reason: StallVerdict["reason"],
@@ -390,6 +402,7 @@ export function assessStall({
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: null,
+    quietSince,
     crewSaid: null,
     reason,
   });
@@ -419,6 +432,9 @@ export function assessStall({
     ? Math.max(reportedAt, crewUpdateAt)
     : reportedAt;
   const silentFor = Math.max(0, Math.floor((now.getTime() - progressAt) / 60_000));
+  // As stored rather than re-serialised, so a trip with no crew update keeps the
+  // key it always had and nothing already said is said again.
+  quietSince = progressAt > reportedAt && lastCrewUpdateAt ? lastCrewUpdateAt : lastReportedAt;
 
   // The crew have said they are at a stop and not said they are done. They are
   // working, and nothing is counted against them - until it starts costing a time
@@ -497,6 +513,7 @@ export function assessStall({
         outOfContactFor: contactSilence ?? silentFor,
         silentFor,
         threshold: STALL_THRESHOLDS_MIN[STALL_THRESHOLDS_MIN.length - 1],
+        quietSince,
         crewSaid: answered,
         reason: "crew asked for help",
       };
@@ -516,7 +533,8 @@ export function assessStall({
           outOfContactFor: contactSilence ?? silentFor,
           silentFor,
           threshold: passed,
-          crewSaid: answered,
+          quietSince,
+        crewSaid: answered,
           reason: "delay continuing",
         };
       }
@@ -551,6 +569,7 @@ export function assessStall({
     outOfContactFor: contactSilence ?? silentFor,
     silentFor,
     threshold: passed,
+    quietSince,
     crewSaid: answered,
     reason: "on the road",
   };
@@ -620,10 +639,11 @@ function askTheCrew(silentFor: number): StallMessage {
 /**
  * What each threshold is worth saying, and to whom.
  *
- * Fifteen minutes tells nobody. Most quarter-hour stops are traffic, a queue
- * at a gate, or a driver eating, and an alarm that cries wolf three times a
- * day is one nobody reads by Friday. It colours the trip on the board, where
- * somebody watching will see it, and goes no further.
+ * Fifteen minutes tells the office nothing. Most quarter-hour stops are
+ * traffic, a queue at a gate, or a driver eating, and an alarm that cries wolf
+ * three times a day is one nobody reads by Friday. It colours the trip on the
+ * board, where somebody watching will see it - and asks the crew, who can
+ * answer it in one tap.
  */
 export interface StallContext {
   /** Standing at one of its own stops, past the hour that excuses it. */
@@ -690,11 +710,16 @@ export function stallAlert(
       };
     }
 
+    // The office is not pushed: most quarter-hour stops are nothing, and the
+    // board already shows it. The crew are asked, because asking them is cheap
+    // and they are the only ones who know - and a truck standing still with the
+    // app open used to sit through the whole quarter hour without the phone
+    // saying anything to anybody.
     return {
       severity: "info",
       notifyOffice: false,
       office: { title: "Truck has gone quiet", body: quiet },
-      crew: null,
+      crew: askTheCrew(silentFor),
     };
   }
 
@@ -921,6 +946,26 @@ export function stallDedupeKey(
   audience: "office" | "crew" = "office",
 ): string {
   return `stalled:${dispatchID}:${threshold}:${lastReportedAt}:${audience}`;
+}
+
+/**
+ * Where a crew alert about a quiet truck takes them: that trip, with the
+ * question already open.
+ *
+ * It used to be the dashboard's list, where the "Are you alright?" buttons do
+ * not exist - they live inside the trip, and only appeared there when this phone
+ * had its own record of the truck standing still. A helper's phone never has
+ * one, so a helper who tapped the alert had no way to answer it.
+ */
+export function crewCheckInLink(dispatchID: string): string {
+  return `/crew/dashboard?trip=${encodeURIComponent(dispatchID)}&checkin=1`;
+}
+
+/** The trip a crew check-in link is about, or null when it is not one. */
+export function checkInTripFromLink(link: string | null | undefined): string | null {
+  if (!link || !link.startsWith("/crew/dashboard?")) return null;
+  const params = new URLSearchParams(link.slice(link.indexOf("?") + 1));
+  return params.get("checkin") === "1" ? params.get("trip") || null : null;
 }
 
 /** One key per trip per answer, so every new cry for help is heard. */

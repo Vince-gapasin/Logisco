@@ -48,6 +48,16 @@ const config: CapacitorConfig = {
         },
       }
     : {}),
+  plugins: {
+    // Without this, Android shows nothing for a push that arrives while the app
+    // is open - it goes to the JavaScript listener and no further. The stall
+    // watch handles "are you alright?" there, but every other notification was
+    // silent for anybody using the app at the time, and a stopped truck with the
+    // app open is the very case the stall alert exists for.
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
+  },
 };
 
 export default config;

@@ -102,12 +102,11 @@ describe("when the delay is eating a promised delivery time", () => {
   it("pulls the office in at fifteen minutes, which normally tells nobody", () => {
     const quiet = stallAlert(15, "ORD-1", 15, "stopped");
     expect(quiet.notifyOffice).toBe(false);
-    expect(quiet.crew).toBeNull();
 
     const pressing = stallAlert(15, "ORD-1", 15, "stopped", { atRisk: risk });
     expect(pressing.notifyOffice).toBe(true);
     expect(pressing.severity).toBe("action");
-    // And asks the crew at the same moment, rather than waiting for thirty.
+    // And the crew are asked either way.
     expect(pressing.crew).not.toBeNull();
   });
 

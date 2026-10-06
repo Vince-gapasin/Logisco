@@ -8,6 +8,7 @@
 import { supabase } from "@/app/lib/supabase";
 import {
   assessStall,
+  crewCheckInLink,
   crewHelpAlert,
   crewHelpDedupeKey,
   delayContinuingAlert,
@@ -382,7 +383,7 @@ export async function checkForStalledTrips(
     }
 
     const raised = telling
-      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, trip.lastReportedAt, verdict.cause, {
+      ? await raiseStall(trip, verdict.threshold, verdict.silentFor, verdict.quietSince ?? trip.lastReportedAt, verdict.cause, {
           atStop: verdict.atStop,
           atRisk,
           // Whether anybody has spoken for this silence, which is what the later
@@ -451,7 +452,7 @@ async function raiseDelayContinuing(
     link: "/admindashboard/fleet-tracking",
   });
 
-  // Asked in their own words, and pointed at a page they are allowed to open:
+  // Asked in their own words, and pointed at the trip with the question open:
   // the office link is under /admindashboard, which the crew portal refuses.
   if (alert.crew) {
     const crew = await crewOf(trip.dispatchID);
@@ -464,7 +465,7 @@ async function raiseDelayContinuing(
         employeeIDs: crew,
         dedupeKey: delayDedupeKey(trip.dispatchID, checkIn.at, "crew"),
         entity,
-        link: "/crew/dashboard",
+        link: crewCheckInLink(trip.dispatchID),
       });
     }
   }
@@ -498,7 +499,8 @@ async function raiseStall(
   trip: LiveTrip,
   threshold: StallThreshold,
   silentFor: number,
-  lastReportedAt: string,
+  /** When the clock started: what each rung is said once against. */
+  quietSince: string,
   cause: StallCause,
   context: StallContext = {},
 ): Promise<boolean> {
@@ -506,7 +508,7 @@ async function raiseStall(
   const entity = { table: "DispatchOrder", id: trip.dispatchID } as const;
   let told = 0;
 
-  // Fifteen minutes is for the board, not for anybody's phone.
+  // Fifteen minutes is for the board and the crew, not for the office's phones.
   if (alert.notifyOffice) {
     told += await notify({
       event: "TRUCK_STALLED",
@@ -514,15 +516,15 @@ async function raiseStall(
       body: alert.office.body,
       severity: alert.severity,
       roles: OFFICE,
-      dedupeKey: stallDedupeKey(trip.dispatchID, threshold, lastReportedAt, "office"),
+      dedupeKey: stallDedupeKey(trip.dispatchID, threshold, quietSince, "office"),
       entity,
       link: "/admindashboard/fleet-tracking",
     });
   }
 
-  // Told separately, in their own words, and pointed at a page they are allowed
-  // to open: the office link is under /admindashboard, which the crew portal
-  // refuses them.
+  // Told separately, in their own words, and pointed at the trip itself with
+  // the question open: the office link is under /admindashboard, which the crew
+  // portal refuses them, and the bare dashboard has no buttons to answer with.
   if (alert.crew) {
     const crew = await crewOf(trip.dispatchID);
     if (crew.length > 0) {
@@ -532,9 +534,9 @@ async function raiseStall(
         body: alert.crew.body,
         severity: alert.severity,
         employeeIDs: crew,
-        dedupeKey: stallDedupeKey(trip.dispatchID, threshold, lastReportedAt, "crew"),
+        dedupeKey: stallDedupeKey(trip.dispatchID, threshold, quietSince, "crew"),
         entity,
-        link: "/crew/dashboard",
+        link: crewCheckInLink(trip.dispatchID),
       });
     }
   }

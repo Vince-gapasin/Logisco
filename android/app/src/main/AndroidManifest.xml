@@ -15,6 +15,9 @@
         which is why nothing appeared on the lock screen.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The stall alert buzzes the phone when the truck has stopped with the app
+         open. navigator.vibrate does nothing in the WebView without this. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"

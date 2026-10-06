@@ -35,6 +35,15 @@ export function isLiveTracking(): boolean {
   return activeTrackingId !== null;
 }
 
+// Which trip this phone is tracking, for the stall watch: it runs across the
+// whole crew portal, not only on the trip's own screen, and needs to know what
+// it is watching without the dashboard being open.
+let trackedTrip: string | null = null;
+
+export function trackedTripID(): string | null {
+  return activeTrackingId !== null ? trackedTrip : null;
+}
+
 // Browser geolocation can fire several times a second; one fix every 10s is
 // plenty for the fleet map and keeps mobile data use low.
 const WEB_PING_INTERVAL_MS = 10_000;
@@ -119,6 +128,7 @@ async function postLocation(
 
 export async function stopLiveTracking() {
   stopHeartbeat();
+  trackedTrip = null;
 
   if (activeTrackingId) {
     if (Capacitor.getPlatform() === 'web') {
@@ -135,6 +145,7 @@ export const startLiveTracking = async (dispatchId: string | number) => {
   try {
     // Never run two watchers at once.
     await stopLiveTracking();
+    trackedTrip = String(dispatchId);
 
     // === WEB BROWSER FALLBACK FOR TESTING ===
     if (Capacitor.getPlatform() === 'web') {
