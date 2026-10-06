@@ -52,6 +52,7 @@ export default function MechanicFleetStatusPage({
     employeeID: "",
     employeeName: "Loading...",
   });
+  const [isOffice, setIsOffice] = useState(false);
 
   // 2. Fetch the real user session on component mount
   useEffect(() => {
@@ -64,12 +65,15 @@ export default function MechanicFleetStatusPage({
       try {
         const parsedUser = JSON.parse(storedUser);
 
-        // 3. Strict Role Validation: Only assign if the user is actually a mechanic
-        if (
-          parsedUser.role &&
-          parsedUser.role.toLowerCase().includes("mechanic")
-        ) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
+        const role = String(parsedUser.role ?? "").toLowerCase();
+        // The office's Fleet Status is this same page. They are not a
+        // mechanic, so they pick one on each log rather than being filed as
+        // one, and a repair under way is never locked to them.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsOffice(role === "admin" || role === "coordinator");
+
+        // 3. Strict Role Validation: Only assign if the user is a mechanic, or the office
+        if (role.includes("mechanic") || role === "admin" || role === "coordinator") {
           setCurrentUser({
             employeeID: String(parsedUser.id || parsedUser.employeeID),
             employeeName:
@@ -695,6 +699,9 @@ export default function MechanicFleetStatusPage({
     activeModalTruckStatus === "Out of Service";
 
   let inheritedAdditionalMechanicID = "";
+  // The office picks the mechanic on each log; the one already on the repair
+  // is the one offered.
+  let inheritedPrimaryMechanicID = "";
   if (isCurrentlyUnderMaintenance) {
     // <-- UPDATED: Added `l &&` to safely bypass undefined logs
     const latestTruckLog = logsWithPhotos.find(
@@ -703,6 +710,7 @@ export default function MechanicFleetStatusPage({
     inheritedAdditionalMechanicID = String(
       latestTruckLog?.additionalMechanicID || "",
     );
+    inheritedPrimaryMechanicID = String(latestTruckLog?.primaryMechanicID || "");
   }
 
   return (
@@ -731,6 +739,7 @@ export default function MechanicFleetStatusPage({
           }}
           onDelete={handleDeleteHistoryLog}
           currentUserId={String(currentUser.employeeID)} // <-- ADD THIS
+          readOnly={isOffice}
         />
       ) : showTruckHistoryView && selectedTruck ? (
         <TruckSpecificHistoryView
@@ -772,6 +781,7 @@ export default function MechanicFleetStatusPage({
             setShowLogMaintenanceModal(true);
           }}
           currentUserId={String(currentUser.employeeID)}
+          isOffice={isOffice}
         />
       ) : (
         <>
@@ -1131,6 +1141,8 @@ export default function MechanicFleetStatusPage({
         loggedInMechanic={currentUser}
         inheritedAdditionalMechanicID={inheritedAdditionalMechanicID}
         isSaving={isSavingLog}
+        chooseMechanic={isOffice}
+        defaultPrimaryMechanicID={inheritedPrimaryMechanicID}
       />
 
       {truckToPurge && (

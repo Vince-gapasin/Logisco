@@ -38,6 +38,8 @@ interface TruckDetailViewProps {
   onHistoryClick: () => void;
   onLogMaintenanceClick: () => void;
   currentUserId: string;
+  /** Admin or Coordinator: the office is never locked out of a repair. */
+  isOffice?: boolean;
 }
 
 export function TruckDetailView({
@@ -53,6 +55,7 @@ export function TruckDetailView({
   onHistoryClick,
   onLogMaintenanceClick,
   currentUserId,
+  isOffice = false,
 }: TruckDetailViewProps) {
   // Disabled in the Archive, whatever status it was left with.
   const shownStatus = isArchived ? "Disabled" : shownTruckStatus(truck.status, truck.booking);
@@ -82,11 +85,11 @@ export function TruckDetailView({
   const currentUserStr = String(currentUserId).trim();
   const activeCycleLog = repair.activeLog;
   const isUnassignedJob = Boolean(activeCycleLog) && !activeCycleLog?.primaryMechanicID;
-  const hasMechanicAccess = activeCycleLog
+  const hasMechanicAccess = isOffice || (activeCycleLog
     ? isUnassignedJob ||
       String(activeCycleLog.primaryMechanicID).trim() === currentUserStr ||
       String(activeCycleLog.additionalMechanicID).trim() === currentUserStr
-    : true;
+    : true);
 
   // Evaluates to true ONLY if the mechanic is explicitly assigned to an active log (bypasses delivery restrictions for foul trips)
   const isExplicitlyAssigned = activeCycleLog ? (
