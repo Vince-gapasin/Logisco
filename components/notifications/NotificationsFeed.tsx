@@ -162,10 +162,11 @@ export default function NotificationsFeed({
   };
 
   return (
-    // The same left edge as every other page, so the heading does not jump
-    // between screens; the list itself stops at a comfortable line length.
+    // The same width as every other page. The list used to stop at 896px,
+    // which on a wide screen left it hugging the left with a third of the
+    // page empty beside it; now only the message text keeps a reading width.
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
-      <div className="max-w-4xl space-y-5">
+      <div className="space-y-5">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4">
         <div className="min-w-0">
@@ -323,7 +324,7 @@ function NotificationItem({
           </span>
         </div>
 
-        <p className={`text-sm text-slate-600 leading-relaxed mt-1 wrap-break-word ${isLong && !expanded ? "line-clamp-3" : ""}`}>
+        <p className={`max-w-3xl text-sm text-slate-600 leading-relaxed mt-1 wrap-break-word ${isLong && !expanded ? "line-clamp-3" : ""}`}>
           {notif.message}
         </p>
         {isLong && (
