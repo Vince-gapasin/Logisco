@@ -131,6 +131,11 @@ const SUMMARY_COLUMNS = `
 
 const DEFAULT_STAGE_LIMIT = 300;
 
+/** A stage getBookings filters by. Anything else means every order. */
+export function isBookingStage(stage: string): boolean {
+  return stage === "unassigned" || stage === "foul-trip" || stage in STAGE_STATUSES;
+}
+
 export interface BookingQuery {
   /** A key of STAGE_STATUSES, "unassigned", or undefined for every order. */
   stage?: string;

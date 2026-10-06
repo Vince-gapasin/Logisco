@@ -146,6 +146,22 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
         accessTokenExpiresAt: browserSession.expires_at ?? null,
       });
 
+      // Draw the portal now, on the role this browser signed in with, so the
+      // page starts loading its data while the server confirms the account
+      // instead of after. Showing it early gives nothing away: every API
+      // route checks the token and the Employee row itself. A refused account
+      // is still sent to the login page below, and a changed role is
+      // corrected when the answer arrives.
+      //
+      // Not before getSession(): it has just refreshed an expired access
+      // token, and a page fetching with the stale one would be refused with
+      // a 401, which clears the stored session.
+      const storedRole = normalizeRole(storedSession.role);
+      if (storedRole && isActive) {
+        setVerifiedRole(storedRole);
+        setHomeRoute(storedSession.route);
+      }
+
       await verifySession(browserSession.access_token);
     };
 
@@ -256,7 +272,8 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
   }
 
   // This silent wait occurs only when the portal first mounts or after a hard
-  // browser refresh. Internal navigation keeps the verified role in memory.
+  // browser refresh, and lasts until the browser has its session (not until
+  // the server answers). Internal navigation keeps the role in memory.
   if (!verifiedRole) {
     return null;
   }

@@ -124,15 +124,15 @@ export default function AdminDashboardPage() {
         "foul-trip",
       ];
 
-      const stageResults = await Promise.all(
-        DASHBOARD_STAGES.map((stage) =>
-          apiFetch<OrderWithRelations[]>(`/api/bookings?stage=${stage}&limit=100`).catch(() => []),
-        ),
+      // One request for every stage: the server reads them in parallel and
+      // leaves out any that fail, as the per-stage requests used to.
+      const stageOrders = await apiFetch<OrderWithRelations[]>(
+        `/api/bookings?stages=${DASHBOARD_STAGES.join(",")}&limit=100`,
       );
 
       // An order can only be in one stage, but dedupe defensively.
       const seenOrderIDs = new Set<string>();
-      const orders = stageResults.flat().filter((order) => {
+      const orders = stageOrders.filter((order) => {
         const key = String(order?.orderID ?? order?.orderCode ?? "");
         if (!key || seenOrderIDs.has(key)) return false;
         seenOrderIDs.add(key);

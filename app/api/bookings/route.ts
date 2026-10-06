@@ -3,7 +3,7 @@ import { OFFICE_ROLES, requireAuth, requireRole, UserRole } from "@/app/lib/auth
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { notify, OFFICE } from "@/services/notifications/notify";
 import { sendBookingTrackingLink } from "@/services/email/bookingEmail";
-import { getBookings, createBooking } from "@/services/booking/bookingService";
+import { getBookings, createBooking, isBookingStage } from "@/services/booking/bookingService";
 import { createOrderSchema } from "@/app/schemas/booking/booking.schema";
 import { BookingNeedsConfirmation, BookingNotPossible } from "@/services/booking/bookingService";
 
@@ -28,12 +28,27 @@ export async function GET(request: Request) {
     // ?view=summary drops the nested stops, pickups, items and truck detail
     // that a list of bookings does not render.
     const view = searchParams.get("view") === "summary" ? "summary" : undefined;
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined;
 
-    const bookings = await getBookings({
-      stage,
-      view,
-      limit: Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined,
-    });
+    // ?stages=a,b,c reads several stages in one request, so a screen that
+    // shows them side by side pays for the sign-in check once, not per stage.
+    // A stage that fails is left out rather than failing the rest. Unknown
+    // names are dropped: getBookings reads a missing stage as every order.
+    const stagesParam = searchParams.get("stages");
+    if (stagesParam) {
+      const stages = [...new Set(stagesParam.split(","))].filter(isBookingStage);
+      const results = await Promise.allSettled(
+        stages.map((name) => getBookings({ stage: name, view, limit })),
+      );
+      const bookings = results.flatMap((result, index) => {
+        if (result.status === "fulfilled") return result.value;
+        console.error(`GET bookings stage ${stages[index]} error:`, result.reason);
+        return [];
+      });
+      return NextResponse.json(bookings, { status: 200 });
+    }
+
+    const bookings = await getBookings({ stage, view, limit });
 
     // Returning the array directly, which matches your old Express layout 
     // where `res.data` in the frontend receives the array of orders.
