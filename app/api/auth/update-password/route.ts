@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorize, verifyCurrentPassword } from "@/app/lib/auth";
+import { authorize, currentEmailOf, verifyCurrentPassword } from "@/app/lib/auth";
 import { getPasswordPolicyError } from "@/app/lib/passwordPolicy";
 import { supabase } from "@/app/lib/supabase";
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   try {
     // A stolen session token alone must not be enough to take over the account.
-    if (!(await verifyCurrentPassword(auth.user.email, currentPassword))) {
+    if (!(await verifyCurrentPassword(await currentEmailOf(auth.user), currentPassword))) {
       return NextResponse.json({ message: "Current password is incorrect" }, { status: 403 });
     }
 

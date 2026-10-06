@@ -31,7 +31,7 @@ type ProtectedPortalProps = {
 
 // How often an open portal re-checks that the account still exists and is
 // active. Deleting or deactivating a staff member signs them out within this
-// window (plus the server's 30-second verification cache).
+// window.
 const RECHECK_INTERVAL_MS = 30_000;
 
 /** Shown on the login page after a forced sign-out. */

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/app/lib/supabase";
 import { supabaseAuth } from "@/app/lib/supabaseAuth";
 import { EMPLOYEE_ROLE, type EmployeeRole } from "@/app/lib/enums";
@@ -27,59 +27,76 @@ export const OFFICE_ROLES: UserRole[] = [EMPLOYEE_ROLE.admin, EMPLOYEE_ROLE.coor
 // ==========================================
 
 // ==========================================
-// VERIFIED TOKEN CACHE
+// TOKEN AND SESSION CHECK
 // ==========================================
-// Verifying a bearer token is a network call to Supabase Auth, repeated on
-// every request, including the burst of calls a single page makes. The result
-// - which auth user the token belongs to - is cached for a short window, per
-// server instance, keyed by the token itself.
+// The project signs tokens with ES256, so getClaims checks a bearer token's
+// signature and expiry here, on this server, with no network call. (It used
+// to be getUser on every request: a call to Supabase Auth, cached for 30
+// seconds per server instance - and an instance often starts with an empty
+// cache.)
 //
-// The Employee row is NOT cached. It is read on every request, so
-// deactivating an employee or changing their role takes effect on their very
-// next request. It used to be cached with the token, which left a deactivated
-// employee working for up to 30 seconds - on every server instance that had
-// seen them, and there was no way to clear it from another instance.
+// A token checked that way says who it was issued to, not whether it has since
+// been signed out. So the Employee lookup every request makes anyway also asks
+// whether the token's session still exists, in one database call
+// (auth_session_employee, migration 20261007000000). Changing a password signs
+// the other devices out, and they are refused on their next request.
 //
-// What the window still delays is Supabase noticing a revoked token (a
-// sign-out elsewhere); that is bounded by the TTL.
+// The Employee row is read on every request too, so deactivating an employee
+// or changing their role takes effect on their very next request.
 
-const TOKEN_CACHE_TTL_MS = 30_000;
-const TOKEN_CACHE_MAX_ENTRIES = 500;
+export interface AuthUser {
+  id: string;
+  /**
+   * As it was when the token was issued, so up to an hour old after an email
+   * change. Read the auth user itself where the current address matters.
+   */
+  email?: string;
+}
 
-const verifiedTokens = new Map<string, { user: User; expiresAt: number }>();
+interface AuthEmployee {
+  employeeID: string;
+  employeeName: string;
+  role: string;
+  isActive: boolean | null;
+}
 
-function readCachedUser(token: string): User | null {
-  const entry = verifiedTokens.get(token);
-  if (!entry) return null;
+type AuthFailure = { error: string; status: number };
 
-  if (entry.expiresAt <= Date.now()) {
-    verifiedTokens.delete(token);
-    return null;
+const NOT_FOUND: AuthFailure = { error: "Employee account not found", status: 404 };
+
+// Before the migration is applied: the old network check, which a signed-out
+// session fails too.
+async function lookUpWithoutSessionCheck(
+  token: string,
+  user: AuthUser,
+): Promise<AuthFailure | { employee: AuthEmployee }> {
+  const {
+    data: { user: verifiedUser },
+    error: authError,
+  } = await supabaseAuth.auth.getUser(token);
+
+  if (authError || !verifiedUser || verifiedUser.id !== user.id) {
+    return { error: "Invalid or expired token", status: 401 };
   }
 
-  return entry.user;
+  const { data: employee, error } = await supabase
+    .from("Employee")
+    .select(`
+      employeeID,
+      employeeName,
+      role,
+      isActive
+    `)
+    .eq("auth_id", user.id)
+    .maybeSingle();
+
+  if (error || !employee) return NOT_FOUND;
+  return { employee: employee as AuthEmployee };
 }
 
-function cacheUser(token: string, user: User): void {
-  // Bound the map so a long-lived instance cannot grow without limit.
-  if (verifiedTokens.size >= TOKEN_CACHE_MAX_ENTRIES) {
-    for (const [key, entry] of verifiedTokens) {
-      if (entry.expiresAt <= Date.now()) verifiedTokens.delete(key);
-    }
-    if (verifiedTokens.size >= TOKEN_CACHE_MAX_ENTRIES) {
-      verifiedTokens.clear();
-    }
-  }
-
-  verifiedTokens.set(token, { user, expiresAt: Date.now() + TOKEN_CACHE_TTL_MS });
-}
-
-// Drops a token's cached verification on this server instance.
-export function invalidateCachedSession(token: string): void {
-  verifiedTokens.delete(token);
-}
-
-export async function requireAuth(request: Request) {
+export async function requireAuth(
+  request: Request,
+): Promise<AuthFailure | { user: AuthUser; employee: AuthEmployee }> {
   const authorization =
     request.headers.get("authorization");
 
@@ -95,45 +112,45 @@ export async function requireAuth(request: Request) {
 
   const token = authorization.substring(7);
 
-  let user = readCachedUser(token);
+  const { data: verified, error: tokenError } =
+    await supabaseAuth.auth.getClaims(token);
+  const claims = verified?.claims;
 
-  if (!user) {
-    const {
-      data: { user: verifiedUser },
-      error: authError,
-    } = await supabaseAuth.auth.getUser(token);
+  if (tokenError || !claims?.sub || !claims.session_id) {
+    return {
+      error: "Invalid or expired token",
+      status: 401,
+    };
+  }
 
-    if (authError || !verifiedUser) {
+  const user: AuthUser = { id: claims.sub, email: claims.email };
+
+  const { data: found, error: lookupError } = await supabase.rpc(
+    "auth_session_employee",
+    { p_auth_id: claims.sub, p_session_id: claims.session_id },
+  );
+
+  let employee: AuthEmployee | null;
+
+  if (lookupError?.code === "PGRST202") {
+    // The function is not there yet.
+    const fallback = await lookUpWithoutSessionCheck(token, user);
+    if ("error" in fallback) return fallback;
+    employee = fallback.employee;
+  } else {
+    if (lookupError) return NOT_FOUND;
+
+    const result = found as { sessionActive: boolean; employee: AuthEmployee | null } | null;
+    if (!result?.sessionActive) {
       return {
         error: "Invalid or expired token",
         status: 401,
       };
     }
-
-    user = verifiedUser;
-    cacheUser(token, user);
+    employee = result.employee;
   }
 
-  const {
-    data: employee,
-    error: employeeError,
-  } = await supabase
-    .from("Employee")
-    .select(`
-      employeeID,
-      employeeName,
-      role,
-      isActive
-    `)
-    .eq("auth_id", user.id)
-    .maybeSingle();
-
-  if (employeeError || !employee) {
-    return {
-      error: "Employee account not found",
-      status: 404,
-    };
-  }
+  if (!employee) return NOT_FOUND;
 
   // Normal application routes require
   // the employee account to be active.
@@ -145,6 +162,17 @@ export async function requireAuth(request: Request) {
   }
 
   return { user, employee };
+}
+
+/**
+ * The account's email as it is now. The token's copy is from when it was
+ * issued, so for up to an hour after a change it names the old address, and a
+ * password checked against that would be refused.
+ */
+export async function currentEmailOf(user: AuthUser): Promise<string | undefined> {
+  const { data, error } = await supabase.auth.admin.getUserById(user.id);
+  if (error || !data.user) return user.email;
+  return data.user.email ?? undefined;
 }
 
 // ==========================================

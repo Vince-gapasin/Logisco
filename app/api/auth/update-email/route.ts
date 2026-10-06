@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorize, verifyCurrentPassword } from "@/app/lib/auth";
+import { authorize, currentEmailOf, verifyCurrentPassword } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import {
   createEmailChangeToken,
@@ -48,7 +48,8 @@ export async function POST(request: Request) {
 
   const newEmail = typeof body.newEmail === "string" ? body.newEmail.trim().toLowerCase() : "";
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
-  const currentEmail = auth.user.email?.toLowerCase() ?? "";
+  const accountEmail = await currentEmailOf(auth.user);
+  const currentEmail = accountEmail?.toLowerCase() ?? "";
 
   if (!EMAIL_PATTERN.test(newEmail)) {
     return NextResponse.json({ message: "A valid new email is required" }, { status: 400 });
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
 
   try {
     // A stolen session token alone must not be enough to move the account.
-    if (!(await verifyCurrentPassword(auth.user.email, currentPassword))) {
+    if (!(await verifyCurrentPassword(accountEmail, currentPassword))) {
       return NextResponse.json({ message: "Current password is incorrect" }, { status: 403 });
     }
 
