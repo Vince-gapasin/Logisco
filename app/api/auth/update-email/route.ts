@@ -25,10 +25,14 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function siteUrl(request: Request): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+// Where the confirmation link points. Not the address the request came in on
+// outside development: the caller picks that, and a link in an email should
+// only ever lead to this site. APP_URL is what the activation and reset emails
+// use; NEXT_PUBLIC_SITE_URL is kept for deployments that set only that.
+function siteUrl(request: Request): string | null {
+  const configured = (process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL)?.trim();
   if (configured) return configured.replace(/\/+$/, "");
-  return new URL(request.url).origin;
+  return process.env.NODE_ENV !== "production" ? new URL(request.url).origin : null;
 }
 
 export async function POST(request: Request) {
@@ -69,6 +73,15 @@ export async function POST(request: Request) {
     );
   }
 
+  const site = siteUrl(request);
+  if (!site) {
+    console.error("Email change: APP_URL is not set, so no confirmation link can be sent.");
+    return NextResponse.json(
+      { message: "Email changes are not set up on this server. Ask an administrator." },
+      { status: 503 },
+    );
+  }
+
   try {
     // A stolen session token alone must not be enough to move the account.
     if (!(await verifyCurrentPassword(auth.user.email, currentPassword))) {
@@ -96,7 +109,7 @@ export async function POST(request: Request) {
       fromEmail: currentEmail,
     });
 
-    const confirmUrl = `${siteUrl(request)}/api/auth/confirm-email-change?token=${encodeURIComponent(token)}`;
+    const confirmUrl = `${site}/api/auth/confirm-email-change?token=${encodeURIComponent(token)}`;
 
     const sent = await sendEmailChangeConfirmation({
       to: newEmail,

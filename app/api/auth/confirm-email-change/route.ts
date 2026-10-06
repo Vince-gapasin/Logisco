@@ -14,6 +14,17 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 
 export const dynamic = "force-dynamic";
 
+// The address comes out of the token, so it is signed - but it is still text
+// someone typed, and this is HTML. Escaped rather than trusted.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function page(title: string, body: string, tone: "ok" | "bad"): Response {
   const accent = tone === "ok" ? "#15803d" : "#b91c1c";
 
@@ -66,7 +77,7 @@ export async function GET(request: Request) {
     if ((employee.emailAddress ?? "").toLowerCase() !== fromEmail.toLowerCase()) {
       const alreadyDone = (employee.emailAddress ?? "").toLowerCase() === newEmail.toLowerCase();
       return alreadyDone
-        ? page("Already confirmed", `You sign in with ${newEmail}.`, "ok")
+        ? page("Already confirmed", `You sign in with ${escapeHtml(newEmail)}.`, "ok")
         : page(
             "This link is out of date",
             "The sign-in address has changed since this link was sent, so it no longer applies.",
@@ -113,7 +124,7 @@ export async function GET(request: Request) {
 
     return page(
       "Address confirmed",
-      `You now sign in with ${newEmail}. Your password has not changed.`,
+      `You now sign in with ${escapeHtml(newEmail)}. Your password has not changed.`,
       "ok",
     );
   } catch (error) {
