@@ -1,5 +1,5 @@
 import { formatTime } from "@/app/lib/datetime";
-import { formatDate } from "@/app/lib/datetime";
+import { formatDate, formatDateTime } from "@/app/lib/datetime";
 import { truckOf } from "@/app/lib/formerTruck";
 import type {
   BranchStopsRow,
@@ -309,7 +309,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
   const remarks: BookingRemarkView[] = [];
   if (order.createdAt) {
     remarks.push({
-      dateTime: new Date(order.createdAt).toLocaleString("en-PH"),
+      dateTime: formatDateTime(order.createdAt),
       details: "Booking created and logged into the system.",
       attachments: "N/A",
       staff: "System",
