@@ -566,15 +566,6 @@ function ClientTrackerView() {
               {[MILESTONES[step], shortTime].filter(Boolean).join(" · ")}
             </p>
           </div>
-          {data.driverContact && data.driverName && !data.isCompleted && (
-            <a
-              href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
-              aria-label={`Call ${data.driverName}`}
-              className="h-9 w-9 shrink-0 rounded-full bg-blue-600 text-white flex items-center justify-center"
-            >
-              <Phone className="h-4 w-4" />
-            </a>
-          )}
         </div>
       </div>
 
@@ -794,15 +785,12 @@ function ClientTrackerView() {
                   </div>
                 </div>
 
-                {/* The driver is the one to ring, from a page most often opened
-                    on a phone - so the number is a button, not text. */}
+                {/* Masked, so it is text rather than a button: enough to know
+                    the driver when they ring, not a number to hand around. */}
                 {data.driverContact && !data.isCompleted && (
-                  <a
-                    href={`tel:${data.driverContact.replace(/[^+\d]/g, "")}`}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors"
-                  >
-                    <Phone className="h-4 w-4" /> Call the driver
-                  </a>
+                  <p className="flex items-center gap-2 text-xs text-slate-600">
+                    <Phone className="h-3.5 w-3.5 shrink-0" /> The driver will call from {data.driverContact}
+                  </p>
                 )}
 
                 <div className="flex items-start gap-3 border-t border-slate-100 pt-4">

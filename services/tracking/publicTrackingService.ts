@@ -168,6 +168,7 @@ export interface TrackingPayload {
   plateNumber: string | null;
   truckModel: string | null;
   driverName: string | null;
+  /** Masked - enough to recognise a call from, not enough to dial. */
   driverContact: string | null;
   /** The helpers coming with them, by name. Empty when there are none. */
   crewHelpers: string[];
@@ -1052,7 +1053,9 @@ export async function getTrackingByToken(
     plateNumber: truck?.plateNumber ?? dispatch?.partnerPlate ?? null,
     truckModel: truck?.model ?? null,
     driverName: driver?.employeeName ?? dispatch?.partnerDriver ?? null,
-    driverContact: driver?.contact ?? null,
+    // Masked like the client's own: the link reaches whoever it is forwarded
+    // to, and a driver's personal number is not the client's to pass on.
+    driverContact: maskPhone(driver?.contact),
     crewHelpers,
     currentLocation,
     trail,
