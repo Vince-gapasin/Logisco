@@ -73,10 +73,10 @@ function under(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(prefix + "/");
 }
 
-function openLabel(link: string): string {
+/** The page a link opens, by name; null when it is not one of the named ones. */
+function destinationOf(link: string): string | null {
   const path = link.split(/[?#]/)[0];
-  const match = DESTINATIONS.find(([prefix]) => under(path, prefix));
-  return match ? `Open ${match[1]}` : "Open";
+  return DESTINATIONS.find(([prefix]) => under(path, prefix))?.[1] ?? null;
 }
 
 // A notification is written once and given to everyone it concerns, with one
@@ -291,6 +291,7 @@ function NotificationItem({
 }) {
   const Icon = kind.icon;
   const unread = !notif.isRead;
+  const destination = link ? destinationOf(link) : null;
   const isLong = notif.message.length > LONG_MESSAGE;
   const [expanded, setExpanded] = useState(false);
 
@@ -303,7 +304,7 @@ function NotificationItem({
   ].filter(Boolean) as string[];
 
   return (
-    <li className={`relative flex gap-3 sm:gap-4 px-4 sm:px-5 py-4 transition-colors ${unread ? "bg-blue-50/60" : ""}`}>
+    <li className={`relative flex gap-3 sm:gap-4 px-3 sm:px-5 py-4 transition-colors ${unread ? "bg-blue-50/60" : ""}`}>
       {/* Unread is marked by more than the tint: a bar a colour-blind eye
           still sees, and words for a screen reader. */}
       {unread && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-blue-600" />}
@@ -352,15 +353,27 @@ function NotificationItem({
           <p className="mt-1 text-xs font-medium text-red-600 wrap-break-word">Reason: {notif.reason}</p>
         )}
 
+        {/* On a phone the two buttons share one row: they used to stack,
+            making every notification twice as tall as it needed to be. */}
         {(link || unread) && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {link && (
               <Link
                 href={link}
                 onClick={() => onRead(notif.id)}
-                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                aria-label={destination ? `Open ${destination}` : "Open"}
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
               >
-                {openLabel(link)}
+                {/* A phone drops the "Open": the arrow says it, and the name is
+                    what keeps "Mark as read" on the same row. */}
+                {destination ? (
+                  <span>
+                    <span className="hidden sm:inline">Open </span>
+                    {destination}
+                  </span>
+                ) : (
+                  "Open"
+                )}
                 <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </Link>
             )}
@@ -368,9 +381,9 @@ function NotificationItem({
               <button
                 type="button"
                 onClick={() => onRead(notif.id)}
-                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
               >
-                <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                <Check className="hidden sm:block w-3.5 h-3.5" aria-hidden="true" />
                 Mark as read
               </button>
             )}
