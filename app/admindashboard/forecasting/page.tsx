@@ -494,6 +494,8 @@ type RemarkRow = {
   expectedVolume: number;
   actualVolume: number | null;
   dayCount?: number;
+  // Deliveries completed so far in a period that isn't over yet.
+  soFar?: number;
 };
 
 function countDays(periodStart: string, periodEnd?: string) {
@@ -511,13 +513,13 @@ function deliveries(count: number) {
 
 /** The forecast as a person would say it: "about 38" (never "about 0"). */
 function aboutExpected(expected: number) {
-  return `about ${Math.max(1, Math.round(expected)).toLocaleString("en-US")}`;
+  return Math.round(expected).toLocaleString("en-US");
 }
 
 /** How a period compared with what we expected, in everyday words. */
 function howItWent(expected: number, actual: number) {
   // Small numbers: 1 delivery against "about 1" is simply as expected.
-  if (Math.round(actual) === Math.max(1, Math.round(expected))) {
+  if (Math.round(actual) === Math.round(expected)) {
     return "close to what we expected";
   }
   const status = overallTrendStatus(expected, actual);
@@ -595,9 +597,11 @@ function buildFilterRemarks({
   // 1. What happened overall.
   if (completed.length === 0) {
     remarks.push(
-      `${scope.charAt(0).toUpperCase() + scope.slice(1)} isn't over yet, so there are no finished deliveries to report. We're expecting ${aboutExpected(
-        rows.reduce((sum, row) => sum + row.expectedVolume, 0),
-      )}.`,
+      `${scope.charAt(0).toUpperCase() + scope.slice(1)} isn't over yet. So far we've completed ${deliveries(
+        rows.reduce((sum, row) => sum + (row.soFar ?? 0), 0),
+      )}, and we're expecting ${aboutExpected(
+        allRows.reduce((sum, row) => sum + row.expectedVolume, 0),
+      )} in total.`,
     );
   } else {
     const actual = completed.reduce((sum, row) => sum + row.actualVolume, 0);
@@ -609,7 +613,11 @@ function buildFilterRemarks({
 
   if (unfinished.length === 1 && completed.length > 0) {
     const name = named(unfinished[0]);
-    remarks.push(`${name.charAt(0).toUpperCase() + name.slice(1)} isn't over yet, so it isn't counted above.`);
+    remarks.push(
+      `${name.charAt(0).toUpperCase() + name.slice(1)} isn't over yet (${deliveries(
+        unfinished[0].soFar ?? 0,
+      )} so far), so it isn't counted above.`,
+    );
   } else if (unfinished.length > 1 && completed.length > 0) {
     remarks.push(`${plural(unfinished.length)} aren't over yet, so they aren't counted above.`);
   }
@@ -632,9 +640,9 @@ function buildFilterRemarks({
     )[0];
     if (Math.round(biggest.actualVolume) !== Math.round(biggest.expectedVolume)) {
       remarks.push(
-        `The biggest surprise was ${named(biggest)}: we expected ${aboutExpected(
+        `The biggest surprise was ${named(biggest)}: we expected ${deliveries(
           biggest.expectedVolume,
-        )} deliveries but completed ${Math.round(biggest.actualVolume)}.`,
+        )} but completed ${Math.round(biggest.actualVolume)}.`,
       );
     }
   }
@@ -967,20 +975,33 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     }
 
     if (forecastView === "monthly") {
+      // A month only has a real total once it is over. The current month and
+      // the months after it have no actual count yet, so they are shown as
+      // "In Progress" instead of being counted as 0 deliveries.
+      const completedMonths = new Set(
+        forecast.records
+          .filter((record) => record.actualVolume !== null)
+          .map((record) => record.periodStart.slice(0, 7)),
+      );
+
       return forecast.monthly
         .filter((item) => item.year === Number(selectedYear))
-        .map((item) => ({
+        .map((item) => {
+          const isCompleted = completedMonths.has(item.periodStart.slice(0, 7));
+          const variance = isCompleted ? item.variance : 0;
+          return {
           id: `month-${item.periodStart}`,
           periodStart: item.periodStart,
           period: item.monthName,
           expectedVolume: item.expectedVolume,
-          actualVolume: item.actualVolume,
-          variance: item.variance,
-          variancePercentage: item.variancePercentage,
-          trendStatus:
-            item.variance > 0
+          actualVolume: isCompleted ? item.actualVolume : null,
+          variance,
+          variancePercentage: isCompleted ? item.variancePercentage : 0,
+          trendStatus: !isCompleted
+            ? "In Progress"
+            : variance > 0
               ? "Above Normal"
-              : item.variance < 0
+              : variance < 0
               ? "Below Normal"
               : "Normal",
           factors: {
@@ -991,7 +1012,8 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
             averageDieselPrice: null,
             averageFuelAdjustment: null,
           },
-        }));
+          };
+        });
     }
   
 
@@ -1059,7 +1081,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   // When a single month or week is picked, drill down one level so the
   // chart and table still show a trend: a month shows its weeks, a week
   // shows its days.
-  const displayRecords = useMemo(() => {
+  const rawDisplayRecords = useMemo(() => {
     if (!forecast) return filteredRecords;
 
     if (forecastView === "monthly" && selectedMonth !== null) {
@@ -1095,6 +1117,41 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     return filteredRecords;
   }, [forecast, filteredRecords, forecastView, selectedYear, selectedMonth, selectedWeek]);
 
+  // A period that has started but isn't over (e.g. this month) has no final
+  // count yet. Add the deliveries completed in it so far, so they show on the
+  // chart, the table and the Actual card.
+  const displayRecords = useMemo(() => {
+    const today = todayKey();
+    const daily = forecast?.daily ?? [];
+    const isWholeMonth = forecastView === "monthly" && selectedMonth === null;
+
+    return rawDisplayRecords.map((record) => {
+      const start = record.periodStart.slice(0, 10);
+      if (record.actualVolume !== null || start > today) return record;
+
+      let last: string;
+      if (isWholeMonth) {
+        last = `${start.slice(0, 7)}-31`;
+      } else {
+        const days = "dayCount" in record && record.dayCount ? record.dayCount : 1;
+        const end = new Date(`${start}T00:00:00Z`);
+        end.setUTCDate(end.getUTCDate() + days - 1);
+        last = end.toISOString().slice(0, 10);
+      }
+
+      const soFar = daily
+        .filter(
+          (day) =>
+            day.periodStart >= start &&
+            day.periodStart <= last &&
+            day.actualVolume !== null,
+        )
+        .reduce((sum, day) => sum + (day.actualVolume ?? 0), 0);
+
+      return { ...record, soFar };
+    });
+  }, [rawDisplayRecords, forecast, forecastView, selectedMonth]);
+
   const breakdownLabel =
     forecastView === "monthly" && selectedMonth !== null
       ? `Weekly breakdown · ${MONTH_OPTIONS[selectedMonth - 1].label} ${selectedYear}`
@@ -1116,7 +1173,16 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     [displayRecords, trendFilter],
   );
 
-  const chartRecords = visibleRecords;
+  const chartRecords = useMemo(
+    () =>
+      visibleRecords.map((record) => ({
+        ...record,
+        actualVolume:
+          record.actualVolume ??
+          ("soFar" in record && record.soFar !== undefined ? record.soFar : null),
+      })),
+    [visibleRecords],
+  );
 
   // Forecast History table (also used by the PDF and Excel exports):
   // newest period first, and only periods that have already started, so the
@@ -1187,23 +1253,41 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
           : Number((1 - residualSum / totalSum).toFixed(4)),
     };
   }, [evaluatedSnapshots]);
+  // Summary cards follow the filter. Expected and Actual cover the whole
+  // filtered period (Actual includes deliveries done so far this month).
+  // Variance and Trend only compare periods that are already over.
   const completedRecords = visibleRecords.filter(
     (record) => record.actualVolume !== null,
   );
+  const hasUnfinished = visibleRecords.some(
+    (record) => record.actualVolume === null,
+  );
+  const deliveredSoFar = visibleRecords.reduce(
+    (sum, record) =>
+      sum + ("soFar" in record && record.soFar !== undefined ? record.soFar : 0),
+    0,
+  );
+
   const expectedVolume = roundOne(
+    visibleRecords.reduce((sum, record) => sum + record.expectedVolume, 0),
+  );
+  const comparedExpected = roundOne(
     completedRecords.reduce((sum, record) => sum + record.expectedVolume, 0),
   );
-  const actualVolume = completedRecords.reduce(
+  const comparedActual = completedRecords.reduce(
     (sum, record) => sum + (record.actualVolume ?? 0),
     0,
   );
-  const totalVariance = roundOne(actualVolume - expectedVolume);
+  const actualVolume = comparedActual + deliveredSoFar;
+  const totalVariance = roundOne(comparedActual - comparedExpected);
   const variancePercentage =
-    expectedVolume === 0 ? 0 : (totalVariance / expectedVolume) * 100;
+    comparedExpected === 0 ? 0 : (totalVariance / comparedExpected) * 100;
   const selectedTrendStatus =
     completedRecords.length === 0
-      ? "No data yet"
-      : overallTrendStatus(expectedVolume, actualVolume);
+      ? hasUnfinished
+        ? "In Progress"
+        : "No data yet"
+      : overallTrendStatus(comparedExpected, comparedActual);
 
   // Card colors follow the status (same colors as the table's status badges).
   const trendCardStyle =
@@ -1294,7 +1378,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       })
     : [];
 
-  const formattedVariance = `${totalVariance >= 0 ? "+" : ""}${totalVariance.toLocaleString()} (${variancePercentage >= 0 ? "+" : ""}${variancePercentage.toFixed(1)}%)`;
+  const formattedVariance = completedRecords.length === 0
+    ? "—"
+    : `${totalVariance >= 0 ? "+" : ""}${totalVariance.toLocaleString()} (${variancePercentage >= 0 ? "+" : ""}${variancePercentage.toFixed(1)}%)`;
 
   const handleExcelExport = async () => {
     if (!historyRecords.length || !forecast || !summary) return;
@@ -1312,7 +1398,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       ...historyRecords.map((row) => [
         row.period,
         row.expectedVolume,
-        row.actualVolume ?? "",
+        row.actualVolume ?? ("soFar" in row && row.soFar !== undefined ? row.soFar : null) ?? "",
         row.variance ?? "",
         row.variancePercentage ?? "",
         calculateMetrics(row.expectedVolume, row.actualVolume).status,
@@ -1618,7 +1704,11 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
             return [
               row.period,
               formatCount(row.expectedVolume),
-              row.actualVolume === null ? "-" : formatCount(row.actualVolume),
+              row.actualVolume !== null
+                ? formatCount(row.actualVolume)
+                : "soFar" in row && row.soFar !== undefined
+                  ? `${formatCount(row.soFar)} so far`
+                  : "-",
               metrics.variance,
               metrics.status,
             ];
@@ -1863,6 +1953,11 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                   <h3 className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 leading-tight">
                     {formattedVariance}
                   </h3>
+                  {hasUnfinished && completedRecords.length > 0 && (
+                    <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
+                      Finished periods only
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2048,7 +2143,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                           <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap font-medium text-slate-900"><span className="lg:hidden text-xs font-semibold text-slate-500">Actual Delivery Volume</span>
                             {row.actualVolume !== null
                               ? row.actualVolume.toLocaleString()
-                              : "-"}
+                              : "soFar" in row && row.soFar !== undefined
+                                ? `${row.soFar.toLocaleString()} so far`
+                                : "-"}
                           </td>
                           <td role="cell" className="grid grid-cols-[45%_55%] sm:grid-cols-[12rem_1fr] gap-2 items-center justify-items-start lg:table-cell py-1.5 lg:py-3.5 px-0 lg:px-6 lg:whitespace-nowrap text-xs font-semibold"><span className="lg:hidden text-xs font-semibold text-slate-500">Calculated Variance</span>
                             <span

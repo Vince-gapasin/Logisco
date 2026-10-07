@@ -66,7 +66,6 @@ function buildWeeklyAndDaily(
     const month = Number(record.periodStart.slice(5, 7));
     const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const dateFor = (day: number) => `${year}-${pad(month)}-${pad(day)}`;
-    const dailyExpected = record.expectedVolume / daysInMonth;
 
     const weeks: { startDay: number; endDay: number }[] = [];
     for (let startDay = 1; startDay <= daysInMonth; startDay += 7) {
@@ -102,10 +101,18 @@ function buildWeeklyAndDaily(
         ...calculateVariance(expectedVolume, actualVolume),
       });
 
+      // Each week's whole-number forecast is spread over its days as whole
+      // numbers too (there is no such thing as half a delivery), so the days
+      // add up exactly to the week.
+      const dailyExpected = splitWholeNumber(
+        expectedVolume,
+        Array.from({ length: week.endDay - week.startDay + 1 }, () => 1),
+      );
+
       for (let day = week.startDay; day <= week.endDay; day++) {
         const date = dateFor(day);
         const dayActual = date < todayString ? actualByDate.get(date) ?? 0 : null;
-        const dayExpected = roundTo(dailyExpected, 1);
+        const dayExpected = dailyExpected[day - week.startDay];
 
         daily.push({
           periodStart: date,
