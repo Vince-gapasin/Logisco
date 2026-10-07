@@ -457,8 +457,15 @@ async function computeCompany(): Promise<CompanyFigures> {
         .gte("completedAt", since)
         .range(from, to),
     ),
+    // Only rows with a file. Every finished stop now gets a POD row, and one
+    // with no file is the record that no proof was taken.
     selectAll<{ branchID: number | null }>((from, to) =>
-      supabase.from("POD").select("branchID").gte("deliveredAt", since).range(from, to),
+      supabase
+        .from("POD")
+        .select("branchID")
+        .not("proof", "is", null)
+        .gte("deliveredAt", since)
+        .range(from, to),
     ),
     // Trips whose hand-over moment was recorded. The denominator used to be
     // every dispatch in the table, including ones never assigned to anybody,
@@ -746,12 +753,24 @@ interface ExcuseRow {
   Employee: Embed<{ employeeName: string | null }>;
 }
 
-/** How many of these stops carry proof of delivery. */
+/**
+ * How many of these stops carry proof of delivery.
+ *
+ * A file, not a row. A stop finished without a photograph still gets a POD row
+ * - with no file and a missingReason saying so - and so does every stop the
+ * office closes on the crew's behalf. Counting rows read both as proof, which
+ * would have put everybody at full marks for proof they never took.
+ */
 async function readProofCount(branchIDs: number[]): Promise<number> {
   if (branchIDs.length === 0) return 0;
 
   const rows = await selectAllIn<{ branchID: number | null }, number>(branchIDs, (chunk, from, to) =>
-    supabase.from("POD").select("branchID").in("branchID", chunk).range(from, to),
+    supabase
+      .from("POD")
+      .select("branchID")
+      .in("branchID", chunk)
+      .not("proof", "is", null)
+      .range(from, to),
   );
 
   // A stop photographed twice is still one stop with proof.
