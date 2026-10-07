@@ -317,11 +317,17 @@ interface StopRow {
  * The moment a stop is judged on: when the crew got there.
  *
  * Not when they finished. Unloading takes half an hour or so, and timing a slot
- * from the end of it marked crews late who had arrived on time. A stop with no
- * recorded arrival falls back to its completion, the nearest thing there is.
+ * from the end of it marked crews late who had arrived on time.
+ *
+ * And never the completion in its place. A crew finishing a stop always writes
+ * an arrival - the moment they tapped Arrive, or the finish if they did not -
+ * so a delivered stop with none is one nobody on the truck recorded: the
+ * office closing a trip the crew never closed. Its completion is when the
+ * office got round to it, sometimes days later, and judged as the crew's
+ * arrival it marked them late for paperwork. Such a stop cannot be judged
+ * either way, like one with no scheduled date.
  */
-const arrivalOf = (stop: { arrivedAt: string | null; completedAt: string | null }) =>
-  stop.arrivedAt ?? stop.completedAt;
+const arrivalOf = (stop: { arrivedAt: string | null; completedAt: string | null }) => stop.arrivedAt;
 
 async function readStops(dispatchIDs: string[]): Promise<StopRow[]> {
   if (dispatchIDs.length === 0) return [];

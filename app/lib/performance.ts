@@ -552,7 +552,7 @@ export function assessPerformance(
       observations: stopsJudged,
       detail:
         facts.stopsCompleted > facts.stopsJudged
-          ? `${facts.stopsCompleted - facts.stopsJudged} of their stops had no scheduled date recorded, so ` +
+          ? `${facts.stopsCompleted - facts.stopsJudged} of their stops had no scheduled date, or no arrival the crew recorded, so ` +
             `cannot be judged either way`
           : null,
     },
