@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
-import { usePolling } from "@/app/lib/usePolling";
+import { useChangeCheck } from "@/app/lib/useChangeCheck";
 import DeliveryFeedbackCard, { type FeedbackInvitation } from "@/components/DeliveryFeedbackCard";
 import type {
   TrackingStage,
@@ -48,16 +48,6 @@ const LiveRouteMap = dynamic(() => import("@/components/LiveRouteMap"), {
   ssr: false,
   loading: () => <div className="h-64 sm:h-80 w-full animate-pulse bg-slate-100" />,
 });
-
-// How often an open page asks whether anything has changed. The question is
-// small - a fingerprint, not the delivery - so it can be asked often; the
-// delivery itself is only fetched when the answer is yes. It was a full fetch
-// every thirty seconds, so a customer could wait half a minute to see the
-// crew had arrived.
-const CHECK_INTERVAL_MS = 5_000;
-// Fetched in full at least this often anyway, so the times the page works out
-// from the clock ("arriving around 2:40 PM") never go stale.
-const FULL_REFRESH_MS = 60_000;
 
 // What each step is about, so the line can be read without reading it.
 const STEP_ICONS: Record<TrackingStepKind, typeof Truck> = {
@@ -303,11 +293,10 @@ function ClientTrackerView() {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const hasData = useRef(false);
-  const seenVersion = useRef<string | null>(null);
-  const fullAt = useRef(0);
-  const checking = useRef(false);
 
-  const loadTracking = useCallback(async () => {
+  // Returns the delivery's fingerprint, which comes with it, so the checks
+  // that follow have something to compare against.
+  const loadTracking = useCallback(async (): Promise<string | void> => {
     if (!token) return;
 
     try {
@@ -327,11 +316,10 @@ function ClientTrackerView() {
 
       setData(result as TrackingData);
       hasData.current = true;
-      seenVersion.current = (result as TrackingData).version ?? null;
-      fullAt.current = Date.now();
       setUpdatedAt(Date.now());
       setRefreshFailed(false);
       setState("ready");
+      return (result as TrackingData).version;
     } catch {
       // Keep what is on screen and say the refresh failed; only a first load
       // with nothing to show is an error page.
@@ -340,55 +328,39 @@ function ClientTrackerView() {
     }
   }, [token]);
 
-  useEffect(() => {
-    // The delivery lands in a network callback, not in the effect body.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadTracking();
-  }, [loadTracking]);
-
-  // Asks whether anything has changed, and fetches the delivery only if it
-  // has. One at a time: on a slow connection a check still waiting is not
-  // joined by another.
-  const checkForUpdates = useCallback(async () => {
-    if (!token || checking.current) return;
-    checking.current = true;
-    try {
-      if (Date.now() - fullAt.current >= FULL_REFRESH_MS) {
-        await loadTracking();
-        return;
-      }
-      const response = await fetch(`/api/track/${token}/version`, { cache: "no-store" });
-      if (!response.ok) {
-        // A link that has gone, or a failure: the full fetch knows how to say which.
-        await loadTracking();
-        return;
-      }
-      const { version } = (await response.json()) as { version?: string };
-      if (!version || version !== seenVersion.current) await loadTracking();
-      else {
-        setUpdatedAt(Date.now());
-        setRefreshFailed(false);
-      }
-    } catch {
-      if (hasData.current) setRefreshFailed(true);
-    } finally {
-      checking.current = false;
-    }
-  }, [token, loadTracking]);
-
-  // Keep checking while the delivery is still running, and only while the
-  // customer actually has the page open. Coming back to the tab checks at once.
+  // Asks whether anything has changed every few seconds, and fetches the
+  // delivery only if it has. It was a full fetch every thirty seconds, so a
+  // customer could wait half a minute to see the crew had arrived. Only while
+  // the delivery is still running and the customer has the page open; coming
+  // back to the tab, or back online, checks at once.
   const live = state === "ready" && !data?.isCompleted;
-  usePolling(checkForUpdates, CHECK_INTERVAL_MS, { enabled: live, immediate: false });
+  const checkVersion = useCallback(async () => {
+    const response = await fetch(`/api/track/${token}/version`, { cache: "no-store" });
+    // A link that has gone, or a failure: the full fetch knows how to say which.
+    if (!response.ok) return null;
+    const { version } = (await response.json()) as { version?: string };
+    return version ?? null;
+  }, [token]);
+  const markCurrent = useCallback(() => {
+    setUpdatedAt(Date.now());
+    setRefreshFailed(false);
+  }, []);
+  const markFailed = useCallback(() => {
+    if (hasData.current) setRefreshFailed(true);
+  }, []);
+  const { refresh } = useChangeCheck({
+    version: checkVersion,
+    reload: loadTracking,
+    enabled: live,
+    selfVersioned: true,
+    onUnchanged: markCurrent,
+    onFailed: markFailed,
+  });
 
-  // A phone that loses signal and gets it back checks at once too, rather
-  // than waiting out the interval.
   useEffect(() => {
-    if (!live) return;
-    const onOnline = () => void checkForUpdates();
-    window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, [live, checkForUpdates]);
+    void refresh();
+    // Again for another link: loadTracking is rebuilt when the token changes.
+  }, [refresh, loadTracking]);
 
   // On a phone the status card scrolls away under the map and the history;
   // once it has, a slim bar takes its place at the top so the answer stays in
@@ -697,7 +669,7 @@ function ClientTrackerView() {
 
       {/* Asked only once the delivery is finished, and only once. */}
       {data.feedback?.invited && (
-        <DeliveryFeedbackCard token={token} invitation={data.feedback} onSaved={() => void loadTracking()} />
+        <DeliveryFeedbackCard token={token} invitation={data.feedback} onSaved={() => void refresh()} />
       )}
 
       {/* Two columns on a wide screen. On a phone the columns dissolve

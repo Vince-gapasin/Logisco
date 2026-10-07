@@ -15,6 +15,7 @@ import React, {
   useRef,
 } from "react";
 import { usePolling } from "@/app/lib/usePolling";
+import { useChangeCheck } from "@/app/lib/useChangeCheck";
 import { apiFetch, authFetch } from "@/app/lib/apiClient";
 import {
   FileText,
@@ -197,8 +198,8 @@ export default function CrewDashboardPage({
           return;
         }
 
-        // Polled every thirty seconds, so only the recent past: Delivery
-        // History has the rest.
+        // Fetched again whenever anything changes, so only the recent past:
+        // Delivery History has the rest.
         const response = await fetch(`/api/crew/dispatches?recentDays=${RECENT_DAYS}`, {
           method: "GET",
           headers: {
@@ -264,7 +265,25 @@ export default function CrewDashboardPage({
       }
   }, [showToast]);
 
-  usePolling(() => void fetchMyDispatches(), 30000);
+  // Every few seconds the screen asks whether anything about this person's
+  // trips has changed, and fetches the list - stops, signed photos and all -
+  // only when it has. It used to fetch the list every thirty seconds, so a
+  // driver could stand at a stop for half a minute after the helper had
+  // finished it, still being offered the button for it.
+  const checkTrips = useCallback(
+    async () =>
+      (
+        await apiFetch<{ version: string }>(`/api/crew/dispatches/version?recentDays=${RECENT_DAYS}`, {
+          cache: "no-store",
+        })
+      ).version,
+    [],
+  );
+  const { refresh: refreshTrips } = useChangeCheck({ version: checkTrips, reload: fetchMyDispatches });
+
+  useEffect(() => {
+    void refreshTrips();
+  }, [refreshTrips]);
 
   useEffect(() => {
     // Back to page one whenever the list is filtered differently.
@@ -613,10 +632,10 @@ export default function CrewDashboardPage({
       }
     } catch (error) {
       showToast(`Status update failed: ${error instanceof Error ? error.message : error}`, "error");
-      // Most refusals here mean the other crew member got there first. The poll
-      // would fix it within half a minute; asking now means the next thing they
-      // see is the stop that is actually outstanding.
-      void fetchMyDispatches();
+      // Most refusals here mean the other crew member got there first. The
+      // next check would find it within seconds; asking now means the next
+      // thing they see is the stop that is actually outstanding.
+      void refreshTrips();
     } finally {
       setIsSubmittingResponse(false);
     }
@@ -674,7 +693,7 @@ export default function CrewDashboardPage({
       // A refusal nearly always means this screen is behind the shared row -
       // the other crew member has moved the trip on, or the office has. Go and
       // find out rather than leaving them to tap the same button again.
-      void fetchMyDispatches();
+      void refreshTrips();
     } finally {
       setIsSubmittingResponse(false);
     }

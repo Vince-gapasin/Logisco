@@ -19,6 +19,7 @@ import { signPodUrls } from "@/services/storage/podService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 import type { UpdateOrderDto } from "@/app/schemas/booking/booking.schema";
 import { readNote, readNotesBody, setNote, setNotesBody } from "@/app/lib/bookingNotes";
+import { fingerprint } from "@/app/lib/fingerprint";
 
 // ==========================================
 // HELPERS
@@ -331,6 +332,66 @@ export async function getBookings(query: BookingQuery = {}): Promise<Order[]> {
   }
 
   return withSignedProofs(allBookings);
+}
+
+// Trips that have not finished, one way or another: everything on the board
+// that can still move. A trip that finishes, is declined, cancelled or becomes
+// a foul trip leaves this set, so the move is seen without reading the
+// finished ones at all.
+const UNFINISHED_STATUSES = [...new Set([...STAGE_STATUSES.departing, ...STAGE_STATUSES["in-transit"]])];
+
+const byKey = <T>(key: (row: T) => string) => (a: T, b: T) => key(a).localeCompare(key(b));
+
+/**
+ * A short fingerprint of what the dashboard's board shows, so an open
+ * dashboard can ask "has anything changed?" every few seconds and fetch the
+ * board - five stages, each with its stops, crew and trucks - only when it has.
+ *
+ * Three reads, run together: the active orders (how many, and the newest, for
+ * a booking made or withdrawn), the unfinished trips with their crew and
+ * truck, and the open foul trips. Moving a card, or changing what one says
+ * about its trip, changes one of them. Edits to a booking's own details - its
+ * client, items, notes - are not in here; the board picks those up on its
+ * full refresh a minute later.
+ */
+export async function getDashboardVersion(): Promise<string> {
+  const [orders, trips, foulTrips] = await Promise.all([
+    supabase
+      .from("Order")
+      .select("orderID, createdAt", { count: "exact" })
+      .eq("isActive", true)
+      .order("createdAt", { ascending: false })
+      .limit(1),
+    supabase
+      .from("DispatchOrder")
+      .select(
+        "dispatchID, orderID, status, current_step, truckID, driverID, subConID, partnerDriver, partnerPlate, DispatchHelper ( helperID, status )",
+      )
+      .in("status", UNFINISHED_STATUSES),
+    supabase
+      .from("FoulTripIncident")
+      .select("incidentID, orderID, dispatchID, status")
+      .eq("blocking", true)
+      .in("status", ["open", "mechanic_assigned"]),
+  ]);
+
+  const failed = orders.error ?? trips.error ?? foulTrips.error;
+  if (failed) throw new Error(`Supabase dashboard version error: ${failed.message}`);
+
+  // In a fixed order: the database returns rows in whatever order is
+  // cheapest, and the same rows in another order must not read as a change.
+  type Trip = { dispatchID: string; DispatchHelper?: Embedded<{ helperID?: string; status?: string }> };
+  const tripRows = ((trips.data ?? []) as unknown as Trip[])
+    .map((trip) => ({
+      ...trip,
+      DispatchHelper: embedded(trip.DispatchHelper).sort(byKey((helper) => String(helper.helperID))),
+    }))
+    .sort(byKey((trip) => trip.dispatchID));
+  const foulRows = [...((foulTrips.data ?? []) as { incidentID: string }[])].sort(
+    byKey((incident) => incident.incidentID),
+  );
+
+  return fingerprint([orders.count ?? null, orders.data?.[0] ?? null, tripRows, foulRows]);
 }
 
 // supabase-js has no transactions: if a later insert fails, remove what was

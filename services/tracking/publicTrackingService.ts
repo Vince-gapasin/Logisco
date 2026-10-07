@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { supabase } from "@/app/lib/supabase";
+import { fingerprint } from "@/app/lib/fingerprint";
 import {
   ACCEPTED_ONWARDS,
   DELIVERY_STATUS,
@@ -1138,6 +1138,5 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
       ])
     : [null, null];
 
-  const fingerprint = JSON.stringify([order, location?.data?.updated_at ?? null, checkIn?.data?.createdAt ?? null]);
-  return createHash("sha1").update(fingerprint).digest("base64url").slice(0, 16);
+  return fingerprint([order, location?.data?.updated_at ?? null, checkIn?.data?.createdAt ?? null]);
 }

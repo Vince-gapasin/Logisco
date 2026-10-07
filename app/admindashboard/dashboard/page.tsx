@@ -12,6 +12,7 @@ import {
   useMemo,
 } from "react";
 import { ApiError, apiFetch } from "@/app/lib/apiClient";
+import { useChangeCheck } from "@/app/lib/useChangeCheck";
 import type {
   ClientRow,
   EmployeeRow,
@@ -125,9 +126,12 @@ export default function AdminDashboardPage() {
       ];
 
       // One request for every stage: the server reads them in parallel and
-      // leaves out any that fail, as the per-stage requests used to.
+      // leaves out any that fail, as the per-stage requests used to. Never
+      // from the cache: this runs when the board is known to have changed,
+      // and a copy from a minute ago would be compared as if it were current.
       const stageOrders = await apiFetch<OrderWithRelations[]>(
         `/api/bookings?stages=${DASHBOARD_STAGES.join(",")}&limit=100`,
+        { cache: "no-store" },
       );
 
       // An order can only be in one stage, but dedupe defensively.
@@ -323,6 +327,16 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  // The board keeps itself current: every few seconds it asks whether
+  // anything on it has changed - a crew accepting, a truck leaving, a trip
+  // finishing - and fetches the bookings again only if so. It used to be
+  // loaded once, and showed whatever was true when the page was opened.
+  const checkBoard = useCallback(
+    async () => (await apiFetch<{ version: string }>("/api/bookings/version", { cache: "no-store" })).version,
+    [],
+  );
+  const { refresh: refreshOrders } = useChangeCheck({ version: checkBoard, reload: fetchOrders });
+
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
 
@@ -368,9 +382,9 @@ export default function AdminDashboardPage() {
       console.error("Failed to fetch initial data:", error);
     }
 
-    await fetchOrders();
+    await refreshOrders();
     setIsLoading(false);
-  }, [fetchOrders]);
+  }, [refreshOrders]);
 
   useEffect(() => {
     // Everything on this screen is set from a response, not in the effect.
@@ -431,7 +445,7 @@ export default function AdminDashboardPage() {
     setFoulTripRow(null);
     setFoulTripNotice(message);
     window.setTimeout(() => setFoulTripNotice(""), 5000);
-    void fetchOrders();
+    void refreshOrders();
   };
 
   const handleModalSubmit = async (data: BookingFormResult): Promise<BookingSubmitOutcome> => {
@@ -570,7 +584,7 @@ export default function AdminDashboardPage() {
       setGeneratedTrackingToken(res.trackingToken || "");
       setGeneratedOrderID(res.orderID || "");
       setIsSuccessModalOpen(true);
-      await fetchOrders();
+      await refreshOrders();
       return null;
     } catch (err) {
       // Nothing was saved: the crew may run late on these times, and the
@@ -1091,7 +1105,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* MODALS */}
-      <SubconTripModal dispatchID={subconTripID} onClose={() => setSubconTripID(null)} onChanged={() => void fetchOrders()} />
+      <SubconTripModal dispatchID={subconTripID} onClose={() => setSubconTripID(null)} onChanged={() => void refreshOrders()} />
       {foulTripNotice && (
         <div role="status" className="fixed bottom-[calc(1.5rem+var(--safe-bottom))] right-6 z-70 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 shadow-lg">
           {foulTripNotice}

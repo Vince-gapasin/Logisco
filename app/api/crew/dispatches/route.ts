@@ -15,6 +15,7 @@ import { formatTime } from "@/app/lib/datetime";
 import { FORMER_TRUCK_COLUMNS, truckOf } from "@/app/lib/formerTruck";
 import { describeItems, quantityOf, readPriority, totalQuantity } from "@/app/lib/crewTrip";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
+import { recentTripsFilter } from "@/services/dispatch/crewDispatchVersion";
 
 // Stops are read through the Order: older dispatches were created before
 // BranchStops.dispatchID was being set, so the order link is the reliable one.
@@ -105,12 +106,7 @@ export async function GET(request: Request) {
   // and signed photos. Delivery History and the calendar still ask for all.
   // Only trips with a finish time older than the window are left out: a foul
   // trip or a cancellation has none, and those stay as they always were.
-  const recentDays = Number(new URL(request.url).searchParams.get("recentDays"));
-  const finishedSince =
-    Number.isInteger(recentDays) && recentDays > 0
-      ? new Date(Date.now() - Math.min(recentDays, 365) * 86_400_000).toISOString()
-      : null;
-  const recentOnly = finishedSince ? `completedAt.is.null,completedAt.gte."${finishedSince}"` : null;
+  const recentOnly = recentTripsFilter(request.url);
 
   try {
     // 1. Dispatches where the user is the DRIVER
