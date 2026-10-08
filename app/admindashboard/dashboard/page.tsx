@@ -482,7 +482,9 @@ export default function AdminDashboardPage() {
         branchName: d.branchName || d.deliveryAddress || "Branch",
         contactPerson: d.contactPerson || data.contactPerson,
         contactNum: d.contactNumber || data.contactNumber,
-        expectedTime: d.deliveryTime || "12:00:00",
+        // Sent as typed. It used to fall back to noon, which turned a missing
+        // time into a promise nobody made; the server refuses a blank instead.
+        expectedTime: d.deliveryTime,
         // Geocoded server-side so the stop shows on the tracking map.
         deliveryAddress: d.deliveryAddress || undefined,
         quantity: parseQuantity(d.quantity) ?? undefined,

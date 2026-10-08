@@ -1,6 +1,8 @@
 // Rules the booking forms and the server both apply, so a number the form
 // accepts is one the server accepts.
 
+import { minutesUntil } from "@/app/lib/datetime";
+
 // ------------------------------------------------------------------ phones
 
 export const PHONE_RULE = "Use an 11-digit mobile number starting with 09, e.g. 09171234567.";
@@ -53,6 +55,23 @@ export function isQuarterHour(value: string | null | undefined): boolean {
   if (!isValidClockTime(value)) return false;
   const [, m, s = "00"] = (value ?? "").trim().split(":");
   return Number(m) % 15 === 0 && s === "00";
+}
+
+// A booking for today whose first stop is already behind the clock.
+//
+// The server did refuse this, but only from inside the drive check, which
+// needs every address found on the map and a route back from the map service.
+// An address that failed to geocode skipped the whole check, so 06:00 booked at
+// two in the afternoon went through as "times not checked". It is a fact about
+// the clock, not the road, and is checked without either.
+//
+// Only the first stop in route order: a later stop earlier than now is read as
+// the next morning, an overnight run, not as a time that has gone.
+export const PAST_TIME_RULE = "That time has already passed";
+
+export function stopTimeHasPassed(dateIso: string, clock: string, now = new Date()): boolean {
+  const minutes = minutesUntil(dateIso, clock, now);
+  return minutes !== null && minutes < 0;
 }
 
 export const MIN_QUANTITY = 1;

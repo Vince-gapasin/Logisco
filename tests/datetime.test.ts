@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import { clockInManila, formatDateTime, formatTime } from "@/app/lib/datetime";
 
 describe("times as people read them", () => {
   it("turns a stored 24-hour time into a 12-hour one", () => {
@@ -65,5 +65,13 @@ describe("a stored timestamp with no zone on it", () => {
     } finally {
       process.env.TZ = zone;
     }
+  });
+});
+
+describe("the time now, where the trucks are", () => {
+  it("is read in Manila, in 24-hour time", () => {
+    expect(clockInManila(new Date("2026-10-05T06:05:00.000Z"))).toBe("14:05");
+    // Midnight is 00, never 24 - the picker compares it as a clock.
+    expect(clockInManila(new Date("2026-10-05T16:00:00.000Z"))).toBe("00:00");
   });
 });

@@ -2,12 +2,15 @@ import { z } from "zod";
 import { todayInManila } from "@/app/lib/datetime";
 import {
   CLOCK_RULE,
+  findAddressClashes,
   isQuarterHour,
   isValidClockTime,
   MIN_QUANTITY,
   normalizePhone,
+  PAST_TIME_RULE,
   PHONE_RULE,
   QUARTER_HOUR_RULE,
+  stopTimeHasPassed,
 } from "@/app/lib/bookingRules";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
@@ -74,6 +77,14 @@ const clockTime = z
   .refine(isValidClockTime, CLOCK_RULE)
   .refine((value) => !isValidClockTime(value) || isQuarterHour(value), QUARTER_HOUR_RULE);
 
+// Required on both kinds of stop. They were optional here while the booking
+// form required them, so anything that skipped the form could send a stop with
+// no address - one that is never placed on the map, never routed, and so skips
+// the drive check that is the only thing standing between the itinerary and a
+// promise the truck cannot keep.
+const address = (label: string) =>
+  z.string().trim().min(1, `${label} is required`).max(500, `Keep the ${label.toLowerCase()} under 500 characters`);
+
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();
 const PAST_MESSAGE = "That date has already passed";
@@ -85,8 +96,8 @@ const branchStopSchema = z.object({
   expectedTime: clockTime,
   quantity: stopQuantity,
 
-  // Optional: geocoded on the server so the stop can be shown on the map.
-  deliveryAddress: z.string().trim().optional(),
+  // Geocoded on the server so the stop can be shown on the map and routed.
+  deliveryAddress: address("Delivery address"),
 });
 
 // A pickup the crew must collect from before delivering. The booking form
@@ -95,10 +106,13 @@ const branchStopSchema = z.object({
 const pickupStopSchema = z.object({
   warehouseID: z.string().uuid().nullable().optional(),
   warehouseName: z.string().min(1, "Warehouse name is required").trim(),
-  pickupAddress: z.string().trim().optional(),
+  pickupAddress: address("Pickup address"),
   contactPerson: z.string().trim().optional(),
   contactNum: z.union([z.literal(""), phone]).optional(),
-  expectedTime: z.union([z.literal(""), clockTime]).optional(),
+  // Required, as the form requires it. While it was optional here, one pickup without a
+  // time made the whole itinerary unreadable and every check on it - the order
+  // of the stops, the second midnight, the drive - was skipped in silence.
+  expectedTime: clockTime,
   quantity: stopQuantity,
 });
 
@@ -124,6 +138,29 @@ export const createOrderSchema = z.object({
   // Sent on the second try, once the coordinator has been told the crew may
   // run late and chose to book it as it stands.
   acknowledgeTightSchedule: z.boolean().optional().default(false),
+}).superRefine((order, ctx) => {
+  // The same address twice, or a pickup that is also a delivery. Checked by the
+  // form, from this same function, and now here too, so it holds for anything
+  // that posts here.
+  for (const clash of findAddressClashes(
+    order.pickups.map((pickup) => ({ address: pickup.pickupAddress })),
+    order.stops.map((stop) => ({ address: stop.deliveryAddress })),
+  )) {
+    ctx.addIssue({
+      code: "custom",
+      message: clash.message,
+      path: clash.section === "pickup" ? ["pickups", clash.index, "pickupAddress"] : ["stops", clash.index, "deliveryAddress"],
+    });
+  }
+
+  // The truck collects before it delivers, so the first stop is the first
+  // pickup when there is one.
+  const first = order.pickups.length > 0
+    ? { time: order.pickups[0].expectedTime, path: ["pickups", 0, "expectedTime"] }
+    : { time: order.stops[0]?.expectedTime, path: ["stops", 0, "expectedTime"] };
+  if (first.time && stopTimeHasPassed(order.deliverySchedule, first.time)) {
+    ctx.addIssue({ code: "custom", message: PAST_TIME_RULE, path: first.path });
+  }
 });
 // ==========================================
 // EDITING A BOOKING AFTER IT IS MADE

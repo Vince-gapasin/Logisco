@@ -27,6 +27,8 @@ interface TimePickerProps {
   allowClear?: boolean;
   /** "HH:mm": slots after this are greyed out, e.g. no future time for something that already happened. */
   max?: string;
+  /** "HH:mm": slots before this are greyed out, e.g. no time already gone for a stop booked today. */
+  min?: string;
   /** "cell" fits a table row; "field" matches the full-size inputs. */
   size?: "cell" | "field";
   disabled?: boolean;
@@ -58,6 +60,7 @@ export default function TimePicker({
   invalid = false,
   allowClear = false,
   max,
+  min,
   size = "field",
   disabled = false,
 }: TimePickerProps) {
@@ -74,7 +77,8 @@ export default function TimePicker({
   // flipped before an hour is chosen.
   const [pm, setPm] = useState(hour24 !== null && hour24 >= 12);
   const limit = max && isValidClockTime(max) ? toMinutes(max) : null;
-  const tooLate = (total: number) => limit !== null && total > limit;
+  const floor = min && isValidClockTime(min) ? toMinutes(min) : null;
+  const outOfRange = (total: number) => (limit !== null && total > limit) || (floor !== null && total < floor);
 
   // The panel is portalled to <body> and placed with fixed coordinates, so a
   // table that scrolls sideways or a modal's overflow cannot clip it.
@@ -120,12 +124,17 @@ export default function TimePicker({
     buttonRef.current?.focus();
   };
 
-  // An hour keeps the chosen minute when it is a quarter, else starts at :00.
+  // An hour keeps the chosen minute when it is a quarter, else starts at :00 -
+  // or at the first quarter that is in range, so picking an hour never lands
+  // on a slot shown greyed out.
   const pickHour = (h12: number) => {
     const h = (h12 % 12) + (pm ? 12 : 0);
-    const m = minute !== null && minute % 15 === 0 ? minute : 0;
+    const kept = minute !== null && minute % 15 === 0 ? minute : 0;
+    const m = outOfRange(h * 60 + kept) ? (QUARTER_MINUTES.find((q) => !outOfRange(h * 60 + q)) ?? kept) : kept;
     onChange(fromMinutes(h * 60 + m));
   };
+  // An hour is open when any of its quarters is.
+  const hourOff = (h: number) => QUARTER_MINUTES.every((q) => outOfRange(h * 60 + q));
 
   const pickMinute = (m: number) => {
     if (hour24 === null) return;
@@ -146,9 +155,11 @@ export default function TimePicker({
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       const step = e.key === "ArrowUp" ? 15 : -15;
-      const base = current === null ? 8 * 60 : current - (current % 15) + (step < 0 && current % 15 ? 15 : 0);
+      // An empty field starts at 8:00, or on the first open quarter when 8:00 is greyed out.
+      const start = floor !== null && floor > 8 * 60 ? Math.ceil(floor / 15) * 15 - step : 8 * 60;
+      const base = current === null ? start : current - (current % 15) + (step < 0 && current % 15 ? 15 : 0);
       const next = (((base + step) % DAY) + DAY) % DAY;
-      if (tooLate(next)) return;
+      if (outOfRange(next)) return;
       setPm(next >= 12 * 60);
       onChange(fromMinutes(next));
     }
@@ -213,7 +224,7 @@ export default function TimePicker({
             <div className="mb-3 grid grid-cols-6 gap-1.5">
               {HOURS.map((h12) => {
                 const h = (h12 % 12) + (pm ? 12 : 0);
-                const off = tooLate(h * 60);
+                const off = hourOff(h);
                 const on = hour24 === h;
                 return (
                   <button key={h12} type="button" disabled={off} onClick={() => pickHour(h12)} className={chip(on, off)} aria-pressed={on}>
@@ -227,7 +238,7 @@ export default function TimePicker({
             <div className="grid grid-cols-4 gap-1.5">
               {QUARTER_MINUTES.map((m) => {
                 // Waits for an hour rather than guessing one.
-                const off = hour24 === null || tooLate(hour24 * 60 + m);
+                const off = hour24 === null || outOfRange(hour24 * 60 + m);
                 const on = minute === m;
                 return (
                   <button key={m} type="button" disabled={off} onClick={() => pickMinute(m)} className={chip(on, off)} aria-pressed={on}>

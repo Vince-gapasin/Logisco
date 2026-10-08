@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
-import { CLOCK_RULE, isQuarterHour, QUARTER_HOUR_RULE } from "@/app/lib/bookingRules";
+import { CLOCK_RULE, isQuarterHour, PAST_TIME_RULE, QUARTER_HOUR_RULE } from "@/app/lib/bookingRules";
 import { minutesUntil } from "@/app/lib/datetime";
 
 // What the server will accept as a delivery date and a stop time.
@@ -29,6 +29,7 @@ const booking = (over: Record<string, unknown> = {}) => ({
       contactNum: "09281112013",
       expectedTime: "08:00",
       quantity: 10,
+      deliveryAddress: "Ayala Ave, Makati City",
     },
   ],
   ...over,
@@ -68,7 +69,7 @@ describe("the day a delivery is for", () => {
 
   it("allows today, because most deliveries are for today", () => {
     at(NOW);
-    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05" })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05", stops: [{ ...booking().stops[0], expectedTime: "14:00" }] })).success).toBe(true);
   });
 
   it("reads today in Manila, not in UTC", () => {
@@ -77,7 +78,7 @@ describe("the day a delivery is for", () => {
     // and one for the 5th would be refused as past - both wrong where the
     // trucks are.
     at(new Date("2026-10-05T16:30:00.000Z"));
-    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06" })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06", stops: [{ ...booking().stops[0], expectedTime: "08:00" }] })).success).toBe(true);
     expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05" })).success).toBe(false);
   });
 
@@ -114,16 +115,17 @@ describe("the time a stop is expected", () => {
     }
   });
 
-  it("is still optional on a pickup, and still checked when given", () => {
+  it("is required on a pickup, and checked", () => {
+    // While it was optional, a pickup without a time made the whole itinerary unreadable
+    // and every check on it was skipped without a word.
     at(NOW);
     const pickup = (expectedTime: unknown) =>
       createOrderSchema.safeParse(
-        booking({ pickups: [{ warehouseName: "Valenzuela", quantity: 10, expectedTime }] }),
+        booking({ pickups: [{ warehouseName: "Valenzuela", pickupAddress: "Valenzuela City", quantity: 10, expectedTime }] }),
       );
 
-    expect(pickup(undefined).success).toBe(true);
-    // The form sends an empty string for a pickup time nobody filled in.
-    expect(pickup("").success).toBe(true);
+    expect(pickup(undefined).success).toBe(false);
+    expect(pickup("").success).toBe(false);
     expect(pickup("06:30").success).toBe(true);
     expect(pickup("whenever").success).toBe(false);
     expect(pickup("06:20").success).toBe(false);
@@ -146,6 +148,77 @@ describe("the time a stop is expected", () => {
     expect(isQuarterHour("08:10")).toBe(false);
     expect(isQuarterHour("08:15:30")).toBe(false);
     expect(isQuarterHour("banana")).toBe(false);
+  });
+});
+
+describe("a stop booked for today", () => {
+  // 10:00 in Manila.
+  const today = (stops: unknown[], pickups: unknown[] = []) =>
+    createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05", stops, pickups }));
+  const stop = (expectedTime: string, deliveryAddress = "Ayala Ave, Makati City") => ({ ...booking().stops[0], expectedTime, deliveryAddress });
+  const pickup = (expectedTime: string) => ({ warehouseName: "Valenzuela", pickupAddress: "Valenzuela City", quantity: 10, expectedTime });
+
+  it("cannot start at a time already gone", () => {
+    at(NOW);
+    const result = today([stop("08:00")]);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].message).toBe(PAST_TIME_RULE);
+    expect(result.error.issues[0].path).toEqual(["stops", 0, "expectedTime"]);
+  });
+
+  it("is refused without needing the map, so a lost address cannot wave it through", () => {
+    at(NOW);
+    expect(today([stop("09:45")]).success).toBe(false);
+    expect(today([stop("10:00")]).success).toBe(true);
+  });
+
+  it("is judged on the first pickup, which is where the truck goes first", () => {
+    at(NOW);
+    const result = today([stop("15:00")], [pickup("09:30")]);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues[0].path).toEqual(["pickups", 0, "expectedTime"]);
+  });
+
+  it("lets a later stop be earlier on the clock - that is the next morning", () => {
+    at(NOW);
+    expect(today([stop("03:00")], [pickup("21:00")]).success).toBe(true);
+  });
+
+  it("says nothing about another day's times", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06", stops: [stop("06:00")] })).success).toBe(true);
+  });
+});
+
+describe("the addresses on a booking", () => {
+  const withStops = (stops: unknown[], pickups: unknown[] = []) => createOrderSchema.safeParse(booking({ stops, pickups }));
+  const stop = (deliveryAddress: unknown) => ({ ...booking().stops[0], deliveryAddress });
+  const pickup = (pickupAddress: unknown) => ({ warehouseName: "Valenzuela", pickupAddress, quantity: 10, expectedTime: "06:00" });
+
+  it("are required on every stop", () => {
+    at(NOW);
+    expect(withStops([stop(undefined)]).success).toBe(false);
+    expect(withStops([stop("   ")]).success).toBe(false);
+    expect(withStops([stop("Makati")], [pickup(undefined)]).success).toBe(false);
+    expect(withStops([stop("Makati")], [pickup("Valenzuela")]).success).toBe(true);
+  });
+
+  it("cannot be the same place twice, or a pickup that is also a delivery", () => {
+    at(NOW);
+    const repeated = withStops([stop("Makati City"), stop("makati, city")]);
+    expect(repeated.success).toBe(false);
+    if (!repeated.success) expect(repeated.error.issues[0].path).toEqual(["stops", 1, "deliveryAddress"]);
+
+    const both = withStops([stop("Valenzuela City")], [pickup("Valenzuela City")]);
+    expect(both.success).toBe(false);
+    if (!both.success) expect(both.error.issues[0].message).toContain("Already used as pickup 1");
+  });
+
+  it("refuses one long enough to be something else", () => {
+    at(NOW);
+    expect(withStops([stop("x".repeat(501))]).success).toBe(false);
   });
 });
 

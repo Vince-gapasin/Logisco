@@ -20,16 +20,18 @@ import {
   isValidClockTime,
   normalizePhone,
   parseQuantity,
+  PAST_TIME_RULE,
   PHONE_RULE,
   QUARTER_HOUR_RULE,
   sanitizePhoneInput,
   sanitizeQuantityInput,
+  stopTimeHasPassed,
 } from "@/app/lib/bookingRules";
 import SelectMenu from "@/components/SelectMenu";
 import TimePicker from "@/components/TimePicker";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
-import { todayInManila } from "@/app/lib/datetime";
+import { clockInManila, todayInManila } from "@/app/lib/datetime";
 
 // One booking form for every way a booking starts: a registered client, an
 // on-call (walk-in) customer, or a new client. The on-call and new-client
@@ -421,7 +423,8 @@ function BookingForm({
       else if (parseQuantity(value) === null) next[key] = "At least 1";
     };
     const clock = (key: string, value: string) => {
-      if (!isValidClockTime(value)) next[key] = CLOCK_RULE;
+      if (!value.trim()) next[key] = "Required";
+      else if (!isValidClockTime(value)) next[key] = CLOCK_RULE;
       else if (!isQuarterHour(value)) next[key] = QUARTER_HOUR_RULE;
     };
 
@@ -481,6 +484,15 @@ function BookingForm({
 
     for (const index of crossings.slice(1)) {
       next[inRouteOrder[index].key] = "More than a day after the first stop";
+    }
+
+    // A booking for today cannot start at a time already gone. Only the first
+    // stop: anything after it that is earlier on the clock is the next morning.
+    // The time picker greys these out, but the clock keeps moving while the
+    // form is open.
+    const firstStop = inRouteOrder[0];
+    if (firstStop && formData.deliverySchedule && !next[firstStop.key] && stopTimeHasPassed(formData.deliverySchedule, firstStop.time)) {
+      next[firstStop.key] = PAST_TIME_RULE;
     }
 
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
@@ -790,6 +802,8 @@ function BookingForm({
                             value={row.pickupTime}
                             onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
                             invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
+                            // The first stop of a booking for today cannot be behind the clock.
+                            min={idx === 0 && formData.deliverySchedule === todayInManila() ? clockInManila() : undefined}
                           />
                           <CellError message={errors[`pickup_${idx}_pickupTime`]} />
                         </td>
