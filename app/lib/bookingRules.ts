@@ -74,6 +74,39 @@ export function stopTimeHasPassed(dateIso: string, clock: string, now = new Date
   return minutes !== null && minutes < 0;
 }
 
+// ------------------------------------------------------------------- dates
+
+/**
+ * A YYYY-MM-DD that is a day on the calendar.
+ *
+ * Date.parse is no test of that: it rolls an impossible day into the next
+ * month, so "2026-02-30" read as 2 March and passed as a date that exists.
+ * The day is built and read back, and only one that survives is real.
+ */
+export function isRealDate(value: string | null | undefined): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec((value ?? "").trim());
+  if (!match) return false;
+  const [year, month, day] = match.slice(1).map(Number);
+  const built = new Date(Date.UTC(year, month - 1, day));
+  return built.getUTCFullYear() === year && built.getUTCMonth() === month - 1 && built.getUTCDate() === day;
+}
+
+/** A YYYY-MM-DD so many days on, read on the calendar rather than the clock. */
+export function addDays(dateIso: string, days: number): string {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+// A year out is as far as anyone books. Past it the date is almost always a
+// slip of the keyboard - 2062 for 2026 - and a booking that far out is never
+// seen again on a calendar anyone is looking at.
+export const MAX_DAYS_AHEAD = 365;
+export const TOO_FAR_RULE = "Book no more than a year ahead";
+
+export function isTooFarAhead(dateIso: string, today: string): boolean {
+  return dateIso > addDays(today, MAX_DAYS_AHEAD);
+}
+
 export const MIN_QUANTITY = 1;
 
 /** Keeps a quantity box to whole, positive numbers while typing. */

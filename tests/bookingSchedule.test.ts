@@ -87,6 +87,20 @@ describe("the day a delivery is for", () => {
     expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-13-45" })).success).toBe(false);
     expect(createOrderSchema.safeParse(booking({ deliverySchedule: "06/10/2026" })).success).toBe(false);
   });
+
+  it("refuses a day the calendar does not have, which Date.parse rolled forward", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2027-02-30" })).success).toBe(false);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2027-04-31" })).success).toBe(false);
+    expect(updateOrderSchema.safeParse({ deliverySchedule: "2027-02-29" }).success).toBe(false);
+  });
+
+  it("refuses a day more than a year out, which is a typo far more often than a plan", () => {
+    at(NOW);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2027-10-05" })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2062-10-05" })).success).toBe(false);
+    expect(updateOrderSchema.safeParse({ deliverySchedule: "2062-10-05" }).success).toBe(false);
+  });
 });
 
 describe("the time a stop is expected", () => {

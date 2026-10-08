@@ -4,6 +4,8 @@ import {
   CLOCK_RULE,
   findAddressClashes,
   isQuarterHour,
+  isRealDate,
+  isTooFarAhead,
   isValidClockTime,
   MIN_QUANTITY,
   normalizePhone,
@@ -11,6 +13,7 @@ import {
   PHONE_RULE,
   QUARTER_HOUR_RULE,
   stopTimeHasPassed,
+  TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
@@ -64,7 +67,8 @@ const isoDate = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-10-05")
-  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00`)), "That date does not exist");
+  // Read back off the calendar: Date.parse took 2026-02-30 as 2 March.
+  .refine(isRealDate, "That date does not exist");
 
 // Seconds are allowed because the database returns "08:00:00" and an edit
 // round-trips what it was given. The rule itself lives in bookingRules, so the
@@ -88,6 +92,10 @@ const address = (label: string) =>
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();
 const PAST_MESSAGE = "That date has already passed";
+const notTooFar = (value: string) => !isTooFarAhead(value, todayInManila());
+
+/** A day a delivery can be booked for: real, not gone, and not a year out. */
+const bookableDate = isoDate.refine(notInThePast, PAST_MESSAGE).refine(notTooFar, TOO_FAR_RULE);
 
 const branchStopSchema = z.object({
   branchName: z.string().min(1, "Branch/Stop name is required").trim(),
@@ -126,7 +134,7 @@ export const createOrderSchema = z.object({
   // The day the delivery is for. A real field now, so the server decides
   // whether it is a date and whether it has passed, instead of reading
   // whatever the browser happened to write into the notes.
-  deliverySchedule: isoDate.refine(notInThePast, PAST_MESSAGE),
+  deliverySchedule: bookableDate,
 
   notes: z.string().optional().default(""),
   items: z.array(orderItemSchema).min(1, "At least one item is required"),
@@ -175,7 +183,7 @@ export const updateOrderSchema = z
   .object({
     // Rescheduling is the other way a booking gets a date, and it was checked
     // for shape but not for sense - a delivery could be moved into last year.
-    deliverySchedule: isoDate.refine(notInThePast, PAST_MESSAGE).optional(),
+    deliverySchedule: bookableDate.optional(),
     priorityLevel: z.enum(PRIORITY_LEVELS).optional(),
     product: z.string().trim().min(1, "Product cannot be empty").max(200).optional(),
     notes: z.string().trim().max(2000, "Keep the notes under 2000 characters").optional(),

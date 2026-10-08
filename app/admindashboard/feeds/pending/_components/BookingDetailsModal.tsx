@@ -4,7 +4,7 @@ import BookingHistory from "@/components/booking/BookingHistory";
 import React, { useState, useRef, useEffect } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
-import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { addDays, isValidPhone, MAX_DAYS_AHEAD, PHONE_RULE } from "@/app/lib/bookingRules";
 import { changedBookingFields } from "@/app/lib/bookingEdits";
 import { type FeedBooking, type FeedStopRow } from "@/app/lib/bookingView";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
@@ -428,6 +428,7 @@ export function BookingDetailsModal({
                   type={isEditable ? "date" : "text"}
                   name="deliverySchedule"
                   min={isEditable ? currentDate : undefined}
+                  max={isEditable ? addDays(currentDate, MAX_DAYS_AHEAD) : undefined}
                   value={
                     isEditable ? formData.deliverySchedule : booking.displayDate
                   }

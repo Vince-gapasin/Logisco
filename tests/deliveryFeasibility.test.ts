@@ -294,3 +294,71 @@ describe("a check that did not run", () => {
     expect(checked.verdict).toBe("fine");
   });
 });
+
+describe("every leg on its own", () => {
+  // The whole window used to be measured against the whole drive, so a long
+  // day hid a leg nobody could drive.
+  const run = (times: string[], legMinutes: number[] | null) =>
+    assessFeasibility({
+      times,
+      travelMinutes: legMinutes ? legMinutes.reduce((a, b) => a + b, 0) : null,
+      legMinutes,
+      labels: [warehouse, "Makati", branch],
+    });
+
+  it("refuses a leg shorter than its drive, however wide the day", () => {
+    // Nine hours for three of driving - and 08:15 two hours from 08:00.
+    const result = run(["08:00", "08:15", "17:00"], [120, 60]);
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/Makati is booked 15 minutes after Valenzuela Warehouse/);
+    expect(result.message).toMatch(/2 hours/);
+  });
+
+  it("holds a leg with no time to spend at the stop it leaves", () => {
+    const result = run(["08:00", "10:10", "17:00"], [120, 60]);
+    expect(result.verdict).toBe("tight");
+    expect(result.message).toMatch(new RegExp(`${STOP_ALLOWANCE_MIN} minutes at ${warehouse}`));
+  });
+
+  it("passes when every leg has its drive and its stop", () => {
+    expect(run(["08:00", "10:30", "17:00"], [120, 60]).verdict).toBe("fine");
+  });
+
+  it("measures an overnight leg across midnight", () => {
+    // 23:00 to 01:00 is two hours, not twenty-two backwards.
+    expect(run(["22:00", "23:00", "01:30"], [30, 90]).verdict).toBe("fine");
+    expect(run(["22:00", "23:00", "00:00"], [30, 90]).verdict).toBe("impossible");
+  });
+
+  it("falls back to the whole window when the legs do not line up with the stops", () => {
+    expect(run(["08:00", "08:15", "17:00"], [120]).verdict).not.toBe("impossible");
+  });
+});
+
+describe("two stops in the same minute", () => {
+  it("are refused without the map", () => {
+    const result = assessFeasibility({
+      times: ["08:00", "08:00"],
+      travelMinutes: null,
+      labels: [warehouse, branch],
+    });
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/same time/);
+  });
+
+  it("are refused even inside a wide day", () => {
+    const result = assessFeasibility({
+      times: ["08:00", "12:00", "12:00", "17:00"],
+      travelMinutes: 60,
+      labels: [warehouse, "Makati", "Pasig", branch],
+    });
+    expect(result.verdict).toBe("impossible");
+    expect(result.message).toMatch(/Pasig and Makati/);
+  });
+
+  it("are found by the itinerary, so the form can mark the field", () => {
+    expect(buildItinerary([480, 480, 600]).sameTime).toEqual([1]);
+    // A full day later is not the same minute.
+    expect(buildItinerary([480, 600, 480]).sameTime).toEqual([]);
+  });
+});

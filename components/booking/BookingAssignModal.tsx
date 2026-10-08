@@ -19,7 +19,7 @@ import { Trash2, X } from "lucide-react";
 
 import { apiFetch } from "@/app/lib/apiClient";
 import { changedBookingFields } from "@/app/lib/bookingEdits";
-import { isValidPhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { addDays, isValidPhone, MAX_DAYS_AHEAD, PHONE_RULE } from "@/app/lib/bookingRules";
 import { toFeedBooking, type BookingCrewView, type BookingView, type FeedStopRow } from "@/app/lib/bookingView";
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import BookingHistory from "@/components/booking/BookingHistory";
@@ -385,6 +385,7 @@ export default function BookingAssignModal({
                   type="date"
                   name="deliverySchedule"
                   min={today}
+                  max={addDays(today, MAX_DAYS_AHEAD)}
                   value={formData.deliverySchedule}
                   onChange={handleChange}
                   className={`w-full border rounded-md px-3 py-2 text-xs ${

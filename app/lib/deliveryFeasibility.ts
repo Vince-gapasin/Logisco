@@ -55,6 +55,11 @@ export interface FeasibilityInput {
   /** Driving time from the yard to the first stop, when it is known. */
   fromBaseMinutes?: number | null;
   /**
+   * Driving time between each stop and the next, in itinerary order - one
+   * fewer than there are stops. When given, every leg is checked on its own.
+   */
+  legMinutes?: number[] | null;
+  /**
    * Minutes from now until the first stop. Negative when it has gone, null
    * when there is no date to measure from.
    */
@@ -73,6 +78,11 @@ export interface Itinerary {
   absolute: number[];
   /** Stop indexes that fall on a later day than the one before them. */
   crossings: number[];
+  /**
+   * Stop indexes promised for the same minute as the stop before them. Two
+   * different addresses cannot both be visited at once, whatever the map says.
+   */
+  sameTime: number[];
   /** First stop to last, in minutes. */
   spanMinutes: number;
 }
@@ -111,6 +121,7 @@ export interface Itinerary {
 export function buildItinerary(clock: number[]): Itinerary {
   const absolute: number[] = clock.length > 0 ? [clock[0]] : [];
   const crossings: number[] = [];
+  const sameTime: number[] = [];
   let days = 0;
 
   for (let index = 1; index < clock.length; index += 1) {
@@ -122,11 +133,13 @@ export function buildItinerary(clock: number[]): Itinerary {
       crossings.push(index);
     }
     absolute.push(clock[index] + days * DAY_MIN);
+    if (absolute[index] === previous) sameTime.push(index);
   }
 
   return {
     absolute,
     crossings,
+    sameTime,
     spanMinutes: absolute.length > 1 ? absolute[absolute.length - 1] - absolute[0] : 0,
   };
 }
@@ -197,6 +210,22 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
     };
   }
 
+  // Two stops in the same minute. Their addresses are never the same - that is
+  // refused on its own - so this is a promise to be in two places at once, and
+  // it is refused without the map: a failed lookup used to wave it through,
+  // and so did a wide enough window between the first stop and the last.
+  if (itinerary.sameTime.length > 0) {
+    const index = itinerary.sameTime[0];
+    const later = labels[index] ?? `stop ${index + 1}`;
+    const earlier = labels[index - 1] ?? `stop ${index}`;
+    return {
+      verdict: "impossible",
+      message: `${later} and ${earlier} are booked for the same time. The truck cannot be at both - give ${later} a later time.`,
+      windowMinutes: null,
+      travelMinutes,
+    };
+  }
+
   const windowMinutes = itinerary.spanMinutes;
   const overnight = itinerary.crossings.length === 1;
 
@@ -241,6 +270,48 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
           `${first} is ${describe(minutesUntilFirstStop)} away and it is ` +
           `${describe(fromBaseMinutes)} from the yard. The truck cannot get there in time, ` +
           `however early it leaves.`,
+        windowMinutes,
+        travelMinutes,
+        leaveInMinutes,
+      };
+    }
+  }
+
+  // Each leg on its own.
+  //
+  // Only the whole window used to be measured against the whole drive, so a
+  // long day hid an impossible leg inside it: a pickup at 08:00, a drop two
+  // hours away at 08:15 and a last drop at 17:00 is nine hours for three of
+  // driving, and passed as "fine" with the 08:15 promise unkeepable. Every leg
+  // is now held to its own drive, plus the time spent at the stop it leaves.
+  const legs = input.legMinutes;
+  if (legs && legs.length === clock.length - 1) {
+    const gaps = legs.map((_, index) => itinerary.absolute[index + 1] - itinerary.absolute[index]);
+    const name = (index: number) => labels[index] ?? `stop ${index + 1}`;
+
+    const short = gaps.findIndex((gap, index) => gap < legs[index]);
+    if (short !== -1) {
+      return {
+        verdict: "impossible",
+        message:
+          `${name(short + 1)} is booked ${describe(gaps[short])} after ${name(short)}, and the drive ` +
+          `between them is ${describe(legs[short])}. The truck cannot make it in time.`,
+        windowMinutes,
+        travelMinutes,
+        leaveInMinutes,
+      };
+    }
+
+    const tight = gaps.findIndex((gap, index) => gap < legs[index] + STOP_ALLOWANCE_MIN);
+    if (tight !== -1) {
+      return {
+        verdict: "tight",
+        message: join(
+          `${name(tight + 1)} is booked ${describe(gaps[tight])} after ${name(tight)}: a ` +
+            `${describe(legs[tight])} drive plus ${describe(STOP_ALLOWANCE_MIN)} at ${name(tight)}. ` +
+            `It can be driven, with nothing to spare.`,
+          overnightNote,
+        ),
         windowMinutes,
         travelMinutes,
         leaveInMinutes,

@@ -658,6 +658,7 @@ async function assessItinerary(
     travelMinutes: throughStops,
     labels: stops.map((stop) => stop.label),
     fromBaseMinutes: fromBase,
+    legMinutes: legs.length === stops.length ? legs.slice(1) : null,
     minutesUntilFirstStop: firstTime ? minutesUntil(scheduledFor, firstTime) : null,
     departureBufferMin: DEPARTURE_BUFFER_MIN,
   });

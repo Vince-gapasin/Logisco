@@ -13,11 +13,15 @@ import type {
   WarehouseRow,
 } from "@/types/database";
 import {
+  addDays,
   addressKey,
   CLOCK_RULE,
   findAddressClashes,
   isQuarterHour,
+  isRealDate,
+  isTooFarAhead,
   isValidClockTime,
+  MAX_DAYS_AHEAD,
   normalizePhone,
   parseQuantity,
   PAST_TIME_RULE,
@@ -26,6 +30,7 @@ import {
   sanitizePhoneInput,
   sanitizeQuantityInput,
   stopTimeHasPassed,
+  TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
 import SelectMenu from "@/components/SelectMenu";
 import TimePicker from "@/components/TimePicker";
@@ -431,7 +436,12 @@ function BookingForm({
     if (!formData.clientName.trim()) next.clientName = "Company / client name is required.";
     if (!formData.contactPerson.trim()) next.contactPerson = "Contact person is required.";
     phone("contactNumber", formData.contactNumber);
+    // The date box's min and max hold only for the picker; a date typed in, or
+    // a form left open past midnight, still reaches here.
     if (!formData.deliverySchedule) next.deliverySchedule = "Delivery schedule is required.";
+    else if (!isRealDate(formData.deliverySchedule)) next.deliverySchedule = "That date does not exist.";
+    else if (formData.deliverySchedule < todayInManila()) next.deliverySchedule = "That date has already passed.";
+    else if (isTooFarAhead(formData.deliverySchedule, todayInManila())) next.deliverySchedule = `${TOO_FAR_RULE}.`;
     if (!formData.product.trim()) next.product = "Product description is required.";
     if (!formData.priorityLevel) next.priorityLevel = "Priority level is required.";
 
@@ -480,10 +490,17 @@ function BookingForm({
       return minutes === null ? [] : [{ ...stop, minutes }];
     });
 
-    const { crossings } = buildItinerary(inRouteOrder.map((stop) => stop.minutes));
+    // Read as a route only once every stop has a time: with one missing, the
+    // stops either side of it would be compared as if they were neighbours.
+    const allTimed = inRouteOrder.length === pickupList.length + deliveryList.length;
+    const { crossings, sameTime } = buildItinerary(allTimed ? inRouteOrder.map((stop) => stop.minutes) : []);
 
     for (const index of crossings.slice(1)) {
       next[inRouteOrder[index].key] = "More than a day after the first stop";
+    }
+    // Two different addresses in the same minute; the server refuses it too.
+    for (const index of sameTime) {
+      next[inRouteOrder[index].key] ??= "Same time as the stop before it";
     }
 
     // A booking for today cannot start at a time already gone. Only the first
@@ -956,6 +973,7 @@ function BookingForm({
                     type="date"
                     name="deliverySchedule"
                     min={currentDate}
+                    max={addDays(currentDate, MAX_DAYS_AHEAD)}
                     value={formData.deliverySchedule}
                     onChange={handleChange}
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`}
