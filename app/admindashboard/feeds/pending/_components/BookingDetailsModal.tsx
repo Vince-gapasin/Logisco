@@ -8,6 +8,7 @@ import { addDays, isValidPhone, MAX_DAYS_AHEAD, PHONE_RULE } from "@/app/lib/boo
 import { changedBookingFields } from "@/app/lib/bookingEdits";
 import { type FeedBooking, type FeedStopRow } from "@/app/lib/bookingView";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
+import SavedWithWarning from "@/components/booking/SavedWithWarning";
 import CrewPicker from "@/components/booking/CrewPicker";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
 import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
@@ -51,6 +52,9 @@ export function BookingDetailsModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // A reschedule that saved with something to say about the new times. Read
+  // before the window closes, then the save finishes as it always did.
+  const [savedWarning, setSavedWarning] = useState<{ message: string; done: () => void } | null>(null);
 
   // Free trucks and crew for the date, plus whoever is on this trip now.
   // The lists here used to be typed into the page ("TRK-102", "Juan Dela
@@ -166,12 +170,15 @@ export function BookingDetailsModal({
       },
       formData,
     );
-    if (!edits) return;
+    if (!edits) return null;
 
-    await apiFetch(`/api/bookings/${booking.id}`, {
+    // Moving to today can save with a warning: tight times, or times the map
+    // could not check. Handed back so it is shown rather than dropped.
+    const saved = await apiFetch<{ warning?: string | null }>(`/api/bookings/${booking.id}`, {
       method: "PATCH",
       body: JSON.stringify({ action: "update", ...edits }),
     });
+    return saved?.warning ?? null;
   };
 
   const validateAndSubmit = async (e: React.FormEvent) => {
@@ -208,8 +215,9 @@ export function BookingDetailsModal({
         return;
       }
       setIsSubmitting(true);
+      let warning: string | null = null;
       try {
-        await saveBookingEdits();
+        warning = await saveBookingEdits();
         await apiFetch("/api/subcon-trips", {
           method: "POST",
           body: JSON.stringify({
@@ -221,10 +229,14 @@ export function BookingDetailsModal({
             helpers: [formData.helper1, formData.helper2].filter(Boolean),
           }),
         });
-        onSubmitSuccess(booking.orderId, booking.confirmationStatus);
-        onClose();
+        const done = () => {
+          onSubmitSuccess(booking.orderId, booking.confirmationStatus);
+          onClose();
+        };
+        if (warning) setSavedWarning({ message: warning, done });
+        else done();
       } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : "Failed to hand the booking to the partner.");
+        setSubmitError([error instanceof Error ? error.message : "Failed to hand the booking to the partner.", warning].filter(Boolean).join(" "));
       } finally {
         setIsSubmitting(false);
       }
@@ -232,8 +244,9 @@ export function BookingDetailsModal({
     }
 
     setIsSubmitting(true);
+    let warning: string | null = null;
     try {
-      await saveBookingEdits();
+      warning = await saveBookingEdits();
       const body = JSON.stringify({
         truckID: formData.truckPlate,
         driverID: formData.driver,
@@ -247,10 +260,14 @@ export function BookingDetailsModal({
       await (booking.dispatchID && !wasDeclined
         ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
         : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
-      onSubmitSuccess(booking.orderId, booking.confirmationStatus);
-      onClose();
+      const done = () => {
+        onSubmitSuccess(booking.orderId, booking.confirmationStatus);
+        onClose();
+      };
+      if (warning) setSavedWarning({ message: warning, done });
+      else done();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Failed to save this assignment.");
+      setSubmitError([error instanceof Error ? error.message : "Failed to save this assignment.", warning].filter(Boolean).join(" "));
     } finally {
       setIsSubmitting(false);
     }
@@ -262,6 +279,16 @@ export function BookingDetailsModal({
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+      {savedWarning && (
+        <SavedWithWarning
+          message={savedWarning.message}
+          onDone={() => {
+            const { done } = savedWarning;
+            setSavedWarning(null);
+            done();
+          }}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-full flex flex-col overflow-hidden relative">
         {/* HEADER */}
         <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-[#000c31] text-white border-b border-slate-800">

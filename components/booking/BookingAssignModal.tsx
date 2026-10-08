@@ -24,6 +24,7 @@ import { toFeedBooking, type BookingCrewView, type BookingView, type FeedStopRow
 import { DELIVERY_STATUS } from "@/app/lib/enums";
 import BookingHistory from "@/components/booking/BookingHistory";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
+import SavedWithWarning from "@/components/booking/SavedWithWarning";
 import CrewPicker from "@/components/booking/CrewPicker";
 import DeliveryProgress from "@/components/booking/DeliveryProgress";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
@@ -99,6 +100,9 @@ export default function BookingAssignModal({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // A reschedule that saved with something to say about the new times. Read
+  // before the window closes, then the save finishes as it always did.
+  const [savedWarning, setSavedWarning] = useState<{ message: string; done: () => void } | null>(null);
 
   // Free trucks and crew for the date, plus whoever is already on this trip:
   // they show as busy precisely because of this booking, and must stay
@@ -181,12 +185,15 @@ export default function BookingAssignModal({
       },
       formData,
     );
-    if (!edits) return;
+    if (!edits) return null;
 
-    await apiFetch(`/api/bookings/${booking.id}`, {
+    // Moving to today can save with a warning: tight times, or times the map
+    // could not check. Handed back so it is shown rather than dropped.
+    const saved = await apiFetch<{ warning?: string | null }>(`/api/bookings/${booking.id}`, {
       method: "PATCH",
       body: JSON.stringify({ action: "update", ...edits }),
     });
+    return saved?.warning ?? null;
   };
 
   const validateAndSubmit = async (event: React.FormEvent) => {
@@ -219,8 +226,9 @@ export default function BookingAssignModal({
       }
 
       setIsSubmitting(true);
+      let warning: string | null = null;
       try {
-        await saveBookingEdits();
+        warning = await saveBookingEdits();
         await apiFetch("/api/subcon-trips", {
           method: "POST",
           body: JSON.stringify({
@@ -232,10 +240,14 @@ export default function BookingAssignModal({
             helpers: [formData.helper1, formData.helper2].filter(Boolean),
           }),
         });
-        onSubmitSuccess(booking.orderId, reassigning);
-        onClose();
+        const done = () => {
+          onSubmitSuccess(booking.orderId, reassigning);
+          onClose();
+        };
+        if (warning) setSavedWarning({ message: warning, done });
+        else done();
       } catch (error) {
-        setSubmitError(error instanceof Error ? error.message : "Failed to hand the booking to the partner.");
+        setSubmitError([error instanceof Error ? error.message : "Failed to hand the booking to the partner.", warning].filter(Boolean).join(" "));
       } finally {
         setIsSubmitting(false);
       }
@@ -243,8 +255,9 @@ export default function BookingAssignModal({
     }
 
     setIsSubmitting(true);
+    let warning: string | null = null;
     try {
-      await saveBookingEdits();
+      warning = await saveBookingEdits();
 
       const body = JSON.stringify({
         truckID: formData.truckPlate,
@@ -258,10 +271,14 @@ export default function BookingAssignModal({
         ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
         : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
 
-      onSubmitSuccess(booking.orderId, reassigning);
-      onClose();
+      const done = () => {
+        onSubmitSuccess(booking.orderId, reassigning);
+        onClose();
+      };
+      if (warning) setSavedWarning({ message: warning, done });
+      else done();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Failed to save this assignment.");
+      setSubmitError([error instanceof Error ? error.message : "Failed to save this assignment.", warning].filter(Boolean).join(" "));
     } finally {
       setIsSubmitting(false);
     }
@@ -269,6 +286,16 @@ export default function BookingAssignModal({
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      {savedWarning && (
+        <SavedWithWarning
+          message={savedWarning.message}
+          onDone={() => {
+            const { done } = savedWarning;
+            setSavedWarning(null);
+            done();
+          }}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden my-auto flex flex-col max-h-[90dvh] relative">
         <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#000c31] text-white border-b border-slate-800">
           <div className="flex items-center gap-3">

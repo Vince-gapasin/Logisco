@@ -78,7 +78,9 @@ async function updateBookingDetails(
       });
     }
 
-    return NextResponse.json({ message: "Booking updated.", data: result });
+    // Beside the data, where a new booking's warning is: the edit windows show
+    // it before they close. It used to ride along unread inside "data".
+    return NextResponse.json({ message: "Booking updated.", data: result, warning: result.warning ?? null });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update booking";
 
