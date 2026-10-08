@@ -3,8 +3,8 @@ import { geocodeAddresses, type Coordinates } from "@/services/geo/geocodingServ
 import { getRouteGeometry } from "@/services/geo/routingService";
 import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
 import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
-import { minutesUntil } from "@/app/lib/datetime";
-import { PAST_TIME_RULE, stopTimeHasPassed } from "@/app/lib/bookingRules";
+import { formatTime, minutesUntil } from "@/app/lib/datetime";
+import { stopTimeHasPassed } from "@/app/lib/bookingRules";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -482,6 +482,20 @@ export async function cancelBooking(orderID: string, reason: string) {
   return { orderID, cancelledDispatches: dispatches.length };
 }
 
+interface StopTime {
+  expectedTime?: string | null;
+  sequence?: number | null;
+  warehouseName?: string | null;
+  branchName?: string | null;
+}
+
+/**
+ * Refused because the new day puts the booking's first stop behind the clock.
+ * Its message names the stop and time, since the coordinator changed the date,
+ * not a time.
+ */
+export class RescheduleNotPossible extends Error {}
+
 /**
  * Changes what a booking says about itself: when it is for, how urgent it is,
  * what is being carried and any instructions with it.
@@ -495,16 +509,11 @@ export async function cancelBooking(orderID: string, reason: string) {
  * Returns what changed, so the caller can record it and tell whoever is
  * affected - a crew who accepted a trip needs to know the day moved.
  */
-interface StopTime {
-  expectedTime?: string | null;
-  sequence?: number | null;
-}
-
 export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const { data: order, error } = await supabase
     .from("Order")
     .select(
-      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( expectedTime, sequence ), BranchStops ( expectedTime, sequence )",
+      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( warehouseName, expectedTime, sequence ), BranchStops ( branchName, expectedTime, sequence )",
     )
     .eq("orderID", orderID)
     .maybeSingle();
@@ -544,7 +553,10 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
       [...embedded(rows)].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
     const first = [...bySequence(order.PickupStops as Embedded<StopTime>), ...bySequence(order.BranchStops as Embedded<StopTime>)][0];
     if (first?.expectedTime && stopTimeHasPassed(dto.deliverySchedule, first.expectedTime)) {
-      throw new Error(PAST_TIME_RULE);
+      const label = first.warehouseName || first.branchName || "The first stop";
+      throw new RescheduleNotPossible(
+        `${label}'s ${formatTime(first.expectedTime)} has already passed today. Pick a later day, or change the stop times.`,
+      );
     }
   }
 

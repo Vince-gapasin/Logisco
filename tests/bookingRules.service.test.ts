@@ -15,8 +15,7 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
 }));
 vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unknown) => rows }));
 
-const { updateBooking, cancelBooking } = await import("@/services/booking/bookingService");
-const { PAST_TIME_RULE } = await import("@/app/lib/bookingRules");
+const { updateBooking, cancelBooking, RescheduleNotPossible } = await import("@/services/booking/bookingService");
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
 
@@ -117,15 +116,19 @@ describe("moving a booking to a day whose first stop has gone", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  const withStops = (
-    pickups: { expectedTime: string; sequence: number }[],
-    stops: { expectedTime: string; sequence: number }[],
-  ) => ({ ...booking("Assigned"), PickupStops: pickups, BranchStops: stops });
+  type Stop = { expectedTime: string; sequence: number };
+  const pickup = (expectedTime: string, sequence = 1) => ({ warehouseName: "North Hub", expectedTime, sequence });
+  const branch = (branchName: string, expectedTime: string, sequence: number) => ({ branchName, expectedTime, sequence });
+  const withStops = (pickups: Stop[], stops: Stop[]) => ({ ...booking("Assigned"), PickupStops: pickups, BranchStops: stops });
 
-  it("refuses today when the first pickup was at 08:00", async () => {
-    db.queue({ data: withStops([{ expectedTime: "08:00:00", sequence: 1 }], [{ expectedTime: "16:00:00", sequence: 1 }]) });
+  it("refuses today when the first pickup was at 08:00, naming the stop and time", async () => {
+    db.queue({ data: withStops([pickup("08:00:00")], [branch("Makati", "16:00:00", 1)]) });
 
-    await expect(updateBooking(ORDER, { deliverySchedule: "2026-10-08" })).rejects.toThrow(PAST_TIME_RULE);
+    const refusal = updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    await expect(refusal).rejects.toBeInstanceOf(RescheduleNotPossible);
+    await expect(refusal).rejects.toThrow(
+      "North Hub's 8:00 AM has already passed today. Pick a later day, or change the stop times.",
+    );
     expect(db.writes).toHaveLength(0);
   });
 
@@ -133,19 +136,16 @@ describe("moving a booking to a day whose first stop has gone", () => {
     db.queue({
       data: withStops(
         [],
-        [
-          { expectedTime: "18:00:00", sequence: 2 },
-          { expectedTime: "09:00:00", sequence: 1 },
-        ],
+        [branch("Pasig", "18:00:00", 2), branch("Makati", "09:00:00", 1)],
       ),
     });
 
-    await expect(updateBooking(ORDER, { deliverySchedule: "2026-10-08" })).rejects.toThrow(PAST_TIME_RULE);
+    await expect(updateBooking(ORDER, { deliverySchedule: "2026-10-08" })).rejects.toThrow(/^Makati's 9:00 AM/);
   });
 
   it("allows today when the first stop is still ahead, and a later stop earlier on the clock is overnight", async () => {
     db.queue(
-      { data: withStops([{ expectedTime: "16:00:00", sequence: 1 }], [{ expectedTime: "02:00:00", sequence: 1 }]) },
+      { data: withStops([pickup("16:00:00")], [branch("Makati", "02:00:00", 1)]) },
       { data: null },
     );
 
@@ -154,7 +154,7 @@ describe("moving a booking to a day whose first stop has gone", () => {
   });
 
   it("allows tomorrow at the same 08:00", async () => {
-    db.queue({ data: withStops([{ expectedTime: "08:00:00", sequence: 1 }], []) }, { data: null });
+    db.queue({ data: withStops([pickup("08:00:00")], []) }, { data: null });
 
     const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-09" });
     expect(result.rescheduled).toBe(true);
