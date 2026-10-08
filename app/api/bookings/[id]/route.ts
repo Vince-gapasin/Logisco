@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
 import { cancelBooking, getBookingById, updateBooking } from "@/services/booking/bookingService";
 import { updateOrderSchema } from "@/app/schemas/booking/booking.schema";
+import { PAST_TIME_RULE } from "@/app/lib/bookingRules";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { bookingCrew, crewOf, notify, OFFICE } from "@/services/notifications/notify";
@@ -83,6 +84,14 @@ async function updateBookingDetails(
     const message = error instanceof Error ? error.message : "Failed to update booking";
 
     if (message === "Booking not found") return NextResponse.json({ message }, { status: 404 });
+    // The new day puts the first stop in the past: the form's own rule, so it
+    // comes back as a field error, and the message is the rule itself.
+    if (message === PAST_TIME_RULE) {
+      return NextResponse.json(
+        { message, errors: { deliverySchedule: [PAST_TIME_RULE] } },
+        { status: 400 },
+      );
+    }
     if (
       message.includes("no longer be edited") ||
       message.includes("already on the road") ||

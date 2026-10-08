@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseDouble } from "./support/supabaseDouble";
 
@@ -16,6 +16,7 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
 vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unknown) => rows }));
 
 const { updateBooking, cancelBooking } = await import("@/services/booking/bookingService");
+const { PAST_TIME_RULE } = await import("@/app/lib/bookingRules");
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
 
@@ -105,6 +106,58 @@ describe("editing a booking", () => {
 
     expect(result.changed).toEqual([]);
     expect(result.rescheduled).toBe(false);
+  });
+});
+
+describe("moving a booking to a day whose first stop has gone", () => {
+  // 2026-10-08, two in the afternoon in Manila.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-08T14:00:00+08:00"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const withStops = (
+    pickups: { expectedTime: string; sequence: number }[],
+    stops: { expectedTime: string; sequence: number }[],
+  ) => ({ ...booking("Assigned"), PickupStops: pickups, BranchStops: stops });
+
+  it("refuses today when the first pickup was at 08:00", async () => {
+    db.queue({ data: withStops([{ expectedTime: "08:00:00", sequence: 1 }], [{ expectedTime: "16:00:00", sequence: 1 }]) });
+
+    await expect(updateBooking(ORDER, { deliverySchedule: "2026-10-08" })).rejects.toThrow(PAST_TIME_RULE);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("judges the first stop in route order, not the first row returned", async () => {
+    db.queue({
+      data: withStops(
+        [],
+        [
+          { expectedTime: "18:00:00", sequence: 2 },
+          { expectedTime: "09:00:00", sequence: 1 },
+        ],
+      ),
+    });
+
+    await expect(updateBooking(ORDER, { deliverySchedule: "2026-10-08" })).rejects.toThrow(PAST_TIME_RULE);
+  });
+
+  it("allows today when the first stop is still ahead, and a later stop earlier on the clock is overnight", async () => {
+    db.queue(
+      { data: withStops([{ expectedTime: "16:00:00", sequence: 1 }], [{ expectedTime: "02:00:00", sequence: 1 }]) },
+      { data: null },
+    );
+
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    expect(result.rescheduled).toBe(true);
+  });
+
+  it("allows tomorrow at the same 08:00", async () => {
+    db.queue({ data: withStops([{ expectedTime: "08:00:00", sequence: 1 }], []) }, { data: null });
+
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-09" });
+    expect(result.rescheduled).toBe(true);
   });
 });
 

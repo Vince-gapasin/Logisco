@@ -4,6 +4,7 @@ import { getRouteGeometry } from "@/services/geo/routingService";
 import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
 import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
 import { minutesUntil } from "@/app/lib/datetime";
+import { PAST_TIME_RULE, stopTimeHasPassed } from "@/app/lib/bookingRules";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -494,10 +495,17 @@ export async function cancelBooking(orderID: string, reason: string) {
  * Returns what changed, so the caller can record it and tell whoever is
  * affected - a crew who accepted a trip needs to know the day moved.
  */
+interface StopTime {
+  expectedTime?: string | null;
+  sequence?: number | null;
+}
+
 export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const { data: order, error } = await supabase
     .from("Order")
-    .select("orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status )")
+    .select(
+      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( expectedTime, sequence ), BranchStops ( expectedTime, sequence )",
+    )
     .eq("orderID", orderID)
     .maybeSingle();
 
@@ -526,6 +534,19 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
     product: items.map((item) => item.productName).filter(Boolean).join(", "),
     notes: readNotesBody(order.notes ?? ""),
   };
+
+  // Moved to a day whose first stop is already behind the clock - today, at
+  // 2 PM, for a run that starts at 08:00. The same rule a new booking meets,
+  // on the same stop: the first pickup if there is one, else the first
+  // delivery, as createBooking lays the route out.
+  if (dto.deliverySchedule && dto.deliverySchedule !== before.deliverySchedule) {
+    const bySequence = (rows: Embedded<StopTime>) =>
+      [...embedded(rows)].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    const first = [...bySequence(order.PickupStops as Embedded<StopTime>), ...bySequence(order.BranchStops as Embedded<StopTime>)][0];
+    if (first?.expectedTime && stopTimeHasPassed(dto.deliverySchedule, first.expectedTime)) {
+      throw new Error(PAST_TIME_RULE);
+    }
+  }
 
   let notes = order.notes ?? "";
   if (dto.deliverySchedule !== undefined) notes = setNote(notes, "Delivery Schedule", dto.deliverySchedule);
