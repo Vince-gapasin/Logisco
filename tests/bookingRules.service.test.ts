@@ -15,6 +15,10 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
 }));
 vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unknown) => rows }));
 
+// The drive is the map's answer; each test says what the map would have said.
+const getRouteGeometry = vi.fn();
+vi.mock("@/services/geo/routingService", () => ({ getRouteGeometry }));
+
 const { updateBooking, cancelBooking, RescheduleNotPossible } = await import("@/services/booking/bookingService");
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
@@ -158,6 +162,90 @@ describe("moving a booking to a day whose first stop has gone", () => {
 
     const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-09" });
     expect(result.rescheduled).toBe(true);
+  });
+});
+
+describe("moving a booking to today when the first stop cannot be reached in time", () => {
+  // 2026-10-08, two in the afternoon in Manila.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-08T14:00:00+08:00"));
+    getRouteGeometry.mockReset();
+    getRouteGeometry.mockResolvedValue(null);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const route = (legMinutes: number[]) => ({
+    path: [],
+    minutes: legMinutes.reduce((a, b) => a + b, 0),
+    distanceKm: 0,
+    legMinutes,
+  });
+  const pickup = (expectedTime: string, at: [number, number] | null = [14.6, 121.0]) => ({
+    warehouseName: "North Hub",
+    expectedTime,
+    sequence: 1,
+    pickupLat: at?.[0] ?? null,
+    pickupLong: at?.[1] ?? null,
+  });
+  const branch = (branchName: string, expectedTime: string, sequence: number, at: [number, number] = [14.55, 121.02]) => ({
+    branchName,
+    expectedTime,
+    sequence,
+    deliveryLat: at[0],
+    deliverLong: at[1],
+  });
+  const withStops = (pickups: unknown[], stops: unknown[]) => ({ ...booking("Assigned"), PickupStops: pickups, BranchStops: stops });
+
+  it("refuses a first stop half an hour away and two hours' drive from the yard", async () => {
+    getRouteGeometry.mockResolvedValue(route([120, 30]));
+    db.queue({ data: withStops([pickup("14:30:00")], [branch("Makati", "18:00:00", 1)]) });
+
+    const refusal = updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    await expect(refusal).rejects.toBeInstanceOf(RescheduleNotPossible);
+    await expect(refusal).rejects.toThrow(/^North Hub is 30 minutes away .* cannot get there in time/);
+    expect(db.writes).toHaveLength(0);
+
+    // One request, from the yard through the stored stops in route order.
+    expect(getRouteGeometry).toHaveBeenCalledTimes(1);
+    const waypoints = getRouteGeometry.mock.calls[0][0];
+    expect(waypoints.slice(1)).toEqual([
+      { latitude: 14.6, longitude: 121.0 },
+      { latitude: 14.55, longitude: 121.02 },
+    ]);
+  });
+
+  it("lets a tight day through, and says so", async () => {
+    getRouteGeometry.mockResolvedValue(route([100, 30]));
+    db.queue(
+      { data: withStops([pickup("16:30:00")], [branch("Makati", "17:00:00", 1)]) },
+      { data: null },
+    );
+
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    expect(result.rescheduled).toBe(true);
+    expect(result.warning).toMatch(/nothing to spare/);
+  });
+
+  it("lets a stop that was never placed through without asking the map, and says it was not checked", async () => {
+    db.queue(
+      { data: withStops([], [branch("Makati", "16:00:00", 1), branch("Pasig", "18:00:00", 2, [0, 0])]) },
+      { data: null },
+    );
+
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    expect(result.rescheduled).toBe(true);
+    expect(result.warning).toMatch(/Pasig could not be found on the map/);
+    expect(getRouteGeometry).not.toHaveBeenCalled();
+  });
+
+  it("does not ask the map for any day but today", async () => {
+    db.queue({ data: withStops([pickup("14:30:00")], [branch("Makati", "18:00:00", 1)]) }, { data: null });
+
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-09" });
+    expect(result.rescheduled).toBe(true);
+    expect(result.warning).toBeNull();
+    expect(getRouteGeometry).not.toHaveBeenCalled();
   });
 });
 

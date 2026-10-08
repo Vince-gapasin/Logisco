@@ -83,8 +83,9 @@ async function updateBookingDetails(
     const message = error instanceof Error ? error.message : "Failed to update booking";
 
     if (message === "Booking not found") return NextResponse.json({ message }, { status: 404 });
-    // The new day puts the first stop in the past: refused as the create path
-    // refuses a past time, as a 400 on the field that caused it.
+    // The new day puts the first stop in the past, or nearer than the drive
+    // out to it: refused as the create path refuses a past time, as a 400 on
+    // the field that caused it.
     if (error instanceof RescheduleNotPossible) {
       return NextResponse.json({ message, errors: { deliverySchedule: [message] } }, { status: 400 });
     }

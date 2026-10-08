@@ -3,7 +3,7 @@ import { geocodeAddresses, type Coordinates } from "@/services/geo/geocodingServ
 import { getRouteGeometry } from "@/services/geo/routingService";
 import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
 import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
-import { formatTime, minutesUntil } from "@/app/lib/datetime";
+import { formatTime, minutesUntil, todayInManila } from "@/app/lib/datetime";
 import { stopTimeHasPassed } from "@/app/lib/bookingRules";
 import {
   BEFORE_DEPARTURE_STATUSES,
@@ -487,12 +487,23 @@ interface StopTime {
   sequence?: number | null;
   warehouseName?: string | null;
   branchName?: string | null;
+  pickupLat?: number | null;
+  pickupLong?: number | null;
+  deliveryLat?: number | null;
+  deliverLong?: number | null;
+}
+
+/** Where a stop was placed when it was booked. 0/0 and null both mean nowhere. */
+function storedCoordinates(latitude?: number | null, longitude?: number | null): Coordinates | undefined {
+  if (latitude == null || longitude == null) return undefined;
+  if (latitude === 0 && longitude === 0) return undefined;
+  return { latitude, longitude };
 }
 
 /**
- * Refused because the new day puts the booking's first stop behind the clock.
- * Its message names the stop and time, since the coordinator changed the date,
- * not a time.
+ * Refused because the new day puts the booking's first stop behind the clock,
+ * or closer than the drive out to it. Its message names the stop, since the
+ * coordinator changed the date, not a time.
  */
 export class RescheduleNotPossible extends Error {}
 
@@ -513,7 +524,7 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const { data: order, error } = await supabase
     .from("Order")
     .select(
-      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( warehouseName, expectedTime, sequence ), BranchStops ( branchName, expectedTime, sequence )",
+      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( warehouseName, expectedTime, sequence, pickupLat, pickupLong ), BranchStops ( branchName, expectedTime, sequence, deliveryLat, deliverLong )",
     )
     .eq("orderID", orderID)
     .maybeSingle();
@@ -548,15 +559,49 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   // 2 PM, for a run that starts at 08:00. The same rule a new booking meets,
   // on the same stop: the first pickup if there is one, else the first
   // delivery, as createBooking lays the route out.
+  let warning: string | null = null;
   if (dto.deliverySchedule && dto.deliverySchedule !== before.deliverySchedule) {
     const bySequence = (rows: Embedded<StopTime>) =>
       [...embedded(rows)].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-    const first = [...bySequence(order.PickupStops as Embedded<StopTime>), ...bySequence(order.BranchStops as Embedded<StopTime>)][0];
+    const pickups = bySequence(order.PickupStops as Embedded<StopTime>);
+    const branches = bySequence(order.BranchStops as Embedded<StopTime>);
+    const first = [...pickups, ...branches][0];
     if (first?.expectedTime && stopTimeHasPassed(dto.deliverySchedule, first.expectedTime)) {
       const label = first.warehouseName || first.branchName || "The first stop";
       throw new RescheduleNotPossible(
         `${label}'s ${formatTime(first.expectedTime)} has already passed today. Pick a later day, or change the stop times.`,
       );
+    }
+
+    // Still ahead on the clock is not the same as reachable: a first stop half
+    // an hour from now and two hours from the yard is one no truck can make.
+    // The drive is measured as createBooking measures it, from where the stops
+    // were placed when they were booked. Only for today - any later day leaves
+    // the crew a night to get there - so a reschedule costs at most one
+    // Directions request.
+    if (dto.deliverySchedule === todayInManila()) {
+      const feasibility = await assessItinerary(
+        [
+          ...pickups.map((stop) => ({
+            label: stop.warehouseName || "Pickup",
+            time: stop.expectedTime,
+            at: storedCoordinates(stop.pickupLat, stop.pickupLong),
+          })),
+          ...branches.map((stop) => ({
+            label: stop.branchName || "Stop",
+            time: stop.expectedTime,
+            at: storedCoordinates(stop.deliveryLat, stop.deliverLong),
+          })),
+        ],
+        dto.deliverySchedule,
+      );
+
+      if (feasibility.verdict === "impossible") {
+        throw new RescheduleNotPossible(feasibility.message ?? "This itinerary cannot be driven in time today.");
+      }
+      // Tight or unchecked goes through - there is no confirmation step on an
+      // edit - but the coordinator is told, as a new booking would tell them.
+      warning = feasibility.message;
     }
   }
 
@@ -613,6 +658,8 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
     changed,
     /** The day moved, which is the one change a crew already on it must hear about. */
     rescheduled: changed.includes("deliverySchedule"),
+    /** Said when moving to today left the times tight, or they could not be checked. */
+    warning,
   };
 }
 
