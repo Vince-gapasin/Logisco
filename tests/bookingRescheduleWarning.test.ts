@@ -38,6 +38,12 @@ vi.mock("@/services/booking/bookingService", async (importOriginal) => {
 
 const { PATCH } = await import("@/app/api/bookings/[id]/route");
 const { RescheduleNotPossible } = await import("@/services/booking/bookingService");
+const { addDays } = await import("@/app/lib/bookingRules");
+const { todayInManila } = await import("@/app/lib/datetime");
+
+// A month out, whenever this runs: a fixed date would fall into the past and
+// be refused by the schema before the route got to say anything.
+const NEXT_MONTH = addDays(todayInManila(), 30);
 
 const reschedule = (deliverySchedule: string) =>
   PATCH(
@@ -65,7 +71,7 @@ beforeEach(() => {
 describe("a reschedule's warning", () => {
   it("comes back beside the data, where the edit window reads it", async () => {
     outcome = moved("These times leave the crew nothing to spare.");
-    const res = await reschedule("2026-12-01");
+    const res = await reschedule(NEXT_MONTH);
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -74,13 +80,13 @@ describe("a reschedule's warning", () => {
 
   it("is null when there is nothing to say", async () => {
     outcome = moved(null);
-    const body = await (await reschedule("2026-12-01")).json();
+    const body = await (await reschedule(NEXT_MONTH)).json();
     expect(body.warning).toBeNull();
   });
 
   it("is not a refusal - a day the truck cannot make is still a 400 on the date", async () => {
     refusal = new RescheduleNotPossible("Valenzuela is 30 minutes away and it is 2 hours from the yard.");
-    const res = await reschedule("2026-12-01");
+    const res = await reschedule(NEXT_MONTH);
 
     expect(res.status).toBe(400);
     const body = await res.json();
