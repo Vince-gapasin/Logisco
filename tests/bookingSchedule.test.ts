@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOrderSchema, updateOrderSchema } from "@/app/schemas/booking/booking.schema";
 import { CLOCK_RULE, isQuarterHour, PAST_TIME_RULE, QUARTER_HOUR_RULE } from "@/app/lib/bookingRules";
 import { minutesUntil } from "@/app/lib/datetime";
+import { BOOKING_DATE_RULE, EARLIER_SAME_DAY_RULE, NO_DATE_RULE, RUN_TOO_LONG_RULE } from "@/app/lib/stopSchedule";
 
 // What the server will accept as a delivery date and a stop time.
 //
@@ -265,5 +266,68 @@ describe("counting the minutes to a stop", () => {
   it("gives nothing for something that is not a date and a time", () => {
     expect(minutesUntil("not-a-date", "08:00")).toBeNull();
     expect(minutesUntil("2026-10-05", "banana")).toBeNull();
+  });
+});
+
+describe("a date on each stop", () => {
+  // 10:00 on the 5th in Manila. The booking is for the 6th.
+  const pickup = (expectedTime: string, expectedDate?: string) => ({
+    warehouseName: "Valenzuela",
+    pickupAddress: "Valenzuela City",
+    quantity: 10,
+    expectedTime,
+    ...(expectedDate === undefined ? {} : { expectedDate }),
+  });
+  // Each stop at its own address: the same one twice is refused on its own.
+  let nextAddress = 0;
+  const stop = (expectedTime: string, expectedDate?: string) => ({
+    ...booking().stops[0],
+    deliveryAddress: `Branch ${(nextAddress += 1)}, Davao City`,
+    expectedTime,
+    ...(expectedDate === undefined ? {} : { expectedDate }),
+  });
+  const parse = (pickups: unknown[], stops: unknown[]) => createOrderSchema.safeParse(booking({ pickups, stops }));
+  const issues = (pickups: unknown[], stops: unknown[]) => {
+    const result = parse(pickups, stops);
+    return result.success ? [] : result.error.issues.map((issue) => ({ path: issue.path, message: issue.message }));
+  };
+
+  it("accepts a run of several days", () => {
+    at(NOW);
+    expect(parse([pickup("08:00")], [stop("17:00", "2026-10-08"), stop("09:00", "2026-10-09")]).success).toBe(true);
+  });
+
+  it("still accepts a booking sent without dates, read overnight as it always was", () => {
+    at(NOW);
+    expect(parse([pickup("21:00")], [stop("03:00")]).success).toBe(true);
+  });
+
+  it("does not read a lower clock as the next day once dates are given", () => {
+    at(NOW);
+    expect(issues([pickup("21:00", "2026-10-06")], [stop("03:00")])).toEqual([
+      { path: ["stops", 0, "expectedTime"], message: EARLIER_SAME_DAY_RULE },
+    ]);
+  });
+
+  it("refuses a run longer than a week, on the stop that goes past it", () => {
+    at(NOW);
+    expect(issues([pickup("08:00")], [stop("17:00", "2026-10-09"), stop("09:00", "2026-10-13")])).toEqual([
+      { path: ["stops", 1, "expectedDate"], message: RUN_TOO_LONG_RULE },
+    ]);
+  });
+
+  it("keeps the first stop on the booking's date", () => {
+    at(NOW);
+    expect(issues([pickup("08:00", "2026-10-07")], [stop("17:00")])).toEqual([
+      { path: ["pickups", 0, "expectedDate"], message: BOOKING_DATE_RULE },
+    ]);
+  });
+
+  it("refuses a stop date the calendar does not have", () => {
+    at(NOW);
+    expect(issues([pickup("08:00")], [stop("17:00", "2026-11-31")])).toContainEqual({
+      path: ["stops", 0, "expectedDate"],
+      message: NO_DATE_RULE,
+    });
   });
 });

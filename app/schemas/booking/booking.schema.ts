@@ -9,12 +9,11 @@ import {
   isValidClockTime,
   MIN_QUANTITY,
   normalizePhone,
-  PAST_TIME_RULE,
   PHONE_RULE,
   QUARTER_HOUR_RULE,
-  stopTimeHasPassed,
   TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
+import { scheduleForBooking } from "@/app/lib/stopSchedule";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
 const phone = z
@@ -89,6 +88,12 @@ const clockTime = z
 const address = (label: string) =>
   z.string().trim().min(1, `${label} is required`).max(500, `Keep the ${label.toLowerCase()} under 500 characters`);
 
+// The day a stop is due. Optional, and blank means "the same day as the stop
+// before it" - so a single-day booking never has to say it. Its sense (a real
+// day, not gone, in order, within a week) is checked across the whole route
+// below, where the stops before it are known.
+const stopDate = z.string().trim().max(10, "Use a date like 2026-10-05").optional();
+
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();
 const PAST_MESSAGE = "That date has already passed";
@@ -102,6 +107,7 @@ const branchStopSchema = z.object({
   contactPerson: z.string().min(1, "Contact person is required").trim(),
   contactNum: phone,
   expectedTime: clockTime,
+  expectedDate: stopDate,
   quantity: stopQuantity,
 
   // Geocoded on the server so the stop can be shown on the map and routed.
@@ -121,6 +127,7 @@ const pickupStopSchema = z.object({
   // time made the whole itinerary unreadable and every check on it - the order
   // of the stops, the second midnight, the drive - was skipped in silence.
   expectedTime: clockTime,
+  expectedDate: stopDate,
   quantity: stopQuantity,
 });
 
@@ -161,13 +168,26 @@ export const createOrderSchema = z.object({
     });
   }
 
-  // The truck collects before it delivers, so the first stop is the first
-  // pickup when there is one.
-  const first = order.pickups.length > 0
-    ? { time: order.pickups[0].expectedTime, path: ["pickups", 0, "expectedTime"] }
-    : { time: order.stops[0]?.expectedTime, path: ["stops", 0, "expectedTime"] };
-  if (first.time && stopTimeHasPassed(order.deliverySchedule, first.time)) {
-    ctx.addIssue({ code: "custom", message: PAST_TIME_RULE, path: first.path });
+  // When each stop is due, in the order the truck drives them: collections
+  // first, then drops. The same rule the booking form applies, from the same
+  // function - each stop strictly after the one before it, the first not
+  // already gone, the run within a week, the first stop on the booking's date.
+  // A submission with no stop dates is read the way it always was.
+  const pickupCount = order.pickups.length;
+  const { issues } = scheduleForBooking(
+    [
+      ...order.pickups.map((pickup) => ({ date: pickup.expectedDate, time: pickup.expectedTime })),
+      ...order.stops.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+    ],
+    order.deliverySchedule,
+  );
+  for (const issue of issues) {
+    const field = issue.field === "date" ? "expectedDate" : "expectedTime";
+    ctx.addIssue({
+      code: "custom",
+      message: issue.message,
+      path: issue.index < pickupCount ? ["pickups", issue.index, field] : ["stops", issue.index - pickupCount, field],
+    });
   }
 });
 // ==========================================

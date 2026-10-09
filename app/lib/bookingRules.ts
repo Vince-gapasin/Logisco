@@ -97,6 +97,15 @@ export function addDays(dateIso: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+/** Whole calendar days from one YYYY-MM-DD to another; negative when it is earlier. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const day = (iso: string) => {
+    const [year, month, date] = iso.split("-").map(Number);
+    return Date.UTC(year, month - 1, date);
+  };
+  return Math.round((day(toIso) - day(fromIso)) / 86_400_000);
+}
+
 // A year out is as far as anyone books. Past it the date is almost always a
 // slip of the keyboard - 2062 for 2026 - and a booking that far out is never
 // seen again on a calendar anyone is looking at.

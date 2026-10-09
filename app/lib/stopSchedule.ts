@@ -187,6 +187,35 @@ export function checkStopSchedule(
 }
 
 /**
+ * The schedule of a booking as it is submitted, dated or not.
+ *
+ * A submission whose stops carry dates is held to every rule as it stands.
+ * One with no dates at all - the booking form before it had a date on each
+ * row, or anything else written for that contract - is read the way it always
+ * was: the booking's date, a day later each time the clock goes backwards. Its
+ * dates are filled in from that reading, so every booking stores a date on
+ * every stop from now on, and "dated" says which of the two it was: only a
+ * dated schedule hands its moments to the drive check, so an undated one keeps
+ * the old reading there too, including its refusal of a second midnight.
+ *
+ * In an undated submission the dates were never typed, so nothing is reported
+ * against them - a bad booking date is the booking date's own error.
+ */
+export function scheduleForBooking(
+  stops: ScheduledStop[],
+  bookingDate: string,
+  now: Date = new Date(),
+): StopSchedule & { dated: boolean } {
+  const dated = stops.some((stop) => !blank(stop.date));
+  if (dated) return { ...checkStopSchedule(stops, { bookingDate, now }), dated };
+
+  const legacy = isRealDate(bookingDate) ? legacyStopDates(bookingDate, stops.map((stop) => stop.time)) : [];
+  const filled = stops.map((stop, index) => ({ ...stop, date: legacy[index] ?? "" }));
+  const schedule = checkStopSchedule(filled, { bookingDate, now });
+  return { ...schedule, issues: schedule.issues.filter((issue) => issue.field === "time"), dated };
+}
+
+/**
  * Each stop's date for a booking stored before stops had dates: the order's
  * date, rolling forward a day each time a stop is earlier on the clock than
  * the one before it - the reading those bookings were made under.

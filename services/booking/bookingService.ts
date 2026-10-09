@@ -4,7 +4,8 @@ import { getRouteGeometry } from "@/services/geo/routingService";
 import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibility";
 import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
 import { formatTime, minutesUntil, todayInManila } from "@/app/lib/datetime";
-import { stopTimeHasPassed } from "@/app/lib/bookingRules";
+import { addDays, daysBetween, isRealDate, stopTimeHasPassed } from "@/app/lib/bookingRules";
+import { effectiveStopDates, legacyStopDates, scheduleForBooking, stopMoment } from "@/app/lib/stopSchedule";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -483,7 +484,10 @@ export async function cancelBooking(orderID: string, reason: string) {
 }
 
 interface StopTime {
+  pickupID?: number | null;
+  branchID?: number | string | null;
   expectedTime?: string | null;
+  expectedDate?: string | null;
   sequence?: number | null;
   warehouseName?: string | null;
   branchName?: string | null;
@@ -524,7 +528,7 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const { data: order, error } = await supabase
     .from("Order")
     .select(
-      "orderID, orderCode, notes, isActive, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( warehouseName, expectedTime, sequence, pickupLat, pickupLong ), BranchStops ( branchName, expectedTime, sequence, deliveryLat, deliverLong )",
+      "orderID, orderCode, notes, isActive, deliverySchedule, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, sequence, pickupLat, pickupLong ), BranchStops ( branchID, branchName, expectedTime, expectedDate, sequence, deliveryLat, deliverLong )",
     )
     .eq("orderID", orderID)
     .maybeSingle();
@@ -560,12 +564,33 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   // on the same stop: the first pickup if there is one, else the first
   // delivery, as createBooking lays the route out.
   let warning: string | null = null;
+  // Every stop's new date, written once the checks below have passed.
+  let movedStops: { table: "PickupStops" | "BranchStops"; key: "pickupID" | "branchID"; id: unknown; date: string }[] = [];
   if (dto.deliverySchedule && dto.deliverySchedule !== before.deliverySchedule) {
     const bySequence = (rows: Embedded<StopTime>) =>
       [...embedded(rows)].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
     const pickups = bySequence(order.PickupStops as Embedded<StopTime>);
     const branches = bySequence(order.BranchStops as Embedded<StopTime>);
-    const first = [...pickups, ...branches][0];
+    const route = [...pickups, ...branches];
+    const first = route[0];
+
+    // The whole run moves, not just its first day: every stop keeps its place
+    // relative to the first. A run of three days moved to Friday ends on
+    // Sunday. Stops stored before they had dates are read the way they were
+    // booked, and get their dates written now.
+    const oldDay = String(order.deliverySchedule ?? "").slice(0, 10) || before.deliverySchedule;
+    const newDay = dto.deliverySchedule;
+    const current = isRealDate(oldDay)
+      ? effectiveStopDates(oldDay, route.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })))
+      : legacyStopDates(newDay, route.map((stop) => stop.expectedTime));
+    const shift = isRealDate(oldDay) ? daysBetween(oldDay, newDay) : 0;
+    const dates = current.map((date) => addDays(date, shift));
+    movedStops = route.map((stop, index) =>
+      index < pickups.length
+        ? { table: "PickupStops" as const, key: "pickupID" as const, id: stop.pickupID, date: dates[index] }
+        : { table: "BranchStops" as const, key: "branchID" as const, id: stop.branchID, date: dates[index] },
+    );
+    const moments = route.map((stop, index) => stopMoment(dates[index], stop.expectedTime ?? ""));
     if (first?.expectedTime && stopTimeHasPassed(dto.deliverySchedule, first.expectedTime)) {
       const label = first.warehouseName || first.branchName || "The first stop";
       throw new RescheduleNotPossible(
@@ -594,6 +619,7 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
           })),
         ],
         dto.deliverySchedule,
+        moments,
       );
 
       if (feasibility.verdict === "impossible") {
@@ -617,6 +643,15 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const changes: Record<string, unknown> = {};
   if (notes !== order.notes) changes.notes = notes;
   if (dto.deliverySchedule !== undefined) changes.deliverySchedule = dto.deliverySchedule || null;
+
+  // The stops move first. Were the order to move and a stop then fail, the
+  // booking would say one day and its stops another; this way a failure
+  // leaves the booking on its old day, and the edit can simply be tried again.
+  for (const stop of movedStops) {
+    if (stop.id === undefined || stop.id === null) continue;
+    const { error: stopError } = await supabase.from(stop.table).update({ expectedDate: stop.date }).eq(stop.key, stop.id);
+    if (stopError) throw new Error(`Failed to move this booking's stops: ${stopError.message}`);
+  }
 
   if (Object.keys(changes).length > 0) {
     const { error: notesError } = await supabase.from("Order").update(changes).eq("orderID", orderID);
@@ -682,6 +717,10 @@ export class BookingNeedsConfirmation extends Error {}
 async function assessItinerary(
   stops: { label: string; time?: string | null; at?: Coordinates }[],
   scheduledFor: string,
+  // When each stop is due, from its own date and time. Given, the drive is
+  // measured against real gaps - a run of several days is several days - and
+  // nothing is read as overnight. Left out, the old clock reading applies.
+  moments: (number | null)[] | null = null,
 ): Promise<Feasibility> {
   const points = stops.map((stop) => stop.at).filter((at): at is Coordinates => Boolean(at));
 
@@ -708,6 +747,7 @@ async function assessItinerary(
     legMinutes: legs.length === stops.length ? legs.slice(1) : null,
     minutesUntilFirstStop: firstTime ? minutesUntil(scheduledFor, firstTime) : null,
     departureBufferMin: DEPARTURE_BUFFER_MIN,
+    moments: moments && moments.every((moment) => moment !== null) ? (moments as number[]) : null,
   });
 
   // A booking the check could not run on is accepted - refusing a real delivery
@@ -749,6 +789,23 @@ export async function createBooking(dto: CreateOrderDto) {
   // reuse what this found - they each used to geocode again, separately.
   const pickups = (dto.pickups ?? []).filter((pickup) => pickup.warehouseName?.trim());
 
+  // When each stop is due. The schema has already refused a schedule that
+  // breaks the rules; this resolves the dates to store and the moments to
+  // measure the drive by. Stops sent without dates are read the way they
+  // always were, and stored with the dates that reading gives them.
+  const schedule = scheduleForBooking(
+    [
+      ...pickups.map((pickup) => ({ date: pickup.expectedDate, time: pickup.expectedTime })),
+      ...dto.stops.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+    ],
+    dto.deliverySchedule,
+  );
+  // Checked again for the minute between the schema and here: a first stop
+  // that has just gone, on a booking made at the last moment.
+  if (schedule.issues.length > 0) throw new BookingNotPossible(schedule.issues[0].message);
+  const pickupDate = (index: number) => schedule.dates[index] ?? dto.deliverySchedule;
+  const stopDate = (index: number) => schedule.dates[pickups.length + index] ?? dto.deliverySchedule;
+
   const [stopCoordinates, pickupCoordinates] = await Promise.all([
     geocodeAddresses(dto.stops.map((stop) => stop.deliveryAddress || "").filter(Boolean)),
     geocodeAddresses(pickups.map((pickup) => pickup.pickupAddress || "").filter(Boolean)),
@@ -769,7 +826,7 @@ export async function createBooking(dto: CreateOrderDto) {
         ? stopCoordinates.get(stop.deliveryAddress.trim())
         : undefined,
     })),
-  ], dto.deliverySchedule);
+  ], dto.deliverySchedule, schedule.dated ? schedule.moments : null);
 
   if (feasibility.verdict === "impossible") {
     throw new BookingNotPossible(feasibility.message ?? "This itinerary cannot be driven in time.");
@@ -858,6 +915,7 @@ export async function createBooking(dto: CreateOrderDto) {
         deliveryLat: coordinates?.latitude ?? 0,
         deliverLong: coordinates?.longitude ?? 0,
         expectedTime: stop.expectedTime || "12:00:00",
+        expectedDate: stopDate(index),
         quantity: stop.quantity ?? null,
         sequence: index + 1,
         stopStatus: STOP_STATUS.pending,
@@ -889,6 +947,7 @@ export async function createBooking(dto: CreateOrderDto) {
         contactPerson: pickup.contactPerson || null,
         contactNum: pickup.contactNum || null,
         expectedTime: normalizeTime(pickup.expectedTime),
+        expectedDate: pickupDate(index),
         quantity: pickup.quantity ?? null,
         pickupLat: coordinates?.latitude ?? null,
         pickupLong: coordinates?.longitude ?? null,

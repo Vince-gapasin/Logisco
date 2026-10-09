@@ -27,6 +27,7 @@ export interface BranchStop {
   deliveryLat?: number;
   deliverLong?: number;
   expectedTime: string;
+  expectedDate?: string | null;
   sequence?: number | null;
   stopStatus?: string;
   arrivedAt?: string | null;
@@ -46,6 +47,7 @@ export interface PickupStop {
   contactPerson?: string | null;
   contactNum?: string | null;
   expectedTime?: string | null;
+  expectedDate?: string | null;
   pickupLat?: number | null;
   pickupLong?: number | null;
   sequence?: number | null;
@@ -85,6 +87,8 @@ export interface CreateBranchStopDto {
   contactPerson: string;
   contactNum: string;
   expectedTime: string;
+  /** YYYY-MM-DD, or blank for the same day as the stop before it. */
+  expectedDate?: string;
   deliveryAddress?: string;
   quantity?: number;
 }
@@ -96,6 +100,8 @@ export interface CreatePickupStopDto {
   contactPerson?: string;
   contactNum?: string;
   expectedTime?: string;
+  /** YYYY-MM-DD, or blank for the same day as the stop before it. */
+  expectedDate?: string;
   quantity?: number;
 }
 
