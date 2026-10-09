@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AlertTriangle, Search, FileText, Radio, Copy, Check, LocateFixed } from "lucide-react";
+import { copyText } from "@/app/lib/copyText";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
 import { describeSilence, CHECK_IN_LABELS, type CheckInState } from "@/app/lib/stallRules";
@@ -129,6 +130,8 @@ export default function FleetLiveTracking() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loadedAt, setLoadedAt] = useState(0);
   const [copiedToken, setCopiedToken] = useState("");
+  // A link that could not be copied any way at all, so the button says so.
+  const [copyFailedToken, setCopyFailedToken] = useState("");
 
   // Whose route to draw. Every truck at once would be a tangle of lines and a
   // Mapbox request per truck on every refresh, so it is one at a time: pick a
@@ -267,12 +270,12 @@ export default function FleetLiveTracking() {
   // Customer-facing tracking link for an order.
   const copyTrackingLink = async (token: string) => {
     const link = `${window.location.origin}/client-view?token=${token}`;
-    try {
-      await navigator.clipboard.writeText(link);
+    if (await copyText(link)) {
       setCopiedToken(token);
       setTimeout(() => setCopiedToken(""), 2000);
-    } catch {
-      window.prompt("Copy this tracking link:", link);
+    } else {
+      setCopyFailedToken(token);
+      setTimeout(() => setCopyFailedToken(""), 3000);
     }
   };
 
@@ -480,7 +483,11 @@ export default function FleetLiveTracking() {
                               ) : (
                                 <Copy className="w-3.5 h-3.5 shrink-0" />
                               )}
-                              {copiedToken === record.trackingToken ? "Copied" : "Copy client link"}
+                              {copiedToken === record.trackingToken
+                                ? "Copied"
+                                : copyFailedToken === record.trackingToken
+                                  ? "Couldn't copy"
+                                  : "Copy client link"}
                             </button>
                           ) : (
                             <span className="text-slate-500">No link</span>

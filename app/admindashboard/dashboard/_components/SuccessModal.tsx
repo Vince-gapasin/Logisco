@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/app/lib/apiClient";
+import { copyText } from "@/app/lib/copyText";
 import { CheckCircle2, Copy } from "lucide-react";
 
 // ==========================================
@@ -19,6 +20,8 @@ interface SuccessModalProps {
 
 export function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderID }: SuccessModalProps) {
   const [copied, setCopied] = useState(false);
+  // Every way of copying refused: the button says so rather than nothing.
+  const [copyFailed, setCopyFailed] = useState(false);
   // The link is emailed to the client when the booking is made. This says
   // where it went, and sends it again - a wrong address, or a client who
   // never received it.
@@ -52,12 +55,12 @@ export function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderI
   };
 
   const copyTrackingLink = async () => {
-    try {
-      await navigator.clipboard.writeText(trackingLink);
+    if (await copyText(trackingLink)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      window.prompt("Copy this tracking link:", trackingLink);
+    } else {
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 3000);
     }
   };
 
@@ -95,7 +98,7 @@ export function SuccessModal({ isOpen, onClose, orderCode, trackingToken, orderI
                 className="shrink-0 flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
               >
                 <Copy className="w-3.5 h-3.5" />
-                {copied ? "Copied" : "Copy"}
+                {copied ? "Copied" : copyFailed ? "Couldn't copy" : "Copy"}
               </button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
