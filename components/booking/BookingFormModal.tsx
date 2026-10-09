@@ -547,10 +547,12 @@ function BookingForm({
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
     if (isSubconMode && formData.partnerContact.trim() && !normalizePhone(formData.partnerContact)) next.partnerContact = PHONE_RULE;
 
-    if (Object.keys(next).length > 0) {
-      setErrors(next);
-      return;
-    }
+    // Set every time, empty included. Errors were only ever replaced when the
+    // form found new ones, so cells the server had refused stayed red - and
+    // "Check the fields marked in red" stayed up - after the coordinator had
+    // fixed what was wrong and the form had nothing left to say.
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     const truck = availableTrucks.find((t) => t.truckID === formData.truckPlate);
     const driver = availableDrivers.find((d) => d.employeeID === formData.driver);
