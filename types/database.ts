@@ -44,6 +44,8 @@ export interface BranchStopsRow {
   deliveryLat: number;
   deliverLong: number;
   expectedTime: string;
+  /** Day the stop is due (YYYY-MM-DD). NULL: the order's deliverySchedule, read in route order. */
+  expectedDate: string | null;
   stopStatus: string;
   /** This is a Foreign Key to `DispatchOrder.dispatchID`.<fk table='DispatchOrder' column='dispatchID'/> */
   dispatchID: string | null;
@@ -449,6 +451,8 @@ export interface PickupStopsRow {
   contactPerson: string | null;
   contactNum: string | null;
   expectedTime: string | null;
+  /** Day the pickup is due (YYYY-MM-DD). NULL: the order's deliverySchedule, read in route order. */
+  expectedDate: string | null;
   pickupLat: number | null;
   pickupLong: number | null;
   sequence: number;
