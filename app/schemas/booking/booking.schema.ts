@@ -13,7 +13,7 @@ import {
   QUARTER_HOUR_RULE,
   TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
-import { scheduleForBooking } from "@/app/lib/stopSchedule";
+import { checkStopSchedule } from "@/app/lib/stopSchedule";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
 const phone = z
@@ -88,11 +88,14 @@ const clockTime = z
 const address = (label: string) =>
   z.string().trim().min(1, `${label} is required`).max(500, `Keep the ${label.toLowerCase()} under 500 characters`);
 
-// The day a stop is due. Optional, and blank means "the same day as the stop
-// before it" - so a single-day booking never has to say it. Its sense (a real
-// day, not gone, in order, within a week) is checked across the whole route
-// below, where the stops before it are known.
-const stopDate = z.string().trim().max(10, "Use a date like 2026-10-05").optional();
+// The day a stop is due. Required on every stop: a submission without them
+// used to be read with the old overnight guess - a lower clock was the next
+// morning - which let anything that skipped the booking form bring back the
+// typo that guess let through (03:05 for 15:05). The form fills every row's
+// day for the coordinator, so a one-day booking still types it once. Its
+// sense (a real day, not gone, in order, within a week) is checked across the
+// whole route below, where the stops before it are known.
+const stopDate = z.string().trim().min(1, "Choose a date").max(10, "Use a date like 2026-10-05");
 
 /** Refuses a day that has already gone, read in Manila rather than in UTC. */
 const notInThePast = (value: string) => value >= todayInManila();
@@ -172,14 +175,13 @@ export const createOrderSchema = z.object({
   // first, then drops. The same rule the booking form applies, from the same
   // function - each stop strictly after the one before it, the first not
   // already gone, the run within a week, the first stop on the booking's date.
-  // A submission with no stop dates is read the way it always was.
   const pickupCount = order.pickups.length;
-  const { issues } = scheduleForBooking(
+  const { issues } = checkStopSchedule(
     [
       ...order.pickups.map((pickup) => ({ date: pickup.expectedDate, time: pickup.expectedTime })),
       ...order.stops.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
     ],
-    order.deliverySchedule,
+    { bookingDate: order.deliverySchedule },
   );
   for (const issue of issues) {
     const field = issue.field === "date" ? "expectedDate" : "expectedTime";

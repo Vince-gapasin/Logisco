@@ -69,12 +69,14 @@ describe("making a booking", () => {
     expect(written("BranchStops")[0]).toMatchObject({ expectedTime: "17:00", expectedDate: "2026-10-08" });
   });
 
-  it("stores the old overnight reading for a booking sent without dates", async () => {
-    // The booking form before it had a date on each row.
-    await create(dto([{ expectedTime: "21:00" }], [{ expectedTime: "03:00" }, { expectedTime: "06:00" }]));
-
-    expect(written("PickupStops").map((row) => row.expectedDate)).toEqual(["2026-10-06"]);
-    expect(written("BranchStops").map((row) => row.expectedDate)).toEqual(["2026-10-07", "2026-10-07"]);
+  it("guesses no next morning for stops that reach it without a day of their own", async () => {
+    // The schema refuses a stop without a date; this is the service's own
+    // guard if one gets past it. Read on one day, 21:00 then 03:00 is out of
+    // order - it used to be stored as an overnight run nobody had chosen.
+    // Called directly, with nothing queued for a save that must not happen.
+    const booking = dto([{ expectedTime: "21:00" }], [{ expectedTime: "03:00" }]);
+    await expect(createBooking(booking as Parameters<typeof createBooking>[0])).rejects.toBeInstanceOf(BookingNotPossible);
+    expect(db.writes).toHaveLength(0);
   });
 
   it("refuses a schedule that has gone wrong between the check and the save, before writing", async () => {

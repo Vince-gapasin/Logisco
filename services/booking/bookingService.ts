@@ -5,7 +5,7 @@ import { assessFeasibility, type Feasibility } from "@/app/lib/deliveryFeasibili
 import { BASE_LOCATION, DEPARTURE_BUFFER_MIN } from "@/app/lib/baseLocation";
 import { formatTime, minutesUntil, todayInManila } from "@/app/lib/datetime";
 import { addDays, daysBetween, isRealDate, stopTimeHasPassed } from "@/app/lib/bookingRules";
-import { effectiveStopDates, legacyStopDates, scheduleForBooking, stopMoment } from "@/app/lib/stopSchedule";
+import { checkStopSchedule, effectiveStopDates, legacyStopDates, stopMoment } from "@/app/lib/stopSchedule";
 import {
   BEFORE_DEPARTURE_STATUSES,
   CARRYING_OR_DONE_STATUSES,
@@ -811,14 +811,13 @@ export async function createBooking(dto: CreateOrderDto) {
 
   // When each stop is due. The schema has already refused a schedule that
   // breaks the rules; this resolves the dates to store and the moments to
-  // measure the drive by. Stops sent without dates are read the way they
-  // always were, and stored with the dates that reading gives them.
-  const schedule = scheduleForBooking(
+  // measure the drive by. Nothing is guessed: a stop's day is the one sent.
+  const schedule = checkStopSchedule(
     [
       ...pickups.map((pickup) => ({ date: pickup.expectedDate, time: pickup.expectedTime })),
       ...dto.stops.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
     ],
-    dto.deliverySchedule,
+    { bookingDate: dto.deliverySchedule },
   );
   // Checked again for the minute between the schema and here: a first stop
   // that has just gone, on a booking made at the last moment.
@@ -846,7 +845,7 @@ export async function createBooking(dto: CreateOrderDto) {
         ? stopCoordinates.get(stop.deliveryAddress.trim())
         : undefined,
     })),
-  ], dto.deliverySchedule, schedule.dated ? schedule.moments : null);
+  ], dto.deliverySchedule, schedule.moments);
 
   if (feasibility.verdict === "impossible") {
     throw new BookingNotPossible(feasibility.message ?? "This itinerary cannot be driven in time.");

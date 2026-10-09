@@ -18,27 +18,37 @@ import { BOOKING_DATE_RULE, EARLIER_SAME_DAY_RULE, NO_DATE_RULE, RUN_TOO_LONG_RU
 // Mid-morning in Manila, which is 02:00 UTC on the same day.
 const NOW = new Date("2026-10-05T02:00:00.000Z");
 
-const booking = (over: Record<string, unknown> = {}) => ({
-  clientID: null,
-  deliverySchedule: "2026-10-06",
-  notes: "",
-  items: [{ productName: "Buns", productType: "General", quantity: 10, weightPerItem: 1 }],
-  stops: [
-    {
-      branchName: "Makati Branch",
-      contactPerson: "Trisha Molina",
-      contactNum: "09281112013",
-      expectedTime: "08:00",
-      quantity: 10,
-      deliveryAddress: "Ayala Ave, Makati City",
-    },
-  ],
-  ...over,
-});
+// A delivery stop with no day of its own; booking() gives it one.
+const baseStop = {
+  branchName: "Makati Branch",
+  contactPerson: "Trisha Molina",
+  contactNum: "09281112013",
+  expectedTime: "08:00",
+  quantity: 10,
+  deliveryAddress: "Ayala Ave, Makati City",
+};
+
+// Every stop is sent with its day, as the booking form sends it. A stop a test
+// gives no day falls on the booking's own; one it gives a day keeps it.
+const booking = (over: Record<string, unknown> = {}) => {
+  const body: Record<string, unknown> = {
+    clientID: null,
+    deliverySchedule: "2026-10-06",
+    notes: "",
+    items: [{ productName: "Buns", productType: "General", quantity: 10, weightPerItem: 1 }],
+    stops: [baseStop],
+    ...over,
+  };
+  const dated = (rows: unknown) =>
+    Array.isArray(rows)
+      ? rows.map((row) => ({ expectedDate: body.deliverySchedule, ...(row as Record<string, unknown>) }))
+      : rows;
+  return { ...body, stops: dated(body.stops), pickups: dated(body.pickups) };
+};
 
 const stopWith = (expectedTime: unknown) =>
   createOrderSchema.safeParse(
-    booking({ stops: [{ ...booking().stops[0], expectedTime }] }),
+    booking({ stops: [{ ...baseStop, expectedTime }] }),
   );
 
 afterEach(() => {
@@ -70,7 +80,7 @@ describe("the day a delivery is for", () => {
 
   it("allows today, because most deliveries are for today", () => {
     at(NOW);
-    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05", stops: [{ ...booking().stops[0], expectedTime: "14:00" }] })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05", stops: [{ ...baseStop, expectedTime: "14:00" }] })).success).toBe(true);
   });
 
   it("reads today in Manila, not in UTC", () => {
@@ -79,7 +89,7 @@ describe("the day a delivery is for", () => {
     // and one for the 5th would be refused as past - both wrong where the
     // trucks are.
     at(new Date("2026-10-05T16:30:00.000Z"));
-    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06", stops: [{ ...booking().stops[0], expectedTime: "08:00" }] })).success).toBe(true);
+    expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-06", stops: [{ ...baseStop, expectedTime: "08:00" }] })).success).toBe(true);
     expect(createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05" })).success).toBe(false);
   });
 
@@ -170,7 +180,12 @@ describe("a stop booked for today", () => {
   // 10:00 in Manila.
   const today = (stops: unknown[], pickups: unknown[] = []) =>
     createOrderSchema.safeParse(booking({ deliverySchedule: "2026-10-05", stops, pickups }));
-  const stop = (expectedTime: string, deliveryAddress = "Ayala Ave, Makati City") => ({ ...booking().stops[0], expectedTime, deliveryAddress });
+  const stop = (expectedTime: string, deliveryAddress = "Ayala Ave, Makati City", expectedDate?: string) => ({
+    ...baseStop,
+    expectedTime,
+    deliveryAddress,
+    ...(expectedDate ? { expectedDate } : {}),
+  });
   const pickup = (expectedTime: string) => ({ warehouseName: "Valenzuela", pickupAddress: "Valenzuela City", quantity: 10, expectedTime });
 
   it("cannot start at a time already gone", () => {
@@ -196,9 +211,11 @@ describe("a stop booked for today", () => {
     expect(result.error.issues[0].path).toEqual(["pickups", 0, "expectedTime"]);
   });
 
-  it("lets a later stop be earlier on the clock - that is the next morning", () => {
+  it("lets a later stop be earlier on the clock once it is given the next morning", () => {
     at(NOW);
-    expect(today([stop("03:00")], [pickup("21:00")]).success).toBe(true);
+    expect(today([stop("03:00", undefined, "2026-10-06")], [pickup("21:00")]).success).toBe(true);
+    // Left on the same day, it is not read as the next one.
+    expect(today([stop("03:00")], [pickup("21:00")]).success).toBe(false);
   });
 
   it("says nothing about another day's times", () => {
@@ -209,7 +226,7 @@ describe("a stop booked for today", () => {
 
 describe("the addresses on a booking", () => {
   const withStops = (stops: unknown[], pickups: unknown[] = []) => createOrderSchema.safeParse(booking({ stops, pickups }));
-  const stop = (deliveryAddress: unknown) => ({ ...booking().stops[0], deliveryAddress });
+  const stop = (deliveryAddress: unknown) => ({ ...baseStop, deliveryAddress });
   const pickup = (pickupAddress: unknown) => ({ warehouseName: "Valenzuela", pickupAddress, quantity: 10, expectedTime: "06:00" });
 
   it("are required on every stop", () => {
@@ -281,7 +298,7 @@ describe("a date on each stop", () => {
   // Each stop at its own address: the same one twice is refused on its own.
   let nextAddress = 0;
   const stop = (expectedTime: string, expectedDate?: string) => ({
-    ...booking().stops[0],
+    ...baseStop,
     deliveryAddress: `Branch ${(nextAddress += 1)}, Davao City`,
     expectedTime,
     ...(expectedDate === undefined ? {} : { expectedDate }),
@@ -297,9 +314,22 @@ describe("a date on each stop", () => {
     expect(parse([pickup("08:00")], [stop("17:00", "2026-10-08"), stop("09:00", "2026-10-09")]).success).toBe(true);
   });
 
-  it("still accepts a booking sent without dates, read overnight as it always was", () => {
+  it("refuses a booking sent without dates, rather than guessing them", () => {
+    // Read overnight, an undated booking let 03:05 typed for 15:05 through as
+    // a run nobody meant - the guess the dated rules exist to end.
     at(NOW);
-    expect(parse([pickup("21:00")], [stop("03:00")]).success).toBe(true);
+    const body = booking({ pickups: [pickup("21:00")], stops: [stop("03:00")] }) as {
+      pickups: Record<string, unknown>[];
+      stops: Record<string, unknown>[];
+    };
+    for (const row of [...body.pickups, ...body.stops]) delete row.expectedDate;
+    const result = createOrderSchema.safeParse(body);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((issue) => issue.path.join(".")).sort()).toEqual([
+      "pickups.0.expectedDate",
+      "stops.0.expectedDate",
+    ]);
   });
 
   it("does not read a lower clock as the next day once dates are given", () => {
@@ -318,7 +348,7 @@ describe("a date on each stop", () => {
 
   it("keeps the first stop on the booking's date", () => {
     at(NOW);
-    expect(issues([pickup("08:00", "2026-10-07")], [stop("17:00")])).toEqual([
+    expect(issues([pickup("08:00", "2026-10-07")], [stop("17:00", "2026-10-07")])).toEqual([
       { path: ["pickups", 0, "expectedDate"], message: BOOKING_DATE_RULE },
     ]);
   });
