@@ -512,6 +512,13 @@ function storedCoordinates(latitude?: number | null, longitude?: number | null):
 export class RescheduleNotPossible extends Error {}
 
 /**
+ * Held back because moving the booking to today leaves the crew nothing to
+ * spare, or because whether they can make it could not be checked. Nothing is
+ * written; the coordinator decides, and sends it again acknowledged.
+ */
+export class RescheduleNeedsConfirmation extends Error {}
+
+/**
  * Changes what a booking says about itself: when it is for, how urgent it is,
  * what is being carried and any instructions with it.
  *
@@ -563,7 +570,6 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   // 2 PM, for a run that starts at 08:00. The same rule a new booking meets,
   // on the same stop: the first pickup if there is one, else the first
   // delivery, as createBooking lays the route out.
-  let warning: string | null = null;
   // Every stop's new date, written once the checks below have passed.
   let movedStops: { table: "PickupStops" | "BranchStops"; key: "pickupID" | "branchID"; id: unknown; date: string }[] = [];
   if (dto.deliverySchedule && dto.deliverySchedule !== before.deliverySchedule) {
@@ -594,7 +600,9 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
     if (first?.expectedTime && stopTimeHasPassed(dto.deliverySchedule, first.expectedTime)) {
       const label = first.warehouseName || first.branchName || "The first stop";
       throw new RescheduleNotPossible(
-        `${label}'s ${formatTime(first.expectedTime)} has already passed today. Pick a later day, or change the stop times.`,
+        // A later day, and only that: stop times cannot be changed once a
+        // booking is made, so offering it pointed at nothing.
+        `${label}'s ${formatTime(first.expectedTime)} has already passed today. Pick a later day.`,
       );
     }
 
@@ -605,29 +613,43 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
     // the crew a night to get there - so a reschedule costs at most one
     // Directions request.
     if (dto.deliverySchedule === todayInManila()) {
-      const feasibility = await assessItinerary(
-        [
-          ...pickups.map((stop) => ({
-            label: stop.warehouseName || "Pickup",
-            time: stop.expectedTime,
-            at: storedCoordinates(stop.pickupLat, stop.pickupLong),
-          })),
-          ...branches.map((stop) => ({
-            label: stop.branchName || "Stop",
-            time: stop.expectedTime,
-            at: storedCoordinates(stop.deliveryLat, stop.deliverLong),
-          })),
-        ],
-        dto.deliverySchedule,
-        moments,
-      );
+      const itinerary = [
+        ...pickups.map((stop) => ({
+          label: stop.warehouseName || "Pickup",
+          time: stop.expectedTime,
+          at: storedCoordinates(stop.pickupLat, stop.pickupLong),
+        })),
+        ...branches.map((stop) => ({
+          label: stop.branchName || "Stop",
+          time: stop.expectedTime,
+          at: storedCoordinates(stop.deliveryLat, stop.deliverLong),
+        })),
+      ];
+      const feasibility = await assessItinerary(itinerary, dto.deliverySchedule, moments);
 
       if (feasibility.verdict === "impossible") {
         throw new RescheduleNotPossible(feasibility.message ?? "This itinerary cannot be driven in time today.");
       }
-      // Tight or unchecked goes through - there is no confirmation step on an
-      // edit - but the coordinator is told, as a new booking would tell them.
-      warning = feasibility.message;
+
+      // Asked before anything is written, as a new booking asks: times with
+      // nothing to spare, or times nobody could check. It used to save first
+      // and say so afterwards, when all the coordinator could do was read it.
+      //
+      // "Could not be checked" is worded for a reschedule. The new-booking
+      // wording talked about the tracking map, which on a booking already made
+      // says nothing new; what matters now is that today is unconfirmed.
+      const unplaced = itinerary.filter((stop) => !stop.at).map((stop) => stop.label);
+      const question =
+        feasibility.verdict === "tight"
+          ? feasibility.message
+          : feasibility.verdict === "unknown" && feasibility.message
+            ? `Whether the crew can make these times today could not be checked: ${
+                unplaced.length > 0
+                  ? `${unplaced.join(" and ")} ${unplaced.length === 1 ? "is" : "are"} not placed on the map.`
+                  : "the driving distance could not be worked out just now."
+              }`
+            : null;
+      if (question && !dto.acknowledgeTightSchedule) throw new RescheduleNeedsConfirmation(question);
     }
   }
 
@@ -693,8 +715,6 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
     changed,
     /** The day moved, which is the one change a crew already on it must hear about. */
     rescheduled: changed.includes("deliverySchedule"),
-    /** Said when moving to today left the times tight, or they could not be checked. */
-    warning,
   };
 }
 

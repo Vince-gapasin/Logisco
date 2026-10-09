@@ -8,7 +8,8 @@ import { addDays, isValidPhone, MAX_DAYS_AHEAD, PHONE_RULE } from "@/app/lib/boo
 import { changedBookingFields } from "@/app/lib/bookingEdits";
 import { type FeedBooking, type FeedStopRow } from "@/app/lib/bookingView";
 import BookingStopsReadOnly from "@/components/booking/BookingStopsReadOnly";
-import SavedWithWarning from "@/components/booking/SavedWithWarning";
+import KeepTodayDialog from "@/components/booking/KeepTodayDialog";
+import { saveBookingEdits } from "@/app/lib/saveBookingEdits";
 import CrewPicker from "@/components/booking/CrewPicker";
 import SubconPartnerSelect from "@/components/booking/SubconPartnerSelect";
 import { useAssignableCrew } from "@/components/booking/useAssignableCrew";
@@ -52,9 +53,9 @@ export function BookingDetailsModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  // A reschedule that saved with something to say about the new times. Read
-  // before the window closes, then the save finishes as it always did.
-  const [savedWarning, setSavedWarning] = useState<{ message: string; done: () => void } | null>(null);
+  // Moving the booking to today with times the crew may not make: asked
+  // before anything is saved, and answered with Keep today or another day.
+  const [keepToday, setKeepToday] = useState<string | null>(null);
 
   // Free trucks and crew for the date, plus whoever is on this trip now.
   // The lists here used to be typed into the page ("TRK-102", "Juan Dela
@@ -160,8 +161,8 @@ export function BookingDetailsModal({
    * separately: a crew assigned against a schedule that failed to save would
    * be going out on the wrong day.
    */
-  const saveBookingEdits = async () => {
-    const edits = changedBookingFields(
+  const editsToSave = () =>
+    changedBookingFields(
       {
         scheduledDate: booking.scheduledDate,
         priorityLevel: booking.priorityLevel,
@@ -170,15 +171,65 @@ export function BookingDetailsModal({
       },
       formData,
     );
-    if (!edits) return null;
 
-    // Moving to today can save with a warning: tight times, or times the map
-    // could not check. Handed back so it is shown rather than dropped.
-    const saved = await apiFetch<{ warning?: string | null }>(`/api/bookings/${booking.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ action: "update", ...edits }),
-    });
-    return saved?.warning ?? null;
+  /**
+   * Saves the booking's edits, then hands it to the partner or assigns the
+   * crew. Stops at the save when moving to today has to be asked about first;
+   * "Keep today" runs it again with keepAnyway. Nothing is assigned against a
+   * day that was not saved.
+   */
+  const carryOut = async (keepAnyway: boolean) => {
+    setIsSubmitting(true);
+    setSubmitError("");
+    try {
+      const saved = await saveBookingEdits(booking.id, editsToSave(), keepAnyway);
+      if (!saved.saved) {
+        setKeepToday(saved.question);
+        return;
+      }
+
+      if (isSubconMode) {
+        const partnerContact = (formData.partnerContact ?? "").trim();
+        await apiFetch("/api/subcon-trips", {
+          method: "POST",
+          body: JSON.stringify({
+            orderID: booking.id,
+            subConID: formData.subconPartner,
+            driverName: formData.driver || undefined,
+            plateNumber: formData.truckPlate || undefined,
+            contactNumber: partnerContact || undefined,
+            helpers: [formData.helper1, formData.helper2].filter(Boolean),
+          }),
+        });
+      } else {
+        const body = JSON.stringify({
+          truckID: formData.truckPlate,
+          driverID: formData.driver,
+          helper1ID: formData.helper1 || undefined,
+          helper2ID: formData.helper2 || undefined,
+          totalCargoWeight: 0,
+        });
+        // Re-assign the trip there is; assign one if there is none. A declined
+        // trip counts as none: it is closed, kept as history, and the booking
+        // goes out on a new one - re-assigning in place is refused for it.
+        await (booking.dispatchID && !wasDeclined
+          ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
+          : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
+      }
+
+      onSubmitSuccess(booking.orderId, booking.confirmationStatus);
+      onClose();
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : isSubconMode
+            ? "Failed to hand the booking to the partner."
+            : "Failed to save this assignment.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const validateAndSubmit = async (e: React.FormEvent) => {
@@ -214,63 +265,9 @@ export function BookingDetailsModal({
         setErrors({ partnerContact: PHONE_RULE });
         return;
       }
-      setIsSubmitting(true);
-      let warning: string | null = null;
-      try {
-        warning = await saveBookingEdits();
-        await apiFetch("/api/subcon-trips", {
-          method: "POST",
-          body: JSON.stringify({
-            orderID: booking.id,
-            subConID: formData.subconPartner,
-            driverName: formData.driver || undefined,
-            plateNumber: formData.truckPlate || undefined,
-            contactNumber: partnerContact || undefined,
-            helpers: [formData.helper1, formData.helper2].filter(Boolean),
-          }),
-        });
-        const done = () => {
-          onSubmitSuccess(booking.orderId, booking.confirmationStatus);
-          onClose();
-        };
-        if (warning) setSavedWarning({ message: warning, done });
-        else done();
-      } catch (error) {
-        setSubmitError([error instanceof Error ? error.message : "Failed to hand the booking to the partner.", warning].filter(Boolean).join(" "));
-      } finally {
-        setIsSubmitting(false);
-      }
-      return;
     }
 
-    setIsSubmitting(true);
-    let warning: string | null = null;
-    try {
-      warning = await saveBookingEdits();
-      const body = JSON.stringify({
-        truckID: formData.truckPlate,
-        driverID: formData.driver,
-        helper1ID: formData.helper1 || undefined,
-        helper2ID: formData.helper2 || undefined,
-        totalCargoWeight: 0,
-      });
-      // Re-assign the trip there is; assign one if there is none. A declined
-      // trip counts as none: it is closed, kept as history, and the booking
-      // goes out on a new one - re-assigning in place is refused for it.
-      await (booking.dispatchID && !wasDeclined
-        ? apiFetch(`/api/dispatch/${booking.dispatchID}/assign`, { method: "PATCH", body })
-        : apiFetch(`/api/dispatch/${booking.id}/assign`, { method: "POST", body }));
-      const done = () => {
-        onSubmitSuccess(booking.orderId, booking.confirmationStatus);
-        onClose();
-      };
-      if (warning) setSavedWarning({ message: warning, done });
-      else done();
-    } catch (error) {
-      setSubmitError([error instanceof Error ? error.message : "Failed to save this assignment.", warning].filter(Boolean).join(" "));
-    } finally {
-      setIsSubmitting(false);
-    }
+    await carryOut(false);
   };
 
   const inputClass = isEditable
@@ -279,13 +276,16 @@ export function BookingDetailsModal({
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      {savedWarning && (
-        <SavedWithWarning
-          message={savedWarning.message}
-          onDone={() => {
-            const { done } = savedWarning;
-            setSavedWarning(null);
-            done();
+      {keepToday && (
+        <KeepTodayDialog
+          message={keepToday}
+          onKeep={() => {
+            setKeepToday(null);
+            void carryOut(true);
+          }}
+          onPickAnother={() => {
+            setKeepToday(null);
+            document.querySelector<HTMLInputElement>('input[name="deliverySchedule"]')?.focus();
           }}
         />
       )}

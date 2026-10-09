@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
-import { cancelBooking, getBookingById, RescheduleNotPossible, updateBooking } from "@/services/booking/bookingService";
+import {
+  cancelBooking,
+  getBookingById,
+  RescheduleNeedsConfirmation,
+  RescheduleNotPossible,
+  updateBooking,
+} from "@/services/booking/bookingService";
 import { updateOrderSchema } from "@/app/schemas/booking/booking.schema";
 import { isUuid } from "@/services/dispatch/dispatchService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
@@ -78,9 +84,7 @@ async function updateBookingDetails(
       });
     }
 
-    // Beside the data, where a new booking's warning is: the edit windows show
-    // it before they close. It used to ride along unread inside "data".
-    return NextResponse.json({ message: "Booking updated.", data: result, warning: result.warning ?? null });
+    return NextResponse.json({ message: "Booking updated.", data: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update booking";
 
@@ -90,6 +94,11 @@ async function updateBookingDetails(
     // the field that caused it.
     if (error instanceof RescheduleNotPossible) {
       return NextResponse.json({ message, errors: { deliverySchedule: [message] } }, { status: 400 });
+    }
+    // Nothing was saved. The edit window asks whether to keep today, in the
+    // same shape a new booking's question comes back in.
+    if (error instanceof RescheduleNeedsConfirmation) {
+      return NextResponse.json({ message, needsConfirmation: "tightSchedule" }, { status: 409 });
     }
     if (
       message.includes("no longer be edited") ||

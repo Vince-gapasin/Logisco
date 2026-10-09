@@ -19,7 +19,9 @@ vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unkn
 const getRouteGeometry = vi.fn();
 vi.mock("@/services/geo/routingService", () => ({ getRouteGeometry }));
 
-const { updateBooking, cancelBooking, RescheduleNotPossible } = await import("@/services/booking/bookingService");
+const { updateBooking, cancelBooking, RescheduleNotPossible, RescheduleNeedsConfirmation } = await import(
+  "@/services/booking/bookingService"
+);
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
 
@@ -131,7 +133,7 @@ describe("moving a booking to a day whose first stop has gone", () => {
     const refusal = updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
     await expect(refusal).rejects.toBeInstanceOf(RescheduleNotPossible);
     await expect(refusal).rejects.toThrow(
-      "North Hub's 8:00 AM has already passed today. Pick a later day, or change the stop times.",
+      "North Hub's 8:00 AM has already passed today. Pick a later day.",
     );
     expect(db.writes).toHaveLength(0);
   });
@@ -153,7 +155,9 @@ describe("moving a booking to a day whose first stop has gone", () => {
       { data: null },
     );
 
-    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    // These stops were never placed on the map, so today could not be
+    // checked and the coordinator is asked; this is the second try, kept.
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08", acknowledgeTightSchedule: true });
     expect(result.rescheduled).toBe(true);
   });
 
@@ -215,36 +219,49 @@ describe("moving a booking to today when the first stop cannot be reached in tim
     ]);
   });
 
-  it("lets a tight day through, and says so", async () => {
+  it("asks before keeping a tight day, and saves nothing until asked", async () => {
     getRouteGeometry.mockResolvedValue(route([100, 30]));
-    db.queue(
-      { data: withStops([pickup("16:30:00")], [branch("Makati", "17:00:00", 1)]) },
-      { data: null },
-    );
+    db.queue({ data: withStops([pickup("16:30:00")], [branch("Makati", "17:00:00", 1)]) });
 
-    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
-    expect(result.rescheduled).toBe(true);
-    expect(result.warning).toMatch(/nothing to spare/);
+    const question = updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    await expect(question).rejects.toBeInstanceOf(RescheduleNeedsConfirmation);
+    await expect(question).rejects.toThrow(/nothing to spare/);
+    expect(db.writes).toHaveLength(0);
   });
 
-  it("lets a stop that was never placed through without asking the map, and says it was not checked", async () => {
-    db.queue(
-      { data: withStops([], [branch("Makati", "16:00:00", 1), branch("Pasig", "18:00:00", 2, [0, 0])]) },
-      { data: null },
-    );
+  it("keeps a tight day once the coordinator has chosen to", async () => {
+    getRouteGeometry.mockResolvedValue(route([100, 30]));
+    db.queue({ data: withStops([pickup("16:30:00")], [branch("Makati", "17:00:00", 1)]) });
 
-    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-08", acknowledgeTightSchedule: true });
     expect(result.rescheduled).toBe(true);
-    expect(result.warning).toMatch(/Pasig could not be found on the map/);
+    expect(db.writes.some((write) => write.table === "Order")).toBe(true);
+  });
+
+  it("asks about a day it could not check, naming the stop nobody placed, without asking the map", async () => {
+    db.queue({ data: withStops([], [branch("Makati", "16:00:00", 1), branch("Pasig", "18:00:00", 2, [0, 0])]) });
+
+    const question = updateBooking(ORDER, { deliverySchedule: "2026-10-08" });
+    await expect(question).rejects.toBeInstanceOf(RescheduleNeedsConfirmation);
+    await expect(question).rejects.toThrow(/could not be checked: Pasig is not placed on the map/);
     expect(getRouteGeometry).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
   });
 
-  it("does not ask the map for any day but today", async () => {
+  it("still refuses a day the truck cannot make, acknowledged or not", async () => {
+    getRouteGeometry.mockResolvedValue(route([120, 30]));
+    db.queue({ data: withStops([pickup("14:30:00")], [branch("Makati", "18:00:00", 1)]) });
+
+    await expect(
+      updateBooking(ORDER, { deliverySchedule: "2026-10-08", acknowledgeTightSchedule: true }),
+    ).rejects.toBeInstanceOf(RescheduleNotPossible);
+  });
+
+  it("does not ask the map, or the coordinator, for any day but today", async () => {
     db.queue({ data: withStops([pickup("14:30:00")], [branch("Makati", "18:00:00", 1)]) }, { data: null });
 
     const result = await updateBooking(ORDER, { deliverySchedule: "2026-10-09" });
     expect(result.rescheduled).toBe(true);
-    expect(result.warning).toBeNull();
     expect(getRouteGeometry).not.toHaveBeenCalled();
   });
 });

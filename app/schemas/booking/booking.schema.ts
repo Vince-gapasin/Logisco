@@ -207,9 +207,15 @@ export const updateOrderSchema = z
     priorityLevel: z.enum(PRIORITY_LEVELS).optional(),
     product: z.string().trim().min(1, "Product cannot be empty").max(200).optional(),
     notes: z.string().trim().max(2000, "Keep the notes under 2000 characters").optional(),
+    // Sent on the second try, once the coordinator moving a booking to today
+    // has been told the crew may not make its times and chose to keep them.
+    acknowledgeTightSchedule: z.boolean().optional(),
   })
-  .refine((value) => Object.values(value).some((field) => field !== undefined), {
-    message: "Nothing to change.",
-  });
+  // The acknowledgement is not a change on its own.
+  .refine(
+    (value) =>
+      Object.entries(value).some(([key, field]) => key !== "acknowledgeTightSchedule" && field !== undefined),
+    { message: "Nothing to change." },
+  );
 
 export type UpdateOrderDto = z.infer<typeof updateOrderSchema>;
