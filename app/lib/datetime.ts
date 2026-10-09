@@ -73,6 +73,32 @@ export function formatDate(value: string | null | undefined): string {
   return stamp.toLocaleDateString("en-PH", { dateStyle: "medium", timeZone: ZONE });
 }
 
+/** "2026-10-10" as "Sat, Oct 10": a calendar day, short enough to sit beside a time. */
+export function formatShortDay(dateIso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso.trim())) return dateIso;
+  return new Date(`${dateIso.trim()}T12:00:00Z`).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * A stop's time, with its day when that is not the booking's own:
+ * "3:00 AM · Sat, Oct 10". A stop on the booking's day reads as its time
+ * alone, so a single-day booking looks exactly as it always did.
+ */
+export function formatStopWhen(
+  time: string | null | undefined,
+  date: string | null | undefined,
+  bookingDate: string | null | undefined,
+): string {
+  const clock = formatTime(time);
+  if (!clock || !date || !bookingDate || date === bookingDate) return clock;
+  return `${clock} · ${formatShortDay(date)}`;
+}
+
 /** A date and time together: "Sep 22, 2026, 8:00 AM". */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "";

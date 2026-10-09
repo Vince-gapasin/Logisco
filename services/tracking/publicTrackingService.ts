@@ -9,7 +9,10 @@ import {
   STOP_STATUS,
   type DeliveryStatus,
 } from "@/app/lib/enums";
-import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import { formatDateTime, formatStopWhen, formatTime, todayInManila } from "@/app/lib/datetime";
+import { isRealDate } from "@/app/lib/bookingRules";
+import { readNote } from "@/app/lib/bookingNotes";
+import { effectiveStopDates } from "@/app/lib/stopSchedule";
 import { getDispatchTrail, type TrailPoint } from "@/services/fleet/fleetTrackingService";
 import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlanService";
 import { maskEmail, maskPhone } from "@/app/lib/mask";
@@ -102,6 +105,8 @@ export interface TrackingStop {
   branchID: number;
   branchName: string;
   expectedTime: string | null;
+  /** The day it is due, so a stop on another day than today says which. */
+  expectedDate?: string | null;
   status: string;
   latitude: number | null;
   longitude: number | null;
@@ -214,8 +219,11 @@ function first<T>(value: T | T[] | null | undefined): T | null {
  *
  * Null rather than empty, because every caller here asks whether there is one.
  */
-export function formatExpectedTime(value: string | null): string | null {
-  return formatTime(value) || null;
+export function formatExpectedTime(value: string | null, date?: string | null): string | null {
+  // With the day when it is not today: a run of several days, or an overnight
+  // drop, read "3:00 AM" on the evening before as if it were hours away.
+  const today = todayInManila();
+  return (date && date !== today ? formatStopWhen(value, date, today) : formatTime(value)) || null;
 }
 
 function isStopDone(status: string | null): boolean {
@@ -225,6 +233,7 @@ function isStopDone(status: string | null): boolean {
 interface TrackedPickup {
   warehouseName?: string | null;
   expectedTime?: string | null;
+  expectedDate?: string | null;
   stopStatus?: string | null;
   sequence?: number | null;
   arrivedAt?: string | null;
@@ -250,7 +259,7 @@ export function buildCollection(rows: TrackedPickup[]): TrackingCollection | nul
 
   return {
     name: current.warehouseName?.trim() || "the collection point",
-    expectedTime: formatExpectedTime(current.expectedTime ?? null),
+    expectedTime: formatExpectedTime(current.expectedTime ?? null, current.expectedDate),
     done: outstanding.length === 0,
     arrived: outstanding.length > 0 && Boolean(current.arrivedAt),
     at: latestOf(...inOrder.map((row) => row.completedAt ?? null)),
@@ -303,7 +312,7 @@ export function nextStopAhead(
   // The page used to go back to announcing the booked time the moment the trip
   // left In Transit for Arrived, so a truck at the door read as three hours out.
   const deliveryArrival =
-    isCompleted || atDelivery ? null : formatExpectedTime(delivery?.expectedTime ?? null);
+    isCompleted || atDelivery ? null : formatExpectedTime(delivery?.expectedTime ?? null, delivery?.expectedDate);
 
   if (collection && !collection.done && !isCompleted) {
     return {
@@ -421,7 +430,7 @@ function buildSteps(
       markedCurrent = true;
     }
 
-    const expected = formatExpectedTime(stop.expectedTime);
+    const expected = formatExpectedTime(stop.expectedTime, stop.expectedDate);
     const delivered = stop.receivedBy ? `Delivered, received by ${stop.receivedBy}` : "Delivered";
 
     // Only the stop being driven to can say how far away it is; the ones after
@@ -800,6 +809,7 @@ interface TrackedStop {
   branchID: number;
   branchName?: string | null;
   expectedTime?: string | null;
+  expectedDate?: string | null;
   stopStatus?: string | null;
   deliveryLat?: number | null;
   deliverLong?: number | null;
@@ -843,9 +853,9 @@ export async function getTrackingByToken(
     .select(
       `orderID, orderCode, createdAt, isActive, notes,
        Client ( company, emailAdd, contact ),
-       BranchStops ( branchID, branchName, expectedTime, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
+       BranchStops ( branchID, branchName, expectedTime, expectedDate, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
          POD ( receiverName, deliveredAt ) ),
-       PickupStops ( pickupID, warehouseName, expectedTime, stopStatus, sequence, arrivedAt, completedAt ),
+       PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
          Truck ( plateNumber, model ),
@@ -893,6 +903,7 @@ export async function getTrackingByToken(
         branchID: stop.branchID,
         branchName: stop.branchName ?? "Stop",
         expectedTime: stop.expectedTime ?? null,
+        expectedDate: stop.expectedDate ?? null,
         status: stop.stopStatus ?? STOP_STATUS.pending,
         // 0/0 is the placeholder written when a stop has no geocoded position.
         latitude: Number(stop.deliveryLat) || null,
@@ -905,6 +916,21 @@ export async function getTrackingByToken(
       };
     })
     .sort((a, b) => a.branchID - b.branchID);
+
+  // Each stop's day: its own, or read off the route the way an older booking
+  // was made - collections first - so an old overnight drop shows its real day.
+  const pickupRows = [...((order.PickupStops as TrackedPickup[] | null) ?? [])].sort(
+    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+  );
+  const bookedFor = readNote(String(order.notes ?? ""), "Delivery Schedule");
+  if (isRealDate(bookedFor)) {
+    const dates = effectiveStopDates(
+      bookedFor,
+      [...pickupRows, ...stops].map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+    );
+    pickupRows.forEach((pickup, index) => (pickup.expectedDate = dates[index]));
+    stops.forEach((stop, index) => (stop.expectedDate = dates[pickupRows.length + index]));
+  }
 
   // Finished, for the client, once the last delivery address is - not when the
   // truck is back at base. The drive home is the company's business, and the
@@ -952,7 +978,7 @@ export async function getTrackingByToken(
   const client = first(order.Client as { company?: string | null; emailAdd?: string | null; contact?: string | null } | null);
 
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
-  const collection = buildCollection((order.PickupStops as TrackedPickup[] | null) ?? []);
+  const collection = buildCollection(pickupRows);
 
   // The crew have reported reaching this customer's own stop.
   //

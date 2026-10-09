@@ -20,12 +20,18 @@ export function shownTruckStatus(status: string, trip: TruckTrip | null | undefi
   return status;
 }
 
+/** The day a trip delivers, or the days: "2026-10-09 – 2026-10-11" for a run of several. */
+export function deliveryDays(trip: TruckTrip): string | null {
+  if (!trip.deliverySchedule) return null;
+  return trip.deliveryEnd ? `${trip.deliverySchedule} – ${trip.deliveryEnd}` : trip.deliverySchedule;
+}
+
 /** One line naming the booking, for a list row: code, client, delivery day, driver. */
 export function bookingSummary(trip: TruckTrip): string {
   return [
     trip.orderCode ?? "Booking",
     trip.clientName,
-    trip.deliverySchedule ? `Delivery ${trip.deliverySchedule}` : null,
+    trip.deliverySchedule ? `Delivery ${deliveryDays(trip)}` : null,
     trip.driverName ? `Driver ${trip.driverName}` : null,
   ]
     .filter(Boolean)

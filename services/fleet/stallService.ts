@@ -6,6 +6,7 @@
 // not by how often this runs.
 
 import { supabase } from "@/app/lib/supabase";
+import { branchDueDates } from "@/services/booking/stopDueDates";
 import {
   assessStall,
   crewCheckInLink,
@@ -237,7 +238,7 @@ async function stopAtRisk(
 
   const { data, error } = await supabase
     .from("BranchStops")
-    .select("branchName, expectedTime, stopStatus, sequence")
+    .select("branchID, orderID, branchName, expectedTime, expectedDate, stopStatus, sequence")
     .eq("dispatchID", trip.dispatchID)
     .order("sequence", { ascending: true });
 
@@ -246,6 +247,18 @@ async function stopAtRisk(
     return null;
   }
 
+  // Each stop dated by its own day. Dated by the booking's, the 03:00 drop of
+  // an overnight run was "due" at 03:00 on the first day and read as hours
+  // late all evening - an alert about a truck that was early.
+  const dueDay = await branchDueDates(
+    (data ?? []).map((stop) => ({
+      branchID: stop.branchID as number,
+      orderID: (stop.orderID as string | null) ?? null,
+      expectedDate: (stop.expectedDate as string | null) ?? null,
+    })),
+    () => trip.deliverySchedule,
+  );
+
   for (const stop of data ?? []) {
     // Delivered or failed: this one is no longer a promise anybody can keep.
     const status = String(stop.stopStatus ?? "").toLowerCase();
@@ -253,7 +266,7 @@ async function stopAtRisk(
       continue;
     }
 
-    const due = expectedAt(trip.deliverySchedule, stop.expectedTime as string);
+    const due = expectedAt(dueDay.get(stop.branchID as number) ?? trip.deliverySchedule, stop.expectedTime as string);
     if (!due) continue;
 
     const minutesLate = Math.round((now.getTime() - new Date(due).getTime()) / 60_000);

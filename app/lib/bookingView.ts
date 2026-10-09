@@ -1,5 +1,7 @@
 import { formatTime } from "@/app/lib/datetime";
-import { formatDate, formatDateTime } from "@/app/lib/datetime";
+import { formatDate, formatDateTime, formatStopWhen } from "@/app/lib/datetime";
+import { isRealDate } from "@/app/lib/bookingRules";
+import { effectiveStopDates } from "@/app/lib/stopSchedule";
 import { truckOf } from "@/app/lib/formerTruck";
 import type {
   BranchStopsRow,
@@ -50,6 +52,8 @@ export interface BookingStopView {
   contactPerson: string;
   contactNum: string;
   expectedTime: string | null;
+  /** The day it is due: its own, or read off the route as the booking was made. */
+  expectedDate: string | null;
   // Units dropped or collected here; null on rows from before it was kept.
   quantity: number | null;
   sequence: number;
@@ -69,6 +73,8 @@ export interface BookingPickupView {
   contactPerson: string;
   contactNum: string;
   expectedTime: string | null;
+  /** The day it is due: its own, or read off the route as the booking was made. */
+  expectedDate: string | null;
   // Units dropped or collected here; null on rows from before it was kept.
   quantity: number | null;
   sequence: number;
@@ -106,6 +112,9 @@ export interface BookingView {
   emailAddress: string;
   product: string;
   scheduledDate: string;
+  /** The run's last day: the scheduled date for a one-day booking. */
+  endDate: string;
+  /** "Oct 9, 2026", or "Oct 9, 2026 – Oct 11, 2026" for a run of several days. */
   displayDate: string;
   dateCreated: string;
   createdBy: string;
@@ -330,7 +339,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
     }
   }
 
-  return {
+  return withStopDates({
     id: order.orderID ?? "",
     orderId: order.orderCode || order.orderID || "",
     clientID: order.clientID ?? null,
@@ -341,6 +350,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
     emailAddress: client?.emailAdd || "",
     product,
     scheduledDate,
+    endDate: scheduledDate,
     displayDate: formatDisplayDate(scheduledDate || order.createdAt),
     dateCreated: formatDisplayDate(order.createdAt),
     createdBy: "—",
@@ -355,6 +365,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
         contactPerson: stop.contactPerson || "",
         contactNum: stop.contactNum || "",
         expectedTime: stop.expectedTime ?? null,
+        expectedDate: (stop.expectedDate as string | null | undefined) ?? null,
         quantity: Number(stop.quantity) || null,
         // Older stops predate the sequence column; their insert order is
         // still reflected by the identity branchID.
@@ -385,6 +396,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
         contactPerson: pickup.contactPerson || "",
         contactNum: pickup.contactNum || "",
         expectedTime: pickup.expectedTime ?? null,
+        expectedDate: (pickup.expectedDate as string | null | undefined) ?? null,
         quantity: Number(pickup.quantity) || null,
         sequence: Number(pickup.sequence) || index + 1,
         status: pickup.stopStatus || STOP_STATUS.pending,
@@ -416,6 +428,35 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
     subconPartner: partner?.companyName || partnerFromNote || readNoteField(notes, "Partner"),
     isSubcon,
     plainNotes: (notes.split("[NOTES]")[1] || "").trim(),
+  });
+}
+
+/**
+ * Every stop's day, and the run's span.
+ *
+ * Stops booked since stops had dates carry their own. Older ones are read the
+ * way they were booked - the booking's date, a day later each time the clock
+ * went backwards - so an old overnight run's 03:00 drop shows on the day it
+ * was really due rather than the day before.
+ */
+function withStopDates(view: BookingView): BookingView {
+  if (!isRealDate(view.scheduledDate)) return view;
+  const dates = effectiveStopDates(
+    view.scheduledDate,
+    [...view.pickups, ...view.stops].map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+  );
+  const pickups = view.pickups.map((pickup, index) => ({ ...pickup, expectedDate: dates[index] }));
+  const stops = view.stops.map((stop, index) => ({ ...stop, expectedDate: dates[view.pickups.length + index] }));
+  const endDate = dates.reduce((last, date) => (date > last ? date : last), view.scheduledDate);
+  return {
+    ...view,
+    pickups,
+    stops,
+    endDate,
+    displayDate:
+      endDate > view.scheduledDate
+        ? `${formatDisplayDate(view.scheduledDate)} – ${formatDisplayDate(endDate)}`
+        : view.displayDate,
   };
 }
 
@@ -571,7 +612,7 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       warehouseAddress: pickup.pickupAddress || pickup.warehouseName,
       contactPerson: pickup.contactPerson,
       contactNumber: pickup.contactNum,
-      pickupTime: formatStopTime(pickup.expectedTime),
+      pickupTime: formatStopWhen(pickup.expectedTime, pickup.expectedDate, booking.scheduledDate),
       // Older pickups have no quantity of their own; show the order's.
       quantity: pickup.quantity ? String(pickup.quantity) : booking.totalQuantity,
       stopStatus: isStopDelivered(pickup.status)
@@ -652,7 +693,7 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
       deliveryAddress: stop.deliveryAddress || booking.businessAddress,
       contactPerson: stop.contactPerson,
       contactNumber: stop.contactNum,
-      deliveryTime: formatStopTime(stop.expectedTime),
+      deliveryTime: formatStopWhen(stop.expectedTime, stop.expectedDate, booking.scheduledDate),
       quantity: stop.quantity ? String(stop.quantity) : "",
       stopStatus: stop.status,
     })),

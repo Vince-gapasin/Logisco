@@ -201,6 +201,8 @@ export interface TruckTrip {
   orderCode: string | null;
   clientName: string | null;
   deliverySchedule: string | null;
+  /** The run's last day, when it runs past its first: a trip of several days. */
+  deliveryEnd?: string | null;
   driverName: string | null;
 }
 
@@ -213,14 +215,31 @@ export interface TruckTrip {
  * see tripHoldingTruck in the route.
  */
 const TRIP_COLUMNS =
-  "dispatchID, truckID, status, Order ( orderID, orderCode, notes, Client ( company ) ), Driver:Employee!driverID ( employeeName )";
+  "dispatchID, truckID, status, Order ( orderID, orderCode, notes, Client ( company ), PickupStops ( expectedDate ), BranchStops ( expectedDate ) ), Driver:Employee!driverID ( employeeName )";
 
 function toTruckTrip(row: Record<string, unknown>): TruckTrip {
   const one = <T,>(value: T | T[] | null | undefined): T | null =>
     Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
-  const order = one(row.Order as unknown as { orderID: string; orderCode: string; notes: string | null; Client: unknown } | null);
+  const order = one(
+    row.Order as unknown as {
+      orderID: string;
+      orderCode: string;
+      notes: string | null;
+      Client: unknown;
+      PickupStops?: { expectedDate: string | null }[] | null;
+      BranchStops?: { expectedDate: string | null }[] | null;
+    } | null,
+  );
   const client = one(order?.Client as { company: string | null } | null);
   const driver = one(row.Driver as unknown as { employeeName: string | null } | null);
+  const deliverySchedule = /Delivery Schedule:\s*([^\n]+)/.exec(order?.notes ?? "")?.[1]?.trim() ?? null;
+  // The latest day any stop is due. A truck on a week-long run is held all
+  // week, and the fleet lists said only the day it left.
+  const lastDay = [...(order?.PickupStops ?? []), ...(order?.BranchStops ?? [])]
+    .map((stop) => (stop.expectedDate ?? "").slice(0, 10))
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   return {
     dispatchID: row.dispatchID as string,
@@ -228,7 +247,8 @@ function toTruckTrip(row: Record<string, unknown>): TruckTrip {
     orderID: order?.orderID ?? null,
     orderCode: order?.orderCode ?? null,
     clientName: client?.company ?? null,
-    deliverySchedule: /Delivery Schedule:\s*([^\n]+)/.exec(order?.notes ?? "")?.[1]?.trim() ?? null,
+    deliverySchedule,
+    deliveryEnd: lastDay && deliverySchedule && lastDay > deliverySchedule ? lastDay : null,
     driverName: driver?.employeeName ?? null,
   };
 }

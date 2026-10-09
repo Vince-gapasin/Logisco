@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CalendarDays, Package, User } from "lucide-react";
 import type { TruckTrip } from "@/services/truck/truckService";
+import { deliveryDays } from "@/app/lib/truckBooking";
 
 // The booking a truck is on, shown where its status would otherwise just read
 // "On Delivery".
@@ -58,7 +59,7 @@ export default function TruckTripCard({
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-slate-500 shrink-0" />
           <dt className="sr-only">Delivery day</dt>
-          <dd>{trip.deliverySchedule || "No delivery day recorded"}</dd>
+          <dd>{deliveryDays(trip) || "No delivery day recorded"}</dd>
         </div>
         <div className="flex items-center gap-2">
           <User className="w-4 h-4 text-slate-500 shrink-0" />

@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { routeDueDates } from "@/app/lib/stopSchedule";
 import { selectAll, selectAllIn } from "@/app/lib/selectAll";
 import { expectedAt } from "@/app/lib/performance";
 import {
@@ -235,12 +236,21 @@ export async function gatherOfficeFacts(
     const orderIDs = [...new Set(trips.map((trip) => trip.orderID).filter((id): id is string => Boolean(id)))];
 
     const orders = await selectAllIn<
-      { orderID: string; createdAt: string | null; notes: string | null; BranchStops: Embed<{ expectedTime: string | null }>; DispatchOrder: Embed<{ dispatchID: string }> },
+      {
+        orderID: string;
+        createdAt: string | null;
+        notes: string | null;
+        PickupStops: Embed<{ expectedTime: string | null; expectedDate: string | null; sequence: number | null }>;
+        BranchStops: Embed<{ branchID: number; expectedTime: string | null; expectedDate: string | null; sequence: number | null }>;
+        DispatchOrder: Embed<{ dispatchID: string }>;
+      },
       string
     >(orderIDs, (chunk, start, end) =>
       supabase
         .from("Order")
-        .select("orderID, createdAt, notes, BranchStops ( expectedTime ), DispatchOrder ( dispatchID )")
+        .select(
+          "orderID, createdAt, notes, PickupStops ( expectedTime, expectedDate, sequence ), BranchStops ( branchID, expectedTime, expectedDate, sequence ), DispatchOrder ( dispatchID )",
+        )
         .in("orderID", chunk)
         .range(start, end),
     );
@@ -251,11 +261,16 @@ export async function gatherOfficeFacts(
       if (!order) continue;
       const assignedAt = time(row.timestamp);
       const schedule = /Delivery Schedule:\s*(\d{4}-\d{2}-\d{2})/.exec(order.notes ?? "")?.[1] ?? null;
-      const earliest = rows(order.BranchStops)
-        .map((stop) => stop.expectedTime)
-        .filter((value): value is string => Boolean(value))
-        .sort()[0];
-      const due = time(expectedAt(schedule, earliest ?? null));
+      // The first drop that is due, by its own day and time. Sorting the clock
+      // times as text put an overnight run's 03:00 drop first, on the first
+      // day - a deadline nearly a day earlier than the real one.
+      const dueDay = schedule ? routeDueDates(schedule, rows(order.PickupStops), rows(order.BranchStops)) : new Map<number, string>();
+      const due = Math.min(
+        ...rows(order.BranchStops).map((stop) =>
+          time(expectedAt(dueDay.get(stop.branchID) ?? schedule, stop.expectedTime ?? null)),
+        ).filter((moment) => Number.isFinite(moment)),
+        Number.POSITIVE_INFINITY,
+      );
       const prompt = assignedAt - time(order.createdAt) <= PROMPT_HOURS * HOUR;
       const ahead = Number.isFinite(due) && due - assignedAt >= NOTICE_HOURS * HOUR;
 

@@ -236,6 +236,38 @@ export function legacyStopDates(bookingDate: string, times: (string | null | und
   return absolute.map((minutes) => addDays(bookingDate, Math.floor(minutes / (24 * 60))));
 }
 
+export interface RouteStopRow {
+  expectedTime?: string | null;
+  expectedDate?: string | null;
+  sequence?: number | null;
+}
+
+/**
+ * The day each delivery stop on one booking is due, by branchID: its own date
+ * when it has one, else read off the whole route - pickups first, both halves
+ * in sequence - the way that booking was made.
+ *
+ * The pickups matter even though only the deliveries are returned. On an
+ * older overnight booking the midnight falls between them: a 21:00 collection
+ * and a 03:00 drop put the drop on the second day, and read without the
+ * collection it would land on the first, a full day early.
+ */
+export function routeDueDates<Id>(
+  orderDate: string,
+  pickups: RouteStopRow[],
+  branches: (RouteStopRow & { branchID: Id })[],
+): Map<Id, string> {
+  const inSequence = <Row extends RouteStopRow>(rows: Row[]) =>
+    [...rows].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const orderedPickups = inSequence(pickups);
+  const orderedBranches = inSequence(branches);
+  const dates = effectiveStopDates(
+    orderDate,
+    [...orderedPickups, ...orderedBranches].map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+  );
+  return new Map(orderedBranches.map((stop, index) => [stop.branchID, dates[orderedPickups.length + index]]));
+}
+
 /**
  * The date each stop is due, however it was stored: its own date when it has
  * one, else the order's date read the way that booking was made. Partly dated

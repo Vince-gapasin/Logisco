@@ -13,7 +13,7 @@
 
 import { mapOrderToBookingView, toFeedBooking, type OrderWithRelations } from "@/app/lib/bookingView";
 import { downloadCsv, type CsvValue } from "@/app/lib/csvExport";
-import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import { formatDateTime, formatStopWhen } from "@/app/lib/datetime";
 import type { SaveResult } from "@/app/lib/saveFile";
 import { STOP_STATUS } from "@/app/lib/enums";
 import type { DetailItem } from "@/app/lib/pdfReport";
@@ -97,7 +97,7 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
         { label: "Address", value: orDash(stop.pickupAddress), wide: true },
         { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
         { label: "Quantity", value: orDash(stop.quantity) },
-        { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
+        { label: "Expected", value: orDash(formatStopWhen(stop.expectedTime, stop.expectedDate, view.scheduledDate)) },
         { label: "Arrived", value: when(stop.arrivedAt) },
         { label: "Completed", value: when(stop.completedAt) },
       ],
@@ -113,7 +113,7 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
           { label: "Address", value: orDash(stop.deliveryAddress || view.businessAddress), wide: true },
           { label: "Contact", value: contactOf(stop.contactPerson, stop.contactNum) },
           { label: "Quantity", value: orDash(stop.quantity) },
-          { label: "Expected", value: orDash(formatTime(stop.expectedTime)) },
+          { label: "Expected", value: orDash(formatStopWhen(stop.expectedTime, stop.expectedDate, view.scheduledDate)) },
           { label: "Arrived", value: when(stop.arrivedAt) },
           { label: "Completed", value: when(stop.completedAt) },
           { label: "Received by", value: orDash(proof?.receiverName) },

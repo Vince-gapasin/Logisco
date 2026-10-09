@@ -14,6 +14,7 @@
 // file only fetches and counts.
 
 import { supabase } from "@/app/lib/supabase";
+import { branchDueDates } from "@/services/booking/stopDueDates";
 import { selectAll, selectAllIn } from "@/app/lib/selectAll";
 import {
   DELIVERY_STATUS,
@@ -307,7 +308,10 @@ interface StopRow {
   branchID: number;
   branchName: string | null;
   dispatchID: string | null;
+  orderID: string | null;
   expectedTime: string | null;
+  /** The day this stop is due; null on stops booked before stops had dates. */
+  expectedDate: string | null;
   arrivedAt: string | null;
   completedAt: string | null;
   stopStatus: string | null;
@@ -329,13 +333,35 @@ interface StopRow {
  */
 const arrivalOf = (stop: { arrivedAt: string | null; completedAt: string | null }) => stop.arrivedAt;
 
+/**
+ * When each stop was due, dated by its own day.
+ *
+ * Every stop used to be dated with its booking's day, so the 03:00 drop of an
+ * overnight run was due at 03:00 on the first day and a crew arriving on time
+ * read as a day late - and on a run of several days, late by every day it ran.
+ * The booking's day is still the answer for a stop nothing else dates.
+ */
+async function dueAtByStop(
+  stops: StopRow[],
+  scheduleOf: Map<string, string | null>,
+): Promise<(stop: StopRow) => string | null> {
+  const bookedFor = (stop: StopRow) => (stop.dispatchID ? (scheduleOf.get(stop.dispatchID) ?? null) : null);
+  const orderDate = new Map<string, string>();
+  for (const stop of stops) {
+    const day = bookedFor(stop);
+    if (stop.orderID && day) orderDate.set(stop.orderID, day);
+  }
+  const due = await branchDueDates(stops, (orderID) => orderDate.get(orderID));
+  return (stop) => expectedAt(due.get(stop.branchID) ?? bookedFor(stop), stop.expectedTime);
+}
+
 async function readStops(dispatchIDs: string[]): Promise<StopRow[]> {
   if (dispatchIDs.length === 0) return [];
 
   return selectAllIn<StopRow, string>(dispatchIDs, (chunk, from, to) =>
     supabase
       .from("BranchStops")
-      .select("branchID, branchName, dispatchID, expectedTime, arrivedAt, completedAt, stopStatus")
+      .select("branchID, branchName, dispatchID, orderID, expectedTime, expectedDate, arrivedAt, completedAt, stopStatus")
       .in("dispatchID", chunk)
       .range(from, to),
   );
@@ -450,7 +476,9 @@ async function computeCompany(): Promise<CompanyFigures> {
     // on-time share is measured against a real moment.
     selectAll<{
       branchID: number;
+      orderID: string | null;
       expectedTime: string | null;
+      expectedDate: string | null;
       arrivedAt: string | null;
       completedAt: string | null;
       stopStatus: string | null;
@@ -458,7 +486,7 @@ async function computeCompany(): Promise<CompanyFigures> {
     }>((from, to) =>
       supabase
         .from("BranchStops")
-        .select("branchID, expectedTime, arrivedAt, completedAt, stopStatus, Order ( notes, deliverySchedule )")
+        .select("branchID, orderID, expectedTime, expectedDate, arrivedAt, completedAt, stopStatus, Order ( notes, deliverySchedule )")
         .not("completedAt", "is", null)
         .gte("completedAt", since)
         .range(from, to),
@@ -497,13 +525,22 @@ async function computeCompany(): Promise<CompanyFigures> {
 
   const delivered = stops.filter((stop) => isStopDelivered(stop.stopStatus));
 
+  // Each stop dated by its own day, as for a crew's own figures.
+  const scheduledOf = (stop: (typeof delivered)[number]) => {
+    const order = first(stop.Order);
+    return (
+      (order?.deliverySchedule ?? "").trim().slice(0, 10) ||
+      readNote(order?.notes ?? "", "Delivery Schedule").trim()
+    );
+  };
+  const orderDate = new Map<string, string>();
+  for (const stop of delivered) if (stop.orderID) orderDate.set(stop.orderID, scheduledOf(stop));
+  const dueDay = await branchDueDates(delivered, (orderID) => orderDate.get(orderID));
+
   let stopsJudged = 0;
   let stopsOnTime = 0;
   for (const stop of delivered) {
-    const order = first(stop.Order);
-    const scheduled =
-      (order?.deliverySchedule ?? "").trim().slice(0, 10) ||
-      readNote(order?.notes ?? "", "Delivery Schedule").trim();
+    const scheduled = dueDay.get(stop.branchID) ?? scheduledOf(stop);
     const madeIt = wasOnTime(expectedAt(scheduled, stop.expectedTime), arrivalOf(stop));
     if (madeIt === null) continue;
     stopsJudged++;
@@ -669,9 +706,10 @@ async function gatherFacts(trips: Trip[], role: string): Promise<PerformanceFact
   let onTime = 0;
   let excusedStops = 0;
 
+  const dueAtOf = await dueAtByStop(delivered, scheduleOf);
+
   for (const stop of delivered) {
-    const dueAt = expectedAt(stop.dispatchID ? scheduleOf.get(stop.dispatchID) : null, stop.expectedTime);
-    const madeIt = wasOnTime(dueAt, arrivalOf(stop));
+    const madeIt = wasOnTime(dueAtOf(stop), arrivalOf(stop));
 
     // No scheduled date means nobody can say whether this was late. It is left
     // out of the punctuality figure entirely and counted nowhere, rather than
@@ -808,8 +846,6 @@ async function readFeedback(dispatchIDs: string[]): Promise<FeedbackRow[]> {
 async function gatherReported(trips: Trip[], countingLateness: boolean) {
   const codeOf = new Map(trips.map((trip) => [trip.dispatchID, trip.orderCode]));
   const scheduleOf = new Map(trips.map((trip) => [trip.dispatchID, trip.scheduledDate]));
-  const dueAtOf = (stop: StopRow) =>
-    expectedAt(stop.dispatchID ? scheduleOf.get(stop.dispatchID) : null, stop.expectedTime);
   const acceptedIDs = trips.filter((trip) => trip.accepted).map((trip) => trip.dispatchID);
   const allIDs = trips.map((trip) => trip.dispatchID);
 
@@ -840,7 +876,10 @@ async function gatherReported(trips: Trip[], countingLateness: boolean) {
   ]);
 
   const delivered = stops.filter((stop) => isStopDelivered(stop.stopStatus) && stop.completedAt);
-  const excuses = await readExcuses(delivered.map((stop) => stop.branchID));
+  const [excuses, dueAtOf] = await Promise.all([
+    readExcuses(delivered.map((stop) => stop.branchID)),
+    dueAtByStop(delivered, scheduleOf),
+  ]);
   const stopOf = new Map(delivered.map((stop) => [stop.branchID, stop]));
 
   const excusedStops: ExcusedNote[] = [...excuses.values()].map((excuse) => {

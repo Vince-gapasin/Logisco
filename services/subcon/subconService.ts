@@ -42,8 +42,8 @@ const TRIP_COLUMNS = `
   subConID, partnerDriver, partnerPlate, partnerContact,
   SubContractor ( subConID, companyName, contactName, contactNumber ),
   Order ( orderID, orderCode, notes, Client ( company ) ),
-  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, completedAt ),
-  PickupStops ( pickupID, warehouseName, pickupAddress, expectedTime, quantity, sequence, stopStatus, completedAt ),
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, completedAt ),
+  PickupStops ( pickupID, warehouseName, pickupAddress, expectedTime, expectedDate, quantity, sequence, stopStatus, completedAt ),
   POD ( podID, branchID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, Recorder:Employee!recordedBy ( employeeName ) )
 `;
 

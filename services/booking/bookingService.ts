@@ -58,9 +58,9 @@ const BOOKING_COLUMNS = `
   clientID,
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
-  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
-  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType ) ),
   DispatchOrder (
     dispatchID,
@@ -528,7 +528,7 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   const { data: order, error } = await supabase
     .from("Order")
     .select(
-      "orderID, orderCode, notes, isActive, deliverySchedule, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, sequence, pickupLat, pickupLong ), BranchStops ( branchID, branchName, expectedTime, expectedDate, sequence, deliveryLat, deliverLong )",
+      "orderID, orderCode, notes, isActive, deliverySchedule, OrderDetails ( itemID, productName ), DispatchOrder ( dispatchID, status ), PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, expectedDate, sequence, pickupLat, pickupLong ), BranchStops ( branchID, branchName, expectedTime, expectedDate, sequence, deliveryLat, deliverLong )",
     )
     .eq("orderID", orderID)
     .maybeSingle();

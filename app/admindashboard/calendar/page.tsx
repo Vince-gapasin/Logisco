@@ -85,6 +85,8 @@ interface CalendarEvent {
   isoDate: string;
   /** Hours past midnight, so the zoom can decide what that is in pixels. */
   atHours: number;
+  /** "Day 2 of 3" on a booking that runs across several days. */
+  dayLabel?: string;
 }
 
 /** An event with its place among the ones it overlaps. */
@@ -161,6 +163,40 @@ function toCalendarEvent(booking: BookingView): CalendarEvent | null {
     isoDate: toIsoDate(parsed),
     atHours: (hours || 0) + (minutes || 0) / 60,
   };
+}
+
+/**
+ * A booking on every day it runs.
+ *
+ * One day, one event, exactly as before. A run of several days shows on each
+ * of them, at the first stop due that day and labelled "Day 2 of 3": shown on
+ * its first day alone, the truck looked free for the rest of the week while it
+ * was driving to Davao.
+ */
+function toCalendarEvents(booking: BookingView): CalendarEvent[] {
+  const single = toCalendarEvent(booking);
+  if (!single || !booking.endDate || booking.endDate <= booking.scheduledDate) return single ? [single] : [];
+
+  const firstTimeOn = new Map<string, string>();
+  for (const stop of [...booking.pickups, ...booking.stops]) {
+    if (!stop.expectedDate || !stop.expectedTime) continue;
+    const time = stop.expectedTime.slice(0, 5);
+    const earliest = firstTimeOn.get(stop.expectedDate);
+    if (!earliest || time < earliest) firstTimeOn.set(stop.expectedDate, time);
+  }
+
+  const days = [...firstTimeOn.keys()].sort();
+  return days.map((isoDate, index) => {
+    const time = firstTimeOn.get(isoDate) as string;
+    const [hours, minutes] = time.split(":").map(Number);
+    return {
+      ...single,
+      time,
+      isoDate,
+      atHours: (hours || 0) + (minutes || 0) / 60,
+      dayLabel: `Day ${index + 1} of ${days.length}`,
+    };
+  });
 }
 
 export default function CalendarPage() {
@@ -257,12 +293,11 @@ export default function CalendarPage() {
     const grouped = new Map<string, CalendarEvent[]>();
 
     for (const booking of bookings) {
-      const event = toCalendarEvent(booking);
-      if (!event) continue;
-
-      const list = grouped.get(event.isoDate) ?? [];
-      list.push(event);
-      grouped.set(event.isoDate, list);
+      for (const event of toCalendarEvents(booking)) {
+        const list = grouped.get(event.isoDate) ?? [];
+        list.push(event);
+        grouped.set(event.isoDate, list);
+      }
     }
 
     for (const list of grouped.values()) list.sort((a, b) => a.time.localeCompare(b.time));
@@ -432,7 +467,7 @@ export default function CalendarPage() {
 
     return (
       <button
-        key={event.id}
+        key={`${event.id}-${event.isoDate}`}
         type="button"
         onClick={() => openEvent(event)}
         style={{
@@ -441,7 +476,7 @@ export default function CalendarPage() {
           width: `calc(${width}% - 4px)`,
           minHeight: EVENT_HEIGHT_PX - 4,
         }}
-        title={`${event.orderId} - ${event.clientName} (${event.stage})`}
+        title={`${event.orderId} - ${event.clientName} (${event.stage})${event.dayLabel ? ` - ${event.dayLabel}` : ""}`}
         className={`absolute z-10 flex flex-col justify-center overflow-hidden rounded-lg border px-2 py-1 text-left shadow-sm transition-colors cursor-pointer ${
           STAGE_STYLES[event.stage] ?? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
         }`}
@@ -451,7 +486,10 @@ export default function CalendarPage() {
         <span className="block text-xs sm:text-[11px] font-semibold leading-tight wrap-break-word line-clamp-2">
           {formatTime(event.time)} {event.clientName}
         </span>
-        <span className="block text-xs sm:text-[10px] opacity-80 truncate">{event.orderId}</span>
+        <span className="block text-xs sm:text-[10px] opacity-80 truncate">
+          {event.orderId}
+          {event.dayLabel ? ` · ${event.dayLabel}` : ""}
+        </span>
       </button>
     );
   };

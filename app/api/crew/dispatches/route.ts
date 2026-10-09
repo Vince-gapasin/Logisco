@@ -11,7 +11,9 @@ import type {
 } from "@/types/database";
 import { AWAITING_CREW_STATUSES, DELIVERY_STATUS, HELPER_STATUS } from "@/app/lib/enums";
 import { signPodUrls } from "@/services/storage/podService";
-import { formatTime } from "@/app/lib/datetime";
+import { formatStopWhen } from "@/app/lib/datetime";
+import { isRealDate } from "@/app/lib/bookingRules";
+import { effectiveStopDates, stopMoment } from "@/app/lib/stopSchedule";
 import { FORMER_TRUCK_COLUMNS, truckOf } from "@/app/lib/formerTruck";
 import { describeItems, quantityOf, readPriority, totalQuantity } from "@/app/lib/crewTrip";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
@@ -29,8 +31,8 @@ const DISPATCH_SELECT = `
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
     OrderDetails ( productName, quantity ),
-    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
-    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
+    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
+    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
   ${FORMER_TRUCK_COLUMNS},
   Truck ( plateNumber, model ),
   Driver:Employee!driverID ( employeeName ),
@@ -52,23 +54,25 @@ function readScheduledDate(notes: string | null): string {
   return value && !Number.isNaN(Date.parse(value)) ? value : "";
 }
 
-// Earliest to latest stop time, e.g. "8:00 AM - 3:00 PM".
+// Earliest to latest stop, e.g. "8:00 AM - 3:00 PM", or with the day where it
+// is not the booking's: "8:00 PM - 3:00 AM · Sat, Oct 10".
 //
-// Sorted as stored, shown through the shared formatter: 24-hour strings are
-// what sort correctly ("08:00" before "14:30"), and twelve-hour ones are what
-// a driver reads. This had its own copy of the conversion, which is how three
-// other places on these screens came to be showing the raw column instead.
-function buildTimeWindow(stops: { expectedTime?: string | null }[]): string {
-  const times = stops
-    .map((stop) => stop.expectedTime)
-    .filter((time): time is string => Boolean(time))
-    .sort();
+// Ordered by when each stop is due - its day and its time - and shown through
+// the shared formatter. It used to sort the clock strings, which is right
+// within a day and wrong across one: an overnight run's 03:00 drop sorted
+// first, and the window read "3:00 AM - 9:00 PM", backwards.
+function buildTimeWindow(stops: { time?: string | null; date?: string | null }[], bookingDate: string | null): string {
+  const timed = stops
+    .map((stop) => ({ ...stop, at: stop.date && stop.time ? stopMoment(stop.date, stop.time) : null }))
+    .filter((stop) => stop.time)
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0) || String(a.time).localeCompare(String(b.time)));
 
-  if (times.length === 0) return "";
+  if (timed.length === 0) return "";
+  const first = timed[0];
+  const last = timed[timed.length - 1];
+  const when = (stop: (typeof timed)[number]) => formatStopWhen(stop.time, stop.date, bookingDate);
 
-  return times.length === 1
-    ? formatTime(times[0])
-    : `${formatTime(times[0])} - ${formatTime(times[times.length - 1])}`;
+  return timed.length === 1 ? when(first) : `${when(first)} - ${when(last)}`;
 }
 
 // The trips this route reads, with the order and stops embedded. Columns come
@@ -218,6 +222,19 @@ export async function GET(request: Request) {
         (a, b) => (a.sequence ?? a.pickupID ?? 0) - (b.sequence ?? b.pickupID ?? 0),
       );
 
+      // Each stop's day: its own, or read off the route the way an older
+      // booking was made. A stop on another day than the booking's shows it.
+      const scheduledDate = readScheduledDate(order.notes ?? null);
+      const routeDates =
+        scheduledDate && isRealDate(scheduledDate)
+          ? effectiveStopDates(
+              scheduledDate,
+              [...pickups, ...stops].map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })),
+            )
+          : [];
+      const pickupDate = (index: number) => routeDates[index] ?? null;
+      const stopDate = (index: number) => routeDates[pickups.length + index] ?? null;
+
       let displayStatus: string;
       if (dispatch._helperStatus) {
         // A helper who accepted follows the trip's progress; before that the
@@ -244,10 +261,13 @@ export async function GET(request: Request) {
         dateTime: "See Stops",
         status: displayStatus,
         current_step: dispatch.current_step ?? 0,
-        scheduledDate: readScheduledDate(order.notes ?? null),
-        timeWindow: buildTimeWindow(stops),
+        scheduledDate,
+        timeWindow: buildTimeWindow(
+          stops.map((stop, index) => ({ time: stop.expectedTime, date: stopDate(index) })),
+          scheduledDate,
+        ),
         // Not sliced to "08:00". The crew read these; the database sorts by them.
-        pickupTime: formatTime(pickups[0]?.expectedTime) || "TBD",
+        pickupTime: formatStopWhen(pickups[0]?.expectedTime, pickupDate(0), scheduledDate) || "TBD",
         deliveryTime: "TBD",
         // Was the literal string "Warehouse / Depot" until pickups became
         // rows: the driver was told to collect the cargo from nowhere.
@@ -269,26 +289,26 @@ export async function GET(request: Request) {
         pod_url: dispatch.pod_url ? (signedProofs.get(dispatch.pod_url) ?? null) : null,
         startBlockedReason: startBlockedReason(dispatch),
         pickupCompletedAt: dispatch.pickupCompletedAt ?? null,
-        multiplePickups: pickups.map((pickup) => ({
+        multiplePickups: pickups.map((pickup, index) => ({
           pickupID: pickup.pickupID,
           warehouse: pickup.warehouseName,
           address: pickup.pickupAddress || pickup.warehouseName || "No address on file",
           contactPerson: pickup.contactPerson || "N/A",
           contactNumber: pickup.contactNum || "N/A",
-          pickupTime: formatTime(pickup.expectedTime),
+          pickupTime: formatStopWhen(pickup.expectedTime, pickupDate(index), scheduledDate),
           quantity: quantityOf(pickup.quantity),
           status: pickup.stopStatus,
           latitude: Number(pickup.pickupLat) || null,
           longitude: Number(pickup.pickupLong) || null,
         })),
-        multipleDeliveries: stops.map((stop) => ({
+        multipleDeliveries: stops.map((stop, index) => ({
           branchID: stop.branchID,
           branch: stop.branchName,
           // "Address on file" was shown to the driver in place of the address.
           address: stop.deliveryAddress || stop.branchName || "No address on file",
           contactPerson: stop.contactPerson,
           contactNumber: stop.contactNum,
-          deliveryTime: formatTime(stop.expectedTime),
+          deliveryTime: formatStopWhen(stop.expectedTime, stopDate(index), scheduledDate),
           quantity: quantityOf(stop.quantity),
           status: stop.stopStatus,
           // 0/0 is the placeholder for a stop that was never geocoded.
