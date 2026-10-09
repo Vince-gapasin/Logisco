@@ -76,6 +76,8 @@ export default function FoulTripFeedPage() {
   // office should know and can close them off.
   const [issues, setIssues] = useState<IncidentView[]>([]);
   const [closing, setClosing] = useState<string | null>(null);
+  // The issue being asked about: "Sorted?" before it is closed for good.
+  const [confirmingClose, setConfirmingClose] = useState<string | null>(null);
   const [partnerTripID, setPartnerTripID] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -177,6 +179,7 @@ export default function FoulTripFeedPage() {
   };
 
   const closeIssue = async (incident: IncidentView) => {
+    setConfirmingClose(null);
     setClosing(incident.incidentID);
     try {
       await apiFetch(`/api/foul-trips/${incident.incidentID}`, {
@@ -498,14 +501,37 @@ export default function FoulTripFeedPage() {
                     reported by {issue.reporterName ?? "the crew"} · {new Date(issue.reportedAt).toLocaleString("en-PH")}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => closeIssue(issue)}
-                  disabled={closing === issue.incidentID}
-                  className="min-h-tap sm:pointer-fine:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
-                >
-                  {closing === issue.incidentID ? "Saving…" : "Close"}
-                </button>
+                {/* Closing an issue cannot be undone and records it as sorted
+                    out, so it asks first. It was one click on a button that
+                    said only "Close" - which reads as closing a panel. */}
+                {confirmingClose === issue.incidentID ? (
+                  <div className="flex items-center gap-2 whitespace-nowrap" role="group" aria-label={`Mark ${issue.orderCode ?? "this issue"} as sorted?`}>
+                    <span className="text-sm text-slate-700">Sorted?</span>
+                    <button
+                      type="button"
+                      onClick={() => closeIssue(issue)}
+                      className="min-h-tap sm:pointer-fine:min-h-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+                    >
+                      Yes, sorted
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingClose(null)}
+                      className="min-h-tap sm:pointer-fine:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold"
+                    >
+                      Not yet
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingClose(issue.incidentID)}
+                    disabled={closing === issue.incidentID}
+                    className="min-h-tap sm:pointer-fine:min-h-0 px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold disabled:opacity-60 whitespace-nowrap"
+                  >
+                    {closing === issue.incidentID ? "Saving…" : "Mark sorted"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
