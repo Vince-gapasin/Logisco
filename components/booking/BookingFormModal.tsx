@@ -1245,7 +1245,7 @@ function BookingForm({
         <div className="fixed inset-0 overflow-y-auto z-70 flex items-center justify-center p-4 bg-slate-900/60" role="dialog" aria-modal="true" aria-labelledby="tight-title">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl my-auto">
             <h3 id="tight-title" className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <AlertTriangle className="h-5 w-5 text-amber-500" /> The crew may arrive late
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> Check these times before booking
             </h3>
             <p className="mt-2 text-sm text-slate-600">{confirmTight.message}</p>
             <p className="mt-2 text-sm text-slate-600">Nothing has been saved yet.</p>
@@ -1265,7 +1265,7 @@ function BookingForm({
                 onClick={() => setConfirmTight(null)}
                 className="min-h-tap px-5 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800"
               >
-                Change the times
+                Go back and edit
               </button>
               <button
                 type="button"

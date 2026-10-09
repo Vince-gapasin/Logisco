@@ -23,7 +23,9 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
 }));
 vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unknown) => rows }));
 
-const { createBooking, updateBooking, BookingNotPossible } = await import("@/services/booking/bookingService");
+const { createBooking, updateBooking, BookingNotPossible, BookingNeedsConfirmation } = await import(
+  "@/services/booking/bookingService"
+);
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
 
@@ -54,7 +56,9 @@ describe("making a booking", () => {
       quantity: 10,
       ...stop,
     })),
-    acknowledgeTightSchedule: false,
+    // Nothing here is found on the map, so every booking would be asked about
+    // first; these tests are about the dates stored once it is kept.
+    acknowledgeTightSchedule: true,
   });
 
   const create = (booking: ReturnType<typeof dto>) => {
@@ -87,6 +91,31 @@ describe("making a booking", () => {
     const booking = dto([{ expectedTime: "09:00" }], [{ expectedTime: "15:00" }], "2026-10-05");
     await expect(createBooking(booking as Parameters<typeof createBooking>[0])).rejects.toBeInstanceOf(BookingNotPossible);
     expect(db.writes).toHaveLength(0);
+  });
+});
+
+describe("a booking whose times could not be checked", () => {
+  const booking = {
+    clientID: null,
+    deliverySchedule: "2026-10-06",
+    notes: "",
+    items: [{ productName: "Tiles", productType: "General", quantity: 10, weightPerItem: 0 }],
+    pickups: [{ warehouseName: "Valenzuela", pickupAddress: "Nowhere Street", quantity: 10, expectedTime: "08:00", expectedDate: "2026-10-06" }],
+    stops: [{ branchName: "Cebu", contactPerson: "Trisha", contactNum: "09281112013", deliveryAddress: "Unknown Road", quantity: 10, expectedTime: "14:00", expectedDate: "2026-10-06" }],
+  };
+
+  it("is asked about before anything is written, naming what was not found", async () => {
+    const attempt = createBooking({ ...booking, acknowledgeTightSchedule: false } as Parameters<typeof createBooking>[0]);
+    await expect(attempt).rejects.toBeInstanceOf(BookingNeedsConfirmation);
+    await expect(attempt).rejects.toThrow(/Valenzuela and Cebu could not be found on the map/);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("is saved once the coordinator keeps it, without saying it all again", async () => {
+    db.queue({ data: { orderID: ORDER } });
+    const made = await createBooking({ ...booking, acknowledgeTightSchedule: true } as Parameters<typeof createBooking>[0]);
+    expect(made.warning).toBeNull();
+    expect(db.writes.some((write) => write.table === "Order")).toBe(true);
   });
 });
 

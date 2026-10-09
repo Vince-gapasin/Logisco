@@ -861,6 +861,17 @@ export async function createBooking(dto: CreateOrderDto) {
     );
   }
 
+  // Not checked at all: an address nobody could find on the map, or a map
+  // service that did not answer. This used to be saved and mentioned in a
+  // toast afterwards - the weaker treatment for the riskier booking, since an
+  // address no map can find is also the one most likely to be wrong. It is
+  // asked about first now, as moving a booking to today asks. A single stop
+  // has no drive between stops to check, so there is nothing to ask about.
+  const stopCount = pickups.length + dto.stops.length;
+  if (feasibility.verdict === "unknown" && feasibility.message && stopCount >= 2 && !dto.acknowledgeTightSchedule) {
+    throw new BookingNeedsConfirmation(feasibility.message);
+  }
+
   // 1. Generate Unique Identifiers
   const orderCode = generateOrderCode();
   const orderLinkToken = crypto.randomUUID(); 
@@ -992,9 +1003,8 @@ export async function createBooking(dto: CreateOrderDto) {
     orderID: newOrderID,
     orderCode: orderCode,
     trackingToken: orderLinkToken,
-    // Said while the client is still on the phone when the itinerary was never
-    // checked. A tight one was already asked about and accepted, so it is not
-    // repeated.
-    warning: feasibility.verdict === "tight" ? null : feasibility.message,
+    // Anything worth saying was asked before the save and accepted, so it is
+    // not said again; what is left is a note nobody was asked about.
+    warning: dto.acknowledgeTightSchedule ? null : feasibility.message,
   };
 }
