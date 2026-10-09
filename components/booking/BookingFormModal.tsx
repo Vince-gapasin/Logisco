@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Plus, X } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
-import { buildItinerary, clockMinutes } from "@/app/lib/deliveryFeasibility";
 import type {
   BranchRow,
   ClientRow,
@@ -15,6 +14,7 @@ import type {
 import {
   addDays,
   addressKey,
+  daysBetween,
   CLOCK_RULE,
   findAddressClashes,
   isQuarterHour,
@@ -24,18 +24,18 @@ import {
   MAX_DAYS_AHEAD,
   normalizePhone,
   parseQuantity,
-  PAST_TIME_RULE,
   PHONE_RULE,
   QUARTER_HOUR_RULE,
   sanitizePhoneInput,
   sanitizeQuantityInput,
-  stopTimeHasPassed,
   TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
 import SelectMenu from "@/components/SelectMenu";
 import TimePicker from "@/components/TimePicker";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
+import StopDayField from "@/components/booking/StopDayField";
+import { checkStopSchedule, MAX_RUN_DAYS } from "@/app/lib/stopSchedule";
 import { clockInManila, todayInManila } from "@/app/lib/datetime";
 
 // One booking form for every way a booking starts: a registered client, an
@@ -52,6 +52,8 @@ export interface PickupRow {
   contactPerson: string;
   contactNumber: string;
   pickupTime: string;
+  /** YYYY-MM-DD, or "" for the same day as the stop before it. */
+  date: string;
   quantity: string;
 }
 export interface DeliveryRow {
@@ -60,6 +62,8 @@ export interface DeliveryRow {
   contactPerson: string;
   contactNumber: string;
   deliveryTime: string;
+  /** YYYY-MM-DD, or "" for the same day as the stop before it. */
+  date: string;
   quantity: string;
 }
 
@@ -129,6 +133,7 @@ const emptyPickup = (): PickupRow => ({
   contactPerson: "",
   contactNumber: "",
   pickupTime: "",
+  date: "",
   quantity: "",
 });
 const emptyDelivery = (): DeliveryRow => ({
@@ -137,6 +142,7 @@ const emptyDelivery = (): DeliveryRow => ({
   contactPerson: "",
   contactNumber: "",
   deliveryTime: "",
+  date: "",
   quantity: "",
 });
 
@@ -345,9 +351,31 @@ function BookingForm({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name } = e.target;
     const value = name === "contactNumber" || name === "partnerContact" ? sanitizePhoneInput(e.target.value) : e.target.value;
+    // The booking's date is the run's first day. Moving it moves every stop
+    // given a later day by the same number of days, so a three-day run stays
+    // three days rather than ending up before it starts.
+    if (name === "deliverySchedule" && isRealDate(formData.deliverySchedule) && isRealDate(value)) {
+      const shift = daysBetween(formData.deliverySchedule, value);
+      const move = <Row extends { date: string }>(rows: Row[]) =>
+        rows.map((row) => (isRealDate(row.date) ? { ...row, date: addDays(row.date, shift) } : row));
+      setPickupList(move);
+      setDeliveryList(move);
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearError(name);
   };
+
+  // Every stop in the order the truck drives them, collections first, with
+  // the day each falls on. Read on every render, so the "Day 2" under a time
+  // is always the day the booking will be saved with.
+  const routeStops = () => [
+    ...pickupList.map((row) => ({ date: row.date, time: row.pickupTime })),
+    ...deliveryList.map((row) => ({ date: row.date, time: row.deliveryTime })),
+  ];
+  const schedule = checkStopSchedule(routeStops(), { bookingDate: formData.deliverySchedule || null });
+  const runLastDay = isRealDate(formData.deliverySchedule) ? addDays(formData.deliverySchedule, MAX_RUN_DAYS - 1) : "";
+  // A stop due today cannot be picked at a time already gone.
+  const minTimeFor = (routeIndex: number) => (schedule.dates[routeIndex] === todayInManila() ? clockInManila() : undefined);
 
   const setCrew = (field: keyof CrewChoice, value: string) => {
     touched.current[field] = true;
@@ -470,46 +498,24 @@ function BookingForm({
       next[key] = clash.message;
     }
 
-    // The stops in the order the truck drives them: collections first, then
-    // drops. Checked here, on the fields that are wrong, rather than coming
-    // back as a sentence over the dashboard with the form closed and everything
-    // typed into it gone - but checked by the same rule the server uses, from
-    // the same function, because two copies of a rule this subtle drift.
+    // When each stop is due, in the order the truck drives them: collections
+    // first, then drops. Checked here, on the fields that are wrong, rather
+    // than coming back as a sentence over the dashboard - and by the same rule
+    // the server uses, from the same function, because two copies of a rule
+    // this subtle drift.
     //
-    // It used to compare the times as text, so "03:05" sorted before "21:05"
-    // and a pickup at 9:05 PM with a drop at 3:05 AM - an ordinary overnight
-    // run - turned the delivery field red on a time that was right. A stop
-    // earlier than the one before it now reads as the next day, which is what
-    // it almost always means. Only a second midnight is refused, because the
-    // booking carries one date and cannot span two of them.
-    const inRouteOrder = [
-      ...pickupList.map((row, i) => ({ time: row.pickupTime, key: `pickup_${i}_pickupTime` })),
-      ...deliveryList.map((row, i) => ({ time: row.deliveryTime, key: `delivery_${i}_deliveryTime` })),
-    ].flatMap((stop) => {
-      const minutes = clockMinutes(stop.time);
-      return minutes === null ? [] : [{ ...stop, minutes }];
-    });
-
-    // Read as a route only once every stop has a time: with one missing, the
-    // stops either side of it would be compared as if they were neighbours.
-    const allTimed = inRouteOrder.length === pickupList.length + deliveryList.length;
-    const { crossings, sameTime } = buildItinerary(allTimed ? inRouteOrder.map((stop) => stop.minutes) : []);
-
-    for (const index of crossings.slice(1)) {
-      next[inRouteOrder[index].key] = "More than a day after the first stop";
-    }
-    // Two different addresses in the same minute; the server refuses it too.
-    for (const index of sameTime) {
-      next[inRouteOrder[index].key] ??= "Same time as the stop before it";
-    }
-
-    // A booking for today cannot start at a time already gone. Only the first
-    // stop: anything after it that is earlier on the clock is the next morning.
-    // The time picker greys these out, but the clock keeps moving while the
-    // form is open.
-    const firstStop = inRouteOrder[0];
-    if (firstStop && formData.deliverySchedule && !next[firstStop.key] && stopTimeHasPassed(formData.deliverySchedule, firstStop.time)) {
-      next[firstStop.key] = PAST_TIME_RULE;
+    // Nothing is read as overnight any more. A stop earlier on the clock than
+    // the one before it, on the same day, is refused until it is given the
+    // next day on purpose: that guess let 03:05 typed for 15:05 through as a
+    // run nobody meant.
+    const pickupCount = pickupList.length;
+    const keyFor = (index: number, field: "date" | "time") =>
+      index < pickupCount
+        ? `pickup_${index}_${field === "date" ? "date" : "pickupTime"}`
+        : `delivery_${index - pickupCount}_${field === "date" ? "date" : "deliveryTime"}`;
+    const checked = checkStopSchedule(routeStops(), { bookingDate: formData.deliverySchedule || null });
+    for (const issue of checked.issues) {
+      next[keyFor(issue.index, issue.field)] ??= issue.message;
     }
 
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
@@ -536,8 +542,18 @@ function BookingForm({
       contactNumber: normalizePhone(formData.contactNumber) ?? formData.contactNumber,
       emailAddress: formData.emailAddress.trim() || "N/A",
       businessAddress: formData.businessAddress.trim() || "N/A",
-      pickupList: pickupList.map((p) => ({ ...p, contactNumber: normalizePhone(p.contactNumber) ?? p.contactNumber })),
-      deliveryList: deliveryList.map((d) => ({ ...d, contactNumber: normalizePhone(d.contactNumber) ?? d.contactNumber })),
+      // Each stop with the day it resolved to, own or followed, so the server
+      // reads a dated booking and holds it to the same rules.
+      pickupList: pickupList.map((p, i) => ({
+        ...p,
+        date: checked.dates[i] ?? "",
+        contactNumber: normalizePhone(p.contactNumber) ?? p.contactNumber,
+      })),
+      deliveryList: deliveryList.map((d, i) => ({
+        ...d,
+        date: checked.dates[pickupCount + i] ?? "",
+        contactNumber: normalizePhone(d.contactNumber) ?? d.contactNumber,
+      })),
       unassigned,
       resolvedNames: {
         truck: isSubconMode ? formData.truckPlate : (truck?.plateNumber ?? ""),
@@ -819,10 +835,19 @@ function BookingForm({
                             value={row.pickupTime}
                             onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
                             invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
-                            // The first stop of a booking for today cannot be behind the clock.
-                            min={idx === 0 && formData.deliverySchedule === todayInManila() ? clockInManila() : undefined}
+                            min={minTimeFor(idx)}
                           />
                           <CellError message={errors[`pickup_${idx}_pickupTime`]} />
+                          <StopDayField
+                            date={schedule.dates[idx] ?? ""}
+                            own={row.date}
+                            firstDay={formData.deliverySchedule}
+                            min={idx === 0 ? formData.deliverySchedule : (schedule.dates[idx - 1] ?? formData.deliverySchedule)}
+                            max={runLastDay}
+                            canChange={idx > 0}
+                            onChange={(v) => handlePickupChange(idx, "date", v)}
+                            error={errors[`pickup_${idx}_date`]}
+                          />
                         </td>
                         <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
                           <QuantityInput
@@ -940,8 +965,19 @@ function BookingForm({
                             value={row.deliveryTime}
                             onChange={(v) => handleDeliveryChange(idx, "deliveryTime", v)}
                             invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
+                            min={minTimeFor(pickupList.length + idx)}
                           />
                           <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
+                          <StopDayField
+                            date={schedule.dates[pickupList.length + idx] ?? ""}
+                            own={row.date}
+                            firstDay={formData.deliverySchedule}
+                            min={schedule.dates[pickupList.length + idx - 1] ?? formData.deliverySchedule}
+                            max={runLastDay}
+                            canChange
+                            onChange={(v) => handleDeliveryChange(idx, "date", v)}
+                            error={errors[`delivery_${idx}_date`]}
+                          />
                         </td>
                         <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
                           <QuantityInput

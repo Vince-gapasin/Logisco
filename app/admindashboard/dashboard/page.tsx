@@ -485,6 +485,9 @@ export default function AdminDashboardPage() {
         // Sent as typed. It used to fall back to noon, which turned a missing
         // time into a promise nobody made; the server refuses a blank instead.
         expectedTime: d.deliveryTime,
+        // The day this stop is due. Every stop carries one, so the server holds
+        // the booking to the dated rules rather than guessing overnight.
+        expectedDate: d.date || undefined,
         // Geocoded server-side so the stop shows on the tracking map.
         deliveryAddress: d.deliveryAddress || undefined,
         quantity: parseQuantity(d.quantity) ?? undefined,
@@ -524,6 +527,7 @@ export default function AdminDashboardPage() {
             contactPerson: p.contactPerson?.trim() || undefined,
             contactNum: p.contactNumber?.trim() || undefined,
             expectedTime: p.pickupTime || undefined,
+            expectedDate: p.date || undefined,
             quantity: parseQuantity(p.quantity) ?? undefined,
           })),
         acknowledgeTightSchedule: data.acknowledgeTightSchedule === true,
