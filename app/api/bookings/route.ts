@@ -91,6 +91,9 @@ export async function POST(request: Request) {
         {
           message: "Validation failed",
           errors: validation.error.flatten().fieldErrors,
+          // Each issue with its full path - stops.1.expectedDate, not just
+          // "stops" - so the form can mark the cell it is about.
+          issues: validation.error.issues.map((issue) => ({ path: issue.path, message: issue.message })),
         },
         { status: 400 }
       );

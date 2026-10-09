@@ -28,6 +28,7 @@ import {
 import { assignableCrew } from "@/app/lib/crewEligibility";
 import { useRouter } from "next/navigation";
 import BookingFormModal, { type BookingFormResult, type BookingSubmitOutcome } from "@/components/booking/BookingFormModal";
+import type { BookingIssue } from "@/app/lib/bookingIssues";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
 import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
@@ -598,6 +599,12 @@ export default function AdminDashboardPage() {
       if (err instanceof ApiError && err.status === 409) {
         const body = err.body as { needsConfirmation?: string } | null;
         if (body?.needsConfirmation === "tightSchedule") return { confirmTightSchedule: err.message };
+      }
+      // Refused by the rules: handed back with every issue's field, so the form
+      // marks the cells instead of saying only "Validation failed".
+      if (err instanceof ApiError && err.status === 400) {
+        const issues = (err.body as { issues?: BookingIssue[] } | null)?.issues;
+        if (issues && issues.length > 0) return { refused: issues };
       }
       console.error(err);
       // Handed back to the form, which stays open holding everything that was

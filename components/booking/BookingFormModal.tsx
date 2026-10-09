@@ -35,6 +35,7 @@ import TimePicker from "@/components/TimePicker";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
 import StopDayField from "@/components/booking/StopDayField";
+import { formErrorsFromIssues, type BookingIssue } from "@/app/lib/bookingIssues";
 import { checkStopSchedule, MAX_RUN_DAYS } from "@/app/lib/stopSchedule";
 import { clockInManila, todayInManila } from "@/app/lib/datetime";
 
@@ -100,7 +101,12 @@ export interface BookingFormResult {
  * What came of a save: null when the booking was made, a message when it was
  * refused, or the server asking whether to keep times the crew may run late on.
  */
-export type BookingSubmitOutcome = string | null | { confirmTightSchedule: string };
+export type BookingSubmitOutcome =
+  | string
+  | null
+  | { confirmTightSchedule: string }
+  /** Refused by the server's rules, each issue with the field it is about. */
+  | { refused: BookingIssue[] };
 
 interface BookingFormModalProps {
   isOpen: boolean;
@@ -600,6 +606,13 @@ function BookingForm({
     setSaving(true);
     try {
       const outcome = await onSubmitSuccess(result);
+      if (outcome && typeof outcome === "object" && "refused" in outcome) {
+        // On the cells it is about, as if the form had found it itself.
+        const { errors: refused, summary } = formErrorsFromIssues(outcome.refused);
+        setErrors(refused);
+        setSubmitError(summary);
+        return;
+      }
       if (outcome && typeof outcome === "object") {
         setConfirmTight({ result, message: outcome.confirmTightSchedule });
         return;
