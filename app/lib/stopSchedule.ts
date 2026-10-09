@@ -22,6 +22,7 @@
 
 import {
   addDays,
+  daysBetween,
   isRealDate,
   isTooFarAhead,
   isValidClockTime,
@@ -234,6 +235,20 @@ export function legacyStopDates(bookingDate: string, times: (string | null | und
   });
   const { absolute } = buildItinerary(clock);
   return absolute.map((minutes) => addDays(bookingDate, Math.floor(minutes / (24 * 60))));
+}
+
+/**
+ * A run moved to a new day from where it stands - a foul trip picked up again
+ * on a later day. Stops already made keep the day they were due: that is the
+ * record of when they were promised. The rest keep their places relative to
+ * the first of them, which lands on newDay, so a remaining two-day stretch is
+ * still two days.
+ */
+export function moveRemainingRoute(currentDates: string[], done: boolean[], newDay: string): string[] {
+  const first = done.findIndex((made) => !made);
+  if (first === -1 || !isRealDate(currentDates[first])) return [...currentDates];
+  const shift = daysBetween(currentDates[first], newDay);
+  return currentDates.map((date, index) => (done[index] || !isRealDate(date) ? date : addDays(date, shift)));
 }
 
 export interface RouteStopRow {

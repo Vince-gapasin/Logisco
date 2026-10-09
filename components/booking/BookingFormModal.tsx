@@ -409,7 +409,16 @@ function BookingForm({
   // Errors are keyed by row position, so they are cleared when a row goes.
   const removePickupRow = (index: number) => {
     if (pickupList.length === 1) return;
-    setPickupList((rows) => rows.filter((_, i) => i !== index));
+    // Removing the first pickup makes the next one the run's first stop, and
+    // the first stop's day is the booking's. A day chosen for it becomes the
+    // booking's date rather than sitting on the row disagreeing with it.
+    const nextFirst = index === 0 ? pickupList[1] : null;
+    if (nextFirst && isRealDate(nextFirst.date)) {
+      setFormData((prev) => ({ ...prev, deliverySchedule: nextFirst.date }));
+    }
+    setPickupList((rows) =>
+      rows.filter((_, i) => i !== index).map((row, i) => (i === 0 && index === 0 ? { ...row, date: "" } : row)),
+    );
     setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith("pickup_"))));
   };
   const removeDeliveryRow = (index: number) => {

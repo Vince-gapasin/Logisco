@@ -29,7 +29,9 @@ import {
 import { cancelBooking } from "@/services/booking/bookingService";
 import { signPodUrls } from "@/services/storage/podService";
 import { partnerColumns, partnerNote } from "@/services/subcon/partner";
-import { formatDateTime } from "@/app/lib/datetime";
+import { formatDateTime, formatTime } from "@/app/lib/datetime";
+import { isRealDate, stopTimeHasPassed } from "@/app/lib/bookingRules";
+import { effectiveStopDates, moveRemainingRoute } from "@/app/lib/stopSchedule";
 import { selectAll } from "@/app/lib/selectAll";
 import { truckOf, type FormerTruck } from "@/app/lib/formerTruck";
 
@@ -425,17 +427,110 @@ async function resolve(
   if (error) throw new Error(`Failed to record the resolution: ${error.message}`);
 }
 
-// Rewrites "Delivery Schedule: ..." in the booking notes, which is where the
-// booking screens read the date from.
-async function setDeliverySchedule(orderID: string, date: string, time?: string | null) {
-  const { data: order, error } = await supabase.from("Order").select("notes").eq("orderID", orderID).maybeSingle();
+interface RescheduleStop {
+  pickupID?: number;
+  branchID?: number;
+  warehouseName?: string | null;
+  branchName?: string | null;
+  expectedTime: string | null;
+  expectedDate: string | null;
+  sequence: number | null;
+  stopStatus: string | null;
+}
+
+/** Everything a foul trip's reschedule will write, worked out and checked first. */
+interface ReschedulePlan {
+  orderID: string;
+  date: string;
+  notes: string;
+  stops: { table: "PickupStops" | "BranchStops"; key: "pickupID" | "branchID"; id: number; date: string }[];
+}
+
+/**
+ * Where a foul trip's booking moves to, before anything moves.
+ *
+ * This used to rewrite the "Delivery Schedule" line of the notes and nothing
+ * else. The deliverySchedule column - what punctuality reads first - kept the
+ * old day, so the recovery crew was judged against the day the truck broke
+ * down; and with a time given the line read "2026-10-12 14:00", which no
+ * screen could take for a date. Stops now carry their own day too, and left
+ * where they were they would have made the new crew days late.
+ *
+ * So the whole remaining run moves, as an ordinary reschedule moves it: stops
+ * already made keep their day, the rest keep their places relative to the first
+ * of them, which lands on the new day. And it is refused, before a truck is
+ * taken for it, when that first remaining stop is already behind the clock.
+ */
+async function planReschedule(orderID: string, date: string): Promise<ReschedulePlan> {
+  const { data: order, error } = await supabase
+    .from("Order")
+    .select(
+      "notes, deliverySchedule, PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, sequence, stopStatus ), BranchStops ( branchID, branchName, expectedTime, expectedDate, sequence, stopStatus )",
+    )
+    .eq("orderID", orderID)
+    .maybeSingle();
   if (error || !order) throw new Error("Failed to read the booking to reschedule it.");
-  const value = time ? `${date} ${time}` : date;
+
+  const inSequence = (rows: RescheduleStop[] | null | undefined) =>
+    [...(rows ?? [])].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const pickups = inSequence(order.PickupStops as RescheduleStop[] | null);
+  const branches = inSequence(order.BranchStops as RescheduleStop[] | null);
+  const route = [...pickups, ...branches];
+
   const notes: string = order.notes ?? "";
-  const next = /Delivery Schedule:[^\n]*/.test(notes)
-    ? notes.replace(/Delivery Schedule:[^\n]*/, `Delivery Schedule: ${value}`)
-    : `${notes}${notes ? "\n" : ""}Delivery Schedule: ${value}`;
-  const { error: saveError } = await supabase.from("Order").update({ notes: next }).eq("orderID", orderID);
+  const oldDay =
+    String(order.deliverySchedule ?? "").slice(0, 10) ||
+    (/Delivery Schedule:[ \t]*(\d{4}-\d{2}-\d{2})/.exec(notes)?.[1] ?? "");
+  const current = isRealDate(oldDay)
+    ? effectiveStopDates(oldDay, route.map((stop) => ({ date: stop.expectedDate, time: stop.expectedTime })))
+    : route.map(() => date);
+  const done = route.map((stop) => isStopDelivered(stop.stopStatus));
+  const moved = moveRemainingRoute(current, done, date);
+
+  const firstLeft = done.findIndex((made) => !made);
+  const first = firstLeft === -1 ? null : route[firstLeft];
+  if (first?.expectedTime && stopTimeHasPassed(moved[firstLeft], first.expectedTime)) {
+    const name = first.warehouseName || first.branchName || "The next stop";
+    throw new FoulTripError(
+      `${name}'s ${formatTime(first.expectedTime)} has already passed today. Pick a later day.`,
+    );
+  }
+
+  // The line holds the date alone, so every screen can read it. A time given
+  // with the reschedule is kept in the resolution notes.
+  const nextNotes = /Delivery Schedule:[^\n]*/.test(notes)
+    ? notes.replace(/Delivery Schedule:[^\n]*/, `Delivery Schedule: ${date}`)
+    : `${notes}${notes ? "\n" : ""}Delivery Schedule: ${date}`;
+
+  return {
+    orderID,
+    date,
+    notes: nextNotes,
+    // Every stop is written, made ones included: once some stops carry a day,
+    // one left blank would follow its neighbour onto the new day and a stop
+    // made on Monday would read as due on Thursday.
+    stops: route.flatMap((stop, index) => {
+      const id = index < pickups.length ? stop.pickupID : stop.branchID;
+      if (id === undefined || id === null || !isRealDate(moved[index])) return [];
+      return [
+        index < pickups.length
+          ? { table: "PickupStops" as const, key: "pickupID" as const, id, date: moved[index] }
+          : { table: "BranchStops" as const, key: "branchID" as const, id, date: moved[index] },
+      ];
+    }),
+  };
+}
+
+/** Writes the move: the stops first, then the booking's own date, column and note. */
+async function applyReschedule(plan: ReschedulePlan) {
+  for (const stop of plan.stops) {
+    const { error } = await supabase.from(stop.table).update({ expectedDate: stop.date }).eq(stop.key, stop.id);
+    if (error) throw new Error(`Failed to move the stops to the new day: ${error.message}`);
+  }
+  const { error: saveError } = await supabase
+    .from("Order")
+    .update({ notes: plan.notes, deliverySchedule: plan.date })
+    .eq("orderID", plan.orderID);
   if (saveError) throw new Error(`Failed to save the new schedule: ${saveError.message}`);
 }
 
@@ -458,12 +553,16 @@ export async function reassign(
   const incident = await loadIncident(incidentID);
   requireOpen(incident);
 
+  // Worked out and checked before a truck is taken for it, so a day that
+  // cannot work is refused with nothing to undo.
+  const plan = reschedule?.date ? await planReschedule(incident.orderID, reschedule.date) : null;
+
   // assignDispatch checks the truck and crew are free and locks them.
   const dispatch = await assignDispatch(incident.orderID, { ...crew, totalCargoWeight: 0 });
 
   try {
     await handOverRemainingStops(incident, dispatch.dispatchID);
-    if (reschedule?.date) await setDeliverySchedule(incident.orderID, reschedule.date, reschedule.time);
+    if (plan) await applyReschedule(plan);
     await resolve(incident, actor, {
       resolution: reschedule?.date ? RESOLUTION.rescheduled : RESOLUTION.reassigned,
       resolutionNotes: reschedule?.date

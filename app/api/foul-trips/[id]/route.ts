@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authorize, OFFICE_ROLES } from "@/app/lib/auth";
-import { isQuarterHour, isValidPhone, PHONE_RULE, QUARTER_HOUR_RULE } from "@/app/lib/bookingRules";
+import {
+  isQuarterHour,
+  isRealDate,
+  isTooFarAhead,
+  isValidPhone,
+  PHONE_RULE,
+  QUARTER_HOUR_RULE,
+  TOO_FAR_RULE,
+} from "@/app/lib/bookingRules";
+import { todayInManila } from "@/app/lib/datetime";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { crewOf, notify, OFFICE } from "@/services/notifications/notify";
 import { isUuid } from "@/services/dispatch/dispatchService";
@@ -29,7 +38,14 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("reschedule"),
     ...crew,
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date"),
+    // A day a delivery can be booked for, as the booking form and an ordinary
+    // reschedule require: it took any YYYY-MM-DD, last year's included.
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date")
+      .refine(isRealDate, "That date does not exist")
+      .refine((value) => value >= todayInManila(), "That date has already passed")
+      .refine((value) => !isTooFarAhead(value, todayInManila()), TOO_FAR_RULE),
     time: z
       .union([z.string().regex(/^\d{2}:\d{2}$/).refine(isQuarterHour, QUARTER_HOUR_RULE), z.literal("")])
       .optional()
