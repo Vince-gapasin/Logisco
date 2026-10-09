@@ -66,6 +66,14 @@ export interface FeasibilityInput {
   minutesUntilFirstStop?: number | null;
   /** Getting the truck out of the yard, on top of the drive. */
   departureBufferMin?: number;
+  /**
+   * Each stop as minutes since the epoch, from the date and time it is due -
+   * see stopSchedule. Given, the gaps are measured from these and nothing is
+   * guessed about which day a stop falls on. Left out, the stops are laid on
+   * one clock and the overnight reading applies, as for a booking stored
+   * before stops had dates.
+   */
+  moments?: number[] | null;
 }
 
 const DAY_MIN = 24 * 60;
@@ -144,6 +152,23 @@ export function buildItinerary(clock: number[]): Itinerary {
   };
 }
 
+/**
+ * The stops laid out from the moments they are due. Nothing crosses midnight
+ * by inference - each stop's day was chosen - so there are no crossings and no
+ * overnight note; a run of several days simply has a span of several days.
+ */
+export function itineraryFromMoments(moments: number[]): Itinerary {
+  const start = moments[0] ?? 0;
+  const absolute = moments.map((moment) => moment - start);
+  const sameTime = absolute.flatMap((minutes, index) => (index > 0 && minutes === absolute[index - 1] ? [index] : []));
+  return {
+    absolute,
+    crossings: [],
+    sameTime,
+    spanMinutes: absolute.length > 1 ? absolute[absolute.length - 1] - absolute[0] : 0,
+  };
+}
+
 /** HH:MM as minutes from midnight, or null when it is not a time. */
 export function clockMinutes(clock: string | null | undefined): number | null {
   if (!clock) return null;
@@ -190,8 +215,10 @@ export function assessFeasibility(input: FeasibilityInput): Feasibility {
   const clock = times as number[];
 
   // Laid out on one continuous clock, so a run that goes past midnight reads as
-  // one that goes past midnight rather than as one promised backwards.
-  const itinerary = buildItinerary(clock);
+  // one that goes past midnight rather than as one promised backwards - unless
+  // the stops carry their own dates, in which case there is nothing to guess.
+  const dated = input.moments && input.moments.length === clock.length ? input.moments : null;
+  const itinerary = dated ? itineraryFromMoments(dated) : buildItinerary(clock);
 
   // Two midnights cannot be a single day's work, and the booking holds one
   // date. This is the contradiction the old out-of-order check was reaching
