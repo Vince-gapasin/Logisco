@@ -348,19 +348,30 @@ function BookingForm({
       return next;
     });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name } = e.target;
-    const value = name === "contactNumber" || name === "partnerContact" ? sanitizePhoneInput(e.target.value) : e.target.value;
-    // The booking's date is the run's first day. Moving it moves every stop
-    // given a later day by the same number of days, so a three-day run stays
-    // three days rather than ending up before it starts.
-    if (name === "deliverySchedule" && isRealDate(formData.deliverySchedule) && isRealDate(value)) {
+  // The booking's date is the run's first day, set from the Delivery Schedule
+  // or from the first pickup's date - they are the same thing. Moving it moves
+  // every stop given a later day by the same number of days, so a three-day
+  // run stays three days rather than ending up before it starts.
+  const changeBookingDate = (value: string) => {
+    if (isRealDate(formData.deliverySchedule) && isRealDate(value)) {
       const shift = daysBetween(formData.deliverySchedule, value);
       const move = <Row extends { date: string }>(rows: Row[]) =>
         rows.map((row) => (isRealDate(row.date) ? { ...row, date: addDays(row.date, shift) } : row));
       setPickupList(move);
       setDeliveryList(move);
     }
+    setFormData((prev) => ({ ...prev, deliverySchedule: value }));
+    clearError("deliverySchedule");
+    clearError("pickup_0_date");
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name } = e.target;
+    if (name === "deliverySchedule") {
+      changeBookingDate(e.target.value);
+      return;
+    }
+    const value = name === "contactNumber" || name === "partnerContact" ? sanitizePhoneInput(e.target.value) : e.target.value;
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearError(name);
   };
@@ -839,14 +850,16 @@ function BookingForm({
                           />
                           <CellError message={errors[`pickup_${idx}_pickupTime`]} />
                           <StopDayField
-                            date={schedule.dates[idx] ?? ""}
-                            own={row.date}
+                            label="Pickup Date *"
+                            date={idx === 0 ? formData.deliverySchedule : (schedule.dates[idx] ?? "")}
                             firstDay={formData.deliverySchedule}
-                            min={idx === 0 ? formData.deliverySchedule : (schedule.dates[idx - 1] ?? formData.deliverySchedule)}
-                            max={runLastDay}
-                            canChange={idx > 0}
-                            onChange={(v) => handlePickupChange(idx, "date", v)}
-                            error={errors[`pickup_${idx}_date`]}
+                            // The first pickup opens the run: its day is the booking's, and
+                            // can be any bookable day. Every later stop is on or after the
+                            // one before it, within the week.
+                            min={idx === 0 ? currentDate : (schedule.dates[idx - 1] || currentDate)}
+                            max={idx === 0 ? addDays(currentDate, MAX_DAYS_AHEAD) : runLastDay}
+                            onChange={(v) => (idx === 0 ? changeBookingDate(v) : handlePickupChange(idx, "date", v))}
+                            error={idx === 0 ? errors.deliverySchedule || errors[`pickup_0_date`] : errors[`pickup_${idx}_date`]}
                           />
                         </td>
                         <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
@@ -969,12 +982,11 @@ function BookingForm({
                           />
                           <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
                           <StopDayField
+                            label="Delivery Date *"
                             date={schedule.dates[pickupList.length + idx] ?? ""}
-                            own={row.date}
                             firstDay={formData.deliverySchedule}
-                            min={schedule.dates[pickupList.length + idx - 1] ?? formData.deliverySchedule}
+                            min={schedule.dates[pickupList.length + idx - 1] || currentDate}
                             max={runLastDay}
-                            canChange
                             onChange={(v) => handleDeliveryChange(idx, "date", v)}
                             error={errors[`delivery_${idx}_date`]}
                           />
