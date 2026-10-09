@@ -194,7 +194,15 @@ export default function ProtectedPortal({ children }: ProtectedPortalProps) {
     const recheck = async () => {
       if (isEnding || document.visibilityState === "hidden") return;
 
-      if (!readStoredSession()) return;
+      // No stored session on a protected page is a signed-out user: a refused
+      // request (401) clears it. This used to return quietly, so the page sat
+      // on its last data, every poll failing with "Authentication session not
+      // found", until the next click happened to load a page. It is the same
+      // answer a page load gives: back to the login page.
+      if (!readStoredSession()) {
+        await redirectToLogin();
+        return;
+      }
 
       // getSession() refreshes an expired access token first, so a token that
       // simply aged out (laptop asleep, app in the background) is never
