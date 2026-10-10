@@ -6,6 +6,7 @@ import { AVAILABILITY, MANUAL_AVAILABILITY } from "@/app/lib/enums";
 import { X, Loader2 } from "lucide-react";
 import type { EmployeeFormState, EmployeeRecord } from "./types";
 import { getInitialFormState } from "./helpers";
+import { checkEmployeeFields } from "@/app/lib/employeeRules";
 
 // ==========================================
 // EMPLOYEE MODAL
@@ -32,6 +33,8 @@ export function EmployeeModal({
   );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Shown but not stopping the save: an existing driver's expired license.
+  const [warnings, setWarnings] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ==========================================
@@ -184,14 +187,41 @@ export function EmployeeModal({
       }
     }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+    // What the record has to make sense of, by the rules the server uses:
+    // phone numbers, a real email, dates that exist and have happened, and a
+    // driver's license that has not expired.
+    const newWarnings: Record<string, string> = {};
+    for (const issue of checkEmployeeFields(
+      {
+        role: formData.role,
+        contact: formData.contactNumber,
+        emailAddress: formData.emailAddress,
+        emergencyContactNumber: formData.emergencyContactNumber,
+        birthdate: formData.birthdate,
+        dateEmployed: formData.dateEmployed,
+        licenseExpirationDate: formData.licenseExpirationDate,
+        lastMedicalCheckup: formData.lastMedicalCheckup,
+        drivingExperience: formData.drivingExperience,
+      },
+      { creating: !editData },
+    )) {
+      const key = issue.field === "contact" ? "contactNumber" : issue.field;
+      if (issue.warning) newWarnings[key] = issue.message;
+      else newErrors[key] ??= issue.message;
     }
+    setWarnings(newWarnings);
+
+    // Set every time, empty included, so a fixed field stops showing red.
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
 
     try {
       setIsSubmitting(true);
       await onSubmitSuccess(formData, editData);
+    } catch {
+      // The page has already said what went wrong; the form stays open with
+      // everything that was typed. Left uncaught, it surfaced as an
+      // unhandled error on every refused save.
     } finally {
       setIsSubmitting(false);
     }
@@ -319,6 +349,9 @@ export function EmployeeModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
+                {errors.birthdate && (
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.birthdate}</p>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-black mb-1">
@@ -494,6 +527,9 @@ export function EmployeeModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
+                {errors.dateEmployed && (
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.dateEmployed}</p>
+                )}
               </div>
             </div>
           </div>
@@ -556,6 +592,11 @@ export function EmployeeModal({
                 {errors.licenseExpirationDate && (
                   <p className="text-red-500 text-xs sm:text-[11px] mt-1">
                     {errors.licenseExpirationDate}
+                  </p>
+                )}
+                {!errors.licenseExpirationDate && warnings.licenseExpirationDate && (
+                  <p className="text-amber-700 text-xs sm:text-[11px] mt-1" role="status">
+                    {warnings.licenseExpirationDate}
                   </p>
                 )}
               </div>
@@ -639,6 +680,9 @@ export function EmployeeModal({
                   onChange={handleInputChange}
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
+                {errors.lastMedicalCheckup && (
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.lastMedicalCheckup}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">
@@ -665,6 +709,9 @@ export function EmployeeModal({
                   placeholder="Enter contact number"
                   className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs font-normal text-black placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
                 />
+                {errors.emergencyContactNumber && (
+                  <p className="text-red-500 text-xs sm:text-[11px] mt-1">{errors.emergencyContactNumber}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-black mb-1">

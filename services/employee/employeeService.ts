@@ -162,9 +162,31 @@ export async function getEmployeeById(id: string): Promise<Employee | null> {
   } as Employee;
 }
 
+/** Refused because another employee already signs in with this email. */
+export class DuplicateEmailError extends Error {}
+
+/**
+ * The email is what an employee signs in with, so two records cannot share it -
+ * the second could never be activated. Nothing checked, and no database rule
+ * stops it. Compared case-insensitively, against every employee: a deactivated
+ * one still holds its login.
+ */
+async function assertEmailFree(email: string): Promise<void> {
+  const wanted = email.trim().toLowerCase();
+  if (!wanted) return;
+  // ilike for case, with its wildcards escaped: "_" is common in addresses.
+  const pattern = wanted.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const { data, error } = await supabase.from(TABLE).select("employeeID, emailAddress").ilike("emailAddress", pattern);
+  if (error) throw new Error(`Could not check the email: ${error.message}`);
+  if ((data ?? []).some((row) => String(row.emailAddress ?? "").trim().toLowerCase() === wanted)) {
+    throw new DuplicateEmailError(`An employee with the email ${email.trim()} already exists.`);
+  }
+}
+
 export async function createEmployee(
   employee: CreateEmployeeDto,
 ): Promise<Employee> {
+  await assertEmailFree(String(employee.emailAddress ?? ""));
   const { data, error } = await supabase
     .from(TABLE)
     .insert({

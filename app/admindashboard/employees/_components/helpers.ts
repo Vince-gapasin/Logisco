@@ -1,3 +1,4 @@
+import { ApiError } from "@/app/lib/apiClient";
 import { AVAILABILITY, MANUAL_AVAILABILITY } from "@/app/lib/enums";
 import { formatDate as formatSharedDate } from "@/app/lib/datetime";
 import type {
@@ -43,7 +44,37 @@ export function getAuthSession(): UserSession {
 // ERROR HELPER
 // ==========================================
 
+// The server's field names, as the employee form labels them.
+const FIELD_LABELS: Record<string, string> = {
+  employeeName: "Name",
+  role: "Role",
+  address: "Address",
+  contact: "Contact number",
+  emailAddress: "Email address",
+  healthStatus: "Health status",
+  birthdate: "Birthdate",
+  dateEmployed: "Date employed",
+  licenseNumber: "License number",
+  driverLicenseType: "License type",
+  licenseExpirationDate: "License expiration date",
+  drivingExperience: "Driving experience",
+  lastMedicalCheckup: "Last medical check-up",
+  emergencyContactNumber: "Emergency contact number",
+};
+
+/**
+ * What went wrong, in words. A refusal names its fields - "Not saved -
+ * Contact number: Use an 11-digit mobile number…" - rather than "Validation
+ * failed", which said nothing about which field or why.
+ */
 export function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const fieldErrors = (error.body as { errors?: Record<string, string[] | undefined> } | null)?.errors;
+    const parts = Object.entries(fieldErrors ?? {})
+      .filter(([, messages]) => messages && messages.length > 0)
+      .map(([field, messages]) => `${FIELD_LABELS[field] ?? field}: ${messages![0]}`);
+    if (parts.length > 0) return `Not saved - ${parts.join(" · ")}`;
+  }
   if (error instanceof Error) {
     return error.message;
   }

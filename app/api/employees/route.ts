@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DuplicateEmailError } from "@/services/employee/employeeService";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { notify, OFFICE } from "@/services/notifications/notify";
 // EMPLOYEE_LOGIN_ACCESS_V1
@@ -151,6 +152,10 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    // Another employee signs in with this email: the caller's to fix.
+    if (error instanceof DuplicateEmailError) {
+      return NextResponse.json({ message: error.message, errors: { emailAddress: [error.message] } }, { status: 409 });
+    }
     console.error("POST employee error:", error);
     return NextResponse.json(
       {

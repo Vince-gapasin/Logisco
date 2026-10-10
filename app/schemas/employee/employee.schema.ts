@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { normalizePhone } from "@/app/lib/bookingRules";
+import { EMAIL_RULE } from "@/app/lib/emailRule";
+import { checkEmployeeFields, type EmployeeFields } from "@/app/lib/employeeRules";
 
 export const employeeQuerySchema = z.object({
   page: z.coerce
@@ -52,7 +55,7 @@ export const employeeQuerySchema = z.object({
     .default("asc"),
 });
 
-export const createEmployeeSchema = z
+const employeeObject = z
   .object({
     employeeID: z
       .string()
@@ -91,7 +94,7 @@ export const createEmployeeSchema = z
     emailAddress: z
       .string()
       .trim()
-      .email("Invalid email address"),
+      .email(EMAIL_RULE),
 
     employeeCode: z.string().nullable().optional(),
     auth_id: z.string().uuid().nullable().optional(),
@@ -131,14 +134,38 @@ export const createEmployeeSchema = z
     remarks: z.string().nullable().optional(),
   })
   .strict();
-  
-export const updateEmployeeSchema =
-  createEmployeeSchema
-    .omit({
-      employeeID: true,
-      emailAddress: true,
-    })
-    .partial();
+
+// The record's fields checked as a whole, by the same rules the employee form
+// uses: phone numbers that are phone numbers, dates that exist and have
+// happened, and a new driver whose license has not expired. A warning - an
+// existing driver's expired license on an edit - is the form's to show; it
+// does not stop the save here.
+const checkFields = (creating: boolean) => (fields: Record<string, unknown>, ctx: z.RefinementCtx) => {
+  for (const issue of checkEmployeeFields(fields as EmployeeFields, { creating })) {
+    if (issue.warning) continue;
+    ctx.addIssue({ code: "custom", message: issue.message, path: [issue.field] });
+  }
+};
+
+// Phone numbers stored as 09XXXXXXXXX, as every other number in the system.
+const normalizePhones = <T extends { contact?: string | null; emergencyContactNumber?: string | null }>(fields: T): T => ({
+  ...fields,
+  ...(fields.contact ? { contact: normalizePhone(fields.contact) ?? fields.contact } : {}),
+  ...(fields.emergencyContactNumber
+    ? { emergencyContactNumber: normalizePhone(fields.emergencyContactNumber) ?? fields.emergencyContactNumber }
+    : {}),
+});
+
+export const createEmployeeSchema = employeeObject.superRefine(checkFields(true)).transform(normalizePhones);
+
+export const updateEmployeeSchema = employeeObject
+  .omit({
+    employeeID: true,
+    emailAddress: true,
+  })
+  .partial()
+  .superRefine(checkFields(false))
+  .transform(normalizePhones);
 
 export const employeeIdSchema = z
   .string()
