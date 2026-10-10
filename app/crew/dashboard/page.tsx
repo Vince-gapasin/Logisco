@@ -150,7 +150,12 @@ export default function CrewDashboardPage({
   // Can the delivery carry on? A truck that will not start stops the trip; a
   // wrong product collected does not, and the crew sorts it out on the way.
   const [canContinue, setCanContinue] = useState(false);
-  const [emergencyReason, setEmergencyReason] = useState<string>("Broken Truck");
+  // Empty until the driver picks one. It opened on the first reason in the
+  // list - "Broken Truck" for an emergency, "Wrong product collected" for a
+  // delay - so a driver who tapped send without choosing told dispatch the
+  // truck had broken down, stopping the trip, or reported a wrong product on a
+  // delay that was only traffic.
+  const [emergencyReason, setEmergencyReason] = useState<string>("");
   // The report's own photo. The form used to send selectedFile - the proof of
   // delivery picked for the current stop - and had no photo field of its own.
   const [emergencyFile, setEmergencyFile] = useState<File | null>(null);
@@ -732,6 +737,13 @@ export default function CrewDashboardPage({
   const handleSendEmergencyAlert = async () => {
     if (!selectedDelivery || isSendingEmergency) return;
 
+    // Dispatch acts on the reason - a broken truck stops the trip - so it is
+    // never sent as a default nobody picked.
+    if (!emergencyReason) {
+      showToast("Choose what happened first.", "error");
+      return;
+    }
+
     // "Other" used to arrive at dispatch as the single word "Other".
     if (emergencyReason === "Other" && !emergencyMessage.trim()) {
       showToast("Describe what happened - dispatch needs to know what to send.", "error");
@@ -1127,7 +1139,7 @@ export default function CrewDashboardPage({
                   // button is for. The modal still asks, and the driver can
                   // still say no - it is a starting point, not a decision.
                   setCanContinue(true);
-                  setEmergencyReason(CONTINUING_REASONS[0]);
+                  setEmergencyReason("");
                   setShowEmergencyModal(true);
                 }}
                 className="flex-1 sm:flex-none justify-center min-h-tap md:pointer-fine:min-h-0 px-3 sm:px-4 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 font-semibold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-sm transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
@@ -1139,7 +1151,7 @@ export default function CrewDashboardPage({
               <button
                 onClick={() => {
                   setCanContinue(false);
-                  setEmergencyReason(STOPPING_REASONS[0]);
+                  setEmergencyReason("");
                   setShowEmergencyModal(true);
                 }}
                 className="flex-1 sm:flex-none justify-center min-h-tap md:pointer-fine:min-h-0 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg sm:rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
@@ -1894,7 +1906,9 @@ export default function CrewDashboardPage({
                         checked={canContinue === value}
                         onChange={() => {
                           setCanContinue(value);
-                          setEmergencyReason((value ? CONTINUING_REASONS : STOPPING_REASONS)[0]);
+                          // The reasons differ between the two lists, so the
+                          // choice is asked again rather than carried over.
+                          setEmergencyReason("");
                         }}
                         className="mt-1"
                       />
@@ -1909,6 +1923,9 @@ export default function CrewDashboardPage({
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">What happened?</label>
                 <select value={emergencyReason} onChange={(e) => setEmergencyReason(e.target.value)} className="w-full border border-slate-300 rounded-xl p-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600">
+                  <option value="" disabled>
+                    Choose what happened…
+                  </option>
                   {(canContinue ? CONTINUING_REASONS : STOPPING_REASONS).map((reason) => (
                     <option key={reason}>{reason}</option>
                   ))}
