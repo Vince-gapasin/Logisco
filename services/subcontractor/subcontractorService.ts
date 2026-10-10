@@ -1,5 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { assertNameFree } from "@/services/client/uniqueName";
 
 export async function getAllSubcontractors() {
   const { data, error } = await supabase
@@ -26,6 +27,7 @@ export async function createSubcontractor(payload: Record<string, unknown>) {
   if (!companyName || !contactPerson) {
     throw new Error("Company Name and Contact Person are required.");
   }
+  await assertNameFree({ table: "SubContractor", nameColumn: "companyName", idColumn: "subConID", name: String(companyName), label: "A partner" });
   const contactNumber = partnerPhone(payload.contactNumber);
 
   // Everything the form collects. This saved the name, contact and phone only,
@@ -50,6 +52,9 @@ export async function createSubcontractor(payload: Record<string, unknown>) {
 }
 
 export async function updateSubcontractor(id: string, payload: Record<string, unknown>) {
+  if (payload.companyName !== undefined) {
+    await assertNameFree({ table: "SubContractor", nameColumn: "companyName", idColumn: "subConID", name: String(payload.companyName), excludeId: id, label: "A partner" });
+  }
   const { data, error } = await supabase
     .from("SubContractor")
     .update({

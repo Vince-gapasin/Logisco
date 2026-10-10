@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { EMAIL_RULE } from "@/app/lib/emailRule";
 
 // Stored as 09XXXXXXXXX, the same rule the booking forms apply.
 const phone = z
@@ -43,7 +44,7 @@ export const createClientSchema = z.object({
   name: z.string().min(1, "Company name is required").trim(),
   contactName: z.string().min(1, "Contact name is required").trim(),
   contactNumber: phone,
-  emailAddress: z.string().email("Invalid email format").trim(),
+  emailAddress: z.string().trim().email(EMAIL_RULE),
   businessAddress: z.string().min(1, "Business address is required").trim(),
   
   pickupAddresses: z.array(warehouseSchema).optional().default([]),
@@ -61,7 +62,7 @@ export const createPartnerSchema = z.object({
   }),
   contactPerson: z.string().min(1, "Contact person is required").trim(),
   contactNumber: phone,
-  emailAddress: z.string().email("Invalid email format").trim(),
+  emailAddress: z.string().trim().email(EMAIL_RULE),
   businessAddress: z.string().min(1, "Business address is required").trim(),
 });
 

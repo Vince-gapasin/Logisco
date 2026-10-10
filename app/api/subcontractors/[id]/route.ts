@@ -5,6 +5,9 @@ import {
   updateSubcontractor,
   deleteSubcontractor,
 } from "@/services/subcontractor/subcontractorService";
+import { updatePartnerSchema } from "@/app/schemas/client/client.schema";
+import { DuplicateNameError } from "@/services/client/uniqueName";
+import { fromPartnerFields, partnerFields } from "@/app/api/subcontractors/partnerFields";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -28,9 +31,15 @@ export async function PATCH(
     if (roleError) return NextResponse.json({ message: roleError.error }, { status: roleError.status });
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
 
-    const updatedSubcontractor = await updateSubcontractor(id, body);
+    const validation = updatePartnerSchema.safeParse(partnerFields(body as Record<string, unknown>));
+    if (!validation.success) {
+      return NextResponse.json({ message: "Validation failed", errors: validation.error.flatten().fieldErrors }, { status: 400 });
+    }
+
+    const updatedSubcontractor = await updateSubcontractor(id, fromPartnerFields(validation.data));
 
     return NextResponse.json(updatedSubcontractor, { status: 200 });
   } catch (error: unknown) {
@@ -39,6 +48,7 @@ export async function PATCH(
         ? error.message
         : "Failed to update subcontractor";
 
+    if (error instanceof DuplicateNameError) return NextResponse.json({ message }, { status: 409 });
     return NextResponse.json({ message }, { status: 500 });
   }
 }

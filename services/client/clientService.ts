@@ -1,4 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
+import { assertNameFree } from "@/services/client/uniqueName";
 import type {
   Client,
   SubContractor,
@@ -45,6 +46,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function createClient(dto: CreateClientDto): Promise<Client> {
+  await assertNameFree({ table: "Client", nameColumn: "company", idColumn: "clientID", name: dto.name, label: "A client" });
   const { contractStart, contractEnd } = getContractDates();
 
   // 1. Insert the Client Record
@@ -178,6 +180,9 @@ export async function deletePartner(id: string): Promise<void> {
 }
 
 export async function updateClient(id: string, dto: Partial<CreateClientDto>): Promise<Client> {
+  if (dto.name !== undefined) {
+    await assertNameFree({ table: "Client", nameColumn: "company", idColumn: "clientID", name: dto.name, excludeId: id, label: "A client" });
+  }
   // Map frontend keys to database columns
   const payload = {
     company: dto.name,
