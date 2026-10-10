@@ -4,6 +4,14 @@ import React, { useState, useEffect } from "react";
 import { X, ChevronDown, Loader2 } from "lucide-react";
 import type { TruckRecord } from "./types";
 import { formatInputDate } from "./dates";
+import {
+  CAPACITY_RULE,
+  isValidPlate,
+  normalizePlate,
+  parseCapacity,
+  PLATE_RULE,
+  TRUCK_TYPES as SHARED_TRUCK_TYPES,
+} from "@/app/lib/truckRules";
 
 // ==========================================
 // TRUCK MODAL (ADD/EDIT FLEET)
@@ -90,11 +98,17 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
 
     if (!formData.plateNumber.trim())
       newErrors.plateNumber = "Plate number is required.";
+    else if (!isValidPlate(formData.plateNumber))
+      newErrors.plateNumber = PLATE_RULE;
     if (!formData.truckType) newErrors.truckType = "Type of truck is required.";
     if (!formData.truckModel.trim())
       newErrors.truckModel = "Truck model is required.";
     if (!String(formData.capacity).trim())
       newErrors.capacity = "Capacity is required.";
+    // By the server's rule: "-5" used to be saved as 5, "0" as a truck that
+    // carries nothing, and "abc" came back as "Capacity is required".
+    else if (parseCapacity(formData.capacity) === null)
+      newErrors.capacity = CAPACITY_RULE;
     if (!formData.lastChecked)
       newErrors.lastChecked = "Last checked date is required.";
     else if (formData.lastChecked > today)
@@ -121,10 +135,9 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
       }
     }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+    // Set every time, empty included, so a fixed field stops showing red.
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
 
     // Auto-generate a truck code if one doesn't exist (e.g., TRK-ABC1234)
     const cleanPlateNumber = formData.plateNumber
@@ -135,10 +148,11 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
     const updatedRecord: TruckRecord = {
       id: editData ? editData.id : Date.now(),
       truckCode: generatedTruckCode,
-      plateNumber: formData.plateNumber.trim(),
+      // Stored in the fleet's own form, "QAT-9999", however it was typed.
+      plateNumber: normalizePlate(formData.plateNumber),
       truckType: formData.truckType,
       truckModel: formData.truckModel.trim(),
-      capacity: String(formData.capacity).trim(),
+      capacity: String(parseCapacity(formData.capacity)),
       lastChecked: formData.lastChecked,
       status: editData ? editData.status : "Available",
     };
@@ -148,19 +162,8 @@ export function TruckModal({ isOpen, onClose, onSubmitSuccess, editData, existin
     onSubmitSuccess(updatedRecord);
   };
 
-  const TRUCK_TYPES = [
-    "Closed Van",
-    "Wing Van",
-    "Dry Van",
-    "Refrigerated Truck",
-    "Boom Truck",
-    "Flatbed Truck",
-    "Dump Truck",
-    "Trailer Truck",
-    "Tanker Truck",
-    "Pickup Truck",
-    "Other",
-  ];
+  // The server checks the same list.
+  const TRUCK_TYPES = SHARED_TRUCK_TYPES;
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">

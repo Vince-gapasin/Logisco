@@ -1,5 +1,17 @@
 import { supabase } from "@/app/lib/supabase";
 import { ACTIVE_DELIVERY_STATUSES, TRUCK_STATUS } from "@/app/lib/enums";
+import { todayInManila } from "@/app/lib/datetime";
+import {
+  CAPACITY_RULE,
+  isTruckType,
+  isValidLastChecked,
+  isValidPlate,
+  LAST_CHECKED_RULE,
+  normalizePlate,
+  parseCapacity,
+  PLATE_RULE,
+  TRUCK_TYPE_RULE,
+} from "@/app/lib/truckRules";
 import type { Truck, CreateTruckDto, UpdateTruckDto } from "@/types/truck";
 
 const TABLE = "Truck";
@@ -136,15 +148,19 @@ export function toTruckPayload(body: Record<string, unknown>): UpdateTruckDto & 
   const payload: UpdateTruckDto & { truckCode?: string } = {};
 
   if (typeof body.truckCode === "string" && body.truckCode.trim()) payload.truckCode = body.truckCode.trim();
-  if (typeof body.plateNumber === "string") payload.plateNumber = body.plateNumber.trim();
+  // In the fleet's own form, "QAT-9999", however it was typed.
+  if (typeof body.plateNumber === "string") payload.plateNumber = normalizePlate(body.plateNumber);
   if (typeof body.truckType === "string") payload.truckType = body.truckType as UpdateTruckDto["truckType"];
 
   const model = body.truckModel ?? body.model;
   if (typeof model === "string") payload.model = model;
 
+  // Kilograms, or NaN for something that is not a capacity, which the
+  // validation below refuses by name. It used to strip everything but digits
+  // and dots: "-5" was saved as 5, and "abc" was dropped and then reported as
+  // missing.
   if (body.capacity !== undefined && body.capacity !== null && body.capacity !== "") {
-    const capacity = parseFloat(String(body.capacity).replace(/[^0-9.]/g, ""));
-    if (!Number.isNaN(capacity)) payload.capacity = capacity;
+    payload.capacity = parseCapacity(body.capacity) ?? Number.NaN;
   }
 
   if (body.lastChecked !== undefined) {
@@ -163,14 +179,27 @@ export function toTruckPayload(body: Record<string, unknown>): UpdateTruckDto & 
   return payload;
 }
 
-export function validateTruckPayload(payload: UpdateTruckDto, isCreate: boolean): string | null {
+export function validateTruckPayload(
+  payload: UpdateTruckDto,
+  isCreate: boolean,
+  today: string = todayInManila(),
+): string | null {
   if (isCreate) {
     if (!payload.plateNumber) return "Plate number is required";
     if (!payload.truckType) return "Truck type is required";
     if (payload.capacity === undefined) return "Capacity is required";
   }
-  if (payload.capacity !== undefined && payload.capacity < 0) return "Capacity cannot be negative";
+  // The same rules the truck form applies, from the same place.
+  if (payload.plateNumber !== undefined && !isValidPlate(payload.plateNumber)) return PLATE_RULE;
+  if (payload.truckType !== undefined && !isTruckType(payload.truckType)) return TRUCK_TYPE_RULE;
+  if (payload.capacity !== undefined && Number.isNaN(payload.capacity)) return CAPACITY_RULE;
+  if (payload.lastChecked && !isValidLastChecked(payload.lastChecked, today)) return LAST_CHECKED_RULE;
   if (payload.truckStatus && !TRUCK_STATUSES.includes(payload.truckStatus)) return "Invalid truck status";
+  // "On Delivery" is the truck's side of a trip, set by dispatch. A truck that
+  // has only just been added is on no trip.
+  if (isCreate && payload.truckStatus === TRUCK_STATUS.onDelivery) {
+    return "A new truck starts Available, On Maintenance or Out of Service - On Delivery comes from a trip.";
+  }
   return null;
 }
 
