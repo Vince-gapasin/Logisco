@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { EMAIL_RULE, isValidEmail } from "@/app/lib/emailRule";
 import { X, Plus, Trash2 } from "lucide-react";
 import type { ClientRecord, DeliveryAddress, PickupAddress } from "./types";
 
@@ -211,11 +212,18 @@ export function ClientModal({
       newErrors.contactNumber = PHONE_RULE;
     if (!formData.emailAddress.trim())
       newErrors.emailAddress = "Email address is required.";
+    else if (!isValidEmail(formData.emailAddress))
+      newErrors.emailAddress = EMAIL_RULE;
     if (!formData.businessAddress.trim())
       newErrors.businessAddress = "Business address is required.";
 
+    // A row is started once anything is typed in it. It used to count only
+    // the name and address, so a row with a contact person and number but no
+    // name was dropped on save without a word - typed in, then gone.
+    const started = (row: Record<string, string>) => Object.values(row).some((value) => typeof value === "string" && value.trim() !== "");
+
     pickupList.forEach((p, idx) => {
-      if (p.warehouseName || p.warehouseAddress) {
+      if (started(p as unknown as Record<string, string>)) {
         if (!p.warehouseName.trim())
           newErrors[`pickup-${idx}-warehouseName`] =
             "Warehouse name is required.";
@@ -234,7 +242,7 @@ export function ClientModal({
     });
 
     deliveryList.forEach((d, idx) => {
-      if (d.branchName || d.deliveryAddress) {
+      if (started(d as unknown as Record<string, string>)) {
         if (!d.branchName.trim())
           newErrors[`delivery-${idx}-branchName`] = "Branch name is required.";
         if (!d.deliveryAddress.trim())

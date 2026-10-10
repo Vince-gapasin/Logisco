@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { normalizePhone, PHONE_RULE } from "@/app/lib/bookingRules";
+import { EMAIL_RULE, isValidEmail } from "@/app/lib/emailRule";
 import { X, ChevronDown } from "lucide-react";
 import type { PartnerRecord } from "./types";
 
@@ -87,6 +88,8 @@ export function PartnerModal({
       newErrors.contactNumber = PHONE_RULE;
     if (!formData.emailAddress.trim())
       newErrors.emailAddress = "Email address is required.";
+    else if (!isValidEmail(formData.emailAddress))
+      newErrors.emailAddress = EMAIL_RULE;
     if (!formData.businessAddress.trim())
       newErrors.businessAddress = "Business address is required.";
 

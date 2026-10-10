@@ -6,7 +6,34 @@
 
 import UrlSearchSync from "@/components/UrlSearchSync";
 import { useState, useEffect, useCallback } from "react";
-import { apiFetch } from "@/app/lib/apiClient";
+import { ApiError, apiFetch } from "@/app/lib/apiClient";
+
+// What the server refused, in words: "Not saved - Email address: Use a full
+// email address, like name@company.com." It used to say "Validation failed"
+// and nothing else, so nobody could tell which field was wrong.
+const FIELD_LABELS: Record<string, string> = {
+  name: "Name",
+  companyName: "Company name",
+  contactName: "Contact person",
+  contactPerson: "Contact person",
+  contactNumber: "Contact number",
+  emailAddress: "Email address",
+  businessAddress: "Business address",
+  contractType: "Contract type",
+  pickupAddresses: "Warehouses",
+  deliveryAddresses: "Branches",
+};
+
+function saveFailedMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    const fieldErrors = (error.body as { errors?: Record<string, string[] | undefined> } | null)?.errors;
+    const parts = Object.entries(fieldErrors ?? {})
+      .filter(([, messages]) => messages && messages.length > 0)
+      .map(([field, messages]) => `${FIELD_LABELS[field] ?? field}: ${messages![0]}`);
+    if (parts.length > 0) return `Not saved - ${parts.join(" · ")}`;
+  }
+  return error instanceof Error ? error.message : "Error saving record.";
+}
 import { useToast } from "@/components/Toast";
 import { UserPlus, Search } from "lucide-react";
 import type {
@@ -166,7 +193,7 @@ export default function ClientsPage() {
       return true;
     } catch (error) {
       console.error("Failed to save client to Database:", error);
-      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
+      showToast(saveFailedMessage(error), "error");
       return false;
     }
   };
@@ -209,7 +236,7 @@ export default function ClientsPage() {
       return true;
     } catch (error) {
       console.error("Failed to save partner to Database:", error);
-      showToast(error instanceof Error ? error.message : "Error saving record.", "error");
+      showToast(saveFailedMessage(error), "error");
       return false;
     }
   };
