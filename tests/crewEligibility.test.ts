@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { assignableCrew, whyNotAssignable } from "@/app/lib/crewEligibility";
+import { assignableCrew, whyLicenseBlocks, whyNotAssignable } from "@/app/lib/crewEligibility";
+import { todayInManila } from "@/app/lib/datetime";
 
 // Whether somebody can actually be sent on a delivery.
 //
@@ -80,5 +81,50 @@ describe("the list the booking form offers", () => {
 
   it("picks the helpers out the same way", () => {
     expect(assignableCrew(people, HELPER).map((person) => person.employeeName)).toEqual(["Dee"]);
+  });
+});
+
+describe("a driver whose license has run out", () => {
+  // The employee form stops a new driver being saved with an expired license,
+  // but only warns on an edit, and a good license runs out in its own time.
+  // Nothing at assignment looked, so the driver could still be sent out.
+  const TODAY = "2026-10-10";
+
+  it("is refused, by name and with the date it expired", () => {
+    const said = whyNotAssignable({ ...ana, licenseExpirationDate: "2026-10-09" }, DRIVER, TODAY);
+    expect(said).toMatch(/^Ana Reyes's driver's license expired on/);
+    expect(said).toMatch(/Oct 9, 2026/);
+  });
+
+  it("can still drive on the day it expires", () => {
+    expect(whyNotAssignable({ ...ana, licenseExpirationDate: "2026-10-10" }, DRIVER, TODAY)).toBeNull();
+    expect(whyNotAssignable({ ...ana, licenseExpirationDate: "2027-01-01" }, DRIVER, TODAY)).toBeNull();
+  });
+
+  it("reads a timestamp as its day", () => {
+    expect(whyNotAssignable({ ...ana, licenseExpirationDate: "2026-10-09T00:00:00+00:00" }, DRIVER, TODAY)).toMatch(
+      /expired/,
+    );
+  });
+
+  it("is judged by the day in Manila, not on the server", () => {
+    // 16:30 UTC on the 9th is half past midnight on the 10th in Manila, so a
+    // license that ran out on the 9th has expired.
+    expect(whyLicenseBlocks({ ...ana, licenseExpirationDate: "2026-10-09" }, todayInManila(new Date("2026-10-09T16:30:00Z")))).toMatch(
+      /expired/,
+    );
+  });
+
+  it("does not refuse a missing date - the form is what asks for one", () => {
+    expect(whyNotAssignable({ ...ana, licenseExpirationDate: null }, DRIVER, TODAY)).toBeNull();
+  });
+
+  it("leaves helpers alone: their license is not what puts them on the road", () => {
+    expect(whyNotAssignable({ ...ana, role: HELPER, licenseExpirationDate: "2020-01-01" }, HELPER, TODAY)).toBeNull();
+  });
+
+  it("is left out of the drivers the form offers", () => {
+    const people = [ana, { ...ana, employeeID: "5", employeeName: "Eve", licenseExpirationDate: "2026-01-01" }];
+    expect(assignableCrew(people, DRIVER, TODAY).map((person) => person.employeeName)).toEqual(["Ana Reyes"]);
   });
 });

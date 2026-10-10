@@ -73,6 +73,9 @@ const LIST_COLUMNS = [
   "auth_id",
   "activation_sent_at",
   "activation_completed_at",
+  // The booking form's fallback crew lists filter on it: an expired license
+  // keeps a driver off a trip.
+  "licenseExpirationDate",
 ].join(",");
 
 export async function getEmployees(query: EmployeeQueryDto) {

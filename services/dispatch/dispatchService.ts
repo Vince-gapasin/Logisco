@@ -11,7 +11,7 @@ import {
   TRUCK_STATUS,
 } from "@/app/lib/enums";
 import type { AssignDispatchDto } from "@/types/dispatch";
-import { assignableCrew, whyNotAssignable } from "@/app/lib/crewEligibility";
+import { assignableCrew, whyLicenseBlocks, whyNotAssignable } from "@/app/lib/crewEligibility";
 
 // Re-exported under the existing names; defined once in app/lib/enums.ts.
 // The active list now also covers Start Delivery, In Warehouse and Arrived,
@@ -189,7 +189,7 @@ export async function assignDispatch(orderID: string, dto: AssignDispatchDto) {
   // except whether they could sign in.
   const { data: crew, error: crewErr } = await supabase
     .from("Employee")
-    .select("employeeID, employeeName, role, isActive, activation_completed_at")
+    .select("employeeID, employeeName, role, isActive, activation_completed_at, licenseExpirationDate")
     .in("employeeID", [dto.driverID, ...helperIDs]);
 
   if (crewErr) throw new Error(`Supabase Employee Error: ${crewErr.message}`);
@@ -316,7 +316,7 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
 
   const { data: driver, error: driverErr } = await supabase
     .from("Employee")
-    .select("employeeID, role, isActive")
+    .select("employeeID, employeeName, role, isActive, licenseExpirationDate")
     .eq("employeeID", dto.driverID)
     .maybeSingle();
 
@@ -325,6 +325,10 @@ export async function reassignDispatch(dispatchID: string, dto: AssignDispatchDt
   if (driver.isActive === false || driver.role?.trim() !== EMPLOYEE_ROLE.driver) {
     throw new Error("Selected employee is not an active driver.");
   }
+  // A swap is the usual way round a refused assignment, so it gets the same
+  // license check.
+  const driverLicenseProblem = whyLicenseBlocks(driver);
+  if (driverLicenseProblem) throw new Error(driverLicenseProblem);
   if (await findActiveDispatchFor("driverID", dto.driverID, dispatchID)) {
     throw new Error("Selected driver is already assigned to another active dispatch.");
   }
@@ -535,8 +539,9 @@ export async function getAvailableResources(targetDate: string) {
     .from("Employee")
     // activation_completed_at comes too: somebody who has never set up their
     // login cannot see a delivery, let alone accept one, and the list used to
-    // offer them anyway.
-    .select(`${EMPLOYEE_PUBLIC_COLUMNS}, activation_completed_at`)
+    // offer them anyway. licenseExpirationDate so a driver whose license has
+    // run out is not offered either.
+    .select(`${EMPLOYEE_PUBLIC_COLUMNS}, activation_completed_at, licenseExpirationDate`)
     .eq("isActive", true)
     .in("role", [EMPLOYEE_ROLE.driver, EMPLOYEE_ROLE.helper]);
 

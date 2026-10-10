@@ -12,7 +12,7 @@ vi.mock("@/app/lib/supabase", () => ({ supabase: db.client }));
 vi.mock("@/services/geo/geocodingService", () => ({ geocodeAddresses: async () => [] }));
 vi.mock("@/services/truck/truckService", () => ({ announceTruckStatus: async () => undefined }));
 
-const { assignDispatch, reassignDispatch } = await import("@/services/dispatch/dispatchService");
+const { assignDispatch, getAvailableResources, reassignDispatch } = await import("@/services/dispatch/dispatchService");
 
 const ORDER = "44444444-4444-4444-8444-444444444444";
 const TRUCK = "11111111-1111-4111-8111-111111111111";
@@ -143,5 +143,56 @@ describe("re-assigning a trip's helpers", () => {
 
     await expect(reassign()).rejects.toThrow(/Hal is already assigned to another/);
     expect(db.writes).toHaveLength(0);
+  });
+});
+
+describe("a driver whose license has expired", () => {
+  // Long past and far off, so these do not depend on what day they run.
+  const EXPIRED = "2020-01-31";
+  const VALID = "2099-12-31";
+
+  it("cannot be assigned, and the refusal says who and since when", async () => {
+    db.queue(
+      { data: { orderID: ORDER, isActive: true, DispatchOrder: [] } },
+      FREE_TRUCK,
+      { data: [] },
+      { data: [{ employeeID: DRIVER, employeeName: "Dan", role: "Driver", ...READY, licenseExpirationDate: EXPIRED }] },
+    );
+
+    await expect(assign()).rejects.toThrow(/Dan's driver's license expired on Jan 31, 2020/);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("cannot be swapped onto a trip either", async () => {
+    db.queue(
+      { data: { dispatchID: TRIP, status: "Assigned", DispatchHelper: [] } },
+      FREE_TRUCK,
+      { data: null },
+      { data: { employeeID: DRIVER, employeeName: "Dan", role: "Driver", isActive: true, licenseExpirationDate: EXPIRED } },
+    );
+
+    await expect(
+      reassignDispatch(TRIP, { truckID: TRUCK, driverID: DRIVER, totalCargoWeight: 0 }),
+    ).rejects.toThrow(/Dan's driver's license expired/);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("is not offered as a free driver, while a helper's license is not looked at", async () => {
+    const person = { role: "Driver", availability: "Available", ...READY };
+    db.queue(
+      { data: [] }, // no live trips
+      { data: [] }, // trucks
+      {
+        data: [
+          { ...person, employeeID: "d1", employeeName: "Dan", licenseExpirationDate: VALID },
+          { ...person, employeeID: "d2", employeeName: "Old", licenseExpirationDate: EXPIRED },
+          { ...person, employeeID: "h1", employeeName: "Hal", role: "Helper", licenseExpirationDate: EXPIRED },
+        ],
+      },
+    );
+
+    const free = await getAvailableResources("2026-10-10");
+    expect(free.drivers.map((driver) => driver.employeeName)).toEqual(["Dan"]);
+    expect(free.helpers.map((helper) => helper.employeeName)).toEqual(["Hal"]);
   });
 });

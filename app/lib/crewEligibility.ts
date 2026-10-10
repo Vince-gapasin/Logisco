@@ -14,6 +14,15 @@
 // reason for it.
 //
 // So the rule lives here, once, and both the list and the assignment use it.
+//
+// The same goes for a driver whose license has run out. The employee form stops
+// a new driver being saved with one, but only warns on an edit, and a license
+// that was fine when entered expires in the meantime - so this is the place
+// that keeps them off the road. A helper's license is not checked: it is not
+// what puts them on a trip.
+
+import { formatDate, todayInManila } from "@/app/lib/datetime";
+import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 
 export interface CrewCandidate {
   // Every field is optional and nullable so a row read straight from the table
@@ -26,6 +35,28 @@ export interface CrewCandidate {
   isActive?: boolean | null;
   /** Set when they finished setting up their login. Null means they cannot. */
   activation_completed_at?: string | null;
+  /** YYYY-MM-DD, or a timestamp starting with it. Only judged for a driver. */
+  licenseExpirationDate?: string | null;
+}
+
+/**
+ * Why this driver's license keeps them off a trip, or null if it does not.
+ * Expired means the expiry day is before today in Manila; a license that runs
+ * out today is still good today. No date on file is not judged here - the
+ * employee form is what asks for one.
+ */
+export function whyLicenseBlocks(
+  candidate: CrewCandidate | null | undefined,
+  today: string = todayInManila(),
+): string | null {
+  const expiry = candidate?.licenseExpirationDate?.trim().slice(0, 10);
+  if (!expiry || expiry >= today) return null;
+
+  const name = candidate?.employeeName?.trim() || "That driver";
+  return (
+    `${name}'s driver's license expired on ${formatDate(expiry)}. ` +
+    `Record the renewed license on their employee record before assigning them.`
+  );
 }
 
 /**
@@ -37,6 +68,7 @@ export interface CrewCandidate {
 export function whyNotAssignable(
   candidate: CrewCandidate | null | undefined,
   expectedRole: string,
+  today: string = todayInManila(),
 ): string | null {
   if (!candidate) return "That crew member could not be found.";
 
@@ -57,10 +89,19 @@ export function whyNotAssignable(
     );
   }
 
+  if (expectedRole === EMPLOYEE_ROLE.driver) {
+    const licenseProblem = whyLicenseBlocks(candidate, today);
+    if (licenseProblem) return licenseProblem;
+  }
+
   return null;
 }
 
 /** The ones who can be sent out, for a list that should only offer those. */
-export function assignableCrew<T extends CrewCandidate>(candidates: T[], role: string): T[] {
-  return candidates.filter((candidate) => whyNotAssignable(candidate, role) === null);
+export function assignableCrew<T extends CrewCandidate>(
+  candidates: T[],
+  role: string,
+  today: string = todayInManila(),
+): T[] {
+  return candidates.filter((candidate) => whyNotAssignable(candidate, role, today) === null);
 }
