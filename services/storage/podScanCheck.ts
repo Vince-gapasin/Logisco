@@ -14,6 +14,14 @@
 import { createHash } from "node:crypto";
 import { distanceMeters, hammingDistance, MIN_WORDS, type PodScanReport } from "@/app/lib/podScan";
 
+/**
+ * Whether a scan taken away from the stop is refused. Off for now, while the
+ * scanner is being tried out on test bookings whose addresses are nowhere near
+ * the person testing. The phone's position is still recorded on every proof,
+ * so turning this back on needs no other change.
+ */
+export const ENFORCE_LOCATION = false;
+
 /** How far from the stop's pin a scan may be taken. Pins are rarely on the door. */
 export const MAX_DISTANCE_M = 200;
 /** A GPS fix vaguer than this cannot place the phone at the stop either way. */
@@ -121,7 +129,9 @@ export function checkPodScan(input: {
   }
 
   // Where.
-  if (!hasPlace(place)) {
+  if (!ENFORCE_LOCATION) {
+    // Not checked; captureLat/captureLng still keep where it was taken.
+  } else if (!hasPlace(place)) {
     flags.push("The stop has no map location, so where the scan was taken was not checked.");
   } else if (report.latitude === null || report.longitude === null) {
     flags.push("The phone gave no location for the scan.");

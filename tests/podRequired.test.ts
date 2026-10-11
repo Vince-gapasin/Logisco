@@ -157,11 +157,11 @@ describe("a stop without a receipt", () => {
 describe("a scan the server refuses", () => {
   it("is sent back with the reason, and nothing is written", async () => {
     const response = await POST(
-      request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan({ latitude: 14.65 }) }),
+      request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan({ signature: false }) }),
     );
 
     expect(response.status).toBe(422);
-    expect((await response.json()).reasons[0]).toMatch(/m from the stop/);
+    expect((await response.json()).reasons[0]).toMatch(/blank/);
     expect(uploads).toHaveLength(0);
     expect(dispatchUpdates).toHaveLength(0);
     expect(podRows).toHaveLength(0);

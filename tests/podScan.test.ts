@@ -12,7 +12,7 @@ import {
   type OcrLine,
   type Rect,
 } from "@/app/lib/podScan";
-import { checkPodScan, parseScanReport, type StopPlace } from "@/services/storage/podScanCheck";
+import { checkPodScan, ENFORCE_LOCATION, parseScanReport, type StopPlace } from "@/services/storage/podScanCheck";
 
 // Checking a scanned proof of delivery, without sending it anywhere.
 //
@@ -194,18 +194,6 @@ describe("a real scan, taken here and now", () => {
 });
 
 describe("a scan that is not real", () => {
-  it("is refused when taken away from the stop", () => {
-    const result = check(report({ latitude: 14.61, longitude: 120.9842 }));
-    expect(result.refusal).toMatch(/m from the stop/);
-  });
-
-  it("is forgiven a vague GPS fix near the edge, but flagged", () => {
-    // About 300 m off, with the phone unsure by 150 m.
-    const result = check(report({ latitude: 14.6022, accuracy: 400 }));
-    expect(result.refusal).toBeNull();
-    expect(result.flags.join(" ")).toMatch(/imprecise/);
-  });
-
   it("is refused when it is old", () => {
     expect(check(report({ capturedAt: "2026-10-11T02:00:00.000Z" })).refusal).toMatch(/too old/);
   });
@@ -236,6 +224,27 @@ describe("what cannot be checked", () => {
     expect(result.flags[0]).toMatch(/needs updating/);
   });
 
+  it("treats a missing or garbled report as an app without the scanner", () => {
+    expect(parseScanReport("not json")).toBeNull();
+    expect(check(null).flags[0]).toMatch(/needs updating/);
+  });
+});
+
+// Switched off for now (ENFORCE_LOCATION), while the scanner is tried on test
+// bookings far from whoever is testing. These run again when it is back on.
+describe.runIf(ENFORCE_LOCATION)("where the scan was taken", () => {
+  it("is refused when taken away from the stop", () => {
+    const result = check(report({ latitude: 14.61, longitude: 120.9842 }));
+    expect(result.refusal).toMatch(/m from the stop/);
+  });
+
+  it("is forgiven a vague GPS fix near the edge, but flagged", () => {
+    // About 300 m off, with the phone unsure by 150 m.
+    const result = check(report({ latitude: 14.6022, accuracy: 400 }));
+    expect(result.refusal).toBeNull();
+    expect(result.flags.join(" ")).toMatch(/imprecise/);
+  });
+
   it("flags a stop that has no map location", () => {
     const result = check(report(), { place: { latitude: null, longitude: null, arrivedAt: null } });
     expect(result.flags[0]).toMatch(/no map location/);
@@ -244,9 +253,10 @@ describe("what cannot be checked", () => {
   it("flags a phone that gave no location", () => {
     expect(check(report({ latitude: null, longitude: null })).flags[0]).toMatch(/no location/);
   });
+});
 
-  it("treats a missing or garbled report as an app without the scanner", () => {
-    expect(parseScanReport("not json")).toBeNull();
-    expect(check(null).flags[0]).toMatch(/needs updating/);
+describe.runIf(!ENFORCE_LOCATION)("while the location check is off", () => {
+  it("lets a scan from anywhere through, with nothing flagged", () => {
+    expect(check(report({ latitude: 14.7, longitude: 121.1 }))).toEqual({ refusal: null, flags: [] });
   });
 });
