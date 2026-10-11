@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^8.5.2",
     "@capacitor/push-notifications": "^8.1.2",

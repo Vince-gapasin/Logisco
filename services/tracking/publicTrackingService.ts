@@ -19,6 +19,7 @@ import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { toArrivalLabel } from "@/services/geo/routingService";
 import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedback/deliveryFeedbackService";
 import { liveDispatchOf } from "@/app/lib/bookingView";
+import { signPodUrls } from "@/services/storage/podService";
 import { FORMER_TRUCK_COLUMNS, truckOf, type FormerTruck } from "@/app/lib/formerTruck";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
@@ -115,6 +116,12 @@ export interface TrackingStop {
   deliveredAt: string | null;
   /** Who took delivery, from the proof recorded at the stop. */
   receivedBy: string | null;
+  /**
+   * The signed receipt photographed at the stop, as a link that expires in an
+   * hour. Only for a delivered stop, and never for one whose receipt failed
+   * the check.
+   */
+  proofUrl?: string | null;
 }
 
 /**
@@ -815,7 +822,14 @@ interface TrackedStop {
   deliverLong?: number | null;
   arrivedAt?: string | null;
   completedAt?: string | null;
-  POD?: { receiverName: string | null; deliveredAt: string | null }[] | null;
+  POD?: TrackedProof[] | null;
+}
+
+interface TrackedProof {
+  proof: string | null;
+  receiverName: string | null;
+  deliveredAt: string | null;
+  validationStatus: string | null;
 }
 
 /**
@@ -854,7 +868,7 @@ export async function getTrackingByToken(
       `orderID, orderCode, createdAt, isActive, notes,
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, expectedDate, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
-         POD ( receiverName, deliveredAt ) ),
+         POD ( proof, receiverName, deliveredAt, validationStatus ) ),
        PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
@@ -896,9 +910,29 @@ export async function getTrackingByToken(
     return { found: true, isExpired: true, reason: "ended" };
   }
 
-  const stops: TrackingStop[] = ((order.BranchStops as TrackedStop[] | null) ?? [])
+  // The latest proof at each stop: an office correction is a newer row, and it
+  // is the one that stands.
+  const latestProof = (stop: TrackedStop): TrackedProof | null =>
+    [...((stop.POD as TrackedProof[] | null) ?? [])].sort((a, b) =>
+      String(b.deliveredAt ?? "").localeCompare(String(a.deliveredAt ?? "")),
+    )[0] ?? null;
+
+  // The receipt itself, now that it is checked before a stop can close on it.
+  // It used to be held back because it could be any photograph at all; a
+  // signed receipt with the receiver's name is what a customer is owed. Signed
+  // here, for an hour, like every other screen - never a public link.
+  const branchRows = (order.BranchStops as TrackedStop[] | null) ?? [];
+  const shownProof = (stop: TrackedStop): string | null => {
+    const proof = latestProof(stop);
+    const delivered = /complete|delivered/i.test(stop.stopStatus ?? "");
+    return delivered && proof?.proof && proof.validationStatus !== "failed" ? proof.proof : null;
+  };
+  const signedProofs = await signPodUrls(branchRows.map(shownProof));
+
+  const stops: TrackingStop[] = branchRows
     .map((stop) => {
-      const proof = ((stop.POD as { receiverName: string | null; deliveredAt: string | null }[] | null) ?? [])[0] ?? null;
+      const proof = latestProof(stop);
+      const proofPath = shownProof(stop);
       return {
         branchID: stop.branchID,
         branchName: stop.branchName ?? "Stop",
@@ -910,9 +944,8 @@ export async function getTrackingByToken(
         longitude: Number(stop.deliverLong) || null,
         arrivedAt: stop.arrivedAt ?? null,
         deliveredAt: proof?.deliveredAt ?? stop.completedAt ?? null,
-        // The name on the receipt, never the receipt itself: it carries a
-        // signature and whatever else the crew photographed.
         receivedBy: proof?.receiverName && proof.receiverName !== "N/A" ? proof.receiverName : null,
+        proofUrl: proofPath ? signedProofs.get(proofPath) ?? null : null,
       };
     })
     .sort((a, b) => a.branchID - b.branchID);
@@ -1133,7 +1166,7 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
     .from("Order")
     .select(
       `orderID, isActive,
-       BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( receiverName, deliveredAt ) ),
+       BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( proof, receiverName, deliveredAt, validationStatus ) ),
        PickupStops ( pickupID, stopStatus, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status, resolvedAt ),
        DispatchOrder ( dispatchID, status, completedAt, truckID, driverID, subConID, partnerDriver, partnerPlate,

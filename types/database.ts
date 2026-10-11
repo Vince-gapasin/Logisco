@@ -435,6 +435,9 @@ export interface PODRow {
   source: string;
   missingReason: string | null;
   fileType: string | null;
+  validationStatus: "passed" | "failed" | "unverified" | null;
+  validationNotes: string | null;
+  nameOnReceipt: string | null;
 }
 
 export interface PickupStopsRow {

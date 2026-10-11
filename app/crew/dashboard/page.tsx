@@ -184,6 +184,9 @@ export default function CrewDashboardPage({
   }, [currentStepIndex, selectedImage]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [receiverName, setReceiverName] = useState<string>("");
+  // Why the server refused the last receipt photo, so the crew know what to
+  // retake. Cleared as soon as a new photo is chosen.
+  const [podRejection, setPodRejection] = useState<string[] | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -449,6 +452,7 @@ export default function CrewDashboardPage({
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setPodRejection(null);
       setSelectedImage(URL.createObjectURL(file));
       // Shrink camera photos so uploads fit the server's request size limit.
       compressImage(file)
@@ -611,6 +615,13 @@ export default function CrewDashboardPage({
 
       if (!response.ok) {
         const errData = await response.json();
+        // The receipt check refused the photo. Nothing was recorded, so the
+        // stop stays open with the name kept; only the photo needs retaking.
+        if (response.status === 422 && Array.isArray(errData.reasons)) {
+          setPodRejection(errData.reasons as string[]);
+          showToast(errData.message || "Please retake the proof of delivery photo.", "error");
+          return;
+        }
         throw new Error(errData.message || "Failed to update status");
       }
 
@@ -632,6 +643,7 @@ export default function CrewDashboardPage({
         if (selectedImage) URL.revokeObjectURL(selectedImage);
         setSelectedImage(null);
         setSelectedFile(null);
+        setPodRejection(null);
         setRemarks("");
         setReceiverName("");
       }
@@ -1398,7 +1410,10 @@ export default function CrewDashboardPage({
                     />
                   </div>
 
-                  <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-blue-300 rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative">
+                  <p className="text-xs text-slate-600 mb-2">
+                    Photograph the signed delivery receipt. The signature and the receiver&apos;s name must be readable.
+                  </p>
+                  <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${podRejection ? "border-red-400" : "border-blue-300"}`}>
                     {selectedImage ? (
                       <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
                     ) : (
@@ -1407,8 +1422,18 @@ export default function CrewDashboardPage({
                         <span className="text-xs font-semibold text-blue-700">Tap to upload photo</span>
                       </div>
                     )}
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                    <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
                   </label>
+                  {podRejection && (
+                    <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs font-semibold text-red-700">Retake the photo:</p>
+                      <ul className="mt-1 list-disc pl-4 text-xs text-red-700">
+                        {podRejection.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1448,7 +1473,9 @@ export default function CrewDashboardPage({
                   disabled={isSubmittingResponse || !hasReportedArrival}
                   className="w-full sm:w-64 min-h-tap sm:pointer-fine:min-h-0 py-2.5 px-4 bg-blue-600 hover:bg-black text-white font-semibold rounded-xl text-sm shadow-md transition-all cursor-pointer truncate disabled:opacity-50"
                 >
-                  {currentStepIndex >= dynamicStops.length - 1
+                  {isSubmittingResponse && dynamicStops[currentStepIndex]?.reqPod
+                    ? "Checking receipt..."
+                    : currentStepIndex >= dynamicStops.length - 1
                     ? "Complete Delivery"
                     : `Confirm: ${dynamicStops[currentStepIndex]?.title ?? "Update"}`}
                 </button>

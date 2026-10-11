@@ -6,7 +6,8 @@ import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
-import { announceMissingProof } from "@/services/dispatch/crewUpdateService";
+import { announceUnverifiedProof } from "@/services/dispatch/crewUpdateService";
+import { validatePodImage, type PodValidation } from "@/services/storage/podValidation";
 import {
   crewNotReadyReason,
   crewReadinessFor,
@@ -176,12 +177,32 @@ export async function POST(request: Request) {
       }
     }
 
+    // A real stop - a warehouse or a branch - is where goods change hands, and
+    // the record of that is a signed receipt. The crew app already asked for
+    // one; the server did not, so a stop could still be closed on nothing.
+    const isStop = branchID !== null || pickupID !== null;
+    const hasFile = Boolean(file && file.size > 0);
+
+    if (isStop && !hasFile) {
+      return NextResponse.json(
+        { message: "A photo of the signed proof of delivery is required for this stop." },
+        { status: 400 },
+      );
+    }
+    if (isStop && !receiverName.trim()) {
+      return NextResponse.json(
+        { message: "The receiver's name is required for this stop." },
+        { status: 400 },
+      );
+    }
+
     let podUrl: string | null = null;
     let podPath: string | null = null;
     let podFileType: string | null = null;
+    let validation: PodValidation | null = null;
 
-    // 3. Upload the proof-of-delivery photo, if any
-    if (file && file.size > 0) {
+    // 3. Check, then upload, the proof-of-delivery photo
+    if (file && hasFile) {
       if (!file.type.startsWith("image/")) {
         return NextResponse.json({ message: "Proof of delivery must be an image" }, { status: 400 });
       }
@@ -189,12 +210,30 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Proof of delivery image must be 10 MB or smaller" }, { status: 400 });
       }
 
+      const bytes = await file.arrayBuffer();
+
+      // Read before anything is written. A refused photograph leaves the stop
+      // exactly as it was - no object in the bucket, no row, no step taken -
+      // so the crew retake it and send the same request again.
+      if (isStop) {
+        validation = await validatePodImage(bytes, file.type);
+        if (validation.verdict === "failed") {
+          return NextResponse.json(
+            {
+              message: "This photo does not show a signed proof of delivery. Please retake it.",
+              reasons: validation.reasons,
+            },
+            { status: 422 },
+          );
+        }
+      }
+
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "");
       const fileName = `pod-${dispatchID}-${Date.now()}-${safeName}`;
 
       const { error: uploadErr } = await supabase.storage
         .from(POD_BUCKET)
-        .upload(fileName, await file.arrayBuffer(), { contentType: file.type });
+        .upload(fileName, bytes, { contentType: file.type });
 
       if (uploadErr) {
         console.error("[Status API] Image Upload Error:", uploadErr);
@@ -343,6 +382,9 @@ export async function POST(request: Request) {
       recordedBy: auth.employee.employeeID,
       source: "crew",
       missingReason: podPath ? null : "No photograph was taken at this stop",
+      validationStatus: validation?.verdict ?? null,
+      validationNotes: validation && validation.reasons.length > 0 ? validation.reasons.join(" ") : null,
+      nameOnReceipt: validation?.nameOnReceipt ?? null,
     };
 
     // Only for the real stops. The departure and return steps are not places
@@ -372,6 +414,7 @@ export async function POST(request: Request) {
         current_step: nextStep,
         stop: pickupID !== null ? { pickupID } : branchID !== null ? { branchID } : null,
         proof: Boolean(podPath),
+        proofCheck: validation?.verdict ?? null,
       },
     });
 
@@ -389,12 +432,12 @@ export async function POST(request: Request) {
     // fleet board, which recomputes it on every poll; the feed is for the things
     // somebody may have to do something about.
     //
-    // A stop closed with no photograph is one of those. It is the only stop
-    // event still announced, because it is the only one where the office can
-    // still act - the crew are standing there, and a phone call now is a proof
-    // recovered rather than a gap in the record found weeks later.
-    if ((branchID !== null || pickupID !== null) && !podPath) {
-      await announceMissingProof(
+    // A stop whose receipt nobody could check is one of those. The check was
+    // unreachable, the stop went through so the truck was not held at a gate,
+    // and the office can still act - the crew are near enough to retake it, and
+    // a phone call now is a proof confirmed rather than a gap found weeks later.
+    if (isStop && validation?.verdict === "unverified") {
+      await announceUnverifiedProof(
         dispatchID,
         (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
         completedAt,

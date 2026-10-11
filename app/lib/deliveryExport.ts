@@ -16,6 +16,7 @@ import { downloadCsv, type CsvValue } from "@/app/lib/csvExport";
 import { formatDateTime, formatStopWhen } from "@/app/lib/datetime";
 import type { SaveResult } from "@/app/lib/saveFile";
 import { STOP_STATUS } from "@/app/lib/enums";
+import { proofCheckBadge } from "@/app/lib/proofCheck";
 import type { DetailItem } from "@/app/lib/pdfReport";
 import { bookingStatusLabel } from "@/app/lib/statusLabels";
 import type { BookingHistoryEntry } from "@/services/booking/bookingHistoryService";
@@ -117,6 +118,9 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
           { label: "Arrived", value: when(stop.arrivedAt) },
           { label: "Completed", value: when(stop.completedAt) },
           { label: "Received by", value: orDash(proof?.receiverName) },
+          ...(proof?.url
+            ? [{ label: "Receipt check", value: proofCheckBadge(proof.validationStatus).text }]
+            : []),
           ...(proof?.remarks ? [{ label: "Proof remarks", value: proof.remarks, wide: true }] : []),
           ...(proof?.missingReason ? [{ label: "No proof because", value: proof.missingReason, wide: true }] : []),
         ],

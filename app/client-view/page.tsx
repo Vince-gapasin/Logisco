@@ -14,6 +14,7 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
+import ProofPhoto from "@/components/booking/ProofPhoto";
 import {
   AlertTriangle,
   CalendarDays,
@@ -92,6 +93,8 @@ interface TrackingStop {
   arrivedAt: string | null;
   deliveredAt: string | null;
   receivedBy: string | null;
+  /** The signed receipt, as a link that expires; only on a delivered stop. */
+  proofUrl?: string | null;
 }
 
 interface TrackingData {
@@ -853,6 +856,9 @@ function ClientTrackerView() {
                                   ? `Expected by ${formatTime(stop.expectedTime)}`
                                   : "Scheduled"}
                         </p>
+                        {delivered && stop.proofUrl && (
+                          <ProofPhoto src={stop.proofUrl} label={stop.branchName} />
+                        )}
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${chip.style}`}>{chip.text}</span>
                     </li>

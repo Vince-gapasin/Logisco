@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { formatDateTime } from "@/app/lib/datetime";
+import { proofCheckBadge, type ProofCheck } from "@/app/lib/proofCheck";
 
 /**
  * Every proof of delivery on a trip, one per stop, warehouses included.
@@ -28,6 +29,16 @@ export interface StopProof {
   source: string | null;
   missingReason: string | null;
   fileType: string | null;
+  /** The automatic receipt check. Absent on proofs recorded before it existed. */
+  validationStatus?: ProofCheck;
+  validationNotes?: string | null;
+  nameOnReceipt?: string | null;
+}
+
+/** Names compared loosely: case, spacing and punctuation are not a mismatch. */
+function sameName(a: string, b: string): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return norm(a) === norm(b);
 }
 
 export interface ProofBearingStop {
@@ -183,6 +194,27 @@ export default function StopProofList({
                   : ""}
                 {pod.source === "coordinator" ? " (recorded by a coordinator)" : ""}
               </p>
+              {pod.proof && (() => {
+                const badge = proofCheckBadge(pod.validationStatus);
+                return (
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge.style}`}>
+                      {badge.text}
+                    </span>
+                    {/* The name on the paper beside the name the crew typed,
+                        only when they disagree - that is the line worth a look. */}
+                    {pod.nameOnReceipt &&
+                      pod.receiverName &&
+                      pod.receiverName !== "N/A" &&
+                      !sameName(pod.nameOnReceipt, pod.receiverName) && (
+                        <span className="text-amber-800">Name on receipt: {pod.nameOnReceipt}</span>
+                      )}
+                  </p>
+                );
+              })()}
+              {pod.validationStatus && pod.validationStatus !== "passed" && pod.validationNotes && (
+                <p className="text-xs text-amber-800 wrap-break-word">{pod.validationNotes}</p>
+              )}
               {pod.remarks && <p className="text-xs text-slate-500 wrap-break-word">{pod.remarks}</p>}
               {/* A stop finished without a photograph still has a row, so the
                   absence is stated rather than looking like a stop nobody
