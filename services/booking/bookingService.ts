@@ -59,9 +59,9 @@ const BOOKING_COLUMNS = `
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
   BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
-    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, nameOnReceipt ) ),
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes ) ),
   PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
-    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, nameOnReceipt ) ),
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes ) ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
@@ -417,8 +417,8 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, nameOnReceipt ) ),
-        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, nameOnReceipt ) ),
+        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes ) ),
+        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
           DispatchHelper ( helperID, status, Helper:Employee!helperID ( employeeName ) ) )`,

@@ -7,7 +7,8 @@ import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { announceUnverifiedProof } from "@/services/dispatch/crewUpdateService";
-import { validatePodImage, type PodValidation } from "@/services/storage/podValidation";
+import { checkPodScan, parseScanReport, sha256, type StopPlace } from "@/services/storage/podScanCheck";
+import type { PodScanReport } from "@/app/lib/podScan";
 import {
   crewNotReadyReason,
   crewReadinessFor,
@@ -40,6 +41,10 @@ const STARTING_OUT: string[] = [
 ];
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
+
+// How far back a reused receipt photo is looked for, on this trip and this
+// crew member's other trips.
+const DUPLICATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 async function releaseResources(dispatchID: string): Promise<void> {
   try {
@@ -149,16 +154,25 @@ export async function POST(request: Request) {
 
     // The stop being completed must belong to this dispatch's order.
     let branchID: number | null = null;
+    // Where the stop is and when the crew said they got there, for the scan.
+    let place: StopPlace = { latitude: null, longitude: null, arrivedAt: null };
     if (branchIDValue) {
       const parsedBranch = parseInt(branchIDValue, 10);
       if (!Number.isNaN(parsedBranch)) {
         const { data: stop } = await supabase
           .from("BranchStops")
-          .select("branchID")
+          .select("branchID, deliveryLat, deliverLong, arrivedAt")
           .eq("branchID", parsedBranch)
           .eq("orderID", current.orderID)
           .maybeSingle();
         branchID = stop?.branchID ?? null;
+        if (stop) {
+          place = {
+            latitude: Number(stop.deliveryLat) || null,
+            longitude: Number(stop.deliverLong) || null,
+            arrivedAt: (stop.arrivedAt as string | null) ?? null,
+          };
+        }
       }
     }
 
@@ -169,11 +183,18 @@ export async function POST(request: Request) {
       if (!Number.isNaN(parsedPickup)) {
         const { data: pickup } = await supabase
           .from("PickupStops")
-          .select("pickupID")
+          .select("pickupID, pickupLat, pickupLong, arrivedAt")
           .eq("pickupID", parsedPickup)
           .eq("orderID", current.orderID)
           .maybeSingle();
         pickupID = pickup?.pickupID ?? null;
+        if (pickup) {
+          place = {
+            latitude: Number(pickup.pickupLat) || null,
+            longitude: Number(pickup.pickupLong) || null,
+            arrivedAt: (pickup.arrivedAt as string | null) ?? null,
+          };
+        }
       }
     }
 
@@ -199,7 +220,9 @@ export async function POST(request: Request) {
     let podUrl: string | null = null;
     let podPath: string | null = null;
     let podFileType: string | null = null;
-    let validation: PodValidation | null = null;
+    let scan: PodScanReport | null = null;
+    let scanFlags: string[] = [];
+    let imageHash: string | null = null;
 
     // 3. Check, then upload, the proof-of-delivery photo
     if (file && hasFile) {
@@ -212,20 +235,41 @@ export async function POST(request: Request) {
 
       const bytes = await file.arrayBuffer();
 
-      // Read before anything is written. A refused photograph leaves the stop
+      // Checked before anything is written. A refused scan leaves the stop
       // exactly as it was - no object in the bucket, no row, no step taken -
-      // so the crew retake it and send the same request again.
+      // so the crew scan again and send the same request.
       if (isStop) {
-        validation = await validatePodImage(bytes, file.type);
-        if (validation.verdict === "failed") {
-          return NextResponse.json(
-            {
-              message: "This photo does not show a signed proof of delivery. Please retake it.",
-              reasons: validation.reasons,
-            },
-            { status: 422 },
-          );
+        scan = parseScanReport(formData.get("scan") as string | null);
+        imageHash = sha256(bytes);
+
+        const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
+        const [{ data: sameFile }, { data: earlier }] = await Promise.all([
+          supabase.from("POD").select("podID").eq("imageHash", imageHash).limit(1),
+          scan?.dHash
+            ? supabase
+                .from("POD")
+                .select("imageDHash")
+                .or(`dispatchID.eq.${dispatchID},recordedBy.eq.${auth.employee.employeeID}`)
+                .gte("deliveredAt", since)
+                .not("imageDHash", "is", null)
+                .limit(500)
+            : Promise.resolve({ data: [] as { imageDHash: string | null }[] }),
+        ]);
+
+        const check = checkPodScan({
+          report: scan,
+          place,
+          now: Date.now(),
+          sameFileUsed: (sameFile ?? []).length > 0,
+          earlierHashes: ((earlier ?? []) as { imageDHash: string | null }[])
+            .map((row) => row.imageDHash)
+            .filter((hash): hash is string => Boolean(hash)),
+        });
+
+        if (check.refusal) {
+          return NextResponse.json({ message: check.refusal, reasons: [check.refusal] }, { status: 422 });
         }
+        scanFlags = check.flags;
       }
 
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "");
@@ -382,9 +426,16 @@ export async function POST(request: Request) {
       recordedBy: auth.employee.employeeID,
       source: "crew",
       missingReason: podPath ? null : "No photograph was taken at this stop",
-      validationStatus: validation?.verdict ?? null,
-      validationNotes: validation && validation.reasons.length > 0 ? validation.reasons.join(" ") : null,
-      nameOnReceipt: validation?.nameOnReceipt ?? null,
+      // Passed when every check ran and found nothing; anything it could not
+      // check is the office's to look at.
+      validationStatus: podPath && isStop ? (scanFlags.length === 0 ? "passed" : "unverified") : null,
+      validationNotes: scanFlags.length > 0 ? scanFlags.join(" ") : null,
+      scanMethod: scan?.method ?? (podPath && isStop ? "camera" : null),
+      capturedAt: scan?.capturedAt || null,
+      captureLat: scan?.latitude ?? null,
+      captureLng: scan?.longitude ?? null,
+      imageHash,
+      imageDHash: scan?.dHash ?? null,
     };
 
     // Only for the real stops. The departure and return steps are not places
@@ -414,7 +465,8 @@ export async function POST(request: Request) {
         current_step: nextStep,
         stop: pickupID !== null ? { pickupID } : branchID !== null ? { branchID } : null,
         proof: Boolean(podPath),
-        proofCheck: validation?.verdict ?? null,
+        proofCheck: podPath && isStop ? (scanFlags.length === 0 ? "passed" : "unverified") : null,
+        proofFlags: scanFlags,
       },
     });
 
@@ -432,14 +484,16 @@ export async function POST(request: Request) {
     // fleet board, which recomputes it on every poll; the feed is for the things
     // somebody may have to do something about.
     //
-    // A stop whose receipt nobody could check is one of those. The check was
-    // unreachable, the stop went through so the truck was not held at a gate,
-    // and the office can still act - the crew are near enough to retake it, and
-    // a phone call now is a proof confirmed rather than a gap found weeks later.
-    if (isStop && validation?.verdict === "unverified") {
+    // A stop whose receipt was not fully checked is one of those: a name not
+    // found on the paper, a form with no signature space the phone could find,
+    // an app without the scanner. The stop went through so the truck was not
+    // held at a gate, and the office can still act - the crew are near enough
+    // to rescan, and a phone call now beats a gap found weeks later.
+    if (isStop && podPath && scanFlags.length > 0) {
       await announceUnverifiedProof(
         dispatchID,
         (title || "a stop").replace(/^(Pickup|Dropoff):\s*/i, ""),
+        scanFlags,
         completedAt,
         { employeeID: auth.employee.employeeID, employeeName: auth.employee.employeeName },
       );

@@ -32,13 +32,6 @@ export interface StopProof {
   /** The automatic receipt check. Absent on proofs recorded before it existed. */
   validationStatus?: ProofCheck;
   validationNotes?: string | null;
-  nameOnReceipt?: string | null;
-}
-
-/** Names compared loosely: case, spacing and punctuation are not a mismatch. */
-function sameName(a: string, b: string): boolean {
-  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return norm(a) === norm(b);
 }
 
 export interface ProofBearingStop {
@@ -201,14 +194,6 @@ export default function StopProofList({
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge.style}`}>
                       {badge.text}
                     </span>
-                    {/* The name on the paper beside the name the crew typed,
-                        only when they disagree - that is the line worth a look. */}
-                    {pod.nameOnReceipt &&
-                      pod.receiverName &&
-                      pod.receiverName !== "N/A" &&
-                      !sameName(pod.nameOnReceipt, pod.receiverName) && (
-                        <span className="text-amber-800">Name on receipt: {pod.nameOnReceipt}</span>
-                      )}
                   </p>
                 );
               })()}

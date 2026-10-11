@@ -437,7 +437,12 @@ export interface PODRow {
   fileType: string | null;
   validationStatus: "passed" | "failed" | "unverified" | null;
   validationNotes: string | null;
-  nameOnReceipt: string | null;
+  scanMethod: "scanner" | "camera" | null;
+  capturedAt: string | null;
+  captureLat: number | null;
+  captureLng: number | null;
+  imageHash: string | null;
+  imageDHash: string | null;
 }
 
 export interface PickupStopsRow {

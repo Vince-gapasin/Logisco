@@ -90,12 +90,11 @@ export async function PATCH(
       update.fileType = file.type;
       // A row that recorded why there was no photograph now has one.
       update.missingReason = null;
-      // The receipt check read the old photograph, not this one. Its verdict
+      // The receipt scan checked the old photograph, not this one. Its verdict
       // goes with the photograph it was about; the new file is the office's,
       // and the audit row below says whose.
       update.validationStatus = null;
       update.validationNotes = null;
-      update.nameOnReceipt = null;
     }
 
     if (receiverName !== undefined && receiverName !== current.receiverName) {

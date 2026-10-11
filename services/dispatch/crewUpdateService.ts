@@ -92,15 +92,17 @@ export async function announceMissingProof(
 }
 
 /**
- * A stop closed on a photograph nobody has checked.
+ * A stop closed on a receipt the scan could not fully check.
  *
- * The receipt check could not run - no key, or the API was unreachable - and a
- * truck is not held at a gate for that. The photograph is on the record; this
- * is so somebody looks at it while the crew are still near enough to retake it.
+ * The name typed was not on the paper, the form had no signature space the
+ * phone could find, or the app had no scanner. None of that is a reason to hold
+ * a truck at a gate; it is a reason for somebody to look while the crew are
+ * still near enough to scan it again.
  */
 export async function announceUnverifiedProof(
   dispatchID: string,
   stopName: string,
+  reasons: string[],
   completedAt: string,
   actor: Actor,
 ): Promise<void> {
@@ -109,8 +111,8 @@ export async function announceUnverifiedProof(
     event: "POD_UNVERIFIED",
     title: `Check the proof at ${stopName}`,
     body:
-      `${actor.employeeName} closed ${stopName} on ${(await tripLabel(dispatchID)) ?? "a delivery"}, ` +
-      `but the receipt photo could not be checked automatically. Please confirm it shows a signature and the receiver's name.`,
+      `${actor.employeeName} closed ${stopName} on ${(await tripLabel(dispatchID)) ?? "a delivery"}. ` +
+      `Please look at the receipt photo: ${reasons.join(" ")}`,
     severity: "action",
     dedupeKey: `unverified-proof:${dispatchID}:${completedAt}`,
     actor,

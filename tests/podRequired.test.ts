@@ -7,11 +7,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // server asks too, and reads the photograph before anything is written: a
 // refused photograph leaves the stop exactly as it was, so the crew can retake
 // it and send the same request again.
+//
+// What is checked about the scan itself - the place, the time, reuse - is in
+// podScan.test.ts. This is the route doing something with the answer.
 
 const TRIP = "11111111-2222-3333-4444-555555555555";
 
-type Verdict = { verdict: "passed" | "failed" | "unverified"; reasons: string[]; nameOnReceipt: string | null };
-let verdict: Verdict;
+let fileAlreadyUsed = false;
 
 const uploads: string[] = [];
 const podRows: Record<string, unknown>[] = [];
@@ -33,10 +35,6 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
   crewNotReadyReason: () => null,
   releaseDispatchResources: async () => {},
   TERMINAL_DISPATCH_STATUSES: ["Completed", "Cancelled"],
-}));
-
-vi.mock("@/services/storage/podValidation", () => ({
-  validatePodImage: async () => verdict,
 }));
 
 vi.mock("@/services/storage/podService", () => ({
@@ -64,6 +62,10 @@ vi.mock("@/app/lib/supabase", () => {
     const chain: Record<string, unknown> = {
       select: () => chain,
       eq: () => chain,
+      or: () => chain,
+      gte: () => chain,
+      not: () => chain,
+      limit: async () => ({ data: table === "POD" && fileAlreadyUsed ? [{ podID: "old" }] : [] }),
       update: (payload: Record<string, unknown>) => {
         pendingUpdate = payload;
         if (table === "DispatchOrder") dispatchUpdates.push(payload);
@@ -74,7 +76,9 @@ vi.mock("@/app/lib/supabase", () => {
         return { error: null };
       },
       maybeSingle: async () => {
-        if (table === "BranchStops" && !pendingUpdate) return { data: { branchID: 5, arrivedAt: null } };
+        if (table === "BranchStops" && !pendingUpdate) {
+          return { data: { branchID: 5, deliveryLat: 14.5995, deliverLong: 120.9842, arrivedAt: null } };
+        }
         if (table === "DispatchOrder") return { data: { dispatchID: TRIP } };
         return { data: null };
       },
@@ -99,7 +103,23 @@ vi.mock("@/app/lib/supabase", () => {
 
 const { POST } = await import("@/app/api/crew/dispatches/status/route");
 
-function request(fields: { photo?: boolean; receiverName?: string; branchID?: string }) {
+function scan(overrides: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    method: "scanner",
+    capturedAt: new Date().toISOString(),
+    latitude: 14.5996,
+    longitude: 120.9843,
+    accuracy: 10,
+    textWords: 30,
+    signature: true,
+    nameFound: true,
+    dHash: "0123456789abcdef",
+    flags: [],
+    ...overrides,
+  });
+}
+
+function request(fields: { photo?: boolean; receiverName?: string; branchID?: string; scan?: string }) {
   const form = new FormData();
   form.append("dispatchID", TRIP);
   form.append("status", "In Transit");
@@ -108,11 +128,12 @@ function request(fields: { photo?: boolean; receiverName?: string; branchID?: st
   if (fields.branchID !== undefined) form.append("branchID", fields.branchID);
   if (fields.receiverName !== undefined) form.append("receiverName", fields.receiverName);
   if (fields.photo) form.append("podImage", new File([new Uint8Array([1, 2, 3])], "receipt.jpg", { type: "image/jpeg" }));
+  if (fields.scan) form.append("scan", fields.scan);
   return new Request("http://localhost/api/crew/dispatches/status", { method: "POST", body: form });
 }
 
 beforeEach(() => {
-  verdict = { verdict: "passed", reasons: [], nameOnReceipt: "Juan Dela Cruz" };
+  fileAlreadyUsed = false;
   uploads.length = 0;
   podRows.length = 0;
   dispatchUpdates.length = 0;
@@ -133,22 +154,30 @@ describe("a stop without a receipt", () => {
   });
 });
 
-describe("a photograph the check refuses", () => {
-  it("is sent back with the reasons, and nothing is written", async () => {
-    verdict = { verdict: "failed", reasons: ["No signature found on the receipt."], nameOnReceipt: null };
-    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true }));
+describe("a scan the server refuses", () => {
+  it("is sent back with the reason, and nothing is written", async () => {
+    const response = await POST(
+      request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan({ latitude: 14.65 }) }),
+    );
 
     expect(response.status).toBe(422);
-    expect((await response.json()).reasons).toEqual(["No signature found on the receipt."]);
+    expect((await response.json()).reasons[0]).toMatch(/m from the stop/);
     expect(uploads).toHaveLength(0);
     expect(dispatchUpdates).toHaveLength(0);
     expect(podRows).toHaveLength(0);
   });
+
+  it("refuses a photo already used for another stop", async () => {
+    fileAlreadyUsed = true;
+    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan() }));
+    expect(response.status).toBe(422);
+    expect(podRows).toHaveLength(0);
+  });
 });
 
-describe("a signed receipt", () => {
-  it("closes the stop and records what the check read", async () => {
-    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true }));
+describe("a signed receipt, scanned at the stop", () => {
+  it("closes the stop and records where, when and how it was scanned", async () => {
+    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan() }));
 
     expect(response.status).toBe(200);
     expect(uploads).toHaveLength(1);
@@ -156,21 +185,38 @@ describe("a signed receipt", () => {
       branchID: 5,
       validationStatus: "passed",
       validationNotes: null,
-      nameOnReceipt: "Juan Dela Cruz",
+      scanMethod: "scanner",
+      captureLat: 14.5996,
+      captureLng: 120.9843,
+      imageDHash: "0123456789abcdef",
       missingReason: null,
     });
+    expect(podRows[0].imageHash).toMatch(/^[0-9a-f]{64}$/);
     expect(unverifiedAnnouncements).toHaveLength(0);
   });
 });
 
-describe("a receipt nobody could check", () => {
+describe("a receipt the scan could not fully check", () => {
   it("still closes the stop, and the office is asked to look", async () => {
-    verdict = { verdict: "unverified", reasons: ["The receipt could not be checked automatically."], nameOnReceipt: null };
-    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true }));
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photo: true,
+        scan: scan({ flags: ["The receiver's name typed by the crew was not found on the receipt."] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(podRows[0]).toMatchObject({ validationStatus: "unverified" });
+    expect(String(podRows[0].validationNotes)).toMatch(/name/);
     expect(unverifiedAnnouncements).toEqual(["Main Branch"]);
+  });
+
+  it("takes a photo from an app without the scanner, for review", async () => {
+    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true }));
+    expect(response.status).toBe(200);
+    expect(podRows[0]).toMatchObject({ validationStatus: "unverified", scanMethod: "camera" });
   });
 });
 

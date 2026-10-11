@@ -74,7 +74,6 @@ Create `.env` with at least the Supabase settings:
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Sending email |
 | `CRON_SECRET` | Authorizing scheduled jobs (Vercel cron, GitHub Actions, `pg_cron`) |
 | `FIREBASE_SERVICE_ACCOUNT` | Sending push notifications (JSON of a Firebase service account) |
-| `ANTHROPIC_API_KEY` | Checking proof-of-delivery photos for a signed receipt with the receiver's name. Without it, proofs are accepted as "Needs review" and the office is notified |
 | `WEATHER_LATITUDE`, `WEATHER_LONGITUDE`, `WEATHER_LOCATION_CODE` | Weather sync for forecasting (defaults to Manila) |
 
 Admin → System health checks most of these against the running deployment.

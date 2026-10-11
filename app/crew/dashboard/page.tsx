@@ -13,6 +13,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useSyncExternalStore,
 } from "react";
 import { usePolling } from "@/app/lib/usePolling";
 import { useChangeCheck } from "@/app/lib/useChangeCheck";
@@ -25,6 +26,7 @@ import {
   ArrowLeft,
   Truck,
   Camera,
+  ScanLine,
   X,
   AlertTriangle,
   Navigation,
@@ -36,6 +38,16 @@ import {
 import dynamic from "next/dynamic";
 import type { MapPoint } from "@/components/LiveRouteMap";
 import { compressImage } from "@/app/lib/imageCompression";
+import {
+  cameraReport,
+  scanPod,
+  scannerAvailable,
+  withReceiverName,
+  type ScannedPod,
+} from "./_components/podScanner";
+
+// Whether the app has the scanner does not change while it runs.
+const noSubscription = () => () => {};
 import StallCheckInPrompt from "@/components/crew/StallCheckInPrompt";
 import OpenIssueNotice from "@/components/crew/OpenIssueNotice";
 import {
@@ -187,6 +199,11 @@ export default function CrewDashboardPage({
   // Why the server refused the last receipt photo, so the crew know what to
   // retake. Cleared as soon as a new photo is chosen.
   const [podRejection, setPodRejection] = useState<string[] | null>(null);
+  // The receipt as the scanner saw it, and whether this phone has a scanner:
+  // an older install of the app does not, and falls back to the camera.
+  const [scanned, setScanned] = useState<ScannedPod | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const canScan = useSyncExternalStore(noSubscription, scannerAvailable, () => false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -260,6 +277,8 @@ export default function CrewDashboardPage({
               if (selectedImageRef.current) URL.revokeObjectURL(selectedImageRef.current);
               setSelectedImage(null);
               setSelectedFile(null);
+              setScanned(null);
+              setPodRejection(null);
               setReceiverName("");
               setRemarks("");
               showToast("The rest of the crew finished that stop. You are on the next one.", "info");
@@ -453,6 +472,7 @@ export default function CrewDashboardPage({
     const file = e.target.files?.[0];
     if (file) {
       setPodRejection(null);
+      setScanned(null);
       setSelectedImage(URL.createObjectURL(file));
       // Shrink camera photos so uploads fit the server's request size limit.
       compressImage(file)
@@ -550,8 +570,33 @@ export default function CrewDashboardPage({
       })),
   ];
 
+  const handleScanPod = async () => {
+    setIsScanning(true);
+    try {
+      const result = await scanPod(receiverName);
+      if (!result) return;
+      if (selectedImage) URL.revokeObjectURL(selectedImage);
+      setScanned(result);
+      setSelectedImage(result.previewUrl);
+      setSelectedFile(result.file);
+      setPodRejection(result.verdict.blocking.length > 0 ? result.verdict.blocking : null);
+    } catch (error) {
+      showToast(`Scan failed: ${error instanceof Error ? error.message : error}`, "error");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // The scan against the name as typed now, so the name check follows edits.
+  const currentScan = scanned ? withReceiverName(scanned, receiverName) : null;
+
   const handleUpdateStatusSubmit = async () => {
     const isPodRequiredForStop = dynamicStops[currentStepIndex]?.reqPod;
+
+    if (isPodRequiredForStop && podRejection) {
+      showToast("Scan the receipt again before completing this stop.", "error");
+      return;
+    }
     
     if (isPodRequiredForStop) {
       if (!selectedFile) {
@@ -605,7 +650,13 @@ export default function CrewDashboardPage({
       }
       
       if (receiverName) formData.append("receiverName", receiverName);
-      if (selectedFile) formData.append("podImage", selectedFile);
+      if (selectedFile) {
+        formData.append("podImage", selectedFile);
+        // Where, when and how the receipt was captured, and what the phone
+        // found on it. The server checks the place, the time and reuse.
+        const report = scanned ? withReceiverName(scanned, receiverName).report : await cameraReport();
+        formData.append("scan", JSON.stringify(report));
+      }
 
       const response = await fetch("/api/crew/dispatches/status", {
         method: "POST",
@@ -643,6 +694,7 @@ export default function CrewDashboardPage({
         if (selectedImage) URL.revokeObjectURL(selectedImage);
         setSelectedImage(null);
         setSelectedFile(null);
+        setScanned(null);
         setPodRejection(null);
         setRemarks("");
         setReceiverName("");
@@ -1411,22 +1463,67 @@ export default function CrewDashboardPage({
                   </div>
 
                   <p className="text-xs text-slate-600 mb-2">
-                    Photograph the signed delivery receipt. The signature and the receiver&apos;s name must be readable.
+                    Scan the client&apos;s signed delivery receipt at this stop. The whole page, the signature and the receiver&apos;s name must be visible.
                   </p>
-                  <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${podRejection ? "border-red-400" : "border-blue-300"}`}>
-                    {selectedImage ? (
-                      <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                        <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                        <span className="text-xs font-semibold text-blue-700">Tap to upload photo</span>
-                      </div>
-                    )}
-                    <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
-                  </label>
+                  {canScan ? (
+                    <button
+                      type="button"
+                      onClick={handleScanPod}
+                      disabled={isScanning || isSubmittingResponse}
+                      className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${podRejection ? "border-red-400" : "border-blue-300"}`}
+                    >
+                      {selectedImage ? (
+                        <>
+                          <img src={selectedImage} alt="Scanned receipt" className="w-full h-full object-cover" />
+                          <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
+                            {isScanning ? "Scanning..." : "Scan again"}
+                          </span>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
+                          <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                          <span className="text-xs font-semibold text-blue-700">
+                            {isScanning ? "Opening scanner..." : "Tap to scan receipt"}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${podRejection ? "border-red-400" : "border-blue-300"}`}>
+                        {selectedImage ? (
+                          <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
+                            <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                            <span className="text-xs font-semibold text-blue-700">Tap to take photo</span>
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+                      </label>
+                      {/* An install from before the scanner. The photo is still
+                          taken, and the office is asked to check it. */}
+                      <p className="mt-2 text-xs text-amber-700">
+                        Update the Logisco app to use the receipt scanner. Until then, the office will review this photo.
+                      </p>
+                    </>
+                  )}
+                  {currentScan && !podRejection && currentScan.verdict.flags.length > 0 && (
+                    <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold text-amber-800">You can continue. The office will check:</p>
+                      <ul className="mt-1 list-disc pl-4 text-xs text-amber-800">
+                        {currentScan.verdict.flags.map((flag) => (
+                          <li key={flag}>{flag}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {currentScan && !podRejection && currentScan.verdict.flags.length === 0 && (
+                    <p role="status" className="mt-3 text-xs font-semibold text-emerald-700">Receipt checked: signed, and the name matches.</p>
+                  )}
                   {podRejection && (
                     <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs font-semibold text-red-700">Retake the photo:</p>
+                      <p className="text-xs font-semibold text-red-700">Scan the receipt again:</p>
                       <ul className="mt-1 list-disc pl-4 text-xs text-red-700">
                         {podRejection.map((reason) => (
                           <li key={reason}>{reason}</li>
@@ -1789,7 +1886,7 @@ export default function CrewDashboardPage({
             </p>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim() || Boolean(podRejection)))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>

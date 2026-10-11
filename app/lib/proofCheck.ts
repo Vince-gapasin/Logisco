@@ -1,5 +1,6 @@
 // The automatic receipt check on a proof of delivery, as the screens and the
-// exports name it. See services/storage/podValidation.ts for the check itself.
+// exports name it. The checks are app/lib/podScan.ts (on the phone) and
+// services/storage/podScanCheck.ts (on the server).
 
 export type ProofCheck = "passed" | "failed" | "unverified" | null;
 
