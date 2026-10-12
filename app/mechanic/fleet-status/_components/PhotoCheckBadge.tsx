@@ -8,7 +8,9 @@ export function PhotoCheckBadge({ check }: { check?: PhotoCheckResult | null }) 
 
   const passed = check.status === "passed";
   const saw = check.topLabels.slice(0, 2).join(", ");
-  const why = check.notes[0];
+  // Every reason: the one that matters most ("the checker could not run") is
+  // not always the first.
+  const why = check.notes.join(" ");
 
   return (
     <p

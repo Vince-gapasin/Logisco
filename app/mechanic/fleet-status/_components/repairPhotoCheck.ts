@@ -90,7 +90,8 @@ export async function checkRepairPhoto(file: File): Promise<CheckedRepairPhoto> 
       const model = await loadRepairPhotoModel();
       predictions = await model.classify(toCanvas(bitmap), 5);
     } catch (error) {
-      console.error("[Repair photo] The model could not run:", error);
+      // Handled: the photo goes through for review. A warning, not an error.
+      console.warn("[Repair photo] The model could not run:", error);
       return { dataUrl, report: uncheckedReport(method, capturedAt, dHash), verdict: null };
     }
 

@@ -554,9 +554,13 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                 <span className="text-xs text-slate-500 truncate max-w-xs" aria-live="polite">
                   {checkingPhoto
                     ? "Checking photo…"
-                    : formData[activeFields.photo]
-                      ? "Photo checked and attached"
-                      : "No photo yet"}
+                    : !formData[activeFields.photo]
+                      ? "No photo yet"
+                      : !formData[activeFields.report]
+                        ? "Photo on file"
+                        : formData[activeFields.report].includes('"checked":true')
+                          ? "Photo checked and attached"
+                          : "Photo attached, not checked - the office will review it"}
                 </span>
                 {/* In the app, straight from the camera: a photo taken now,
                     at the truck, not one from the gallery. */}
