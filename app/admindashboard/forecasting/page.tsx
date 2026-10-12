@@ -233,7 +233,7 @@ const MONTH_OPTIONS = [
   },
 ];
 
-type ForecastView = "yearly" | "monthly" | "weekly";
+type ForecastView = "yearly" | "monthly" | "weekly" | "custom";
 type TrendFilter = "Any" | "Above Normal" | "Normal" | "Below Normal";
 
 type FilterState = {
@@ -242,6 +242,9 @@ type FilterState = {
   month: number | null;
   week: string | null;
   trend: TrendFilter;
+  // Custom date range (YYYY-MM-DD), used when view is "custom".
+  customStart: string | null;
+  customEnd: string | null;
 };
 
 const DEFAULT_FILTERS: FilterState = {
@@ -250,6 +253,8 @@ const DEFAULT_FILTERS: FilterState = {
   month: null,
   week: null,
   trend: "Any",
+  customStart: null,
+  customEnd: null,
 };
 
 function formatWeekRange(periodStart: string, periodEnd?: string) {
@@ -304,10 +309,52 @@ function toDisplayRow(
   };
 }
 
+// Custom date range: up to a week is shown day by day, up to about three
+// months week by week (like the Monthly view of a single month), and longer
+// ranges month by month.
+type CustomRangeUnit = "day" | "week" | "month";
+
+function customRangeUnit(dayCount: number): CustomRangeUnit {
+  if (dayCount <= 7) return "day";
+  if (dayCount <= 92) return "week";
+  return "month";
+}
+
+function formatFullDate(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date.slice(0, 10)}T00:00:00Z`));
+}
+
+function formatDateRange(start: string, end: string) {
+  return start === end
+    ? formatFullDate(start)
+    : `${formatFullDate(start)} – ${formatFullDate(end)}`;
+}
+
+function customPeriodLabel(
+  unit: CustomRangeUnit,
+  first: string,
+  last: string,
+  dayCount: number,
+) {
+  if (unit === "day") return formatDay(first);
+  if (unit === "week") return formatWeekRange(first, last);
+  const [year, month] = first.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return dayCount === daysInMonth
+    ? `${MONTH_OPTIONS[month - 1].label} ${year}`
+    : `${formatWeekRange(first, last)}, ${year}`;
+}
+
 const VIEW_OPTIONS: { value: ForecastView; label: string }[] = [
   { value: "yearly", label: "Yearly" },
   { value: "monthly", label: "Monthly" },
   { value: "weekly", label: "Weekly" },
+  { value: "custom", label: "Custom" },
 ];
 
 const TREND_OPTIONS: { value: TrendFilter; label: string }[] = [
@@ -375,6 +422,12 @@ function FilterPill({
       {children}
     </button>
   );
+}
+
+function lastDayOfMonth(date: string) {
+  const [year, month] = date.split("-").map(Number);
+  const day = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${date.slice(0, 7)}-${String(day).padStart(2, "0")}`;
 }
 
 function getStoredAuth(): StoredAuth | null {
@@ -565,7 +618,14 @@ function buildFilterRemarks({
   const remarks: string[] = [];
   const yearRange = scopeLabel.match(/^(\d{4})–(\d{4})$/);
   const scope = yearRange ? `${yearRange[1]} to ${yearRange[2]}` : scopeLabel;
-  const opening = yearRange ? `From ${scope}` : `In ${scope}`;
+  // "From 2022 to 2026" / "From Oct 1, 2026 to Mar 31, 2027", "On Oct 12, 2026",
+  // otherwise "In October 2026".
+  const opening =
+    yearRange || / to /.test(scope)
+      ? `From ${scope}`
+      : /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(scope)
+        ? `On ${scope}`
+        : `In ${scope}`;
   const plural = (n: number) => `${n} ${unit}${n === 1 ? "" : "s"}`;
   // "the week of May 1 – May 7" reads better than the bare range mid-sentence.
   const named = (row: RemarkRow) => (unit === "week" ? `the week of ${row.period}` : row.period);
@@ -576,6 +636,11 @@ function buildFilterRemarks({
   const rows = allRows.filter(
     (row) => !row.periodStart || row.periodStart.slice(0, 10) <= today,
   );
+
+  const upcoming = allRows.filter(
+    (row) => row.periodStart && row.periodStart.slice(0, 10) > today,
+  );
+  const upcomingExpected = upcoming.reduce((sum, row) => sum + row.expectedVolume, 0);
 
   const completed = rows.filter(
     (row): row is RemarkRow & { actualVolume: number } =>
@@ -590,6 +655,18 @@ function buildFilterRemarks({
   }
 
   if (rows.length === 0) {
+    if (upcoming.length > 0) {
+      // The whole range is in the future: only the forecast is available.
+      remarks.push(
+        `${scope.charAt(0).toUpperCase() + scope.slice(1)} hasn't started yet. Based on our past deliveries, we expect ${deliveries(
+          upcomingExpected,
+        )}.`,
+      );
+      remarks.push(
+        "This is an estimate from past delivery patterns, the usual weather for those months and the latest diesel price, so it can change as new deliveries come in.",
+      );
+      return remarks;
+    }
     remarks.push(`There's nothing to show for ${scope} with these filters.`);
     return remarks;
   }
@@ -608,6 +685,14 @@ function buildFilterRemarks({
     const expected = completed.reduce((sum, row) => sum + row.expectedVolume, 0);
     remarks.push(
       `${opening}, we completed ${deliveries(actual)}. We expected ${aboutExpected(expected)}, so it was ${howItWent(expected, actual)}.`,
+    );
+  }
+
+  if (upcoming.length > 0 && completed.length > 0) {
+    remarks.push(
+      `For the part of ${scope} that hasn't started yet, we expect ${deliveries(
+        upcomingExpected,
+      )} more.`,
     );
   }
 
@@ -671,8 +756,12 @@ function buildFilterRemarks({
     );
   }
 
-  // 4. Weather.
-  const weatherMonths = scopeMonths.filter(
+  // 4. Weather. Only months that have started have real weather records;
+  // future months only carry the usual weather, so they are left out.
+  const pastMonths = scopeMonths.filter(
+    (record) => record.periodStart.slice(0, 10) <= today,
+  );
+  const weatherMonths = pastMonths.filter(
     (record) => record.factors.totalRainfall !== null,
   );
   if (weatherMonths.length === 1) {
@@ -704,7 +793,7 @@ function buildFilterRemarks({
   }
 
   // 5. Fuel.
-  const dieselPrices = scopeMonths
+  const dieselPrices = pastMonths
     .map((record) => record.factors.averageDieselPrice)
     .filter((price): price is number => price !== null);
   if (dieselPrices.length > 0) {
@@ -747,7 +836,21 @@ function toFileSlug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function calculateMetrics(expected: number, actual: number | null) {
+function calculateMetrics(
+  expected: number,
+  actual: number | null,
+  periodStart?: string,
+) {
+  // A period that hasn't started yet only has a forecast.
+  if (actual === null && periodStart && periodStart.slice(0, 10) > todayKey()) {
+    return {
+      variance: "—",
+      varianceVal: 0,
+      status: "Upcoming",
+      statusClass: "bg-white text-slate-500 border-slate-200 border-dashed",
+    };
+  }
+
   if (actual === null) {
     return {
       variance: "Pending",
@@ -807,9 +910,10 @@ export default function ForecastingPage() {
     TIMEFRAME_OPTIONS[TIMEFRAME_OPTIONS.length - 1],
   );
 
-const [forecastView, setForecastView] = useState<
-  "yearly" | "monthly" | "weekly"
->("yearly");
+const [forecastView, setForecastView] = useState<ForecastView>("yearly");
+
+const [customStart, setCustomStart] = useState<string | null>(null);
+const [customEnd, setCustomEnd] = useState<string | null>(null);
 
 const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
@@ -826,6 +930,20 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     (selectedWeek !== null ? 1 : 0) +
     (trendFilter !== "Any" ? 1 : 0);
 
+  // The calendar always offers 2022 up to 5 years ahead (same as the
+  // server's FORECAST_YEARS_AHEAD), so its year list never stops early.
+  const pickerMinDate = "2022-01-01";
+  const pickerMaxDate = `${new Date().getFullYear() + 5}-12-31`;
+
+  const draftRangeError =
+    draftFilters.view !== "custom"
+      ? null
+      : !draftFilters.customStart || !draftFilters.customEnd
+        ? "Pick a start date and an end date."
+        : draftFilters.customStart > draftFilters.customEnd
+          ? "The start date must be on or before the end date."
+          : null;
+
   const openFilters = () => {
     setDraftFilters({
       view: forecastView,
@@ -833,12 +951,17 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       month: selectedMonth,
       week: selectedWeek,
       trend: trendFilter,
+      customStart,
+      customEnd,
     });
     setIsFilterOpen(true);
   };
 
   const applyFilters = () => {
+    if (draftFilters.view === "custom" && draftRangeError) return;
     setForecastView(draftFilters.view);
+    setCustomStart(draftFilters.view === "custom" ? draftFilters.customStart : null);
+    setCustomEnd(draftFilters.view === "custom" ? draftFilters.customEnd : null);
     setSelectedYear(draftFilters.year);
     setSelectedMonth(draftFilters.view === "yearly" ? null : draftFilters.month);
     setSelectedWeek(draftFilters.view === "weekly" ? draftFilters.week : null);
@@ -942,7 +1065,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   }, []);
 
   const baseRecords = useMemo(() => {
-    if (!forecast) return [];
+    if (!forecast || forecastView === "custom") return [];
 
     if (forecastView === "yearly") {
       return forecast.yearly.map((item) => ({
@@ -1081,8 +1204,53 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   // When a single month or week is picked, drill down one level so the
   // chart and table still show a trend: a month shows its weeks, a week
   // shows its days.
+  // Custom date range: add up the daily forecast (and completed deliveries)
+  // for the picked dates, grouped by day, week or month depending on length.
+  const customDayCount = useMemo(() => {
+    if (!forecast || forecastView !== "custom" || !customStart || !customEnd) return 0;
+    return (forecast.daily ?? []).filter(
+      (day) => day.periodStart >= customStart && day.periodStart <= customEnd,
+    ).length;
+  }, [forecast, forecastView, customStart, customEnd]);
+  const customUnit = customRangeUnit(customDayCount);
+
+  const customRangeRows = useMemo(() => {
+    if (!forecast || forecastView !== "custom" || !customStart || !customEnd) return [];
+
+    const groups = new Map<string, DailyForecastRecord[]>();
+    for (const day of forecast.daily ?? []) {
+      if (day.periodStart < customStart || day.periodStart > customEnd) continue;
+      const key =
+        customUnit === "day"
+          ? day.periodStart
+          : customUnit === "week"
+            ? day.weekStart
+            : day.periodStart.slice(0, 7);
+      const group = groups.get(key);
+      if (group) group.push(day);
+      else groups.set(key, [day]);
+    }
+
+    return [...groups.values()].map((group) => {
+      const first = group[0].periodStart;
+      const last = group[group.length - 1].periodStart;
+      const finished = group.every((day) => day.actualVolume !== null);
+      return toDisplayRow(
+        `custom-${first}`,
+        first,
+        customPeriodLabel(customUnit, first, last, group.length),
+        group.reduce((sum, day) => sum + day.expectedVolume, 0),
+        finished
+          ? group.reduce((sum, day) => sum + (day.actualVolume ?? 0), 0)
+          : null,
+        group.length,
+      );
+    });
+  }, [forecast, forecastView, customStart, customEnd, customUnit]);
+
   const rawDisplayRecords = useMemo(() => {
     if (!forecast) return filteredRecords;
+    if (forecastView === "custom") return customRangeRows;
 
     if (forecastView === "monthly" && selectedMonth !== null) {
       const monthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
@@ -1115,7 +1283,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     }
 
     return filteredRecords;
-  }, [forecast, filteredRecords, forecastView, selectedYear, selectedMonth, selectedWeek]);
+  }, [forecast, filteredRecords, forecastView, selectedYear, selectedMonth, selectedWeek, customRangeRows]);
 
   // A period that has started but isn't over (e.g. this month) has no final
   // count yet. Add the deliveries completed in it so far, so they show on the
@@ -1152,8 +1320,13 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     });
   }, [rawDisplayRecords, forecast, forecastView, selectedMonth]);
 
+  const customRangeLabel =
+    customStart && customEnd ? formatDateRange(customStart, customEnd) : "";
+
   const breakdownLabel =
-    forecastView === "monthly" && selectedMonth !== null
+    forecastView === "custom"
+      ? `${customUnit === "day" ? "Daily" : customUnit === "week" ? "Weekly" : "Monthly"} breakdown · ${customRangeLabel}`
+      : forecastView === "monthly" && selectedMonth !== null
       ? `Weekly breakdown · ${MONTH_OPTIONS[selectedMonth - 1].label} ${selectedYear}`
       : forecastView === "weekly" && selectedWeek !== null
         ? `Daily breakdown · ${
@@ -1184,6 +1357,49 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
     [visibleRecords],
   );
 
+  // Chart labels: months are shortened to "Jan", "Feb", … (the breakdown
+  // label above the chart already shows the year). Only when the chart spans
+  // more than one year is a short year added, e.g. "Jan '28".
+  const chartSpansYears =
+    new Set(chartRecords.map((record) => record.periodStart.slice(0, 4))).size > 1;
+  // With many points (e.g. every week of a year) there's no room for a label
+  // on each one, so only the first point of each month is labeled with the
+  // month ("Jan", "Feb", …), and the dots are hidden to keep the lines clean.
+  const isCrowdedChart = chartRecords.length > 16;
+  const chartMonthStarts = new Set<number>();
+  chartRecords.forEach((record, index) => {
+    if (
+      index === 0 ||
+      record.periodStart.slice(0, 7) !== chartRecords[index - 1].periodStart.slice(0, 7)
+    ) {
+      chartMonthStarts.add(index);
+    }
+  });
+  const formatChartTick = (period: string, index: number) => {
+    if (isCrowdedChart) {
+      if (!chartMonthStarts.has(index)) return "";
+      const record = chartRecords[index];
+      if (!record) return "";
+      const short = MONTH_OPTIONS[Number(record.periodStart.slice(5, 7)) - 1].label.slice(0, 3);
+      const year = record.periodStart.slice(2, 4);
+      // A long range of months: label January with its year and every
+      // third month in between, so years stay readable.
+      if (chartMonthStarts.size > 16) {
+        const month = Number(record.periodStart.slice(5, 7));
+        if (month === 1) return `Jan '${year}`;
+        return month % 3 === 1 ? short : "";
+      }
+      return chartSpansYears ? `${short} '${year}` : short;
+    }
+
+    const base = period.split(" – ")[0].split(" (")[0];
+    const [name, year] = base.split(" ");
+    const month = MONTH_OPTIONS.find((option) => option.label === name);
+    if (!month || (year !== undefined && !/^\d{4}$/.test(year))) return base;
+    const short = month.label.slice(0, 3);
+    return chartSpansYears && year ? `${short} '${year.slice(2)}` : short;
+  };
+
   // Forecast History table (also used by the PDF and Excel exports):
   // newest period first, and only periods that have already started, so the
   // current year never shows future months/weeks/days. Because this uses
@@ -1195,13 +1411,17 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       );
     }
 
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-      now.getDate(),
-    ).padStart(2, "0")}`;
+    // A custom date range was picked on purpose, so its future dates are
+    // listed too (marked Upcoming, with the expected deliveries only).
+    if (forecastView === "custom") {
+      return [...visibleRecords].sort((a, b) =>
+        b.periodStart.localeCompare(a.periodStart),
+      );
+    }
 
+    const today = todayKey();
     return visibleRecords
-      .filter((record) => record.periodStart.slice(0, 10) <= todayKey)
+      .filter((record) => record.periodStart.slice(0, 10) <= today)
       .sort((a, b) => b.periodStart.localeCompare(a.periodStart));
   }, [visibleRecords, forecastView]);
   const evaluatedSnapshots = useMemo(
@@ -1337,7 +1557,13 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       : null;
 
   const remarkScopeLabel =
-    forecastView === "yearly"
+    forecastView === "custom"
+      ? customStart && customEnd
+        ? customStart === customEnd
+          ? formatFullDate(customStart)
+          : `${formatFullDate(customStart)} to ${formatFullDate(customEnd)}`
+        : "the selected dates"
+      : forecastView === "yearly"
       ? `${TIMEFRAME_OPTIONS[0]}–${TIMEFRAME_OPTIONS[TIMEFRAME_OPTIONS.length - 1]}`
       : forecastView === "weekly" && selectedWeekLabel
         ? `the week of ${selectedWeekLabel}, ${selectedYear}`
@@ -1346,7 +1572,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
           : selectedYear;
 
   const remarkUnit =
-    forecastView === "yearly"
+    forecastView === "custom"
+      ? customUnit
+      : forecastView === "yearly"
       ? "year"
       : forecastView === "monthly"
         ? selectedMonth !== null
@@ -1373,7 +1601,12 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
         unit: remarkUnit,
         trendFilter,
         scopeMonths: forecast.records.filter((record) =>
-          record.periodStart.startsWith(remarkMonthPrefix),
+          forecastView === "custom"
+            ? !!customStart &&
+              !!customEnd &&
+              record.periodStart.slice(0, 7) >= customStart.slice(0, 7) &&
+              record.periodStart.slice(0, 7) <= customEnd.slice(0, 7)
+            : record.periodStart.startsWith(remarkMonthPrefix),
         ),
       })
     : [];
@@ -1401,7 +1634,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
         row.actualVolume ?? ("soFar" in row && row.soFar !== undefined ? row.soFar : null) ?? "",
         row.variance ?? "",
         row.variancePercentage ?? "",
-        calculateMetrics(row.expectedVolume, row.actualVolume).status,
+        calculateMetrics(row.expectedVolume, row.actualVolume, row.periodStart).status,
       ]),
     ];
     const filename = `forecast-table-${toFileSlug(remarkScopeLabel)}.csv`;
@@ -1422,7 +1655,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
       ? "Yearly"
       : forecastView === "monthly"
         ? "Monthly"
-        : "Weekly";
+        : forecastView === "custom"
+          ? "Custom date range"
+          : "Weekly";
 
   /*
     Builds a real A4 report (text and tables), not a screenshot. Only the
@@ -1700,7 +1935,11 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
             { header: "Trend status", width: 32 },
           ],
           historyRecords.map((row) => {
-            const metrics = calculateMetrics(row.expectedVolume, row.actualVolume);
+            const metrics = calculateMetrics(
+              row.expectedVolume,
+              row.actualVolume,
+              row.periodStart,
+            );
             return [
               row.period,
               formatCount(row.expectedVolume),
@@ -2011,7 +2250,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         dataKey="period"
                         interval={0}
                         minTickGap={0}
-                        tickFormatter={(period: string) => period.split(" – ")[0].split(" (")[0]}
+                        tickFormatter={formatChartTick}
                         tick={{ fontSize: 11, fill: "#64748b" }}
                         axisLine={{ stroke: "#cbd5e1" }}
                       />
@@ -2038,7 +2277,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         name="Expected Forecast"
                         stroke="#1d4ed8"
                         strokeWidth={2.5}
-                        dot={{ r: 3 }}
+                        dot={isCrowdedChart ? false : { r: 3 }}
                         activeDot={{ r: 6 }}
                       />
                       <Line
@@ -2048,7 +2287,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                         stroke="#10b981"
                         strokeWidth={2.5}
                         strokeDasharray="4 4"
-                        dot={{ r: 4 }}
+                        dot={isCrowdedChart ? false : { r: 4 }}
                         connectNulls={false}
                       />
                     </LineChart>
@@ -2127,6 +2366,7 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                       const metrics = calculateMetrics(
                         row.expectedVolume,
                         row.actualVolume,
+                        row.periodStart,
                       );
 
                       return (
@@ -2333,6 +2573,27 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
             {/* Options */}
             <div className="flex-1 space-y-7 overflow-y-auto px-5 pb-6 pt-2">
+              {draftFilters.view === "custom" &&
+                draftFilters.customEnd !== null &&
+                draftFilters.customEnd > todayKey() && (
+                  <div
+                    role="alert"
+                    className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5"
+                  >
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">
+                        These dates are in the future
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-amber-800">
+                        The expected deliveries are estimates based on the deliveries we have so far,
+                        so they may not be fully accurate. The further ahead the dates, the less
+                        certain the numbers.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
               <section>
                 <h3 className="mb-3 text-sm font-medium text-slate-900">View by</h3>
                 <SegmentedControl
@@ -2344,11 +2605,64 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                       view,
                       month: view === "yearly" ? null : current.month,
                       week: null,
+                      // Start Custom with this month filled in, so Apply works right away.
+                      customStart:
+                        view === "custom"
+                          ? current.customStart ?? `${todayKey().slice(0, 7)}-01`
+                          : current.customStart,
+                      customEnd:
+                        view === "custom"
+                          ? current.customEnd ?? lastDayOfMonth(todayKey())
+                          : current.customEnd,
                     }))
                   }
                 />
               </section>
 
+              {draftFilters.view === "custom" && (
+                <section>
+                  <h3 className="mb-3 text-sm font-medium text-slate-900">Date range</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">From</span>
+                      <input
+                        type="date"
+                        value={draftFilters.customStart ?? ""}
+                        min={pickerMinDate}
+                        max={pickerMaxDate}
+                        onChange={(event) =>
+                          setDraftFilters((current) => ({
+                            ...current,
+                            customStart: event.target.value || null,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">To</span>
+                      <input
+                        type="date"
+                        value={draftFilters.customEnd ?? ""}
+                        min={draftFilters.customStart ?? pickerMinDate}
+                        max={pickerMaxDate}
+                        onChange={(event) =>
+                          setDraftFilters((current) => ({
+                            ...current,
+                            customEnd: event.target.value || null,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                  {draftRangeError && (
+                    <p className="mt-2 text-xs text-amber-700">{draftRangeError}</p>
+                  )}
+                </section>
+              )}
+
+              {draftFilters.view !== "custom" && (
               <section>
                 <h3 className="mb-3 text-sm font-medium text-slate-900">Year</h3>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -2370,8 +2684,9 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
                   </p>
                 )}
               </section>
+              )}
 
-              {draftFilters.view !== "yearly" && (
+              {draftFilters.view !== "yearly" && draftFilters.view !== "custom" && (
                 <section>
                   <h3 className="mb-3 text-sm font-medium text-slate-900">Month</h3>
                   <div className="grid grid-cols-4 gap-2">
@@ -2469,7 +2784,8 @@ const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
               <button
                 type="button"
                 onClick={applyFilters}
-                className="py-4 text-sm font-semibold tracking-wide text-blue-700 hover:bg-blue-50 cursor-pointer"
+                disabled={draftFilters.view === "custom" && draftRangeError !== null}
+                className="py-4 text-sm font-semibold tracking-wide text-blue-700 hover:bg-blue-50 cursor-pointer disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent"
               >
                 APPLY
               </button>

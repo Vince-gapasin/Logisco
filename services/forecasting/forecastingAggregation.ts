@@ -260,10 +260,13 @@ export function buildForecastFilters(
     today,
   );
 
+  // Years that have not started yet (the forecast runs into next year) have
+  // nothing to compare, so they are left out of the yearly view.
+  const currentYear = today.getUTCFullYear();
   const yearly =
     Array.from(
       yearlyMap.values()
-    );
+    ).filter((item) => item.year <= currentYear);
 
 
   yearly.forEach(item=>{

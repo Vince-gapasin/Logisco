@@ -1005,9 +1005,16 @@ export async function generateForecast() {
 
   const currentYear = currentMonth.getUTCFullYear();
   const firstOutputYear = 2022;
+  // The forecast also runs FORECAST_YEARS_AHEAD years past the current one,
+  // so the page's custom date range can show expected deliveries for future
+  // dates. Those extra months are only used for the monthly/weekly/daily
+  // breakdowns; the records, remarks and monthly snapshots still stop at the
+  // current year. Change the number to look further ahead.
+  const FORECAST_YEARS_AHEAD = 5;
+  const lastOutputYear = currentYear + FORECAST_YEARS_AHEAD;
   const outputRows: MonthlyData[] = [];
 
-  for (let year = firstOutputYear; year <= currentYear; year++) {
+  for (let year = firstOutputYear; year <= lastOutputYear; year++) {
     for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
       const periodDate = new Date(Date.UTC(year, monthIndex, 1));
       const periodStart = toDateString(periodDate);
@@ -1034,7 +1041,7 @@ export async function generateForecast() {
     }
   }
 
-  const records: ForecastRecord[] = [];
+  const allRecords: ForecastRecord[] = [];
 
   for (const row of outputRows) {
     let rawPrediction: number;
@@ -1070,7 +1077,7 @@ export async function generateForecast() {
         ? null
         : round((variance / predictedVolume) * 100, 1);
 
-    records.push({
+    allRecords.push({
       id: row.periodStart,
       periodStart: row.periodStart,
       period: formatPeriod(row.periodStart),
@@ -1094,6 +1101,10 @@ export async function generateForecast() {
       history.set(row.periodStart, predictedVolume);
     }
   }
+
+  const records = allRecords.filter(
+    (record) => Number(record.periodStart.slice(0, 4)) <= currentYear
+  );
 
   const currentYearRecords = records.filter(
     (record) => record.periodStart.startsWith(String(currentYear))
@@ -1130,7 +1141,7 @@ export async function generateForecast() {
     })
   );
 
-  const filters = buildForecastFilters(records, daily);
+  const filters = buildForecastFilters(allRecords, daily);
 
     return {
       model: selected.label,
