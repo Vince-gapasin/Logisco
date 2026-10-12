@@ -773,10 +773,69 @@ export async function mechanicReport(
   }
 
   const now = new Date().toISOString();
+
+  // Claimed before anything is done, so a report sent twice - a double tap, a
+  // retry over a slow connection - is acted on once. Without this, the second
+  // could find the trip already resumed and take that for the crew having
+  // been given another trip: the truck set Available while it was out on the
+  // delivery, and the job reopened for dispatch. Assigning a mechanic clears
+  // mechanicRespondedAt, so it is free again for each assignment.
+  const { data: claimed, error: claimError } = await supabase
+    .from("FoulTripIncident")
+    .update({ mechanicRespondedAt: now })
+    .eq("incidentID", incidentID)
+    .eq("status", INCIDENT_STATUS.mechanicAssigned)
+    .eq("mechanicID", mechanicID)
+    .is("mechanicRespondedAt", null)
+    .select("incidentID")
+    .maybeSingle();
+  if (claimError) throw new Error(claimError.message);
+  if (!claimed) throw new FoulTripError("This roadside job has already been reported.", 409);
+
+  // Until something has changed, a failure gives the job back so the report
+  // can be sent again. After that it stays claimed: sending it again would act
+  // on a trip that has already moved.
+  const progress = { changed: false };
+  try {
+    return await reportClaimed(incident, mechanicID, report, now, progress);
+  } catch (error) {
+    if (!progress.changed) {
+      const { error: releaseError } = await supabase
+        .from("FoulTripIncident")
+        .update({ mechanicRespondedAt: null })
+        .eq("incidentID", incidentID)
+        .eq("mechanicRespondedAt", now);
+      if (releaseError) console.error("[Roadside] could not release the job:", releaseError.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Sets the truck's status for a roadside verdict. A failure does not undo the
+ * verdict - the trip has already moved - so it is said on the job instead,
+ * where the office will see it, and the truck is left for them to set.
+ */
+async function setRoadsideTruckStatus(truckID: string, status: string): Promise<string | null> {
+  const { error } = await supabase.from("Truck").update({ truckStatus: status }).eq("truckID", truckID);
+  if (!error) return null;
+  console.error("[Roadside] truck status not updated:", error.message);
+  return `The truck's status could not be updated - set it to ${status} by hand.`;
+}
+
+async function reportClaimed(
+  incident: IncidentRow,
+  mechanicID: string,
+  report: { outcome: "fixed" | "not_fixable"; notes?: string | null },
+  now: string,
+  progress: { changed: boolean },
+) {
+  const incidentID = incident.incidentID;
   const noteLine = report.notes?.trim() ? `Mechanic: ${report.notes.trim()}` : null;
   const mechanicNotes = [incident.mechanicNotes, noteLine].filter(Boolean).join("\n") || null;
 
   if (report.outcome === "not_fixable") {
+    progress.changed = true;
     const { error } = await supabase
       .from("FoulTripIncident")
       .update({ status: INCIDENT_STATUS.open, mechanicOutcome: "not_fixable", mechanicRespondedAt: now, mechanicNotes })
@@ -815,7 +874,7 @@ export async function mechanicReport(
         .in("status", ACTIVE_DELIVERY_STATUSES)
         .neq("dispatchID", dispatch.dispatchID)
         .or(ownerFilters.join(","))
-    : { data: [] as unknown[] };
+    : { data: [] as unknown[], error: null };
   const busyHelpers = crew.length > 1
     ? await supabase
         .from("DispatchHelper")
@@ -823,16 +882,24 @@ export async function mechanicReport(
         .in("helperID", crew.slice(1))
         .neq("dispatchID", dispatch.dispatchID)
         .in("DispatchOrder.status", ACTIVE_DELIVERY_STATUSES)
-    : { data: [] as unknown[] };
+    : { data: [] as unknown[], error: null };
+  // A failed read is not "nobody is busy": resuming on it could put a crew on
+  // two trips at once.
+  if (busy.error || busyHelpers.error) throw new Error("Failed to check whether the crew is on another trip.");
 
   const crewElsewhere = (busy.data?.length ?? 0) > 0 || ((busyHelpers.data as unknown[] | null)?.length ?? 0) > 0;
 
   const truckStatusBefore = dispatch.truckID ? await truckStatusOf(dispatch.truckID) : null;
 
   if (dispatch.status !== DELIVERY_STATUS.foulTrip || crewElsewhere) {
+    progress.changed = true;
+    // Only logged when it happened: the log says what the truck now is.
+    let truckProblem: string | null = null;
     if (dispatch.truckID) {
-      await supabase.from("Truck").update({ truckStatus: TRUCK_STATUS.available }).eq("truckID", dispatch.truckID);
-      await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.available, report.notes?.trim() || null);
+      truckProblem = await setRoadsideTruckStatus(dispatch.truckID, TRUCK_STATUS.available);
+      if (!truckProblem) {
+        await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.available, report.notes?.trim() || null);
+      }
     }
     const { error } = await supabase
       .from("FoulTripIncident")
@@ -840,7 +907,7 @@ export async function mechanicReport(
         status: INCIDENT_STATUS.open,
         mechanicOutcome: "fixed",
         mechanicRespondedAt: now,
-        mechanicNotes: [mechanicNotes, "Truck repaired, but its crew has since been given another trip - re-assign."]
+        mechanicNotes: [mechanicNotes, "Truck repaired, but its crew has since been given another trip - re-assign.", truckProblem]
           .filter(Boolean)
           .join("\n"),
       })
@@ -866,10 +933,14 @@ export async function mechanicReport(
     .maybeSingle();
   if (resumeError) throw new Error(`Failed to resume the trip: ${resumeError.message}`);
   if (!resumed) throw new FoulTripError("The trip changed while you were reporting. Refresh and try again.", 409);
+  progress.changed = true;
 
+  let truckProblem: string | null = null;
   if (dispatch.truckID) {
-    await supabase.from("Truck").update({ truckStatus: TRUCK_STATUS.onDelivery }).eq("truckID", dispatch.truckID);
-    await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.onDelivery, report.notes?.trim() || null);
+    truckProblem = await setRoadsideTruckStatus(dispatch.truckID, TRUCK_STATUS.onDelivery);
+    if (!truckProblem) {
+      await recordRoadsideVerdict(dispatch.truckID, mechanicID, "fixed", truckStatusBefore, TRUCK_STATUS.onDelivery, report.notes?.trim() || null);
+    }
   }
   // The crew are back on this trip; that they are busy again follows from the
   // trip itself, which is what the employee screens read.
@@ -881,7 +952,7 @@ export async function mechanicReport(
       resolution: RESOLUTION.repairedOnSite,
       mechanicOutcome: "fixed",
       mechanicRespondedAt: now,
-      mechanicNotes,
+      mechanicNotes: [mechanicNotes, truckProblem].filter(Boolean).join("\n") || null,
       resolvedAt: now,
       resolvedBy: mechanicID,
     })

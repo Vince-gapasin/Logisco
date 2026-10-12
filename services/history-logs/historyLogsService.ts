@@ -64,15 +64,18 @@ function buildChildren(logID: string, body: LogBody) {
   return { LogMechanics: mechanics, LogNotes: notes, LogPhotos: photos };
 }
 
-async function insertChildren(logID: string, body: LogBody) {
+// `inserted` collects the ids of the rows written, table by table, so a
+// failure part-way can take back the ones that did go in.
+async function insertChildren(logID: string, body: LogBody, inserted: Partial<Record<string, string[]>> = {}) {
   const children: Record<(typeof CHILD_TABLES)[number], Record<string, unknown>[]> = buildChildren(logID, body);
 
   for (const table of CHILD_TABLES) {
     const rows = children[table];
     if (rows.length === 0) continue;
 
-    const { error } = await supabase.from(table).insert(rows);
+    const { data, error } = await supabase.from(table).insert(rows).select("id");
     if (error) throw new Error(`Failed to save ${table}: ${error.message}`);
+    inserted[table] = ((data ?? []) as { id: string }[]).map((row) => row.id);
   }
 }
 
@@ -236,7 +239,20 @@ export async function updateHistoryLog(id: string, body: LogBody) {
       .map((row) => row.id);
   }
 
-  await insertChildren(id, body);
+  // A failure part-way used to leave the replacements already written beside
+  // the rows they were replacing, and the log then showed whichever came
+  // back first. The ones written are taken back, so the log is as it was.
+  const inserted: Partial<Record<string, string[]>> = {};
+  try {
+    await insertChildren(id, body, inserted);
+  } catch (insertError) {
+    for (const [table, ids] of Object.entries(inserted)) {
+      if (!ids?.length) continue;
+      const { error: undoError } = await supabase.from(table).delete().in("id", ids);
+      if (undoError) console.error(`History log edit: could not take back ${table}:`, undoError.message);
+    }
+    throw insertError;
+  }
 
   for (const table of CHILD_TABLES) {
     if (oldIds[table].length === 0) continue;

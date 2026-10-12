@@ -82,4 +82,22 @@ describe("editing a log", () => {
     // Only the old Final photo goes; the Preliminary one stays.
     expect(photoDelete?.chain).toContain("in");
   });
+
+  it("is taken back when it fails part-way, rather than leaving two of everything", async () => {
+    existingLog([]);
+    db.queue(
+      { data: [{ id: "mech-new" }] }, // LogMechanics insert
+      { data: null, error: { message: "down" } }, // LogNotes insert fails
+    );
+
+    await expect(
+      updateHistoryLog(LOG, { date: "2026-10-03", primaryMechanicID: "m1", issue: "Replaced the fan belt" }),
+    ).rejects.toThrow("Failed to save LogNotes");
+
+    // The new mechanic row goes; the old rows are left as they were.
+    const deletes = db.writes.filter((write) => write.chain.includes("delete")).map((write) => write.table);
+    expect(deletes).toEqual(["LogMechanics"]);
+    const undo = db.calls.find((call) => call.table === "LogMechanics" && call.chain.includes("delete"));
+    expect(undo?.chain).toContain("in");
+  });
 });
