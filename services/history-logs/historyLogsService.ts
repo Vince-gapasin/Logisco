@@ -1,5 +1,6 @@
 import { supabase } from "@/app/lib/supabase";
 import { selectAll } from "@/app/lib/selectAll";
+import { mayWorkOnLog, mayWorkOnTruck, type RepairLog } from "@/app/lib/repairAccess";
 
 // A maintenance history log is one HistoryLogsM row plus child rows in
 // LogMechanics, LogNotes and LogPhotos (one per phase). supabase-js has no
@@ -244,6 +245,46 @@ export async function updateHistoryLog(id: string, body: LogBody) {
   }
 
   return { id };
+}
+
+// A truck's logs as the repair-access rule reads them, oldest first.
+async function repairLogsOf(truckID: string): Promise<RepairLog[]> {
+  const rows = await selectAll<RawLog>((from, to) =>
+    supabase
+      .from("HistoryLogsM")
+      .select("id,statusBefore,statusAfter,LogMechanics(role,employeeID)")
+      .eq("truckID", truckID)
+      .order("created_at", { ascending: true })
+      .order("id")
+      .range(from, to),
+  );
+  return rows.map((log) => ({
+    id: String(log.id),
+    statusBefore: log.statusBefore,
+    statusAfter: log.statusAfter,
+    primaryMechanicID: log.LogMechanics?.find((m) => m.role === "Primary")?.employeeID ?? null,
+    additionalMechanicID: log.LogMechanics?.find((m) => m.role === "Additional")?.employeeID ?? null,
+  }));
+}
+
+/** Whether this mechanic may change the truck - see mayWorkOnTruck. */
+export async function mechanicMayWorkOnTruck(truckID: string, employeeID: string) {
+  const { data: truck, error } = await supabase.from("Truck").select("truckStatus").eq("truckID", truckID).maybeSingle();
+  if (error) throw new Error(`Failed to read the truck: ${error.message}`);
+  // A truck that is not there is for the route to report, not refuse.
+  if (!truck) return true;
+  const logs = await repairLogsOf(truckID);
+  return mayWorkOnTruck(truck.truckStatus, logs.at(-1) ?? null, employeeID);
+}
+
+/** Whether this mechanic may edit or delete the log - see mayWorkOnLog. */
+export async function mechanicMayWorkOnLog(logID: string, employeeID: string) {
+  const { data: log, error } = await supabase.from("HistoryLogsM").select("truckID").eq("id", logID).maybeSingle();
+  if (error) throw new Error(`Failed to read the log: ${error.message}`);
+  if (!log) return true;
+  // A log whose truck is gone has no repair left to belong to anyone.
+  if (!log.truckID) return true;
+  return mayWorkOnLog(await repairLogsOf(log.truckID), logID, employeeID);
 }
 
 export async function deleteHistoryLog(id: string) {

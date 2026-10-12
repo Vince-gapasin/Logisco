@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
+import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 import {
   createHistoryLog,
   getHistoryLogs,
+  mechanicMayWorkOnTruck,
   validateHistoryLog,
 } from "@/services/history-logs/historyLogsService";
 
@@ -20,7 +22,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -36,6 +38,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    // A truck under another mechanic's repair is theirs to log.
+    if (
+      auth.employee.role === EMPLOYEE_ROLE.mechanic &&
+      !(await mechanicMayWorkOnTruck(String(body.truckID), auth.employee.employeeID))
+    ) {
+      return NextResponse.json({ message: "This truck is under another mechanic's repair." }, { status: 403 });
+    }
+
     const newLog = await createHistoryLog(body);
     return NextResponse.json({ message: "Log created successfully", data: newLog }, { status: 201 });
   } catch (error) {

@@ -1,15 +1,27 @@
 import { NextResponse } from "next/server";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
+import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 import {
   deleteHistoryLog,
+  mechanicMayWorkOnLog,
   updateHistoryLog,
   validateHistoryLog,
 } from "@/services/history-logs/historyLogsService";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+type Auth = Awaited<ReturnType<typeof authorize>>["auth"];
+
+// A log on another mechanic's repair is theirs to change. The office may
+// change any.
+async function refusedLog(auth: Auth, id: string) {
+  if (!auth || auth.employee.role !== EMPLOYEE_ROLE.mechanic) return null;
+  if (await mechanicMayWorkOnLog(id, auth.employee.employeeID)) return null;
+  return NextResponse.json({ message: "This log is on another mechanic's repair." }, { status: 403 });
+}
+
 export async function PUT(request: Request, { params }: RouteContext) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   let body: Record<string, unknown>;
@@ -26,6 +38,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    const refused = await refusedLog(auth, id);
+    if (refused) return refused;
+
     const updatedLog = await updateHistoryLog(id, body);
     return NextResponse.json({ message: "Log updated successfully", data: updatedLog }, { status: 200 });
   } catch (error) {
@@ -39,11 +54,14 @@ export async function PUT(request: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(request: Request, { params }: RouteContext) {
-  const { response } = await authorize(request, FLEET_ROLES);
+  const { auth, response } = await authorize(request, FLEET_ROLES);
   if (response) return response;
 
   try {
     const { id } = await params;
+    const refused = await refusedLog(auth, id);
+    if (refused) return refused;
+
     await deleteHistoryLog(id);
     return NextResponse.json({ message: "Log deleted successfully" }, { status: 200 });
   } catch (error) {

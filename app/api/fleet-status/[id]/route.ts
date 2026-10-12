@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auditActor, recordAudit } from "@/services/audit/auditService";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
-import { TRUCK_STATUS } from "@/app/lib/enums";
+import { EMPLOYEE_ROLE, TRUCK_STATUS } from "@/app/lib/enums";
+import { mechanicMayWorkOnTruck } from "@/services/history-logs/historyLogsService";
 import {
   announceTruckStatus,
   deleteTruck,
@@ -15,6 +16,16 @@ import {
 } from "@/services/truck/truckService";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+type Auth = NonNullable<Awaited<ReturnType<typeof authorize>>["auth"]>;
+
+// A truck under another mechanic's repair is theirs to change. The office may
+// change any.
+async function refusedTruck(auth: Auth, id: string) {
+  if (auth.employee.role !== EMPLOYEE_ROLE.mechanic) return null;
+  if (await mechanicMayWorkOnTruck(id, auth.employee.employeeID)) return null;
+  return NextResponse.json({ message: "This truck is under another mechanic's repair." }, { status: 403 });
+}
 
 export async function GET(request: Request, { params }: RouteContext) {
   const { response } = await authorize(request, FLEET_ROLES);
@@ -85,6 +96,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    const refused = await refusedTruck(auth, id);
+    if (refused) return refused;
+
     const before = await getTruckById(id);
 
     // The status is dispatch's while a trip holds the truck. "On Delivery" is
@@ -235,6 +249,8 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    const refused = await refusedTruck(auth, id);
+    if (refused) return refused;
 
     // A truck out on a delivery is carrying somebody's goods; retiring it
     // would strand the trip. It has to come back first.

@@ -305,11 +305,12 @@ export default function MechanicFleetStatusPage({
     return body?.message || fallback;
   };
 
+  /** Says whether the server took the change; it has shown why if not. */
   const executeStatusUpdate = async (
     truckRecord: TruckRecord,
     newStatus: string,
     { logOpened = false }: { logOpened?: boolean } = {},
-  ) => {
+  ): Promise<boolean> => {
     // Grabs the local date in YYYY-MM-DD format, ignoring UTC shifts
     const offset = new Date().getTimezoneOffset() * 60000;
     const today = new Date(Date.now() - offset).toISOString().split("T")[0];
@@ -331,7 +332,7 @@ export default function MechanicFleetStatusPage({
 
       if (!response.ok) {
         showToast(await serverMessage(response, "Failed to update the truck's status."), "error");
-        return;
+        return false;
       }
 
       {
@@ -356,9 +357,11 @@ export default function MechanicFleetStatusPage({
 
         showToast("Status updated successfully.", "success");
       }
+      return true;
     } catch (error) {
       console.error("Error updating status:", error);
       showToast("Failed to update status on server.", "error");
+      return false;
     }
   };
 
@@ -595,8 +598,22 @@ export default function MechanicFleetStatusPage({
       // The log is saved; now the status change it was written for. It goes
       // with logOpened, so grounding the truck does not open a second, empty
       // log beside this one.
+      //
+      // A log written for a change the server then refused - the truck went
+      // out on a booking after this list loaded - would say the truck was
+      // grounded when it is not, and make the repair look under way. A new
+      // log goes again, and the form stays open with what was typed.
       if (statusConfirmTruck && pendingStatusTarget) {
-        await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget, { logOpened: true });
+        const changed = await executeStatusUpdate(statusConfirmTruck, pendingStatusTarget, { logOpened: true });
+        if (!changed) {
+          if (!editingHistoryRecord && savedID) {
+            await authFetch(`/api/historyLogsM/${savedID}`, { method: "DELETE" }).catch((error) =>
+              console.error("Could not remove the log for the refused change:", error),
+            );
+          }
+          await Promise.all([fetchLogs(), fetchTrucks()]);
+          return;
+        }
       }
       await fetchLogs();
       showToast(
