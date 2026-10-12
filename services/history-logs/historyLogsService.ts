@@ -1,6 +1,13 @@
 import { supabase } from "@/app/lib/supabase";
 import { selectAll } from "@/app/lib/selectAll";
 import { mayWorkOnLog, mayWorkOnTruck, type RepairLog } from "@/app/lib/repairAccess";
+import {
+  checkRepairPhoto,
+  parseRepairPhotoReport,
+  photoHash,
+  PHOTO_PHASES,
+  type PhotoMeta,
+} from "@/services/history-logs/repairPhotoCheck";
 
 // A maintenance history log is one HistoryLogsM row plus child rows in
 // LogMechanics, LogNotes and LogPhotos (one per phase). supabase-js has no
@@ -22,6 +29,9 @@ interface PhaseRow {
   partsUsed?: string | null;
   photoUrl?: string | null;
   caption?: string | null;
+  checkStatus?: string | null;
+  captureMethod?: string | null;
+  checkLabels?: PhotoMeta["checkLabels"];
 }
 interface MechanicRow {
   role?: string | null;
@@ -56,10 +66,14 @@ function buildChildren(logID: string, body: LogBody) {
   if (body.progressRemarks || body.additionalIssue) notes.push({ logID, phase: "Progress", issue: body.additionalIssue, remarks: body.progressRemarks });
   if (body.remarks || body.issue) notes.push({ logID, phase: "Final", issue: body.issue, remarks: body.remarks });
 
+  // A photo checked by checkLogPhotos carries what the check found; one
+  // written without it (a log the server opens itself) has none.
   const photos = [];
-  if (body.preliminaryPhotoUrl) photos.push({ logID, phase: "Preliminary", photoUrl: body.preliminaryPhotoUrl });
-  if (body.progressPhotoUrl) photos.push({ logID, phase: "Progress", photoUrl: body.progressPhotoUrl });
-  if (body.photoUrl) photos.push({ logID, phase: "Final", photoUrl: body.photoUrl });
+  for (const { phase, photo } of PHOTO_PHASES) {
+    if (!body[photo]) continue;
+    const meta = body[`${photo}Meta`] as PhotoMeta | undefined;
+    photos.push({ logID, phase, photoUrl: body[photo], ...(meta ?? {}) });
+  }
 
   return { LogMechanics: mechanics, LogNotes: notes, LogPhotos: photos };
 }
@@ -86,6 +100,18 @@ export function validateHistoryLog(body: LogBody, isCreate: boolean): string | n
   return null;
 }
 
+/** A photo's check, as the screens show it. Null for a photo from before the check. */
+function photoCheckOf(row: PhaseRow | undefined) {
+  if (!row?.checkStatus) return null;
+  return {
+    status: row.checkStatus,
+    method: row.captureMethod ?? null,
+    topLabels: row.checkLabels?.topLabels ?? [],
+    score: row.checkLabels?.score ?? null,
+    notes: row.checkLabels?.notes ?? [],
+  };
+}
+
 export async function getHistoryLogs() {
   // Paged: PostgREST stops at 1,000 rows without saying so, and the history
   // only grows.
@@ -95,7 +121,7 @@ export async function getHistoryLogs() {
       .select(
         // LogPhotos.photoUrl holds a base64 image: fetch only the phase here so
         // the list stays small, and load images through getLogPhotos on demand.
-        "id,truckID,date,statusBefore,statusAfter,created_at,plateNumber,truckType,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase)",
+        "id,truckID,date,statusBefore,statusAfter,created_at,plateNumber,truckType,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase,checkStatus,captureMethod,checkLabels)",
       )
       .order("created_at", { ascending: false })
       .order("id")
@@ -140,6 +166,10 @@ export async function getHistoryLogs() {
       hasPreliminaryPhoto: Boolean(prelimPhoto),
       hasProgressPhoto: Boolean(progPhoto),
       hasFinalPhoto: Boolean(finalPhoto),
+      // What the photo check found, per phase, for the office.
+      preliminaryPhotoCheck: photoCheckOf(prelimPhoto),
+      progressPhotoCheck: photoCheckOf(progPhoto),
+      photoCheck: photoCheckOf(finalPhoto),
       preliminaryPhotoUrl: null,
       progressPhotoUrl: null,
       photoUrl: null,
@@ -171,6 +201,86 @@ export async function getLogPhotos(
   }
 
   return byLog;
+}
+
+/**
+ * Checks the photos a log is being saved with, before anything is written, and
+ * leaves on the body what each check found for buildChildren to store.
+ *
+ * `requirePhotos`: every phase the log fills must have a photo - a mechanic's
+ * log. `logID`: the log being edited. Its own photos are not "already used",
+ * and one sent back unchanged (the edit form sends what it loaded) is taken
+ * out of the body, so the photo on file stays with what its check found.
+ *
+ * Null when the log may be saved; otherwise what to answer.
+ */
+export async function checkLogPhotos(
+  body: LogBody,
+  { requirePhotos, logID = null }: { requirePhotos: boolean; logID?: string | null },
+): Promise<{ status: number; message: string } | null> {
+  // What a check found is the server's to write, never the caller's.
+  for (const { photo } of PHOTO_PHASES) delete body[`${photo}Meta`];
+
+  const filled = (phase: (typeof PHOTO_PHASES)[number]) => phase.text.some((field) => body[field]);
+
+  let onFile: { phase: string; photoUrl: string | null }[] = [];
+  if (logID) {
+    const { data, error } = await supabase.from("LogPhotos").select("phase, photoUrl").eq("logID", logID);
+    if (error) throw new Error(`Failed to read the log's photos: ${error.message}`);
+    onFile = (data ?? []) as typeof onFile;
+  }
+
+  const toCheck: (typeof PHOTO_PHASES)[number][] = [];
+  for (const phase of PHOTO_PHASES) {
+    const sent = typeof body[phase.photo] === "string" ? (body[phase.photo] as string) : "";
+    const kept = onFile.find((row) => row.phase === phase.phase);
+    if (sent && kept?.photoUrl === sent) {
+      delete body[phase.photo];
+      continue;
+    }
+    if (sent) toCheck.push(phase);
+    // An edit keeps the phase's photo when none is sent; a log that never had
+    // one (written before photos were required) is not made to get one now.
+    else if (requirePhotos && !logID && filled(phase)) {
+      return { status: 400, message: `A photo is required for the ${phase.label}.` };
+    }
+  }
+  if (toCheck.length === 0) return null;
+
+  const hashes = toCheck.map((phase) => photoHash(body[phase.photo] as string));
+  let sameFileQuery = supabase.from("LogPhotos").select("imageHash").in("imageHash", hashes);
+  let earlierQuery = supabase
+    .from("LogPhotos")
+    .select("imageDHash")
+    .not("imageDHash", "is", null)
+    .order("capturedAt", { ascending: false, nullsFirst: false })
+    .limit(1000);
+  if (logID) {
+    sameFileQuery = sameFileQuery.neq("logID", logID);
+    earlierQuery = earlierQuery.neq("logID", logID);
+  }
+  const [sameFile, earlier] = await Promise.all([sameFileQuery, earlierQuery]);
+  if (sameFile.error) throw new Error(`Failed to check the photo: ${sameFile.error.message}`);
+  if (earlier.error) throw new Error(`Failed to check the photo: ${earlier.error.message}`);
+
+  const usedHashes = new Set(((sameFile.data ?? []) as { imageHash: string }[]).map((row) => row.imageHash));
+  const earlierHashes = ((earlier.data ?? []) as { imageDHash: string | null }[])
+    .map((row) => row.imageDHash)
+    .filter((hash): hash is string => Boolean(hash));
+
+  const now = Date.now();
+  for (const [i, phase] of toCheck.entries()) {
+    const check = checkRepairPhoto({
+      dataUrl: body[phase.photo] as string,
+      report: parseRepairPhotoReport(body[phase.report]),
+      now,
+      sameFileUsed: usedHashes.has(hashes[i]),
+      earlierHashes,
+    });
+    if (check.refusal) return { status: 422, message: check.refusal };
+    body[`${phase.photo}Meta`] = check.meta;
+  }
+  return null;
 }
 
 export async function createHistoryLog(body: LogBody) {
@@ -224,7 +334,7 @@ export async function updateHistoryLog(id: string, body: LogBody) {
   // sent every photo as empty, and replacing them wholesale deleted them all.
   // There is no way to remove a photo from the form, so a phase left empty
   // keeps what it had.
-  const sentPhotoPhases = new Set(buildChildren(id, body).LogPhotos.map((row) => row.phase));
+  const sentPhotoPhases = new Set<string>(buildChildren(id, body).LogPhotos.map((row) => row.phase));
 
   const oldIds: Record<string, string[]> = {};
   for (const table of CHILD_TABLES) {

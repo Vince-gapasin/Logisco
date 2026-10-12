@@ -1,6 +1,5 @@
 "use client";
 
-import { compressImageToDataUrl } from "@/app/lib/imageCompression";
 import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/Toast";
 import {
@@ -12,6 +11,7 @@ import {
 import type { EmployeeOption, HistoryLogRecord, TruckOption } from "./types";
 import { formatInputDate } from "./dates";
 import { ImageModal } from "./ImageModal";
+import { captureMethod, checkRepairPhoto, loadRepairPhotoModel } from "./repairPhotoCheck";
 
 // ==========================================
 // LOG MAINTENANCE MODAL (ADD/EDIT LOGS)
@@ -53,6 +53,10 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     additionalIssue: "",
     progressRemarks: "",
     progressPhotoUrl: "",
+    // What the photo check found, sent with the photo for the server to keep.
+    preliminaryPhotoReport: "",
+    progressPhotoReport: "",
+    photoReport: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -64,6 +68,14 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
   const [isAdditionalDropdownOpen, setIsAdditionalDropdownOpen] =
     useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // While the picture is being looked at; saving waits for it.
+  const [checkingPhoto, setCheckingPhoto] = useState(false);
+
+  // The model is ~14 MB: started as the form opens, so it is usually ready by
+  // the time a photo is taken. A failure here is retried on the photo itself.
+  useEffect(() => {
+    if (isOpen) void loadRepairPhotoModel().catch(() => undefined);
+  }, [isOpen]);
 
   // 1. Convert to state
   const [today, setToday] = useState("");
@@ -83,13 +95,17 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
       issue: "driversReport",
       remarks: "preliminaryRemarks",
       photo: "preliminaryPhotoUrl",
+      report: "preliminaryPhotoReport",
+      hasPhoto: "hasPreliminaryPhoto",
     },
     update: {
       issue: "additionalIssue",
       remarks: "progressRemarks",
       photo: "progressPhotoUrl",
+      report: "progressPhotoReport",
+      hasPhoto: "hasProgressPhoto",
     },
-    log: { issue: "issue", remarks: "remarks", photo: "photoUrl" },
+    log: { issue: "issue", remarks: "remarks", photo: "photoUrl", report: "photoReport", hasPhoto: "hasFinalPhoto" },
   };
   const activeFields = fieldMapping[formType] || fieldMapping.log;
 
@@ -162,18 +178,41 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Stored as a data URL in LogPhotos, so keep it small.
-      compressImageToDataUrl(file)
-        .then((dataUrl) =>
-          setFormData((prev) => ({
-            ...prev,
-            [activeFields.photo]: dataUrl,
-          })),
-        )
-        .catch(() => showToast("Could not read that image. Please choose a different photo.", "error"));
+  // Every photo is looked at on this device before it can be saved: it has to
+  // show a truck, a part of one, or the work on it (app/lib/repairPhoto.ts).
+  // One that does not is dropped and the mechanic takes another.
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    // So the same picture can be picked again after a refusal.
+    input.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setErrors((prev) => ({ ...prev, [activeFields.photo]: "Please choose an image." }));
+      return;
+    }
+
+    setCheckingPhoto(true);
+    setErrors((prev) => ({ ...prev, [activeFields.photo]: "" }));
+    try {
+      const checked = await checkRepairPhoto(file);
+      if (checked.verdict?.verdict === "refused") {
+        setFormData((prev) => ({ ...prev, [activeFields.photo]: "", [activeFields.report]: "" }));
+        setErrors((prev) => ({ ...prev, [activeFields.photo]: checked.verdict?.reason ?? "This photo was not accepted." }));
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        [activeFields.photo]: checked.dataUrl,
+        [activeFields.report]: JSON.stringify(checked.report),
+      }));
+      if (!checked.report.checked) {
+        showToast("The photo could not be checked on this device. It will be saved for the office to review.", "info");
+      }
+    } catch {
+      showToast("Could not read that image. Please take or choose a different photo.", "error");
+    } finally {
+      setCheckingPhoto(false);
     }
   };
 
@@ -200,6 +239,18 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
             : "Work performed is required.";
     }
 
+    // Required - a log the office writes may leave it out. When editing, the
+    // photo already on the log counts.
+    const hasPhoto =
+      Boolean(formData[activeFields.photo]) ||
+      Boolean(editData && (editData as unknown as Record<string, unknown>)[activeFields.hasPhoto]);
+    if (!hasPhoto && !chooseMechanic) {
+      newErrors[activeFields.photo] = "A photo is required.";
+    }
+    if (checkingPhoto) {
+      newErrors[activeFields.photo] = "Wait for the photo check to finish.";
+    }
+
     if (
       formData.additionalMechanicID &&
       formData.additionalMechanicID === formData.primaryMechanicID
@@ -213,6 +264,10 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     }
     onSubmitSuccess(formData);
   };
+
+  const inApp = captureMethod() === "camera";
+  const photoLabel = (hasOne: boolean) =>
+    inApp ? (hasOne ? "Retake Photo" : "Take Photo") : hasOne ? "Change Photo" : "Choose Photo";
 
   const availableAdditionalMechanics = mechanicsOptions.filter(
     (emp) => String(emp.employeeID) !== String(formData.primaryMechanicID),
@@ -480,34 +535,43 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
             </div>
             <div>
               <label className="block text-xs font-medium text-black mb-1">
-                {editData
-                  ? "Update Maintenance Photo"
-                  : "Upload Maintenance Photo (Optional)"}
+                {editData ? "Update Maintenance Photo" : "Maintenance Photo"}
+                {!chooseMechanic && " *"}
               </label>
+              <p className="text-xs sm:text-[11px] text-slate-500 mb-1">
+                A photo of the truck or the work on it. It is checked on this device before it can be saved.
+              </p>
               <div className="flex items-center gap-3 mt-1">
                 <button
                   type="button"
+                  disabled={checkingPhoto}
                   onClick={() => fileInputRef.current?.click()}
-                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  className="disabled:opacity-60 disabled:cursor-wait min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
                 >
-                  <Upload className="w-4 h-4" />{" "}
-                  {formData[activeFields.photo]
-                    ? "Change File"
-                    : "Choose File"}
+                  {checkingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{" "}
+                  {photoLabel(Boolean(formData[activeFields.photo]))}
                 </button>
-                <span className="text-xs text-slate-500 truncate max-w-xs">
-                  {formData[activeFields.photo]
-                    ? "Photo attached successfully"
-                    : "No file chosen"}
+                <span className="text-xs text-slate-500 truncate max-w-xs" aria-live="polite">
+                  {checkingPhoto
+                    ? "Checking photo…"
+                    : formData[activeFields.photo]
+                      ? "Photo checked and attached"
+                      : "No photo yet"}
                 </span>
+                {/* In the app, straight from the camera: a photo taken now,
+                    at the truck, not one from the gallery. */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleFileChange}
+                  capture={inApp ? "environment" : undefined}
+                  onChange={(event) => void handleFileChange(event)}
                   className="hidden"
                 />
               </div>
+              {errors[activeFields.photo] && (
+                <p role="alert" className="text-red-500 text-xs sm:text-[11px] mt-1">{errors[activeFields.photo]}</p>
+              )}
               {formData[activeFields.photo] && (
                 <div className="mt-3 relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
                   <img

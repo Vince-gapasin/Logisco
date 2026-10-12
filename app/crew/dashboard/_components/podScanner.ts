@@ -17,12 +17,12 @@ import { Capacitor } from "@capacitor/core";
 import { DocumentScanner } from "@capacitor-mlkit/document-scanner";
 import { TextRecognition } from "@capacitor-mlkit/text-recognition";
 import { compressImage } from "@/app/lib/imageCompression";
+import { grayscale } from "@/app/lib/imageHash";
 import {
   differenceHash,
   evaluateScan,
   nameAppearsIn,
   NAME_NOT_FOUND,
-  type GrayImage,
   type OcrLine,
   type PodScanReport,
   type Rect,
@@ -120,28 +120,6 @@ function toRect(box: { left: number; top: number; right: number; bottom: number 
   return { left: box.left * scale, top: box.top * scale, right: box.right * scale, bottom: box.bottom * scale };
 }
 
-async function grayscale(blob: Blob): Promise<{ image: GrayImage; scale: number }> {
-  const bitmap = await createImageBitmap(blob);
-  const scale = Math.min(1, ANALYSIS_WIDTH / bitmap.width);
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("This phone could not read the scan.");
-  context.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  const rgba = context.getImageData(0, 0, width, height).data;
-  const data = new Uint8Array(width * height);
-  for (let i = 0; i < data.length; i++) {
-    data[i] = Math.round(0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2]);
-  }
-  return { image: { width, height, data }, scale };
-}
-
 /**
  * Scan the receipt and check it. Null when the crew backed out of the scanner.
  */
@@ -173,7 +151,7 @@ export async function scanPod(receiverName: string): Promise<ScannedPod | null> 
     TextRecognition.processImage({ path: uri }),
   ]);
   const blob = await response.blob();
-  const { image, scale } = await grayscale(blob);
+  const { image, scale } = await grayscale(blob, ANALYSIS_WIDTH);
 
   // The reader measures in the full-size page; the analysis copy is smaller.
   const lines: OcrLine[] = ocr.blocks.flatMap((block) =>

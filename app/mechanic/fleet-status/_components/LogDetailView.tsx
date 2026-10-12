@@ -12,6 +12,7 @@ import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { HistoryLogRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
+import { PhotoCheckBadge } from "./PhotoCheckBadge";
 
 // ==========================================
 // HISTORY LOG DETAIL VIEW (Displays consolidated maintenance cycle)
@@ -126,8 +127,8 @@ export function LogDetailView({
     ));
 
   const combinedPhotos = sortedProgressLogs
-    .map((u) => u.progressPhotoUrl)
-    .filter(Boolean);
+    .filter((u) => u.progressPhotoUrl)
+    .map((u) => ({ url: u.progressPhotoUrl as string, check: u.progressPhotoCheck }));
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -284,6 +285,7 @@ export function LogDetailView({
                               className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                             />
                           </div>
+                          <PhotoCheckBadge check={pLog.preliminaryPhotoCheck} />
                         </div>
                       )}
                     </div>
@@ -325,17 +327,17 @@ export function LogDetailView({
                       Attachment/s ({combinedPhotos.length})
                     </label>
                     <div className="flex flex-wrap gap-3">
-                      {combinedPhotos.map((url, idx) => (
-                        <div
-                          key={idx}
-                          className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs"
-                        >
-                          <img
-                            src={url as string}
-                            alt={`Progress Evidence ${idx + 1}`}
-                            onClick={() => setZoomedImage(url as string)}
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                          />
+                      {combinedPhotos.map(({ url, check }, idx) => (
+                        <div key={idx}>
+                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+                            <img
+                              src={url}
+                              alt={`Progress Evidence ${idx + 1}`}
+                              onClick={() => setZoomedImage(url)}
+                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                            />
+                          </div>
+                          <PhotoCheckBadge check={check} />
                         </div>
                       ))}
                     </div>
@@ -389,6 +391,7 @@ export function LogDetailView({
                               className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                             />
                           </div>
+                          <PhotoCheckBadge check={fLog.photoCheck} />
                         </div>
                       )}
                     </div>

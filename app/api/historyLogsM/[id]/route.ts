@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 import {
+  checkLogPhotos,
   deleteHistoryLog,
   mechanicMayWorkOnLog,
   updateHistoryLog,
@@ -40,6 +41,13 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const { id } = await params;
     const refused = await refusedLog(auth, id);
     if (refused) return refused;
+
+    // Only a new photo is checked; one sent back unchanged keeps what it had.
+    const photoProblem = await checkLogPhotos(body, {
+      requirePhotos: auth?.employee.role === EMPLOYEE_ROLE.mechanic,
+      logID: id,
+    });
+    if (photoProblem) return NextResponse.json({ message: photoProblem.message }, { status: photoProblem.status });
 
     const updatedLog = await updateHistoryLog(id, body);
     return NextResponse.json({ message: "Log updated successfully", data: updatedLog }, { status: 200 });

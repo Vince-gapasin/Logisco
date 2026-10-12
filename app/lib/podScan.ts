@@ -18,6 +18,11 @@
 //
 // Pure functions over plain data, so they run in the crew app and in tests.
 
+import { differenceHash, hammingDistance, type GrayImage } from "@/app/lib/imageHash";
+
+// The fingerprint helpers live in imageHash.ts, shared with the repair photos.
+export { differenceHash, hammingDistance, type GrayImage };
+
 export interface Rect {
   left: number;
   top: number;
@@ -37,12 +42,6 @@ export interface OcrLine {
   words?: OcrWord[];
 }
 
-/** A greyscale copy of the page: one byte of brightness per pixel. */
-export interface GrayImage {
-  width: number;
-  height: number;
-  data: Uint8Array;
-}
 
 /** What the phone sends with the photo. */
 export interface PodScanReport {
@@ -279,49 +278,6 @@ export function signatureInk(
       return ratio >= MIN_INK_RATIO && pixels >= MIN_INK_PIXELS;
     }),
   );
-}
-
-/**
- * A 64-bit difference hash: the picture shrunk to 9x8 and each pixel compared
- * with its neighbour. The same page photographed twice, or one photo re-saved,
- * lands within a few bits; two different pages do not.
- */
-export function differenceHash(image: GrayImage): string {
-  const cols = 9;
-  const rows = 8;
-  const cell: number[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const x0 = Math.floor((c * image.width) / cols);
-      const x1 = Math.max(x0 + 1, Math.floor(((c + 1) * image.width) / cols));
-      const y0 = Math.floor((r * image.height) / rows);
-      const y1 = Math.max(y0 + 1, Math.floor(((r + 1) * image.height) / rows));
-      let sum = 0;
-      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) sum += image.data[y * image.width + x];
-      cell.push(sum / ((x1 - x0) * (y1 - y0)));
-    }
-  }
-
-  let bits = "";
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols - 1; c++) bits += cell[r * cols + c] > cell[r * cols + c + 1] ? "1" : "0";
-  }
-  let hex = "";
-  for (let i = 0; i < 64; i += 4) hex += parseInt(bits.slice(i, i + 4), 2).toString(16);
-  return hex;
-}
-
-export function hammingDistance(a: string, b: string): number {
-  if (a.length !== b.length) return 64;
-  let distance = 0;
-  for (let i = 0; i < a.length; i++) {
-    let x = parseInt(a[i], 16) ^ parseInt(b[i], 16);
-    while (x) {
-      distance += x & 1;
-      x >>= 1;
-    }
-  }
-  return distance;
 }
 
 /** What the crew are told about a scan, and whether they may submit it. */

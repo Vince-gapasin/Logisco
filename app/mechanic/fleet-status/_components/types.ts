@@ -68,6 +68,18 @@ export interface HistoryLogRecord {
   hasPreliminaryPhoto?: boolean;
   hasProgressPhoto?: boolean;
   hasFinalPhoto?: boolean;
+  /** What the photo check found, per phase; null for a photo from before it. */
+  preliminaryPhotoCheck?: PhotoCheckResult | null;
+  progressPhotoCheck?: PhotoCheckResult | null;
+  photoCheck?: PhotoCheckResult | null;
+}
+
+export interface PhotoCheckResult {
+  status: "passed" | "unverified" | string;
+  method: string | null;
+  topLabels: string[];
+  score: number | null;
+  notes: string[];
 }
 
 export interface TruckOption {

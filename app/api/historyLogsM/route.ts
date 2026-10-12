@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize, FLEET_ROLES } from "@/app/lib/auth";
 import { EMPLOYEE_ROLE } from "@/app/lib/enums";
 import {
+  checkLogPhotos,
   createHistoryLog,
   getHistoryLogs,
   mechanicMayWorkOnTruck,
@@ -45,6 +46,12 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json({ message: "This truck is under another mechanic's repair." }, { status: 403 });
     }
+
+    // Checked before anything is written: a refused photo leaves nothing
+    // behind, and the mechanic takes another and saves again. A mechanic's log
+    // must have one; the office, usually not at the truck, may leave it out.
+    const photoProblem = await checkLogPhotos(body, { requirePhotos: auth.employee.role === EMPLOYEE_ROLE.mechanic });
+    if (photoProblem) return NextResponse.json({ message: photoProblem.message }, { status: photoProblem.status });
 
     const newLog = await createHistoryLog(body);
     return NextResponse.json({ message: "Log created successfully", data: newLog }, { status: 201 });
