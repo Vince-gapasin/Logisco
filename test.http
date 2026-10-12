@@ -91,17 +91,6 @@ Content-Type: application/json
 GET http://localhost:3001/api/subcontractors
 
 
-### ---------------------------------------------------------
-### MAINTENANCE API
-### ---------------------------------------------------------
-
-### 11. Get All Maintenance Logs (GET)
-GET http://localhost:3001/api/maintenance
-
-### Note: To test the Maintenance POST request, you will need to copy 
-### an actual 'truckID' and 'mechanicID' from your database, as Supabase 
-### will reject fake IDs due to strict foreign key relations!
-
 ### Complete a Delivery
 POST http://localhost:3001/api/dispatch/YOUR_DISPATCH_ID_HERE/complete
 
