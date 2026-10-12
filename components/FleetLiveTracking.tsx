@@ -305,6 +305,9 @@ export default function FleetLiveTracking() {
       record.truck.toLowerCase().includes(term) ||
       record.client.toLowerCase().includes(term),
   );
+  // A search that matched nothing, as opposed to a fleet with nothing on the
+  // road: the empty states said the second when it was the first.
+  const noMatches = term.trim() !== "" && trackingList.length > 0 && filteredList.length === 0;
 
   // Only trucks that have reported a position can be plotted.
   const mapPoints: MapPoint[] = useMemo(
@@ -393,7 +396,11 @@ export default function FleetLiveTracking() {
         <LiveRouteMap
           points={mapPoints}
           plannedRoute={plannedRoute}
-          emptyMessage="No truck has reported a GPS position yet. Positions appear here once a driver starts a delivery in the crew app."
+          emptyMessage={
+            noMatches
+              ? `No truck matches "${searchTerm.trim()}".`
+              : "No truck has reported a GPS position yet. Positions appear here once a driver starts a delivery in the crew app."
+          }
           focus={focus}
           cluster
           trafficToggle
@@ -610,11 +617,12 @@ export default function FleetLiveTracking() {
                         <FileText className="w-6 h-6" />
                       </div>
                       <p className="text-slate-900 font-medium text-sm">
-                        {isLoading ? "Loading live fleet..." : "No active deliveries found"}
+                        {isLoading ? "Loading live fleet..." : noMatches ? "No deliveries match your search" : "No active deliveries found"}
                       </p>
                       <p className="text-slate-600 text-xs mt-1 max-w-sm">
-                        Trucks on an accepted or in-transit delivery appear here
-                        with their latest GPS position.
+                        {noMatches
+                          ? "Try an order ID, plate number or client name."
+                          : "Trucks on an accepted or in-transit delivery appear here with their latest GPS position."}
                       </p>
                     </div>
                   </td>

@@ -234,6 +234,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
           <button
             type="button"
             onClick={handleCloseModal}
+            aria-label="Close"
             className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />

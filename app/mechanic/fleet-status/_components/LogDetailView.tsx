@@ -135,6 +135,7 @@ export function LogDetailView({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
+            aria-label="Back"
             className="min-w-tap min-h-tap md:pointer-fine:min-w-0 md:pointer-fine:min-h-0 inline-flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors shadow-xs cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -400,10 +401,29 @@ export function LogDetailView({
       </div>
       {showDeleteModal && (
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-log-title"
+            aria-describedby="delete-log-body"
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 text-center relative my-auto"
+          >
+            <h3 id="delete-log-title" className="text-lg font-bold text-slate-900 mb-2">
               Delete Maintenance Log
             </h3>
+            {/* Which log, and that it does not come back - the truck's delete
+                says as much, and this one said nothing at all. */}
+            <p id="delete-log-body" className="text-sm text-slate-600 mb-5">
+              The{" "}
+              {log.driversReport || log.preliminaryRemarks
+                ? "preliminary inspection"
+                : log.additionalIssue || log.progressRemarks
+                  ? "maintenance update"
+                  : "final maintenance log"}{" "}
+              for <strong className="text-slate-900">{log.plateNumber}</strong> from{" "}
+              {formatDisplayDate(log.date)} will be removed for good, with its notes and photos. It cannot be
+              restored.
+            </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}

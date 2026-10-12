@@ -257,6 +257,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         title: live ? "Dispatch declined - needs re-assignment" : "Booking awaiting assignment",
         message: `${order.orderCode}${company} has no active crew assigned.`,
         time: relativeTime(order.createdAt),
+        createdAt: order.createdAt ?? undefined,
         type: "approval",
         link: searchLink("/admindashboard/calendar/unassigned-bookings", order.orderCode),
       });
@@ -266,6 +267,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         title: "Waiting for crew confirmation",
         message: `${order.orderCode}${company} is assigned but the crew has not confirmed yet.`,
         time: relativeTime(order.createdAt),
+        createdAt: order.createdAt ?? undefined,
         type: "reminder",
         link: searchLink("/admindashboard/calendar/awaiting-confirmation", order.orderCode),
       });
@@ -300,6 +302,7 @@ async function adminNotifications(): Promise<AppNotification[]> {
         ? `${order?.orderCode ?? "A booking"}${company} - waiting for the mechanic's report.`
         : `${order?.orderCode ?? "A booking"}${company} was interrupted and needs recovery.`,
       time: relativeTime(incident.reportedAt),
+      createdAt: incident.reportedAt ?? undefined,
       type: enRoute ? "reminder" : "warning",
       link: searchLink("/admindashboard/feeds/foul-trip", order?.orderCode),
     });
@@ -351,6 +354,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
       title: job.severity === "major" ? "Roadside job - major" : "Roadside job",
       message: `${truck?.plateNumber ?? "A truck"} broke down (${job.issueType}). Open Roadside Jobs for the location.`,
       time: relativeTime(job.mechanicAssignedAt),
+      createdAt: job.mechanicAssignedAt ?? undefined,
       type: "assignment",
       link: "/mechanic/roadside",
       truckPlate: truck?.plateNumber,
@@ -376,6 +380,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
         title: "Repair Assignment",
         message: `${truck.plateNumber} (${truck.truckType}) is marked ${truck.truckStatus.toLowerCase()} and needs servicing.`,
         time: relativeTime(truck.lastChecked),
+        createdAt: truck.lastChecked ?? undefined,
         type: "assignment",
         link: searchLink("/mechanic/fleet-status", truck.plateNumber),
         truckPlate: truck.plateNumber,
@@ -394,6 +399,7 @@ async function mechanicNotifications(employeeID: string): Promise<AppNotificatio
           ? `${truck.plateNumber} has not been checked in over ${MAINTENANCE_CHECK_DAYS} days.`
           : `${truck.plateNumber} has no recorded maintenance check.`,
         time: relativeTime(truck.lastChecked),
+        createdAt: truck.lastChecked ?? undefined,
         type: "reminder",
         link: searchLink("/mechanic/fleet-status", truck.plateNumber),
         truckPlate: truck.plateNumber,
@@ -438,9 +444,16 @@ export async function getNotificationsForEmployee(employee: {
   const told = new Set(
     stored.flatMap((item) => (item.entityKey ? (item.supersededBy ?? []).map((event) => `${event}|${item.entityKey}`) : [])),
   );
-  const notAlreadyTold = standing.filter(
-    (item) => !(item.entityKey && (item.supersededBy ?? []).some((event) => told.has(`${event}|${item.entityKey}`))),
-  );
+  // Newest first, as the events are. They came in the order their rows did -
+  // a mechanic's repair list read 59 days ago, then 33, then 50. Items with
+  // no date at all go last.
+  const at = (item: AppNotification) => {
+    const time = item.createdAt ? Date.parse(item.createdAt) : Number.NaN;
+    return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+  };
+  const notAlreadyTold = standing
+    .filter((item) => !(item.entityKey && (item.supersededBy ?? []).some((event) => told.has(`${event}|${item.entityKey}`))))
+    .sort((a, b) => at(b) - at(a));
 
   return [...stored, ...notAlreadyTold];
 }
