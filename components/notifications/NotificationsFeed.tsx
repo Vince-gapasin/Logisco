@@ -56,6 +56,7 @@ const DESTINATIONS: [string, string][] = [
   ["/admindashboard/feeds/completed", "Completed Feed"],
   ["/admindashboard/feeds/foul-trip", "Foul Trip Feed"],
   ["/admindashboard/proof-review", "Proof Review"],
+  ["/admindashboard/client-reports", "Client Reports"],
   ["/admindashboard/fleet-tracking", "Live Tracking"],
   ["/admindashboard/fleet-status", "Fleet Status"],
   ["/admindashboard/history-logs", "History Logs"],

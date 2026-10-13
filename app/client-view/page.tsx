@@ -39,6 +39,8 @@ import type { MapPoint } from "@/components/LiveRouteMap";
 import { formatDateTime, formatTime } from "@/app/lib/datetime";
 import { useChangeCheck } from "@/app/lib/useChangeCheck";
 import DeliveryFeedbackCard, { type FeedbackInvitation } from "@/components/DeliveryFeedbackCard";
+import ClientReportCard from "@/components/ClientReportCard";
+import type { ClientReportSummary } from "@/app/lib/clientReports";
 import type {
   TrackingStage,
   TrackingStep,
@@ -124,6 +126,7 @@ interface TrackingData {
   stops: TrackingStop[];
   steps: TrackingStep[];
   feedback: FeedbackInvitation;
+  reports?: ClientReportSummary[];
 }
 
 type LoadState = "loading" | "ready" | "ended" | "cancelled" | "missing" | "error";
@@ -675,6 +678,10 @@ function ClientTrackerView() {
         <DeliveryFeedbackCard token={token} invitation={data.feedback} onSaved={() => void refresh()} />
       )}
 
+      {/* Open at every stage: a complaint about a late truck is no use once
+          it has arrived. One line while there is nothing to say. */}
+      <ClientReportCard token={token} reports={data.reports ?? []} onSent={() => void refresh()} />
+
       {/* Two columns on a wide screen. On a phone the columns dissolve
           (display: contents) so the cards can be ordered by what a customer
           reaches for first: who is coming and when, then the map, then the
@@ -882,7 +889,7 @@ function ClientTrackerView() {
       </div>
 
       <p className="text-center text-xs text-slate-500 pb-2">
-        Questions about this delivery? Contact your Logisco coordinator and mention {data.orderNumber}.
+        Questions about this delivery? Use Report a problem above, or contact your Logisco coordinator and mention {data.orderNumber}.
       </p>
     </Page>
   );

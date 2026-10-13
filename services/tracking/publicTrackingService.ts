@@ -18,6 +18,8 @@ import { getDispatchRoute, type DispatchRoute } from "@/services/fleet/routePlan
 import { maskEmail, maskPhone } from "@/app/lib/mask";
 import { toArrivalLabel } from "@/services/geo/routingService";
 import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedback/deliveryFeedbackService";
+import { reportsForOrder, reportsStamp } from "@/services/feedback/clientReportService";
+import type { ClientReportSummary } from "@/app/lib/clientReports";
 import { liveDispatchOf } from "@/app/lib/bookingView";
 import { signPodUrls } from "@/services/storage/podService";
 import { FORMER_TRUCK_COLUMNS, truckOf, type FormerTruck } from "@/app/lib/formerTruck";
@@ -201,6 +203,8 @@ export interface TrackingPayload {
    * Only once the delivery is finished.
    */
   feedback: FeedbackInvitation;
+  /** Problems this client reported, with the office's reply once there is one. */
+  reports: ClientReportSummary[];
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -983,7 +987,7 @@ export async function getTrackingByToken(
   // not depend on each other, and in a row they made every refresh wait on
   // eight round trips to the database.
   const dispatchID = dispatch?.dispatchID ?? null;
-  const [trail, stepTimes, planned, location, problems, heldUp, pickupProgressAt, feedback] = await Promise.all([
+  const [trail, stepTimes, planned, location, problems, heldUp, pickupProgressAt, feedback, reports] = await Promise.all([
     // The route driven so far, for drawing the line on the map.
     dispatchID ? getDispatchTrail(dispatchID) : Promise.resolve([] as TrailPoint[]),
     // When each step of this delivery actually happened.
@@ -1004,6 +1008,7 @@ export async function getTrackingByToken(
     heldUpUpdates(dispatchID),
     lastPickupProgress(dispatchID),
     getFeedbackInvitation(dispatchID, tripStatus),
+    reportsForOrder(order.orderID as string),
   ]);
 
   const currentLocation: TrackingPayload["currentLocation"] = location
@@ -1136,6 +1141,7 @@ export async function getTrackingByToken(
     plannedRoute: planned?.path ?? [],
     stops,
     feedback,
+    reports,
     steps: buildSteps(
       tripStatus,
       stops,
@@ -1188,6 +1194,8 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
   const live = liveDispatchOf(dispatches);
   const dispatchID = live?.dispatchID ?? null;
 
+  // The office answering a report changes the page too.
+  const reports = reportsStamp(order.orderID as string);
   const [location, checkIn] = dispatchID
     ? await Promise.all([
         supabase.from("FleetLocations").select("updated_at").eq("dispatch_id", dispatchID).maybeSingle(),
@@ -1201,5 +1209,5 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
       ])
     : [null, null];
 
-  return fingerprint([order, location?.data?.updated_at ?? null, checkIn?.data?.createdAt ?? null]);
+  return fingerprint([order, location?.data?.updated_at ?? null, checkIn?.data?.createdAt ?? null, await reports]);
 }
