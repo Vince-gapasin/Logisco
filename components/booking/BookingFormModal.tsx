@@ -401,10 +401,9 @@ function BookingForm({
       return next;
     });
 
-  // The booking's date is the run's first day, set from the Delivery Schedule
-  // or from the first pickup's date - they are the same thing. Moving it moves
-  // every stop given a later day by the same number of days, so a three-day
-  // run stays three days rather than ending up before it starts.
+  // The booking's date is the run's first day: the first pickup's date.
+  // Moving it moves every stop given a later day by the same number of days,
+  // so a three-day run stays three days rather than ending up before it starts.
   const changeBookingDate = (value: string) => {
     if (isRealDate(formData.deliverySchedule) && isRealDate(value)) {
       const shift = daysBetween(formData.deliverySchedule, value);
@@ -420,10 +419,6 @@ function BookingForm({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name } = e.target;
-    if (name === "deliverySchedule") {
-      changeBookingDate(e.target.value);
-      return;
-    }
     const value = name === "contactNumber" || name === "partnerContact" ? sanitizePhoneInput(e.target.value) : e.target.value;
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearError(name);
@@ -609,7 +604,7 @@ function BookingForm({
     phone("contactNumber", formData.contactNumber);
     // The date box's min and max hold only for the picker; a date typed in, or
     // a form left open past midnight, still reaches here.
-    if (!formData.deliverySchedule) next.deliverySchedule = "Delivery schedule is required.";
+    if (!formData.deliverySchedule) next.deliverySchedule = "Pick the date of the first pickup.";
     else if (!isRealDate(formData.deliverySchedule)) next.deliverySchedule = "That date does not exist.";
     else if (formData.deliverySchedule < todayInManila()) next.deliverySchedule = "That date has already passed.";
     else if (isTooFarAhead(formData.deliverySchedule, todayInManila())) next.deliverySchedule = `${TOO_FAR_RULE}.`;
@@ -1121,25 +1116,14 @@ function BookingForm({
               </div>
             </div>
 
-            {/* Schedule */}
+            {/* Booking details. The booking's date is Pickup 1's date - it had a
+                second field here, the same value twice. */}
             <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs">
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
-                4. Booking Details & Schedule
+                4. Booking Details
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-4 md:col-span-3">
-                  <label className="block text-xs font-medium text-black mb-1">Delivery Schedule *</label>
-                  <input
-                    type="date"
-                    name="deliverySchedule"
-                    min={currentDate}
-                    max={addDays(currentDate, MAX_DAYS_AHEAD)}
-                    value={formData.deliverySchedule}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.deliverySchedule ? "border-red-500" : "border-slate-300"}`}
-                  />
-                </div>
-                <div className="sm:col-span-5 md:col-span-6">
+                <div className="sm:col-span-8 md:col-span-9">
                   <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
                   <input
                     type="text"
@@ -1150,7 +1134,7 @@ function BookingForm({
                     className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`}
                   />
                 </div>
-                <div className="sm:col-span-3 md:col-span-3">
+                <div className="sm:col-span-4 md:col-span-3">
                   <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
                   <select
                     name="priorityLevel"
@@ -1247,7 +1231,7 @@ function BookingForm({
                   <p className="mt-2 text-xs text-slate-500">
                     {formData.deliverySchedule
                       ? "Suggested from who is free. Change any of them; leave the truck or driver unassigned to assign later."
-                      : "Pick a delivery schedule and a free truck and crew are suggested."}
+                      : "Pick Pickup 1's date and a free truck and crew are suggested."}
                   </p>
                 </>
               )}
