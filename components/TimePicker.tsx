@@ -29,6 +29,8 @@ interface TimePickerProps {
   max?: string;
   /** "HH:mm": slots before this are greyed out, e.g. no time already gone for a stop booked today. */
   min?: string;
+  /** Said at the top of the panel - why some slots are greyed out. */
+  note?: string;
   /** "cell" fits a table row; "compact" matches the booking form's text-xs inputs; "field" matches the full-size inputs. */
   size?: "cell" | "compact" | "field";
   disabled?: boolean;
@@ -61,6 +63,7 @@ export default function TimePicker({
   allowClear = false,
   max,
   min,
+  note,
   size = "field",
   disabled = false,
 }: TimePickerProps) {
@@ -213,6 +216,7 @@ export default function TimePicker({
             style={pos ? { top: pos.top, left: pos.left, width: pos.width } : { visibility: "hidden" }}
             className="fixed z-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
           >
+            {note && <p className="mb-3 rounded-md bg-amber-50 px-2 py-1.5 text-xs leading-snug text-amber-800">{note}</p>}
             <div className="mb-3 grid grid-cols-2 gap-1.5">
               <button type="button" onClick={() => flipHalf(false)} className={chip(!pm)} aria-pressed={!pm}>
                 AM

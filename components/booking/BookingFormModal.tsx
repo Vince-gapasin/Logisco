@@ -31,13 +31,23 @@ import {
   TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
 import SelectMenu from "@/components/SelectMenu";
-import TimePicker from "@/components/TimePicker";
+import TimePicker, { formatClock } from "@/components/TimePicker";
 import CrewPicker, { suggestCrew, type CrewChoice, type CrewPerson, type CrewTruck } from "@/components/booking/CrewPicker";
 import RowDeleteButton from "@/components/booking/RowDeleteButton";
 import StopDayField from "@/components/booking/StopDayField";
 import { formErrorsFromIssues, type BookingIssue } from "@/app/lib/bookingIssues";
-import { checkStopSchedule, MAX_RUN_DAYS } from "@/app/lib/stopSchedule";
-import { clockInManila, todayInManila } from "@/app/lib/datetime";
+import {
+  checkStopSchedule,
+  EARLIER_RULE,
+  EARLIER_SAME_DAY_RULE,
+  MAX_RUN_DAYS,
+  MIN_STOP_GAP_MINUTES,
+  SAME_TIME_RULE,
+  stopMoment,
+  TOO_SOON_RULE,
+} from "@/app/lib/stopSchedule";
+import { clockMinutes } from "@/app/lib/deliveryFeasibility";
+import { clockInManila, formatShortDay, todayInManila } from "@/app/lib/datetime";
 
 // One booking form for every way a booking starts: a registered client, an
 // on-call (walk-in) customer, or a new client. The on-call and new-client
@@ -428,8 +438,78 @@ function BookingForm({
   ];
   const schedule = checkStopSchedule(routeStops(), { bookingDate: formData.deliverySchedule || null });
   const runLastDay = isRealDate(formData.deliverySchedule) ? addDays(formData.deliverySchedule, MAX_RUN_DAYS - 1) : "";
-  // A stop due today cannot be picked at a time already gone.
-  const minTimeFor = (routeIndex: number) => (schedule.dates[routeIndex] === todayInManila() ? clockInManila() : undefined);
+
+  const pickupCount = pickupList.length;
+  const stopName = (index: number) => (index < pickupCount ? `Pickup ${index + 1}` : `Branch ${index - pickupCount + 1}`);
+  const stopTime = (index: number) =>
+    (index < pickupCount ? pickupList[index]?.pickupTime : deliveryList[index - pickupCount]?.deliveryTime) ?? "";
+  const keyFor = (index: number, field: "date" | "time") =>
+    index < pickupCount
+      ? `pickup_${index}_${field === "date" ? "date" : "pickupTime"}`
+      : `delivery_${index - pickupCount}_${field === "date" ? "date" : "deliveryTime"}`;
+  // The stop a stop has to come after: the latest one before it with a date
+  // and time - the one checkStopSchedule measures it against.
+  const stopBefore = (index: number) => {
+    let latest = -1;
+    for (let i = 0; i < index; i++) {
+      const moment = schedule.moments[i];
+      if (moment !== null && (latest === -1 || moment > (schedule.moments[latest] as number))) latest = i;
+    }
+    return latest;
+  };
+
+  // When each stop is due, checked as the times and days are picked rather
+  // than when Generate Booking is pressed: a drop at the same minute as its
+  // collection is wrong the moment both are on the form. Same rules as the
+  // server, from the same function; the form only adds which stop it clashes
+  // with, so the coordinator knows which of the two to move.
+  const liveStopErrors: Record<string, string> = {};
+  for (const issue of schedule.issues) {
+    const before = stopBefore(issue.index);
+    let message = issue.message;
+    if (issue.field === "time" && before !== -1) {
+      const at = formatClock(stopTime(before));
+      const when = schedule.dates[before] === schedule.dates[issue.index] ? at : `${formatShortDay(schedule.dates[before])}, ${at}`;
+      if (issue.message === SAME_TIME_RULE) message = `Same time as ${stopName(before)} (${when}) - pick a later time`;
+      else if (issue.message === EARLIER_SAME_DAY_RULE) message = `Before ${stopName(before)} (${when}) - pick a later time, or the next day`;
+      else if (issue.message === EARLIER_RULE) message = `Before ${stopName(before)} (${when})`;
+      else if (issue.message === TOO_SOON_RULE) {
+        const gap = (schedule.moments[issue.index] as number) - (schedule.moments[before] as number);
+        message = `Only ${gap} min after ${stopName(before)} (${when}) - allow at least 1 hour`;
+      }
+    }
+    liveStopErrors[keyFor(issue.index, issue.field)] ??= message;
+  }
+  // What a stop's date or time shows: the live check while it finds something,
+  // else what the last submit or the server said about that field.
+  const stopError = (key: string) => liveStopErrors[key] ?? errors[key];
+
+  // The earliest a stop's time can be picked: not a time already gone today,
+  // and not within an hour of the stop before it - which can reach past
+  // midnight into this stop's day.
+  const timeLimitFor = (index: number): { min?: string; note?: string } => {
+    const date = schedule.dates[index];
+    let floor = date === todayInManila() ? (clockMinutes(clockInManila()) ?? -1) : -1;
+    let note: string | undefined;
+    const before = stopBefore(index);
+    const dayStart = stopMoment(date ?? "", "00:00");
+    if (before !== -1 && dayStart !== null) {
+      const earliest = (schedule.moments[before] as number) + MIN_STOP_GAP_MINUTES - dayStart;
+      if (earliest > 0 && earliest > floor) {
+        floor = earliest;
+        const at = formatClock(stopTime(before));
+        const when = schedule.dates[before] === date ? at : `${formatShortDay(schedule.dates[before])}, ${at}`;
+        note =
+          earliest >= 24 * 60
+            ? `${stopName(before)} is at ${when} - this stop needs at least 1 hour after it, so move it to the next day.`
+            : `${stopName(before)} is at ${when} - this stop needs at least 1 hour after it.`;
+      }
+    }
+    if (floor < 0) return {};
+    // Past 23:45 nothing on this day is left; 23:59 greys out every slot.
+    const capped = Math.min(floor, 24 * 60 - 1);
+    return { min: `${String(Math.floor(capped / 60)).padStart(2, "0")}:${String(capped % 60).padStart(2, "0")}`, note };
+  };
 
   const setCrew = (field: keyof CrewChoice, value: string) => {
     touched.current[field] = true;
@@ -571,15 +651,12 @@ function BookingForm({
     // the one before it, on the same day, is refused until it is given the
     // next day on purpose: that guess let 03:05 typed for 15:05 through as a
     // run nobody meant.
-    const pickupCount = pickupList.length;
-    const keyFor = (index: number, field: "date" | "time") =>
-      index < pickupCount
-        ? `pickup_${index}_${field === "date" ? "date" : "pickupTime"}`
-        : `delivery_${index - pickupCount}_${field === "date" ? "date" : "deliveryTime"}`;
+    //
+    // They are shown live (liveStopErrors) and go the moment either stop is
+    // moved, so they are not copied into the saved errors: a copy there stayed
+    // red on the later stop after the earlier one had been fixed.
     const checked = checkStopSchedule(routeStops(), { bookingDate: formData.deliverySchedule || null });
-    for (const issue of checked.issues) {
-      next[keyFor(issue.index, issue.field)] ??= issue.message;
-    }
+    const scheduleBlocked = checked.issues.length > 0;
 
     if (isSubconMode && !formData.subconPartner) next.subconPartner = "Subcon partner is required.";
     if (isSubconMode && formData.partnerContact.trim() && !normalizePhone(formData.partnerContact)) next.partnerContact = PHONE_RULE;
@@ -589,7 +666,7 @@ function BookingForm({
     // "Check the fields marked in red" stayed up - after the coordinator had
     // fixed what was wrong and the form had nothing left to say.
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
+    if (Object.keys(next).length > 0 || scheduleBlocked) return;
 
     const truck = availableTrucks.find((t) => t.truckID === formData.truckPlate);
     const driver = availableDrivers.find((d) => d.employeeID === formData.driver);
@@ -697,7 +774,7 @@ function BookingForm({
     }
   };
 
-  const errorCount = Object.keys(errors).length;
+  const errorCount = Object.keys({ ...errors, ...liveStopErrors }).length;
   const badge = BADGES[variant];
   const inputClass = (key: string) =>
     `w-full border rounded-md px-3 py-2 text-xs ${errors[key] ? "border-red-500 bg-red-50/20" : "border-slate-300"}`;
@@ -902,7 +979,7 @@ function BookingForm({
                         min={idx === 0 ? currentDate : (schedule.dates[idx - 1] || currentDate)}
                         max={idx === 0 ? addDays(currentDate, MAX_DAYS_AHEAD) : runLastDay}
                         onChange={(v) => (idx === 0 ? changeBookingDate(v) : handlePickupChange(idx, "date", v))}
-                        error={idx === 0 ? errors.deliverySchedule || errors[`pickup_0_date`] : errors[`pickup_${idx}_date`]}
+                        error={idx === 0 ? errors.deliverySchedule || stopError(`pickup_0_date`) : stopError(`pickup_${idx}_date`)}
                       />
                     </div>
                     <StopField label="Pickup Time *" span="sm:col-span-2 lg:col-span-2">
@@ -910,10 +987,10 @@ function BookingForm({
                         size="compact"
                         value={row.pickupTime}
                         onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
-                        invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
-                        min={minTimeFor(idx)}
+                        invalid={Boolean(stopError(`pickup_${idx}_pickupTime`))}
+                        {...timeLimitFor(idx)}
                       />
-                      <CellError message={errors[`pickup_${idx}_pickupTime`]} />
+                      <CellError message={stopError(`pickup_${idx}_pickupTime`)} />
                     </StopField>
                     <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
                       <QuantityInput
@@ -1018,7 +1095,7 @@ function BookingForm({
                         min={schedule.dates[pickupList.length + idx - 1] || currentDate}
                         max={runLastDay}
                         onChange={(v) => handleDeliveryChange(idx, "date", v)}
-                        error={errors[`delivery_${idx}_date`]}
+                        error={stopError(`delivery_${idx}_date`)}
                       />
                     </div>
                     <StopField label="Delivery Time *" span="sm:col-span-2 lg:col-span-2">
@@ -1026,10 +1103,10 @@ function BookingForm({
                         size="compact"
                         value={row.deliveryTime}
                         onChange={(v) => handleDeliveryChange(idx, "deliveryTime", v)}
-                        invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
-                        min={minTimeFor(pickupList.length + idx)}
+                        invalid={Boolean(stopError(`delivery_${idx}_deliveryTime`))}
+                        {...timeLimitFor(pickupCount + idx)}
                       />
-                      <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
+                      <CellError message={stopError(`delivery_${idx}_deliveryTime`)} />
                     </StopField>
                     <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
                       <QuantityInput

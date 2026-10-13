@@ -8,12 +8,14 @@ import {
   effectiveStopDates,
   legacyStopDates,
   MAX_RUN_DAYS,
+  MIN_STOP_GAP_MINUTES,
   NO_DATE_RULE,
   PAST_DATE_RULE,
   resolveStopDates,
   RUN_TOO_LONG_RULE,
   SAME_TIME_RULE,
   stopMoment,
+  TOO_SOON_RULE,
 } from "@/app/lib/stopSchedule";
 import { PAST_TIME_RULE, TOO_FAR_RULE } from "@/app/lib/bookingRules";
 import { assessFeasibility } from "@/app/lib/deliveryFeasibility";
@@ -86,6 +88,26 @@ describe("the order of the stops", () => {
     // 15:05 typed as 03:05: the stop after it is still in order after 13:00.
     const issues = issuesOf([{ time: "11:00" }, { time: "13:00" }, { time: "03:05" }, { time: "17:00" }]);
     expect(issues).toEqual([{ index: 2, field: "time", message: EARLIER_SAME_DAY_RULE }]);
+  });
+
+  it("refuses a stop less than an hour after the one before it", () => {
+    expect(MIN_STOP_GAP_MINUTES).toBe(60);
+    // The case that was let through: a 10:00 collection and a 10:45 drop.
+    expect(issuesOf([{ time: "10:00" }, { time: "10:45" }])).toEqual([{ index: 1, field: "time", message: TOO_SOON_RULE }]);
+    expect(issuesOf([{ time: "10:00" }, { time: "11:00" }])).toEqual([]);
+  });
+
+  it("measures the hour across midnight, not by the clock alone", () => {
+    expect(issuesOf([{ time: "23:30" }, { date: "2026-10-06", time: "00:15" }])).toEqual([
+      { index: 1, field: "time", message: TOO_SOON_RULE },
+    ]);
+    expect(issuesOf([{ time: "23:30" }, { date: "2026-10-06", time: "00:30" }])).toEqual([]);
+  });
+
+  it("holds between every stop, pickups and drops alike", () => {
+    expect(issuesOf([{ time: "11:00" }, { time: "12:30" }, { time: "13:00" }, { time: "15:00" }])).toEqual([
+      { index: 2, field: "time", message: TOO_SOON_RULE },
+    ]);
   });
 
   it("leaves an unreadable time to the field rules and compares across it", () => {

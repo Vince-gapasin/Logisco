@@ -37,7 +37,15 @@ import { todayInManila } from "@/app/lib/datetime";
 export const MAX_RUN_DAYS = 7;
 
 export const RUN_TOO_LONG_RULE = `More than ${MAX_RUN_DAYS} days from the first stop`;
+/**
+ * The least time between one stop and the next: the drive to a different
+ * address, plus loading or unloading. A 10:00 collection and a 10:45 drop was
+ * accepted as a schedule no truck could keep.
+ */
+export const MIN_STOP_GAP_MINUTES = 60;
+
 export const SAME_TIME_RULE = "Same time as the stop before it";
+export const TOO_SOON_RULE = "Less than 1 hour after the stop before it";
 export const EARLIER_RULE = "Earlier than the stop before it";
 export const EARLIER_SAME_DAY_RULE = `${EARLIER_RULE} - set it to the next day if that is right`;
 export const BOOKING_DATE_RULE = "The first stop is on the booking's date";
@@ -101,9 +109,10 @@ export function resolveStopDates(stops: ScheduledStop[], bookingDate?: string | 
  * Every rule about when a booking's stops are due, in route order.
  *
  * 1. Each date is on the calendar, not gone, and not a year out.
- * 2. Each stop comes strictly after the one before it - the same minute is two
- *    places at once, and earlier is either a typo or the next day, which has to
- *    be said rather than assumed.
+ * 2. Each stop comes at least MIN_STOP_GAP_MINUTES after the one before it -
+ *    the same minute is two places at once, earlier is either a typo or the
+ *    next day, which has to be said rather than assumed, and sooner than that
+ *    leaves no time to drive there.
  * 3. The first stop is not already behind the clock.
  * 4. The whole run fits in MAX_RUN_DAYS calendar days.
  * 5. The first stop is on the booking's date, when a booking date is given.
@@ -159,7 +168,7 @@ export function checkStopSchedule(
       if (moment === before) flag(index, "time", SAME_TIME_RULE);
       else if (moment < before) {
         flag(index, "time", dates[index] === dates[latest] ? EARLIER_SAME_DAY_RULE : EARLIER_RULE);
-      }
+      } else if (moment - before < MIN_STOP_GAP_MINUTES) flag(index, "time", TOO_SOON_RULE);
     }
     if (latest === -1 || moment > (moments[latest] as number)) latest = index;
   });
