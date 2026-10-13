@@ -3,7 +3,7 @@
 import { daysBetween, isRealDate } from "@/app/lib/bookingRules";
 import { formatShortDay } from "@/app/lib/datetime";
 
-// The day a stop on the booking form is due, under its time.
+// The day a stop on the booking form is due, beside its time.
 //
 // Always shown, on every pickup and every delivery. It used to wait behind the
 // Delivery Schedule further down the form and then hide behind a "Change day"
@@ -15,7 +15,7 @@ import { formatShortDay } from "@/app/lib/datetime";
 // changing it here changes the Delivery Schedule, and the reverse.
 
 interface StopDayFieldProps {
-  /** "Pickup Date" or "Delivery Date". */
+  /** "Pickup Date *" or "Delivery Date *". */
   label: string;
   /** The day this stop falls on: its own, or the stop before it's. */
   date: string;
@@ -33,28 +33,30 @@ export default function StopDayField({ label, date, firstDay, min, max, onChange
   const later = isRealDate(firstDay) && isRealDate(date) && date > firstDay;
 
   return (
-    <div className="mt-1.5">
-      <label className="block text-[11px] font-medium text-slate-600 mb-0.5">
+    <div>
+      <label className="block text-xs font-medium text-black">
         {label}
+        {/* Bordered and padded like the form's other inputs and TimePicker's
+            "compact" trigger, so the date and time beside it line up. */}
         <input
           type="date"
           value={date}
           min={min || undefined}
           max={max || undefined}
           onChange={(e) => onChange(e.target.value)}
-          className={`mt-0.5 block w-full bg-transparent border rounded px-1.5 py-1 text-xs font-normal text-slate-900 ${
-            error ? "border-red-500 bg-red-50" : "border-slate-200"
+          className={`mt-1 block w-full min-w-0 bg-white border rounded-md px-3 py-2 text-xs font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
+            error ? "border-red-500 bg-red-50/20" : "border-slate-300"
           }`}
         />
       </label>
       {/* Said only on a later day: on a one-day booking every stop is Day 1,
           and repeating it on every row is noise. */}
       {later && (
-        <p className="text-[11px] leading-tight text-blue-700">
+        <p className="mt-1 text-[11px] leading-tight text-blue-700">
           Day {daysBetween(firstDay, date) + 1} · {formatShortDay(date)}
         </p>
       )}
-      {error && <p className="mt-0.5 text-[11px] leading-tight text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-[11px] leading-tight text-red-600">{error}</p>}
     </div>
   );
 }

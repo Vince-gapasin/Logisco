@@ -198,13 +198,50 @@ const toPerson = (p: Partial<EmployeeRow>): CrewPerson => ({
 });
 
 // Red border for a field with an error; the message is shown under it
-// unless it is only "Required".
-const cellClass = (hasError: boolean) =>
-  `w-full bg-transparent border rounded px-1.5 py-1 ${hasError ? "border-red-500 bg-red-50" : "border-slate-200"}`;
+// unless it is only "Required". The same box as the client fields above.
+const fieldClass = (hasError: boolean) =>
+  `w-full border rounded-md px-3 py-2 text-xs bg-white ${hasError ? "border-red-500 bg-red-50/20" : "border-slate-300"}`;
 
 function CellError({ message }: { message?: string }) {
   if (!message || message === "Required") return null;
   return <p className="mt-1 text-[11px] leading-tight text-red-600">{message}</p>;
+}
+
+// One pickup or delivery: a card whose fields reflow with the screen. Two
+// columns on a phone held wide (date beside time; one on a narrow phone, where
+// the 16px phone inputs leave no room for both), six on a tablet, twelve on a laptop,
+// so nothing scrolls sideways and every field keeps its own label.
+function StopCard({
+  title,
+  onDelete,
+  canDelete,
+  children,
+}: {
+  title: string;
+  onDelete: () => void;
+  canDelete: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200">
+      <div className="flex items-center justify-between gap-2 rounded-t-lg border-b border-slate-200 bg-slate-50 pl-3 pr-1 py-1 text-slate-500">
+        <span className="text-xs font-semibold text-slate-900">{title}</span>
+        <RowDeleteButton onConfirm={onDelete} disabled={!canDelete} />
+      </div>
+      <div className="grid grid-cols-1 min-[440px]:grid-cols-2 sm:grid-cols-6 lg:grid-cols-12 gap-3 p-3">{children}</div>
+    </div>
+  );
+}
+
+function StopField({ label, span, children }: { label: string; span: string; children: React.ReactNode }) {
+  return (
+    <div className={`min-w-0 ${span}`}>
+      <label className="block text-xs font-medium text-black">
+        {label}
+        <span className="mt-1 block">{children}</span>
+      </label>
+    </div>
+  );
 }
 
 // Mounted only while open, so every opening starts from a blank form.
@@ -681,7 +718,7 @@ function BookingForm({
             </button>
           </div>
 
-          <form onSubmit={validateAndSubmit} noValidate className="p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
+          <form onSubmit={validateAndSubmit} noValidate className="p-4 sm:p-6 space-y-6 max-h-[80dvh] overflow-y-auto text-sm text-slate-900">
             {/* What the server refused, said here rather than over the
                 dashboard - the form is still open and still holds everything
                 that was typed into it. */}
@@ -704,7 +741,7 @@ function BookingForm({
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-black mb-1">Company / Client Name *</label>
                   {registered ? (
@@ -757,7 +794,7 @@ function BookingForm({
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
                   />
                 </div>
-                <div>
+                <div className="sm:col-span-2 lg:col-span-1">
                   <label className="block text-xs font-medium text-black mb-1">Business Address</label>
                   <input
                     type="text"
@@ -783,124 +820,111 @@ function BookingForm({
                   <Plus className="w-4 h-4" /> New Pickup
                 </button>
               </div>
-              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
-                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
-                  <thead role="rowgroup" className="hidden lg:table-header-group">
-                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">Warehouse Name *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[25%]">Address *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[12%]">Pick Up Time *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity*</th>
-                      <th className="p-2.5 w-16 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody role="rowgroup" className="block lg:table-row-group space-y-3 lg:space-y-0">
-                    {pickupList.map((row, idx) => (
-                      <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 lg:p-0 lg:border-0 lg:border-b lg:rounded-none lg:align-top">
-                        <td role="cell" className="block lg:table-cell pb-2 mb-2 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium"><span className="lg:hidden">Pickup </span>{idx + 1}</td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Warehouse Name *</span>
-                          {registered ? (
-                            <select
-                              value={row.warehouseName}
-                              onChange={(e) => handleWarehouseSelect(idx, e.target.value)}
-                              className={cellClass(Boolean(errors[`pickup_${idx}_warehouseName`]))}
-                            >
-                              <option value="">Select Warehouse</option>
-                              {registeredWarehouses.map((w, i) => {
-                                const name = w.whName;
-                                const key = usedAddresses.key(w.warehouseLoc ?? "");
-                                const inUse =
-                                  name !== row.warehouseName &&
-                                  (pickupList.some((p, j) => j !== idx && p.warehouseName === name) ||
-                                    (key !== "" && usedAddresses.deliveries.includes(key)));
-                                return (
-                                  <option key={i} value={name} disabled={inUse}>
-                                    {name}
-                                    {inUse ? " (already used)" : ""}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          ) : (
-                            <input
-                              type="text"
-                              placeholder="Warehouse Name"
-                              value={row.warehouseName}
-                              onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)}
-                              className={cellClass(Boolean(errors[`pickup_${idx}_warehouseName`]))}
-                            />
-                          )}
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Address *</span>
-                          <input
-                            type="text"
-                            placeholder="Full Address"
-                            value={row.warehouseAddress}
-                            onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)}
-                            className={cellClass(Boolean(errors[`pickup_${idx}_warehouseAddress`]))}
-                          />
-                          <CellError message={errors[`pickup_${idx}_warehouseAddress`]} />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Person *</span>
-                          <input
-                            type="text"
-                            placeholder="Contact Person"
-                            value={row.contactPerson}
-                            onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)}
-                            className={cellClass(Boolean(errors[`pickup_${idx}_contactPerson`]))}
-                          />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Number *</span>
-                          <input
-                            type="tel"
-                            inputMode="tel"
-                            placeholder="09XXXXXXXXX"
-                            value={row.contactNumber}
-                            onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)}
-                            className={cellClass(Boolean(errors[`pickup_${idx}_contactNumber`]))}
-                          />
-                          <CellError message={errors[`pickup_${idx}_contactNumber`] && "11 digits, starting 09"} />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Pick Up Time *</span>
-                          <TimePicker
-                            size="cell"
-                            value={row.pickupTime}
-                            onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
-                            invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
-                            min={minTimeFor(idx)}
-                          />
-                          <CellError message={errors[`pickup_${idx}_pickupTime`]} />
-                          <StopDayField
-                            label="Pickup Date *"
-                            date={idx === 0 ? formData.deliverySchedule : (schedule.dates[idx] ?? "")}
-                            firstDay={formData.deliverySchedule}
-                            // The first pickup opens the run: its day is the booking's, and
-                            // can be any bookable day. Every later stop is on or after the
-                            // one before it, within the week.
-                            min={idx === 0 ? currentDate : (schedule.dates[idx - 1] || currentDate)}
-                            max={idx === 0 ? addDays(currentDate, MAX_DAYS_AHEAD) : runLastDay}
-                            onChange={(v) => (idx === 0 ? changeBookingDate(v) : handlePickupChange(idx, "date", v))}
-                            error={idx === 0 ? errors.deliverySchedule || errors[`pickup_0_date`] : errors[`pickup_${idx}_date`]}
-                          />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
-                          <QuantityInput
-                            value={row.quantity}
-                            onChange={(v) => handlePickupChange(idx, "quantity", v)}
-                            hasError={Boolean(errors[`pickup_${idx}_quantity`])}
-                          />
-                          <CellError message={errors[`pickup_${idx}_quantity`]} />
-                        </td>
-                        <td role="cell" className="flex justify-end pt-1 lg:table-cell lg:p-2 lg:text-center">
-                          <RowDeleteButton onConfirm={() => removePickupRow(idx)} disabled={pickupList.length === 1} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {pickupList.map((row, idx) => (
+                  <StopCard
+                    key={idx}
+                    title={`Pickup ${idx + 1}`}
+                    onDelete={() => removePickupRow(idx)}
+                    canDelete={pickupList.length > 1}
+                  >
+                    <StopField label="Warehouse Name *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-4">
+                      {registered ? (
+                        <select
+                          value={row.warehouseName}
+                          onChange={(e) => handleWarehouseSelect(idx, e.target.value)}
+                          className={fieldClass(Boolean(errors[`pickup_${idx}_warehouseName`]))}
+                        >
+                          <option value="">Select Warehouse</option>
+                          {registeredWarehouses.map((w, i) => {
+                            const name = w.whName;
+                            const key = usedAddresses.key(w.warehouseLoc ?? "");
+                            const inUse =
+                              name !== row.warehouseName &&
+                              (pickupList.some((p, j) => j !== idx && p.warehouseName === name) ||
+                                (key !== "" && usedAddresses.deliveries.includes(key)));
+                            return (
+                              <option key={i} value={name} disabled={inUse}>
+                                {name}
+                                {inUse ? " (already used)" : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Warehouse Name"
+                          value={row.warehouseName}
+                          onChange={(e) => handlePickupChange(idx, "warehouseName", e.target.value)}
+                          className={fieldClass(Boolean(errors[`pickup_${idx}_warehouseName`]))}
+                        />
+                      )}
+                    </StopField>
+                    <StopField label="Address *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-8">
+                      <input
+                        type="text"
+                        placeholder="Full Address"
+                        value={row.warehouseAddress}
+                        onChange={(e) => handlePickupChange(idx, "warehouseAddress", e.target.value)}
+                        className={fieldClass(Boolean(errors[`pickup_${idx}_warehouseAddress`]))}
+                      />
+                      <CellError message={errors[`pickup_${idx}_warehouseAddress`]} />
+                    </StopField>
+                    <StopField label="Contact Person *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-3">
+                      <input
+                        type="text"
+                        placeholder="Contact Person"
+                        value={row.contactPerson}
+                        onChange={(e) => handlePickupChange(idx, "contactPerson", e.target.value)}
+                        className={fieldClass(Boolean(errors[`pickup_${idx}_contactPerson`]))}
+                      />
+                    </StopField>
+                    <StopField label="Contact Number *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-3">
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="09XXXXXXXXX"
+                        value={row.contactNumber}
+                        onChange={(e) => handlePickupChange(idx, "contactNumber", e.target.value)}
+                        className={fieldClass(Boolean(errors[`pickup_${idx}_contactNumber`]))}
+                      />
+                      <CellError message={errors[`pickup_${idx}_contactNumber`] && "11 digits, starting 09"} />
+                    </StopField>
+                    <div className="min-w-0 sm:col-span-2 lg:col-span-2">
+                      <StopDayField
+                        label="Pickup Date *"
+                        date={idx === 0 ? formData.deliverySchedule : (schedule.dates[idx] ?? "")}
+                        firstDay={formData.deliverySchedule}
+                        // The first pickup opens the run: its day is the booking's, and
+                        // can be any bookable day. Every later stop is on or after the
+                        // one before it, within the week.
+                        min={idx === 0 ? currentDate : (schedule.dates[idx - 1] || currentDate)}
+                        max={idx === 0 ? addDays(currentDate, MAX_DAYS_AHEAD) : runLastDay}
+                        onChange={(v) => (idx === 0 ? changeBookingDate(v) : handlePickupChange(idx, "date", v))}
+                        error={idx === 0 ? errors.deliverySchedule || errors[`pickup_0_date`] : errors[`pickup_${idx}_date`]}
+                      />
+                    </div>
+                    <StopField label="Pickup Time *" span="sm:col-span-2 lg:col-span-2">
+                      <TimePicker
+                        size="compact"
+                        value={row.pickupTime}
+                        onChange={(v) => handlePickupChange(idx, "pickupTime", v)}
+                        invalid={Boolean(errors[`pickup_${idx}_pickupTime`])}
+                        min={minTimeFor(idx)}
+                      />
+                      <CellError message={errors[`pickup_${idx}_pickupTime`]} />
+                    </StopField>
+                    <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
+                      <QuantityInput
+                        value={row.quantity}
+                        onChange={(v) => handlePickupChange(idx, "quantity", v)}
+                        hasError={Boolean(errors[`pickup_${idx}_quantity`])}
+                      />
+                      <CellError message={errors[`pickup_${idx}_quantity`]} />
+                    </StopField>
+                  </StopCard>
+                ))}
               </div>
             </div>
 
@@ -916,120 +940,107 @@ function BookingForm({
                   <Plus className="w-4 h-4" /> Branch
                 </button>
               </div>
-              <div className="lg:overflow-x-auto lg:border lg:border-slate-200 lg:rounded-lg">
-                <table role="table" className="w-full text-left border-collapse text-xs lg:min-w-150 block lg:table">
-                  <thead role="rowgroup" className="hidden lg:table-header-group">
-                    <tr className="bg-slate-100 border-b border-slate-200 text-black font-semibold">
-                      <th className="p-2.5 w-10 border-r border-slate-200 text-center"></th>
-                      <th className="p-2.5 border-r border-slate-200 w-[20%]">Branch Name *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[25%]">Delivery Address *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Person *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[15%]">Contact Number *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-[12%]">Delivery Time *</th>
-                      <th className="p-2.5 border-r border-slate-200 w-24 text-center">Quantity*</th>
-                      <th className="p-2.5 w-16 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody role="rowgroup" className="block lg:table-row-group space-y-3 lg:space-y-0">
-                    {deliveryList.map((row, idx) => (
-                      <tr role="row" key={idx} className="block lg:table-row border border-slate-200 rounded-lg p-3 lg:p-0 lg:border-0 lg:border-b lg:rounded-none lg:align-top">
-                        <td role="cell" className="block lg:table-cell pb-2 mb-2 border-b border-slate-200 font-semibold text-slate-900 text-sm lg:text-xs lg:p-2 lg:border-r lg:border-slate-200 lg:text-center lg:font-medium"><span className="lg:hidden">Branch </span>{idx + 1}</td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Branch Name *</span>
-                          {registered ? (
-                            <select
-                              value={row.branchName}
-                              onChange={(e) => handleBranchSelect(idx, e.target.value)}
-                              className={cellClass(Boolean(errors[`delivery_${idx}_branchName`]))}
-                            >
-                              <option value="">Select Branch</option>
-                              {registeredBranches.map((b, i) => {
-                                const key = usedAddresses.key(b.deliveryAddress ?? "");
-                                const inUse =
-                                  b.branchName !== row.branchName &&
-                                  (deliveryList.some((d, j) => j !== idx && d.branchName === b.branchName) ||
-                                    (key !== "" && usedAddresses.pickups.includes(key)));
-                                return (
-                                  <option key={i} value={b.branchName} disabled={inUse}>
-                                    {b.branchName}
-                                    {inUse ? " (already used)" : ""}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          ) : (
-                            <input
-                              type="text"
-                              placeholder="Branch Name"
-                              value={row.branchName}
-                              onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)}
-                              className={cellClass(Boolean(errors[`delivery_${idx}_branchName`]))}
-                            />
-                          )}
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Delivery Address *</span>
-                          <input
-                            type="text"
-                            placeholder="Full Address"
-                            value={row.deliveryAddress}
-                            onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)}
-                            className={cellClass(Boolean(errors[`delivery_${idx}_deliveryAddress`]))}
-                          />
-                          <CellError message={errors[`delivery_${idx}_deliveryAddress`]} />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Person *</span>
-                          <input
-                            type="text"
-                            placeholder="Contact Person"
-                            value={row.contactPerson}
-                            onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)}
-                            className={cellClass(Boolean(errors[`delivery_${idx}_contactPerson`]))}
-                          />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Contact Number *</span>
-                          <input
-                            type="tel"
-                            inputMode="tel"
-                            placeholder="09XXXXXXXXX"
-                            value={row.contactNumber}
-                            onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)}
-                            className={cellClass(Boolean(errors[`delivery_${idx}_contactNumber`]))}
-                          />
-                          <CellError message={errors[`delivery_${idx}_contactNumber`] && "11 digits, starting 09"} />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Delivery Time *</span>
-                          <TimePicker
-                            size="cell"
-                            value={row.deliveryTime}
-                            onChange={(v) => handleDeliveryChange(idx, "deliveryTime", v)}
-                            invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
-                            min={minTimeFor(pickupList.length + idx)}
-                          />
-                          <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
-                          <StopDayField
-                            label="Delivery Date *"
-                            date={schedule.dates[pickupList.length + idx] ?? ""}
-                            firstDay={formData.deliverySchedule}
-                            min={schedule.dates[pickupList.length + idx - 1] || currentDate}
-                            max={runLastDay}
-                            onChange={(v) => handleDeliveryChange(idx, "date", v)}
-                            error={errors[`delivery_${idx}_date`]}
-                          />
-                        </td>
-                        <td role="cell" className="block mb-2 lg:mb-0 lg:table-cell lg:p-2 lg:border-r lg:border-slate-200"><span className="lg:hidden block text-xs font-medium text-black mb-1">Quantity *</span>
-                          <QuantityInput
-                            value={row.quantity}
-                            onChange={(v) => handleDeliveryChange(idx, "quantity", v)}
-                            hasError={Boolean(errors[`delivery_${idx}_quantity`])}
-                          />
-                          <CellError message={errors[`delivery_${idx}_quantity`]} />
-                        </td>
-                        <td role="cell" className="flex justify-end pt-1 lg:table-cell lg:p-2 lg:text-center">
-                          <RowDeleteButton onConfirm={() => removeDeliveryRow(idx)} disabled={deliveryList.length === 1} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {deliveryList.map((row, idx) => (
+                  <StopCard
+                    key={idx}
+                    title={`Branch ${idx + 1}`}
+                    onDelete={() => removeDeliveryRow(idx)}
+                    canDelete={deliveryList.length > 1}
+                  >
+                    <StopField label="Branch Name *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-4">
+                      {registered ? (
+                        <select
+                          value={row.branchName}
+                          onChange={(e) => handleBranchSelect(idx, e.target.value)}
+                          className={fieldClass(Boolean(errors[`delivery_${idx}_branchName`]))}
+                        >
+                          <option value="">Select Branch</option>
+                          {registeredBranches.map((b, i) => {
+                            const key = usedAddresses.key(b.deliveryAddress ?? "");
+                            const inUse =
+                              b.branchName !== row.branchName &&
+                              (deliveryList.some((d, j) => j !== idx && d.branchName === b.branchName) ||
+                                (key !== "" && usedAddresses.pickups.includes(key)));
+                            return (
+                              <option key={i} value={b.branchName} disabled={inUse}>
+                                {b.branchName}
+                                {inUse ? " (already used)" : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="Branch Name"
+                          value={row.branchName}
+                          onChange={(e) => handleDeliveryChange(idx, "branchName", e.target.value)}
+                          className={fieldClass(Boolean(errors[`delivery_${idx}_branchName`]))}
+                        />
+                      )}
+                    </StopField>
+                    <StopField label="Delivery Address *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-8">
+                      <input
+                        type="text"
+                        placeholder="Full Address"
+                        value={row.deliveryAddress}
+                        onChange={(e) => handleDeliveryChange(idx, "deliveryAddress", e.target.value)}
+                        className={fieldClass(Boolean(errors[`delivery_${idx}_deliveryAddress`]))}
+                      />
+                      <CellError message={errors[`delivery_${idx}_deliveryAddress`]} />
+                    </StopField>
+                    <StopField label="Contact Person *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-3">
+                      <input
+                        type="text"
+                        placeholder="Contact Person"
+                        value={row.contactPerson}
+                        onChange={(e) => handleDeliveryChange(idx, "contactPerson", e.target.value)}
+                        className={fieldClass(Boolean(errors[`delivery_${idx}_contactPerson`]))}
+                      />
+                    </StopField>
+                    <StopField label="Contact Number *" span="min-[440px]:col-span-2 sm:col-span-3 lg:col-span-3">
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="09XXXXXXXXX"
+                        value={row.contactNumber}
+                        onChange={(e) => handleDeliveryChange(idx, "contactNumber", e.target.value)}
+                        className={fieldClass(Boolean(errors[`delivery_${idx}_contactNumber`]))}
+                      />
+                      <CellError message={errors[`delivery_${idx}_contactNumber`] && "11 digits, starting 09"} />
+                    </StopField>
+                    <div className="min-w-0 sm:col-span-2 lg:col-span-2">
+                      <StopDayField
+                        label="Delivery Date *"
+                        date={schedule.dates[pickupList.length + idx] ?? ""}
+                        firstDay={formData.deliverySchedule}
+                        min={schedule.dates[pickupList.length + idx - 1] || currentDate}
+                        max={runLastDay}
+                        onChange={(v) => handleDeliveryChange(idx, "date", v)}
+                        error={errors[`delivery_${idx}_date`]}
+                      />
+                    </div>
+                    <StopField label="Delivery Time *" span="sm:col-span-2 lg:col-span-2">
+                      <TimePicker
+                        size="compact"
+                        value={row.deliveryTime}
+                        onChange={(v) => handleDeliveryChange(idx, "deliveryTime", v)}
+                        invalid={Boolean(errors[`delivery_${idx}_deliveryTime`])}
+                        min={minTimeFor(pickupList.length + idx)}
+                      />
+                      <CellError message={errors[`delivery_${idx}_deliveryTime`]} />
+                    </StopField>
+                    <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
+                      <QuantityInput
+                        value={row.quantity}
+                        onChange={(v) => handleDeliveryChange(idx, "quantity", v)}
+                        hasError={Boolean(errors[`delivery_${idx}_quantity`])}
+                      />
+                      <CellError message={errors[`delivery_${idx}_quantity`]} />
+                    </StopField>
+                  </StopCard>
+                ))}
               </div>
             </div>
 
@@ -1304,7 +1315,7 @@ function QuantityInput({ value, onChange, hasError }: { value: string; onChange:
         if (["-", "+", "e", "E", ".", ","].includes(e.key)) e.preventDefault();
       }}
       onChange={(e) => onChange(e.target.value)}
-      className={`${cellClass(hasError)} min-w-15`}
+      className={fieldClass(hasError)}
     />
   );
 }

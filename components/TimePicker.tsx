@@ -29,8 +29,8 @@ interface TimePickerProps {
   max?: string;
   /** "HH:mm": slots before this are greyed out, e.g. no time already gone for a stop booked today. */
   min?: string;
-  /** "cell" fits a table row; "field" matches the full-size inputs. */
-  size?: "cell" | "field";
+  /** "cell" fits a table row; "compact" matches the booking form's text-xs inputs; "field" matches the full-size inputs. */
+  size?: "cell" | "compact" | "field";
   disabled?: boolean;
 }
 
@@ -177,7 +177,9 @@ export default function TimePicker({
   const trigger =
     size === "cell"
       ? `w-full flex items-center gap-1.5 bg-transparent border rounded px-1.5 py-1 text-left ${invalid ? "border-red-500 bg-red-50" : "border-slate-200"}`
-      : `w-full min-h-tap sm:min-h-10 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm ${invalid ? "border-red-500" : "border-slate-300"}`;
+      : size === "compact"
+        ? `w-full flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-left text-base/[1.3333] sm:text-xs ${invalid ? "border-red-500 bg-red-50/20" : "border-slate-300"}`
+        : `w-full min-h-tap sm:min-h-10 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm ${invalid ? "border-red-500" : "border-slate-300"}`;
 
   const label = formatClock(value);
 
