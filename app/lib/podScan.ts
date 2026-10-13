@@ -9,11 +9,12 @@
 //   - where the form asks for a signature: a label such as "Received by",
 //     "Signature" or "Conforme" - and whether the space beside, above or below
 //     it has ink in it that is not printed text or a printed line;
-//   - whether the name the crew typed is written on it.
+//   - whether the name the crew typed is written there, by the signature or
+//     in a "Name" field - not merely somewhere on the page.
 //
 // None of this can tell who held the pen. What makes a photograph hard to fake
 // is where and when it was taken and that it came straight off the scanner -
-// which the server checks (see podScanServer.ts). This file is the part that
+// which the server checks (see services/storage/podScanCheck.ts). This file is the part that
 // tells the crew at the gate what to fix.
 //
 // Pure functions over plain data, so they run in the crew app and in tests.
@@ -71,7 +72,8 @@ export interface ScanVerdict {
   textWords: number;
 }
 
-export const NAME_NOT_FOUND = "The receiver's name typed by the crew was not found on the receipt.";
+export const NAME_NOT_FOUND =
+  "The receiver's name you typed is not written on the receipt. Have the receiver print their name by the signature, or check the spelling.";
 
 /** Fewer words than this and it is not a readable document. */
 export const MIN_WORDS = 12;
@@ -140,6 +142,9 @@ const LABEL_WORDS = new Set([
   "conforme", "acknowledged", "consignee", "lagda", "pirma",
 ]);
 
+// Where a form asks for the receiver's name, besides the signature labels.
+const NAME_LABEL = /\b(name|pangalan)\b/i;
+
 function union(rects: Rect[]): Rect | null {
   if (rects.length === 0) return null;
   return {
@@ -148,6 +153,10 @@ function union(rects: Rect[]): Rect | null {
     right: Math.max(...rects.map((r) => r.right)),
     bottom: Math.max(...rects.map((r) => r.bottom)),
   };
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+  return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
 }
 
 /**
@@ -168,24 +177,34 @@ export function findSignatureLabels(lines: OcrLine[]): Rect[] {
 }
 
 /**
- * The printed text near a signature, to be left out when looking for ink.
- *
- * Not everything the reader recognised: a signature is sometimes read as a
- * word, and leaving it out would call a signed form blank and stop the crew at
- * the gate. So only what is plainly print - the label itself, a line of three
- * words or more, a "Date:" style field - is removed. A stray printed word that
- * slips through can only make a form look signed, and the office and the client
- * still see the photograph.
+ * Whether the reader's text is a word, as print is, rather than what it makes
+ * of a scribble. A signature read as text comes out as "Jlw" or "~-" - no
+ * vowel, or symbols - and that is ink to keep, not print to remove.
+ */
+function readsAsWord(text: string): boolean {
+  const clean = normalize(text).replace(/ /g, "");
+  if (/^\d{2,}$/.test(clean)) return true;
+  return clean.length >= 2 && /[aeiouy]/.test(clean);
+}
+
+/**
+ * Every recognised word on the page, padded a little: print is left out when
+ * looking for a signature. The reader's boxes are tight, and the edges of
+ * letters left behind would otherwise add up to "ink".
  */
 export function printedBoxes(lines: OcrLine[]): Rect[] {
   const boxes: Rect[] = [];
   for (const line of lines) {
-    if (SIGNATURE_LABEL.test(line.text)) {
-      // Only the label: the rest of its line may be the signature.
-      const box = labelBox(line);
-      if (box) boxes.push(box);
-    } else if (line.box && (countWords(line.text) >= 3 || /:/.test(line.text))) {
-      boxes.push(line.box);
+    const words = line.words?.length ? line.words : [{ text: line.text, box: line.box }];
+    for (const word of words) {
+      if (!word.box || !readsAsWord(word.text)) continue;
+      const pad = Math.max(2, (word.box.bottom - word.box.top) * 0.15);
+      boxes.push({
+        left: word.box.left - pad,
+        top: word.box.top - pad,
+        right: word.box.right + pad,
+        bottom: word.box.bottom + pad,
+      });
     }
   }
   return boxes;
@@ -203,112 +222,257 @@ function clampRect(rect: Rect, width: number, height: number): Rect | null {
  * Where the signature for a label would be. Forms do it three ways - beside
  * the label ("Received by: ____"), above it (a line with "Signature over
  * printed name" under it), and below it - so all three are looked at.
+ * `spread` widens them, for the name, which is often written further off.
  */
-export function signatureRegions(label: Rect, width: number, height: number): Rect[] {
+export function signatureRegions(label: Rect, width: number, height: number, spread = 1): Rect[] {
   const lineHeight = Math.max(12, label.bottom - label.top);
-  const reach = Math.max(width * 0.35, (label.right - label.left) * 1.5);
+  const reach = Math.max(width * 0.35 * spread, (label.right - label.left) * 1.5);
+  const tall = 4 * spread;
   const candidates: Rect[] = [
     // Beside it, on the same band.
-    { left: label.right, top: label.top - lineHeight, right: label.right + reach, bottom: label.bottom + lineHeight },
+    { left: label.right, top: label.top - lineHeight * spread, right: label.right + reach, bottom: label.bottom + lineHeight * spread },
     // Above it.
-    { left: label.left - lineHeight, top: label.top - lineHeight * 4, right: label.right + lineHeight * 2, bottom: label.top },
+    { left: label.left - lineHeight, top: label.top - lineHeight * tall, right: label.right + lineHeight * 2 * spread, bottom: label.top },
     // Below it.
-    { left: label.left - lineHeight, top: label.bottom, right: label.right + lineHeight * 2, bottom: label.bottom + lineHeight * 4 },
+    { left: label.left - lineHeight, top: label.bottom, right: label.right + lineHeight * 2 * spread, bottom: label.bottom + lineHeight * tall },
   ];
   return candidates.map((rect) => clampRect(rect, width, height)).filter((rect): rect is Rect => rect !== null);
 }
 
-function inside(x: number, y: number, rect: Rect): boolean {
-  return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
-}
-
-/** Ink that is not a long printed rule (the "______" a form signs on). */
-export const MIN_INK_RATIO = 0.004;
-const MIN_INK_PIXELS = 60;
+/** At least this much handwriting, in pixels of the analysis copy. */
+const MIN_INK_PIXELS = 80;
+/** Specks smaller than this are dust, compression and paper grain. */
+const MIN_STROKE_PIXELS = 12;
 
 /**
- * The share of a region that is handwriting: dark pixels, less the printed
- * text the reader recognised and less any row that is mostly dark from end to
- * end, which is a printed line rather than a pen stroke.
+ * Whether a mark is a straight rule: the "______" a form is signed on, or a
+ * table border. Not "flat" - a page photographed at a slant tilts its lines -
+ * but straight: along its length, the middle of the mark stays on one line.
+ * A pen stroke wanders off it.
  */
-export function inkRatio(image: GrayImage, region: Rect, printed: Rect[]): { ratio: number; pixels: number } {
+function isStraightRule(xs: number[], ys: number[]): boolean {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] < minX) minX = xs[i];
+    if (xs[i] > maxX) maxX = xs[i];
+    if (ys[i] < minY) minY = ys[i];
+    if (ys[i] > maxY) maxY = ys[i];
+  }
+  const spanX = maxX - minX + 1;
+  const spanY = maxY - minY + 1;
+  // Measured along its long side.
+  const horizontal = spanX >= spanY;
+  const along = horizontal ? xs : ys;
+  const across = horizontal ? ys : xs;
+  const start = horizontal ? minX : minY;
+  const length = horizontal ? spanX : spanY;
+  if (length < 3 * Math.min(spanX, spanY)) return false;
+
+  // The centre of the mark at each step along it.
+  const total = new Float64Array(length);
+  const count = new Uint32Array(length);
+  for (let i = 0; i < along.length; i++) {
+    total[along[i] - start] += across[i];
+    count[along[i] - start]++;
+  }
+  let n = 0, sumT = 0, sumC = 0, sumTT = 0, sumTC = 0;
+  for (let t = 0; t < length; t++) {
+    if (!count[t]) continue;
+    const c = total[t] / count[t];
+    n++;
+    sumT += t;
+    sumC += c;
+    sumTT += t * t;
+    sumTC += t * c;
+  }
+  const denominator = n * sumTT - sumT * sumT;
+  const slope = denominator === 0 ? 0 : (n * sumTC - sumT * sumC) / denominator;
+  const intercept = (sumC - slope * sumT) / n;
+
+  let worst = 0;
+  for (let t = 0; t < length; t++) {
+    if (!count[t]) continue;
+    worst = Math.max(worst, Math.abs(total[t] / count[t] - (intercept + slope * t)));
+  }
+  return worst <= 2;
+}
+
+/**
+ * Pen strokes in a region: dark pixels that are not recognised print, grouped
+ * into the marks they make. Straight rules are left out (isStraightRule), and
+ * so are specks. What is left, and rises at least half a line of text, is
+ * handwriting.
+ */
+export function strokesIn(
+  image: GrayImage,
+  region: Rect,
+  printed: Rect[],
+  lineHeight: number,
+): { pixels: number; tallest: number } {
   const width = region.right - region.left;
   const height = region.bottom - region.top;
-  if (width <= 0 || height <= 0) return { ratio: 0, pixels: 0 };
+  if (width <= 0 || height <= 0) return { pixels: 0, tallest: 0 };
 
   // Dark relative to this page's paper, so a dim photograph is not all "ink".
   let sum = 0;
   for (let y = region.top; y < region.bottom; y++) {
     for (let x = region.left; x < region.right; x++) sum += image.data[y * image.width + x];
   }
-  const paper = sum / (width * height);
-  const threshold = Math.min(140, paper - 60);
+  const threshold = Math.min(140, sum / (width * height) - 60);
 
-  const overlapping = printed.filter(
-    (box) => box.right > region.left && box.left < region.right && box.bottom > region.top && box.top < region.bottom,
-  );
-
-  let ink = 0;
+  const nearby = printed.filter((box) => intersects(box, region));
+  const dark = new Uint8Array(width * height);
   for (let y = region.top; y < region.bottom; y++) {
-    let rowInk = 0;
     for (let x = region.left; x < region.right; x++) {
-      if (image.data[y * image.width + x] < threshold && !overlapping.some((box) => inside(x, y, box))) rowInk++;
+      if (image.data[y * image.width + x] >= threshold) continue;
+      if (nearby.some((box) => x >= box.left && x < box.right && y >= box.top && y < box.bottom)) continue;
+      dark[(y - region.top) * width + (x - region.left)] = 1;
     }
-    if (rowInk < width * 0.6) ink += rowInk;
   }
 
-  return { ratio: ink / (width * height), pixels: ink };
+  const rises = lineHeight * 0.5;
+  let pixels = 0;
+  let tallest = 0;
+  const stack: number[] = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  for (let start = 0; start < dark.length; start++) {
+    if (dark[start] !== 1) continue;
+    dark[start] = 2;
+    stack.push(start);
+    let count = 0;
+    let minX = width, maxX = 0, minY = height, maxY = 0;
+    xs.length = 0;
+    ys.length = 0;
+
+    while (stack.length) {
+      const index = stack.pop() as number;
+      const x = index % width;
+      const y = (index - x) / width;
+      count++;
+      xs.push(x);
+      ys.push(y);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const next = ny * width + nx;
+          if (dark[next] === 1) {
+            dark[next] = 2;
+            stack.push(next);
+          }
+        }
+      }
+    }
+
+    const markWidth = maxX - minX + 1;
+    const markHeight = maxY - minY + 1;
+    if (count < MIN_STROKE_PIXELS) continue;
+    if (isStraightRule(xs, ys)) continue;
+    pixels += count;
+    if (markHeight >= rises && markWidth >= rises) tallest = Math.max(tallest, markHeight);
+  }
+
+  return { pixels, tallest };
 }
 
 /**
  * Whether the form has been signed. null when the form has no signature label
- * the reader could find - which is a question for the office, not a refusal.
+ * the reader could find.
  */
-export function signatureInk(
-  image: GrayImage,
-  lines: OcrLine[],
-  printed: Rect[],
-): boolean | null {
+export function signatureInk(image: GrayImage, lines: OcrLine[], printed: Rect[]): boolean | null {
   const labels = findSignatureLabels(lines);
   if (labels.length === 0) return null;
 
-  return labels.some((label) =>
-    signatureRegions(label, image.width, image.height).some((region) => {
-      const { ratio, pixels } = inkRatio(image, region, printed);
-      return ratio >= MIN_INK_RATIO && pixels >= MIN_INK_PIXELS;
-    }),
-  );
+  return labels.some((label) => {
+    const lineHeight = Math.max(12, label.bottom - label.top);
+    return signatureRegions(label, image.width, image.height).some((region) => {
+      const { pixels, tallest } = strokesIn(image, region, printed, lineHeight);
+      return pixels >= MIN_INK_PIXELS && tallest > 0;
+    });
+  });
 }
 
-/** What the crew are told about a scan, and whether they may submit it. */
+/**
+ * Whether the receiver's name is written where the form asks for it: near a
+ * signature label, or near a "Name" field. Anywhere on the page was too easy -
+ * the branch's own name, printed in the header, passed for the receiver's.
+ */
+export function nameOnReceipt(name: string, lines: OcrLine[], width: number, height: number): boolean {
+  const anchors = [
+    ...findSignatureLabels(lines),
+    ...lines.filter((line) => line.box && NAME_LABEL.test(line.text)).map((line) => line.box as Rect),
+  ];
+  if (anchors.length === 0) return false;
+
+  const areas = anchors.flatMap((anchor) => signatureRegions(anchor, width, height, 1.7));
+  const nearby: string[] = [];
+  for (const line of lines) {
+    const words = line.words?.length ? line.words : [{ text: line.text, box: line.box }];
+    for (const word of words) {
+      if (word.box && areas.some((area) => intersects(word.box as Rect, area))) nearby.push(word.text);
+    }
+  }
+  return nameAppearsIn(name, nearby.join(" "));
+}
+
+/** What a scan shows, before any name is typed. Worked out once per scan. */
+export interface ScanFacts {
+  textWords: number;
+  signature: boolean | null;
+}
+
+export function scanFacts(input: { text: string; lines: OcrLine[]; image: GrayImage | null }): ScanFacts {
+  const textWords = countWords(input.text);
+  if (textWords < MIN_WORDS || !input.image) return { textWords, signature: null };
+  return { textWords, signature: signatureInk(input.image, input.lines, printedBoxes(input.lines)) };
+}
+
+export const NO_TEXT = "No receipt text could be read. Hold the phone steady over the whole receipt and scan again.";
+export const NO_SIGNATURE_SPACE =
+  "Could not find where this receipt is signed. Make sure the whole receipt, with the signature area, is in the scan.";
+export const BLANK_SIGNATURE = "The signature space looks blank. Have the receiver sign the receipt, then scan again.";
+export const NO_NAME_TYPED = "Type the receiver's name above.";
+
+/**
+ * What the crew are told, and whether they may submit. Every check blocks:
+ * a receipt that cannot be shown to be signed, with the receiver's name on it,
+ * is not proof. When a client's form defeats the check, the office closes the
+ * stop by hand - which is recorded as theirs.
+ */
+export function scanVerdict(facts: ScanFacts, receiverName: string, nameFound: boolean): ScanVerdict {
+  const blocking: string[] = [];
+  if (facts.textWords < MIN_WORDS) {
+    blocking.push(NO_TEXT);
+  } else {
+    if (facts.signature === null) blocking.push(NO_SIGNATURE_SPACE);
+    else if (facts.signature === false) blocking.push(BLANK_SIGNATURE);
+
+    if (!receiverName.trim()) blocking.push(NO_NAME_TYPED);
+    else if (!nameFound) blocking.push(NAME_NOT_FOUND);
+  }
+  return { blocking, flags: [], signature: facts.signature, nameFound, textWords: facts.textWords };
+}
+
+/** The whole check in one call, for one scan and one name. */
 export function evaluateScan(input: {
   text: string;
   lines: OcrLine[];
   image: GrayImage | null;
   receiverName: string;
 }): ScanVerdict {
-  const textWords = countWords(input.text);
-  const blocking: string[] = [];
-  const flags: string[] = [];
-
-  if (textWords < MIN_WORDS) {
-    blocking.push("No receipt text could be read. Hold the phone steady over the whole receipt and scan again.");
-    return { blocking, flags, signature: null, nameFound: false, textWords };
-  }
-
-  const signature = input.image ? signatureInk(input.image, input.lines, printedBoxes(input.lines)) : null;
-  if (signature === false) {
-    blocking.push("The signature space looks blank. Have the receiver sign the receipt, then scan again.");
-  } else if (signature === null) {
-    flags.push("The signature space on this form could not be found, so the signature was not checked.");
-  }
-
-  const nameFound = input.receiverName.trim() ? nameAppearsIn(input.receiverName, input.text) : false;
-  if (!nameFound) {
-    flags.push(NAME_NOT_FOUND);
-  }
-
-  return { blocking, flags, signature, nameFound, textWords };
+  const facts = scanFacts(input);
+  const nameFound =
+    input.image !== null && input.receiverName.trim() !== ""
+      ? nameOnReceipt(input.receiverName, input.lines, input.image.width, input.image.height)
+      : false;
+  return scanVerdict(facts, input.receiverName, nameFound);
 }
 
 /** Metres between two points on the ground. */

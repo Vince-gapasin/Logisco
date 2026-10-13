@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLANK_SIGNATURE,
   differenceHash,
   distanceMeters,
   evaluateScan,
   findSignatureLabels,
   hammingDistance,
   nameAppearsIn,
+  nameOnReceipt,
   NAME_NOT_FOUND,
+  NO_SIGNATURE_SPACE,
+  NO_TEXT,
+  printedBoxes,
   signatureInk,
   type GrayImage,
   type OcrLine,
+  type OcrWord,
   type Rect,
 } from "@/app/lib/podScan";
 import { checkPodScan, ENFORCE_LOCATION, parseScanReport, type StopPlace } from "@/services/storage/podScanCheck";
@@ -18,45 +24,96 @@ import { checkPodScan, ENFORCE_LOCATION, parseScanReport, type StopPlace } from 
 //
 // Every client prints their own POD, so the checks cannot know a form's layout.
 // They find the place a form asks for a signature by its label, look for pen
-// strokes there, and look for the name the crew typed. Whether the photograph
-// is real - here, now, not used before - is the server's half.
+// strokes there that are not print, and look for the receiver's name written
+// by it. Whether the photograph is real - here, now, not used before - is the
+// server's half.
+//
+// The pages below are drawn the way the sample receipt is laid out:
+//
+//   Received by:   Juan Dela Cruz  <signature>
+//                  ________________________________
+//                     Signature over Printed Name
 
-const WIDTH = 400;
-const HEIGHT = 300;
+const WIDTH = 600;
+const HEIGHT = 400;
 
 function blankPage(): GrayImage {
   return { width: WIDTH, height: HEIGHT, data: new Uint8Array(WIDTH * HEIGHT).fill(235) };
 }
 
 function draw(image: GrayImage, rect: Rect, value = 30) {
-  for (let y = rect.top; y < rect.bottom; y++) {
-    for (let x = rect.left; x < rect.right; x++) image.data[y * image.width + x] = value;
+  for (let y = Math.max(0, rect.top); y < Math.min(image.height, rect.bottom); y++) {
+    for (let x = Math.max(0, rect.left); x < Math.min(image.width, rect.right); x++) image.data[y * image.width + x] = value;
   }
 }
 
-/** A scribble: short diagonal strokes, the way a signature is ink and paper mixed. */
+/** Print or handwriting the reader recognised: letter-like strokes in a box. */
+function text(image: GrayImage, box: Rect) {
+  for (let x = box.left + 1; x < box.right - 1; x += 4) draw(image, { left: x, top: box.top + 2, right: x + 2, bottom: box.bottom - 2 });
+}
+
+/** A signature: one looping stroke, rising and falling across a line of text or more. */
 function scribble(image: GrayImage, left: number, top: number) {
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 90; i++) {
     const x = left + i;
-    const y = top + Math.round(10 * Math.sin(i / 6));
+    const y = top + 14 + Math.round(14 * Math.sin(i / 7));
     draw(image, { left: x, top: y, right: x + 2, bottom: y + 3 });
   }
 }
 
-const LABEL: OcrLine = {
-  text: "Received by:",
-  box: { left: 20, top: 200, right: 110, bottom: 215 },
-  words: [
-    { text: "Received", box: { left: 20, top: 200, right: 80, bottom: 215 } },
-    { text: "by:", box: { left: 84, top: 200, right: 110, bottom: 215 } },
-  ],
-};
+/** A printed rule, optionally photographed at a slant. */
+function rule(image: GrayImage, left: number, right: number, y: number, slant = 0) {
+  for (let x = left; x < right; x++) {
+    const yy = y + Math.round(((x - left) / (right - left)) * slant);
+    draw(image, { left: x, top: yy, right: x + 1, bottom: yy + 2 });
+  }
+}
 
-const BODY = "DELIVERY RECEIPT Acme Trading DR No 10293 Item Qty Cement 40 bags Rebar 12 pcs Date 10/10/2026 Received by Juan Dela Cruz";
+function word(t: string, left: number, top: number, right: number, bottom: number): OcrWord {
+  return { text: t, box: { left, top, right, bottom } };
+}
 
-describe("the receiver's name on the paper", () => {
+function line(words: OcrWord[]): OcrLine {
+  const boxes = words.map((w) => w.box as Rect);
+  return {
+    text: words.map((w) => w.text).join(" "),
+    box: {
+      left: Math.min(...boxes.map((b) => b.left)),
+      top: Math.min(...boxes.map((b) => b.top)),
+      right: Math.max(...boxes.map((b) => b.right)),
+      bottom: Math.max(...boxes.map((b) => b.bottom)),
+    },
+    words,
+  };
+}
+
+const HEADER = line([word("MAIN", 20, 20, 80, 40), word("BRANCH", 85, 20, 170, 40), word("DELIVERY", 180, 20, 290, 40), word("RECEIPT", 295, 20, 390, 40)]);
+const LABEL = line([word("Received", 20, 200, 90, 216), word("by:", 94, 200, 115, 216)]);
+const CAPTION = line([word("Signature", 170, 250, 240, 264), word("over", 245, 250, 275, 264), word("Printed", 280, 250, 330, 264), word("Name", 335, 250, 370, 264)]);
+const NAME = line([word("Juan", 150, 202, 190, 222), word("Dela", 196, 202, 236, 222), word("Cruz", 242, 202, 282, 222)]);
+
+/** The form as printed: header, label, the line to sign on, its caption. */
+function form(slant = 0): GrayImage {
+  const page = blankPage();
+  for (const l of [HEADER, LABEL, CAPTION]) for (const w of l.words ?? []) text(page, w.box as Rect);
+  rule(page, 130, 520, 238, slant);
+  return page;
+}
+
+function signedForm(): GrayImage {
+  const page = form();
+  for (const w of NAME.words ?? []) text(page, w.box as Rect);
+  scribble(page, 300, 200);
+  return page;
+}
+
+const BODY = "DELIVERY RECEIPT Acme Trading DR No 10293 Item Qty Cement 40 bags Rebar 12 pcs Date 10/10/2026";
+
+const ink = (page: GrayImage, lines: OcrLine[]) => signatureInk(page, lines, printedBoxes(lines));
+
+describe("the receiver's name", () => {
   it("is found when it is there", () => {
-    expect(nameAppearsIn("Juan Dela Cruz", BODY)).toBe(true);
+    expect(nameAppearsIn("Juan Dela Cruz", "Received by Juan Dela Cruz")).toBe(true);
   });
 
   it("forgives case, accents and one misread letter in a longer part", () => {
@@ -67,80 +124,101 @@ describe("the receiver's name on the paper", () => {
     expect(nameAppearsIn("Juan Dela Cruz", "Received by Juan Reyes")).toBe(false);
   });
 
-  it("is not found in an empty name", () => {
-    expect(nameAppearsIn("  ", BODY)).toBe(false);
+  it("must be written by the signature, not merely somewhere on the page", () => {
+    // The branch's own name, printed in the header, does not pass for the receiver's.
+    expect(nameOnReceipt("Main Branch", [HEADER, LABEL, CAPTION], WIDTH, HEIGHT)).toBe(false);
+    expect(nameOnReceipt("Juan Dela Cruz", [HEADER, LABEL, NAME, CAPTION], WIDTH, HEIGHT)).toBe(true);
+  });
+
+  it("is not found on a form with nowhere to write it", () => {
+    expect(nameOnReceipt("Juan Dela Cruz", [HEADER], WIDTH, HEIGHT)).toBe(false);
   });
 });
 
 describe("where a form asks for a signature", () => {
   it("is found by its label, whatever the layout", () => {
-    expect(findSignatureLabels([LABEL, { text: "Item Qty", box: null }])).toHaveLength(1);
-    expect(findSignatureLabels([{ text: "Signature over printed name", box: { left: 0, top: 0, right: 10, bottom: 10 } }])).toHaveLength(1);
+    expect(findSignatureLabels([LABEL, HEADER])).toHaveLength(1);
+    expect(findSignatureLabels([CAPTION])).toHaveLength(1);
   });
 
   it("measures only the label's own words, not the handwriting on its line", () => {
-    const line: OcrLine = { ...LABEL, text: "Received by: Juan", box: { left: 20, top: 200, right: 300, bottom: 215 } };
-    const [box] = findSignatureLabels([line]);
-    expect(box.right).toBe(110);
+    const [box] = findSignatureLabels([line([...(LABEL.words ?? []), word("Juan", 150, 202, 190, 222)])]);
+    expect(box.right).toBe(115);
   });
 });
 
 describe("whether it was signed", () => {
-  it("sees pen strokes beside the label", () => {
-    const page = blankPage();
-    scribble(page, 130, 205);
-    expect(signatureInk(page, [LABEL], [LABEL.box as Rect])).toBe(true);
+  it("calls the printed form, with nobody's pen on it, blank", () => {
+    // The bug: the caption's printed words beside "Signature" were counted as ink.
+    expect(ink(form(), [HEADER, LABEL, CAPTION])).toBe(false);
   });
 
-  it("calls a blank signature space blank", () => {
-    expect(signatureInk(blankPage(), [LABEL], [LABEL.box as Rect])).toBe(false);
+  it("is not fooled by the line to sign on, even photographed at a slant", () => {
+    expect(ink(form(8), [HEADER, LABEL, CAPTION])).toBe(false);
   });
 
-  it("does not mistake the printed line a form signs on for a signature", () => {
-    const page = blankPage();
-    draw(page, { left: 115, top: 213, right: 395, bottom: 215 });
-    expect(signatureInk(page, [LABEL], [LABEL.box as Rect])).toBe(false);
+  it("does not take a printed name alone for a signature", () => {
+    const page = form();
+    for (const w of NAME.words ?? []) text(page, w.box as Rect);
+    expect(ink(page, [HEADER, LABEL, NAME, CAPTION])).toBe(false);
   });
 
-  it("says it does not know when the form has no signature label", () => {
-    expect(signatureInk(blankPage(), [{ text: "Item Qty", box: null }], [])).toBeNull();
+  it("sees a signature beside the name", () => {
+    expect(ink(signedForm(), [HEADER, LABEL, NAME, CAPTION])).toBe(true);
+  });
+
+  it("sees a signature that runs across the line it is signed on", () => {
+    const page = form(4);
+    for (const w of NAME.words ?? []) text(page, w.box as Rect);
+    scribble(page, 300, 222);
+    expect(ink(page, [HEADER, LABEL, NAME, CAPTION])).toBe(true);
+  });
+
+  it("still sees it when the reader made a word of the scribble", () => {
+    const misread = line([word("Jlw", 300, 200, 392, 232)]);
+    expect(ink(signedForm(), [HEADER, LABEL, NAME, misread, CAPTION])).toBe(true);
+  });
+
+  it("does not know when the form has no signature label", () => {
+    expect(ink(blankPage(), [HEADER])).toBeNull();
   });
 });
 
 describe("what the crew are told", () => {
-  it("refuses a page with almost no text: not a readable receipt", () => {
-    const verdict = evaluateScan({ text: "Acme", lines: [], image: blankPage(), receiverName: "Juan" });
-    expect(verdict.blocking[0]).toMatch(/No receipt text/);
-  });
+  const scan = (page: GrayImage, lines: OcrLine[], receiverName = "Juan Dela Cruz", body = BODY) =>
+    evaluateScan({ text: `${body} ${lines.map((l) => l.text).join(" ")}`, lines, image: page, receiverName });
 
-  it("refuses an unsigned receipt", () => {
-    const verdict = evaluateScan({ text: BODY, lines: [LABEL], image: blankPage(), receiverName: "Juan Dela Cruz" });
-    expect(verdict.blocking[0]).toMatch(/signature space looks blank/);
-  });
-
-  it("passes a signed receipt with the name on it", () => {
-    const page = blankPage();
-    scribble(page, 130, 205);
-    const verdict = evaluateScan({ text: BODY, lines: [LABEL], image: page, receiverName: "Juan Dela Cruz" });
+  it("passes a signed receipt with the receiver's name by the signature", () => {
+    const verdict = scan(signedForm(), [HEADER, LABEL, NAME, CAPTION]);
     expect(verdict).toMatchObject({ blocking: [], flags: [], signature: true, nameFound: true });
   });
 
-  it("lets a stop close with a name it could not find, for the office to check", () => {
-    const page = blankPage();
-    scribble(page, 130, 205);
-    const verdict = evaluateScan({ text: BODY, lines: [LABEL], image: page, receiverName: "Maria Santos" });
-    expect(verdict.blocking).toEqual([]);
-    expect(verdict.flags).toEqual([NAME_NOT_FOUND]);
+  it("refuses the unsigned form, with no name on it", () => {
+    const verdict = scan(form(), [HEADER, LABEL, CAPTION]);
+    expect(verdict.blocking).toEqual([BLANK_SIGNATURE, NAME_NOT_FOUND]);
+  });
+
+  it("refuses a signed receipt without the receiver's name", () => {
+    const verdict = scan(signedForm(), [HEADER, LABEL, NAME, CAPTION], "Maria Santos");
+    expect(verdict.blocking).toEqual([NAME_NOT_FOUND]);
+  });
+
+  it("refuses a page with no signature space it can find", () => {
+    const verdict = scan(blankPage(), [HEADER]);
+    expect(verdict.blocking).toContain(NO_SIGNATURE_SPACE);
+  });
+
+  it("refuses a page with almost no text: not a readable receipt", () => {
+    const verdict = evaluateScan({ text: "Acme", lines: [], image: blankPage(), receiverName: "Juan" });
+    expect(verdict.blocking).toEqual([NO_TEXT]);
   });
 });
 
 describe("the picture's fingerprint", () => {
   it("is the same for the same page and different for another", () => {
-    const a = blankPage();
-    scribble(a, 130, 205);
-    draw(a, { left: 20, top: 20, right: 300, bottom: 60 }, 60);
+    const a = signedForm();
     const b = blankPage();
-    draw(b, { left: 200, top: 100, right: 390, bottom: 290 }, 40);
+    draw(b, { left: 300, top: 150, right: 590, bottom: 390 }, 40);
 
     const hashA = differenceHash(a);
     expect(hashA).toMatch(/^[0-9a-f]{16}$/);
@@ -189,7 +267,7 @@ describe("a real scan, taken here and now", () => {
   });
 
   it("carries the phone's own flags to the office", () => {
-    expect(check(report({ flags: [NAME_NOT_FOUND] })).flags).toEqual([NAME_NOT_FOUND]);
+    expect(check(report({ flags: ["Something to look at."] })).flags).toEqual(["Something to look at."]);
   });
 });
 
@@ -212,7 +290,9 @@ describe("a scan that is not real", () => {
   });
 
   it("is refused when the phone's own checks were skipped", () => {
-    expect(check(report({ signature: false })).refusal).toMatch(/blank/);
+    expect(check(report({ signature: false })).refusal).toBe(BLANK_SIGNATURE);
+    expect(check(report({ signature: null })).refusal).toBe(NO_SIGNATURE_SPACE);
+    expect(check(report({ nameFound: false })).refusal).toBe(NAME_NOT_FOUND);
     expect(check(report({ textWords: 2 })).refusal).toMatch(/No receipt text/);
   });
 });

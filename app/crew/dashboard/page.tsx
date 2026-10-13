@@ -579,7 +579,7 @@ export default function CrewDashboardPage({
       setScanned(result);
       setSelectedImage(result.previewUrl);
       setSelectedFile(result.file);
-      setPodRejection(result.verdict.blocking.length > 0 ? result.verdict.blocking : null);
+      setPodRejection(null);
     } catch (error) {
       showToast(`Scan failed: ${error instanceof Error ? error.message : error}`, "error");
     } finally {
@@ -589,11 +589,14 @@ export default function CrewDashboardPage({
 
   // The scan against the name as typed now, so the name check follows edits.
   const currentScan = scanned ? withReceiverName(scanned, receiverName) : null;
+  // What stops this stop closing: the server's last refusal, else the scan's own.
+  const scanProblems =
+    podRejection ?? (currentScan && currentScan.verdict.blocking.length > 0 ? currentScan.verdict.blocking : null);
 
   const handleUpdateStatusSubmit = async () => {
     const isPodRequiredForStop = dynamicStops[currentStepIndex]?.reqPod;
 
-    if (isPodRequiredForStop && podRejection) {
+    if (isPodRequiredForStop && scanProblems) {
       showToast("Scan the receipt again before completing this stop.", "error");
       return;
     }
@@ -1470,7 +1473,7 @@ export default function CrewDashboardPage({
                       type="button"
                       onClick={handleScanPod}
                       disabled={isScanning || isSubmittingResponse}
-                      className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${podRejection ? "border-red-400" : "border-blue-300"}`}
+                      className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${scanProblems ? "border-red-400" : "border-blue-300"}`}
                     >
                       {selectedImage ? (
                         <>
@@ -1490,7 +1493,7 @@ export default function CrewDashboardPage({
                     </button>
                   ) : (
                     <>
-                      <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${podRejection ? "border-red-400" : "border-blue-300"}`}>
+                      <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${scanProblems ? "border-red-400" : "border-blue-300"}`}>
                         {selectedImage ? (
                           <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
                         ) : (
@@ -1508,7 +1511,7 @@ export default function CrewDashboardPage({
                       </p>
                     </>
                   )}
-                  {currentScan && !podRejection && currentScan.verdict.flags.length > 0 && (
+                  {currentScan && !scanProblems && currentScan.verdict.flags.length > 0 && (
                     <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                       <p className="text-xs font-semibold text-amber-800">You can continue. The office will check:</p>
                       <ul className="mt-1 list-disc pl-4 text-xs text-amber-800">
@@ -1518,14 +1521,14 @@ export default function CrewDashboardPage({
                       </ul>
                     </div>
                   )}
-                  {currentScan && !podRejection && currentScan.verdict.flags.length === 0 && (
+                  {currentScan && !scanProblems && currentScan.verdict.flags.length === 0 && (
                     <p role="status" className="mt-3 text-xs font-semibold text-emerald-700">Receipt checked: signed, and the name matches.</p>
                   )}
-                  {podRejection && (
+                  {scanProblems && (
                     <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
                       <p className="text-xs font-semibold text-red-700">Scan the receipt again:</p>
                       <ul className="mt-1 list-disc pl-4 text-xs text-red-700">
-                        {podRejection.map((reason) => (
+                        {scanProblems.map((reason) => (
                           <li key={reason}>{reason}</li>
                         ))}
                       </ul>
@@ -1886,7 +1889,7 @@ export default function CrewDashboardPage({
             </p>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim() || Boolean(podRejection)))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim() || Boolean(scanProblems)))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>

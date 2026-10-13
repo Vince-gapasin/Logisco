@@ -20,12 +20,13 @@ import { compressImage } from "@/app/lib/imageCompression";
 import { grayscale } from "@/app/lib/imageHash";
 import {
   differenceHash,
-  evaluateScan,
-  nameAppearsIn,
-  NAME_NOT_FOUND,
+  nameOnReceipt,
+  scanFacts,
+  scanVerdict,
   type OcrLine,
   type PodScanReport,
   type Rect,
+  type ScanFacts,
   type ScanVerdict,
 } from "@/app/lib/podScan";
 
@@ -37,8 +38,11 @@ export interface ScannedPod {
   previewUrl: string;
   verdict: ScanVerdict;
   report: PodScanReport;
-  /** What the reader found on the page, for checking a name typed afterwards. */
-  text: string;
+  /** What the page showed, kept to check a name typed or corrected afterwards. */
+  facts: ScanFacts;
+  lines: OcrLine[];
+  width: number;
+  height: number;
 }
 
 /**
@@ -46,14 +50,12 @@ export interface ScannedPod {
  * type the name after, or correct it; the name check follows the field.
  */
 export function withReceiverName(scan: ScannedPod, receiverName: string): ScannedPod {
-  const nameFound = receiverName.trim() ? nameAppearsIn(receiverName, scan.text) : false;
-  const flags = scan.verdict.flags.filter((flag) => flag !== NAME_NOT_FOUND);
-  // Only once the page itself was readable: an unreadable scan is already refused.
-  if (!nameFound && scan.verdict.blocking.length === 0) flags.push(NAME_NOT_FOUND);
+  const nameFound = receiverName.trim() ? nameOnReceipt(receiverName, scan.lines, scan.width, scan.height) : false;
+  const verdict = scanVerdict(scan.facts, receiverName, nameFound);
   return {
     ...scan,
-    verdict: { ...scan.verdict, nameFound, flags },
-    report: { ...scan.report, nameFound, flags },
+    verdict,
+    report: { ...scan.report, nameFound, signature: verdict.signature, flags: verdict.flags },
   };
 }
 
@@ -162,28 +164,32 @@ export async function scanPod(receiverName: string): Promise<ScannedPod | null> 
     })),
   );
 
-  const verdict = evaluateScan({ text: ocr.text, lines, image, receiverName });
+  const facts = scanFacts({ text: ocr.text, lines, image });
   const fix = await position;
 
   const original = new File([blob], `pod-scan-${Date.now()}.jpg`, { type: "image/jpeg" });
   const file = await compressImage(original).catch(() => original);
 
-  return {
+  const scanned: ScannedPod = {
     file,
     previewUrl: URL.createObjectURL(file),
-    verdict,
+    verdict: scanVerdict(facts, "", false),
     report: {
       method: "scanner",
       capturedAt,
       ...fix,
-      textWords: verdict.textWords,
-      signature: verdict.signature,
-      nameFound: verdict.nameFound,
+      textWords: facts.textWords,
+      signature: facts.signature,
+      nameFound: false,
       dHash: differenceHash(image),
-      flags: verdict.flags,
+      flags: [],
     },
-    text: ocr.text,
+    facts,
+    lines,
+    width: image.width,
+    height: image.height,
   };
+  return withReceiverName(scanned, receiverName);
 }
 
 /** The report for a photo from the plain camera, on an app without the scanner. */

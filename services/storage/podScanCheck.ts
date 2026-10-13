@@ -12,7 +12,15 @@
 // and the client then sees the result on their tracking page.
 
 import { createHash } from "node:crypto";
-import { distanceMeters, hammingDistance, MIN_WORDS, type PodScanReport } from "@/app/lib/podScan";
+import {
+  BLANK_SIGNATURE,
+  distanceMeters,
+  hammingDistance,
+  MIN_WORDS,
+  NAME_NOT_FOUND,
+  NO_SIGNATURE_SPACE,
+  type PodScanReport,
+} from "@/app/lib/podScan";
 
 /**
  * Whether a scan taken away from the stop is refused. Off for now, while the
@@ -106,8 +114,14 @@ export function checkPodScan(input: {
   if (report.textWords < MIN_WORDS) {
     return { refusal: "No receipt text could be read. Scan the whole receipt again.", flags };
   }
+  if (report.signature === null) {
+    return { refusal: NO_SIGNATURE_SPACE, flags };
+  }
   if (report.signature === false) {
-    return { refusal: "The signature space looks blank. Have the receiver sign, then scan again.", flags };
+    return { refusal: BLANK_SIGNATURE, flags };
+  }
+  if (!report.nameFound) {
+    return { refusal: NAME_NOT_FOUND, flags };
   }
 
   if (report.dHash && input.earlierHashes.some((hash) => hammingDistance(hash, report.dHash as string) <= SAME_PICTURE_BITS)) {
