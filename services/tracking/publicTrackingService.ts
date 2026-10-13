@@ -830,6 +830,7 @@ interface TrackedProof {
   receiverName: string | null;
   deliveredAt: string | null;
   validationStatus: string | null;
+  reviewStatus: string | null;
 }
 
 /**
@@ -868,7 +869,7 @@ export async function getTrackingByToken(
       `orderID, orderCode, createdAt, isActive, notes,
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, expectedDate, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
-         POD ( proof, receiverName, deliveredAt, validationStatus ) ),
+         POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
        PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
@@ -925,7 +926,10 @@ export async function getTrackingByToken(
   const shownProof = (stop: TrackedStop): string | null => {
     const proof = latestProof(stop);
     const delivered = /complete|delivered/i.test(stop.stopStatus ?? "");
-    return delivered && proof?.proof && proof.validationStatus !== "failed" ? proof.proof : null;
+    // Not one the scan failed, and not one the office rejected.
+    return delivered && proof?.proof && proof.validationStatus !== "failed" && proof.reviewStatus !== "rejected"
+      ? proof.proof
+      : null;
   };
   const signedProofs = await signPodUrls(branchRows.map(shownProof));
 
@@ -1166,7 +1170,7 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
     .from("Order")
     .select(
       `orderID, isActive,
-       BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( proof, receiverName, deliveredAt, validationStatus ) ),
+       BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
        PickupStops ( pickupID, stopStatus, arrivedAt, completedAt ),
        FoulTripIncident ( dispatchID, status, resolvedAt ),
        DispatchOrder ( dispatchID, status, completedAt, truckID, driverID, subConID, partnerDriver, partnerPlate,

@@ -32,6 +32,9 @@ export interface StopProof {
   /** The automatic receipt check. Absent on proofs recorded before it existed. */
   validationStatus?: ProofCheck;
   validationNotes?: string | null;
+  /** The office's decision on a proof that needed a review. */
+  reviewStatus?: "approved" | "rejected" | null;
+  reviewNote?: string | null;
 }
 
 export interface ProofBearingStop {
@@ -188,7 +191,7 @@ export default function StopProofList({
                 {pod.source === "coordinator" ? " (recorded by a coordinator)" : ""}
               </p>
               {pod.proof && (() => {
-                const badge = proofCheckBadge(pod.validationStatus);
+                const badge = proofCheckBadge(pod.validationStatus, pod.reviewStatus);
                 return (
                   <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badge.style}`}>
@@ -197,8 +200,20 @@ export default function StopProofList({
                   </p>
                 );
               })()}
-              {pod.validationStatus && pod.validationStatus !== "passed" && pod.validationNotes && (
+              {pod.validationStatus && pod.validationStatus !== "passed" && pod.validationNotes && !pod.reviewStatus && (
                 <p className="text-xs text-amber-800 wrap-break-word">{pod.validationNotes}</p>
+              )}
+              {pod.reviewStatus === "rejected" && pod.reviewNote && (
+                <p className="text-xs text-red-700 wrap-break-word">Rejected: {pod.reviewNote}</p>
+              )}
+              {/* Where the office decides on it. */}
+              {pod.validationStatus === "unverified" && !pod.reviewStatus && (
+                <a
+                  href={`/admindashboard/proof-review?pod=${pod.podID}`}
+                  className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  Review this proof
+                </a>
               )}
               {pod.remarks && <p className="text-xs text-slate-500 wrap-break-word">{pod.remarks}</p>}
               {/* A stop finished without a photograph still has a row, so the

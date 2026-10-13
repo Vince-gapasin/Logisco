@@ -6,6 +6,7 @@
 
 import {
   Calendar,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   MapPin,
@@ -38,6 +39,7 @@ export const PORTAL_NAV: Record<Portal, { name: string; items: NavItem[] }> = {
       // History Logs opens from a button on Fleet Status, so it keeps this lit.
       { href: "/admindashboard/fleet-status", label: "Fleet Status", icon: Truck, also: ["/admindashboard/history-logs"] },
       { href: "/admindashboard/fleet-tracking", label: "Fleet Live Tracking", icon: MapPin },
+      { href: "/admindashboard/proof-review", label: "Proof Review", icon: ClipboardCheck },
       { href: "/admindashboard/reports", label: "Reports & Forecast", icon: FileText, also: ["/admindashboard/forecasting"] },
     ],
   },

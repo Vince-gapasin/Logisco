@@ -443,6 +443,11 @@ export interface PODRow {
   captureLng: number | null;
   imageHash: string | null;
   imageDHash: string | null;
+  reviewStatus: "approved" | "rejected" | null;
+  /** This is a Foreign Key to `Employee.employeeID`.<fk table='Employee' column='employeeID'/> */
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
 }
 
 export interface PickupStopsRow {

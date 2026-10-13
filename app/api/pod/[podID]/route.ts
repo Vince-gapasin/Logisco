@@ -95,6 +95,10 @@ export async function PATCH(
       // and the audit row below says whose.
       update.validationStatus = null;
       update.validationNotes = null;
+      update.reviewStatus = null;
+      update.reviewedBy = null;
+      update.reviewedAt = null;
+      update.reviewNote = null;
     }
 
     if (receiverName !== undefined && receiverName !== current.receiverName) {

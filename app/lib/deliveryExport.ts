@@ -119,7 +119,7 @@ function describe(order: OrderWithRelations, history: BookingHistoryEntry[]) {
           { label: "Completed", value: when(stop.completedAt) },
           { label: "Received by", value: orDash(proof?.receiverName) },
           ...(proof?.url
-            ? [{ label: "Receipt check", value: proofCheckBadge(proof.validationStatus).text }]
+            ? [{ label: "Receipt check", value: proofCheckBadge(proof.validationStatus, proof.reviewStatus).text }]
             : []),
           ...(proof?.remarks ? [{ label: "Proof remarks", value: proof.remarks, wide: true }] : []),
           ...(proof?.missingReason ? [{ label: "No proof because", value: proof.missingReason, wide: true }] : []),

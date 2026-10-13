@@ -10,7 +10,11 @@ export type ProofCheck = "passed" | "failed" | "unverified" | null;
  */
 export function proofCheckBadge(
   status: ProofCheck | undefined,
+  review?: "approved" | "rejected" | null,
 ): { text: string; style: string } {
+  // The office's decision outranks the scan's: it is the later, human look.
+  if (review === "approved") return { text: "Approved by office", style: "bg-emerald-100 text-emerald-800" };
+  if (review === "rejected") return { text: "Rejected by office", style: "bg-red-100 text-red-800" };
   switch (status) {
     case "passed":
       return { text: "Verified", style: "bg-emerald-100 text-emerald-800" };

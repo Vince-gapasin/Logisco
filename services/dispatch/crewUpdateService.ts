@@ -116,6 +116,7 @@ export async function announceUnverifiedProof(
     severity: "action",
     dedupeKey: `unverified-proof:${dispatchID}:${completedAt}`,
     actor,
+    link: "/admindashboard/proof-review",
   });
 }
 

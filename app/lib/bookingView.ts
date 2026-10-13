@@ -45,6 +45,7 @@ export interface StopProofView {
   recordedBy: "crew" | "coordinator";
   /** The automatic receipt check; null before it existed or for office uploads. */
   validationStatus: "passed" | "failed" | "unverified" | null;
+  reviewStatus: "approved" | "rejected" | null;
 }
 
 export interface BookingStopView {
@@ -387,6 +388,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
             missingReason: (pod.missingReason as string | null) ?? null,
             recordedBy: pod.source === "coordinator" ? ("coordinator" as const) : ("crew" as const),
             validationStatus: (pod.validationStatus as StopProofView["validationStatus"]) ?? null,
+            reviewStatus: (pod.reviewStatus as StopProofView["reviewStatus"]) ?? null,
           }))
           .sort((a, b) => String(b.deliveredAt ?? "").localeCompare(String(a.deliveredAt ?? ""))),
       }))
