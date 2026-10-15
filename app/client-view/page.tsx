@@ -402,13 +402,9 @@ function ClientTrackerView() {
   const [showAllSteps, setShowAllSteps] = useState(false);
 
   // "Report a problem" is in the header and the bar that stays at the top, so
-  // it is never a scroll away. Both open the form and bring it into view.
+  // it is never a scroll away. Both open the form, which brings itself into view.
   const [reportOpen, setReportOpen] = useState(false);
-  const openReport = useCallback(() => {
-    setReportOpen(true);
-    // The card is already on the page, closed; only its form is new.
-    document.getElementById("report-a-problem")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  const openReport = useCallback(() => setReportOpen(true), []);
 
   // The "updated 20 sec ago" line counts on its own between refreshes.
   const [now, setNow] = useState(() => Date.now());
@@ -940,7 +936,7 @@ function ClientTrackerView() {
       </div>
 
       <p className="text-center text-xs text-slate-500 pb-2">
-        Questions about this delivery? Use Report a problem above, or contact your Logisco coordinator and mention {data.orderNumber}.
+        Questions about this delivery? Use Report a problem at the top, or contact your Logisco coordinator and mention {data.orderNumber}.
       </p>
     </Page>
   );

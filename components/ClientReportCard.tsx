@@ -10,7 +10,7 @@
 // What they sent stays on the card with where it stands, and the office's reply
 // once there is one, so the client can see it was read rather than wonder.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Clock, MessageSquareWarning, Send } from "lucide-react";
 import { formatDateTime } from "@/app/lib/datetime";
 import {
@@ -39,6 +39,17 @@ export default function ClientReportCard({ token, reports, onSent, open, onOpenC
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [justSent, setJustSent] = useState(false);
+
+  // Brought into view when it opens: the button that opened it may be a long
+  // way up the page, or in the bar pinned to the top of a phone.
+  const cardRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    // A report sent earlier is old news once another is being written.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJustSent(false);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [open]);
 
   const ready = category !== null && message.trim().length > 0;
 
@@ -78,8 +89,13 @@ export default function ClientReportCard({ token, reports, onSent, open, onOpenC
     }
   };
 
+  // Opened from the page's own button, which sits in the header. Until then
+  // the card is only here to show what the client already sent.
+  if (!open && !justSent && reports.length === 0) return null;
+
   return (
     <section
+      ref={cardRef}
       id="report-a-problem"
       // Clear of the status bar pinned to the top of a phone when scrolled to.
       className="scroll-mt-20 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
@@ -89,22 +105,9 @@ export default function ClientReportCard({ token, reports, onSent, open, onOpenC
         <div className="flex items-center gap-2 min-w-0">
           <MessageSquareWarning className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
           <h2 id="report-a-problem-title" className="text-sm font-semibold text-slate-900">
-            Something not right?
+            {open ? "Report a problem" : "Your reports"}
           </h2>
         </div>
-        {!open && (
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(true);
-              setJustSent(false);
-            }}
-            className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-          >
-            <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
-            Report a problem
-          </button>
-        )}
       </div>
 
       {justSent && !open && (
