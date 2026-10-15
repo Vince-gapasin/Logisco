@@ -308,6 +308,84 @@ function Card({
   );
 }
 
+/**
+ * While the order is still to be collected: the two legs ahead, in order.
+ *
+ * The pickup is what is happening now and the delivery is what the customer
+ * is waiting for, so each has its own place and its own time rather than one
+ * being a grey note under the other. The delivery time is the larger: it is
+ * the one they came for.
+ */
+function PickupThenDelivery({
+  pickupName,
+  pickup,
+  bookedPickup,
+  deliveryName,
+  deliveryTime,
+}: {
+  pickupName: string;
+  pickup: { arrived: boolean; minutes: number | null; arrivalTime: string | null } | null;
+  bookedPickup: string | null;
+  deliveryName: string | null;
+  deliveryTime: string | null;
+}) {
+  return (
+    <ol className="mt-4 rounded-xl border border-slate-200 bg-white p-4" aria-label="What happens next">
+      <li className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <div className="h-9 w-9 shrink-0 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+            <Package className="h-4 w-4" aria-hidden="true" />
+          </div>
+          <span className="my-1 w-0.5 flex-1 min-h-3 rounded-full bg-slate-200" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-x-3 gap-y-1 pb-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Pickup · now</p>
+            <p className="text-sm font-semibold text-slate-900 break-words">{pickupName}</p>
+          </div>
+          {pickup?.arrived ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+              </span>
+              Loading your order
+            </span>
+          ) : pickup?.arrivalTime ? (
+            <div className="text-left min-[400px]:text-right">
+              <p className="text-lg font-bold leading-tight tabular-nums text-blue-700">{pickup.arrivalTime}</p>
+              <p className="text-xs text-slate-600">About {pickup.minutes} min away</p>
+            </div>
+          ) : bookedPickup ? (
+            <div className="text-left min-[400px]:text-right">
+              <p className="text-lg font-bold leading-tight tabular-nums text-slate-900">{bookedPickup}</p>
+              <p className="text-xs text-slate-600">Booked time</p>
+            </div>
+          ) : null}
+        </div>
+      </li>
+
+      <li className="flex gap-3">
+        <div className="h-9 w-9 shrink-0 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+          <MapPin className="h-4 w-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Then delivery to you</p>
+            <p className="text-sm font-semibold text-slate-900 break-words">{deliveryName ?? "Your stop"}</p>
+          </div>
+          {deliveryTime && (
+            <div className="text-left min-[400px]:text-right">
+              <p className="text-2xl sm:text-3xl font-bold leading-tight tabular-nums text-slate-900">{deliveryTime}</p>
+              <p className="text-xs text-slate-600">Booked time</p>
+            </div>
+          )}
+        </div>
+      </li>
+    </ol>
+  );
+}
+
 // ------------------------------------------------------------------ view
 
 function ClientTrackerView() {
@@ -489,35 +567,18 @@ function ClientTrackerView() {
   // Set apart and large, because it is the one thing most people open the page
   // for: as a line of grey text among the date and the address it was missed.
   //
-  // While the order is still to be collected, the live estimate is not led
-  // with. It runs to this client's stop through the warehouse, and cannot know
-  // how long the loading will take; next to "Collecting from" it also read as
-  // the time the truck reaches the warehouse. The customer's own booked time
-  // leads instead, with where the pickup stands beneath it.
+  // While the order is still to be collected it gives way to the pickup and
+  // the delivery side by side (PickupThenDelivery). The live estimate is not
+  // used there: it runs to this client's stop through the warehouse and cannot
+  // know how long the loading will take, and next to the warehouse's name it
+  // read as the time the truck would get there.
   const pickup = data.collectionProgress ?? null;
-  const pickupNote = pickup?.arrived
-    ? "The crew are loading your order now"
-    : pickup?.minutes != null
-      ? `The truck reaches the pickup in about ${pickup.minutes} min`
-      : data.estimatedArrival
-        ? `Pickup booked for ${data.estimatedArrival}`
-        : null;
-  const arrival: { label: string; time: string; note: string | null; live: boolean } | null = data.isCompleted
+  const showPickup = collecting && !data.isCompleted && Boolean(data.nextStopName);
+  const deliveryStopName = data.stops.find((stop) => !/complete|delivered/i.test(stop.status))?.branchName ?? null;
+  const arrival: { label: string; time: string; note: string | null; live: boolean } | null =
+    data.isCompleted || showPickup
     ? null
-    : collecting
-      ? data.deliveryArrival
-        ? { label: "Delivery to you expected by", time: data.deliveryArrival, note: pickupNote, live: false }
-        : pickup?.arrivalTime
-          ? {
-              label: "Reaching the pickup by",
-              time: pickup.arrivalTime,
-              note: `About ${pickup.minutes} min away`,
-              live: true,
-            }
-          : data.estimatedArrival
-            ? { label: "Pickup expected by", time: data.estimatedArrival, note: pickup?.arrived ? pickupNote : null, live: false }
-            : null
-      : data.liveEta
+    : data.liveEta
       ? {
           label: "Estimated arrival",
           time: data.liveEta.arrivalTime,
@@ -656,17 +717,27 @@ function ClientTrackerView() {
                   </span>
                 </p>
               )}
-              {!data.isCompleted && data.nextStopName && (
+              {!data.isCompleted && !showPickup && data.nextStopName && (
                 <p className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-slate-500 shrink-0" />
                   <span>
-                    {collecting ? "Collecting from" : step < 2 ? "Delivering to" : "Next stop"}: {data.nextStopName}
+                    {step < 2 ? "Delivering to" : "Next stop"}: {data.nextStopName}
                   </span>
                 </p>
               )}
             </div>
           </div>
         </div>
+
+        {showPickup && (
+          <PickupThenDelivery
+            pickupName={data.nextStopName as string}
+            pickup={pickup}
+            bookedPickup={data.estimatedArrival}
+            deliveryName={deliveryStopName}
+            deliveryTime={data.deliveryArrival}
+          />
+        )}
 
         {arrival && (
           <div
