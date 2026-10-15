@@ -25,6 +25,7 @@ import {
   Flag,
   Link2Off,
   MapPin,
+  MessageSquareWarning,
   Navigation,
   Package,
   Phone,
@@ -216,7 +217,7 @@ function Page({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Brand({ orderNumber }: { orderNumber?: string }) {
+function Brand({ orderNumber, action }: { orderNumber?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
@@ -225,14 +226,28 @@ function Brand({ orderNumber }: { orderNumber?: string }) {
         </div>
         <div className="leading-tight">
           <p className="text-sm font-bold text-slate-900">Logisco</p>
-          <p className="text-xs text-slate-500">Delivery tracking</p>
+          {/* On a phone the order number sits here, so the report button fits
+              beside it on one line. */}
+          <p className="text-xs text-slate-500">
+            {orderNumber ? (
+              <>
+                <span className="min-[480px]:hidden font-semibold text-slate-700">{orderNumber}</span>
+                <span className="hidden min-[480px]:inline">Delivery tracking</span>
+              </>
+            ) : (
+              "Delivery tracking"
+            )}
+          </p>
         </div>
       </div>
-      {orderNumber && (
-        <span className="text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-full px-3 py-1">
-          {orderNumber}
-        </span>
-      )}
+      <div className="flex items-center gap-2">
+        {orderNumber && (
+          <span className="hidden min-[480px]:inline text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-full px-3 py-1">
+            {orderNumber}
+          </span>
+        )}
+        {action}
+      </div>
     </div>
   );
 }
@@ -385,6 +400,15 @@ function ClientTrackerView() {
   // On a phone the history starts at where things are now; the steps that are
   // long done are a tap away. A wide screen has the room and shows them all.
   const [showAllSteps, setShowAllSteps] = useState(false);
+
+  // "Report a problem" is in the header and the bar that stays at the top, so
+  // it is never a scroll away. Both open the form and bring it into view.
+  const [reportOpen, setReportOpen] = useState(false);
+  const openReport = useCallback(() => {
+    setReportOpen(true);
+    // The card is already on the page, closed; only its form is new.
+    document.getElementById("report-a-problem")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // The "updated 20 sec ago" line counts on its own between refreshes.
   const [now, setNow] = useState(() => Date.now());
@@ -557,10 +581,31 @@ function ClientTrackerView() {
               {[MILESTONES[step], shortTime].filter(Boolean).join(" · ")}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={openReport}
+            tabIndex={heroVisible ? -1 : 0}
+            className="min-h-tap shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700"
+          >
+            <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
+            Report
+          </button>
         </div>
       </div>
 
-      <Brand orderNumber={data.orderNumber} />
+      <Brand
+        orderNumber={data.orderNumber}
+        action={
+          <button
+            type="button"
+            onClick={openReport}
+            className="min-h-tap md:pointer-fine:min-h-0 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+          >
+            <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
+            Report<span className="hidden min-[480px]:inline">&nbsp;a problem</span>
+          </button>
+        }
+      />
 
       {/* ---------------------------------------------------- status first */}
       <section ref={heroRef} className={`rounded-2xl border shadow-sm p-4 min-[360px]:p-5 sm:p-6 ${toneStyle.card}`}>
@@ -680,7 +725,13 @@ function ClientTrackerView() {
 
       {/* Open at every stage: a complaint about a late truck is no use once
           it has arrived. One line while there is nothing to say. */}
-      <ClientReportCard token={token} reports={data.reports ?? []} onSent={() => void refresh()} />
+      <ClientReportCard
+        token={token}
+        reports={data.reports ?? []}
+        onSent={() => void refresh()}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+      />
 
       {/* Two columns on a wide screen. On a phone the columns dissolve
           (display: contents) so the cards can be ordered by what a customer

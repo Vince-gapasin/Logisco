@@ -27,10 +27,12 @@ interface Props {
   reports: ClientReportSummary[];
   /** Called after a report is sent, so the page can refresh what it shows. */
   onSent?: () => void;
+  /** Whether the form is open. The page holds it, so its header button can open it. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export default function ClientReportCard({ token, reports, onSent }: Props) {
-  const [open, setOpen] = useState(false);
+export default function ClientReportCard({ token, reports, onSent, open, onOpenChange: setOpen }: Props) {
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [message, setMessage] = useState("");
   const [contactBack, setContactBack] = useState("");
@@ -79,7 +81,8 @@ export default function ClientReportCard({ token, reports, onSent }: Props) {
   return (
     <section
       id="report-a-problem"
-      className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
+      // Clear of the status bar pinned to the top of a phone when scrolled to.
+      className="scroll-mt-20 bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
       aria-labelledby="report-a-problem-title"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
@@ -96,8 +99,9 @@ export default function ClientReportCard({ token, reports, onSent }: Props) {
               setOpen(true);
               setJustSent(false);
             }}
-            className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+            className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
           >
+            <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
             Report a problem
           </button>
         )}
