@@ -114,6 +114,7 @@ interface TrackingData {
   estimatedArrival: string | null;
   deliveryArrival: string | null;
   liveEta: { minutes: number; distanceKm: number; arrivalTime: string } | null;
+  collectionProgress?: { arrived: boolean; minutes: number | null; arrivalTime: string | null } | null;
   nextStopName: string | null;
   nextStopKind: "collection" | "delivery";
   plateNumber: string | null;
@@ -170,6 +171,11 @@ function ago(at: number, now: number): string {
 // The five things a customer understands about a delivery, in order. The
 // timeline underneath says everything; this says how far along it is.
 const MILESTONES = ["Booked", "Crew assigned", "On the road", "At your stop", "Delivered"] as const;
+
+/** The milestones as they read now: until the order is collected, the third is the pickup. */
+function milestoneLabels(collecting: boolean): string[] {
+  return MILESTONES.map((label, index) => (index === 2 && collecting ? "Picking up" : label));
+}
 
 function milestoneIndex(data: TrackingData): number {
   if (data.isCompleted) return 4;
@@ -482,23 +488,43 @@ function ClientTrackerView() {
   //
   // Set apart and large, because it is the one thing most people open the page
   // for: as a line of grey text among the date and the address it was missed.
+  //
+  // While the order is still to be collected, the live estimate is not led
+  // with. It runs to this client's stop through the warehouse, and cannot know
+  // how long the loading will take; next to "Collecting from" it also read as
+  // the time the truck reaches the warehouse. The customer's own booked time
+  // leads instead, with where the pickup stands beneath it.
+  const pickup = data.collectionProgress ?? null;
+  const pickupNote = pickup?.arrived
+    ? "The crew are loading your order now"
+    : pickup?.minutes != null
+      ? `The truck reaches the pickup in about ${pickup.minutes} min`
+      : data.estimatedArrival
+        ? `Pickup booked for ${data.estimatedArrival}`
+        : null;
   const arrival: { label: string; time: string; note: string | null; live: boolean } | null = data.isCompleted
     ? null
-    : data.liveEta
+    : collecting
+      ? data.deliveryArrival
+        ? { label: "Delivery to you expected by", time: data.deliveryArrival, note: pickupNote, live: false }
+        : pickup?.arrivalTime
+          ? {
+              label: "Reaching the pickup by",
+              time: pickup.arrivalTime,
+              note: `About ${pickup.minutes} min away`,
+              live: true,
+            }
+          : data.estimatedArrival
+            ? { label: "Pickup expected by", time: data.estimatedArrival, note: pickup?.arrived ? pickupNote : null, live: false }
+            : null
+      : data.liveEta
       ? {
           label: "Estimated arrival",
           time: data.liveEta.arrivalTime,
           note: `About ${data.liveEta.minutes} min away`,
           live: true,
         }
-      : collecting && data.estimatedArrival
-        ? {
-            label: "Collection expected by",
-            time: data.estimatedArrival,
-            note: data.deliveryArrival ? `Delivery to you expected by ${data.deliveryArrival}` : null,
-            live: false,
-          }
-        : data.estimatedArrival
+      : data.estimatedArrival
           ? { label: "Expected to arrive by", time: data.estimatedArrival, note: "The booked time", live: false }
           : null;
 
@@ -544,7 +570,13 @@ function ClientTrackerView() {
   // The short form of the time, for the bar that stays at the top on a phone.
   const shortTime = data.isCompleted
     ? null
-    : data.liveEta
+    : collecting
+      ? data.deliveryArrival
+        ? `delivery by ${data.deliveryArrival}`
+        : pickup?.minutes != null
+          ? `pickup ~${pickup.minutes} min`
+          : null
+      : data.liveEta
       ? `~${data.liveEta.minutes} min`
       : data.estimatedArrival
         ? `by ${data.estimatedArrival}`
@@ -574,7 +606,7 @@ function ClientTrackerView() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-slate-900 truncate">{headline}</p>
             <p className="text-xs text-slate-600 truncate">
-              {[MILESTONES[step], shortTime].filter(Boolean).join(" · ")}
+              {[milestoneLabels(collecting)[step], shortTime].filter(Boolean).join(" · ")}
             </p>
           </div>
           <button
@@ -661,7 +693,7 @@ function ClientTrackerView() {
 
         {/* How far along it is, in five steps anyone can read. */}
         <ol className="mt-6 grid grid-cols-5 gap-1" aria-label="Delivery progress">
-          {MILESTONES.map((label, index) => {
+          {milestoneLabels(collecting).map((label, index) => {
             const reached = index <= step;
             const isNow = index === step && !data.isCompleted;
             // Amber for a trip that has stopped or is held up, whichever it is.

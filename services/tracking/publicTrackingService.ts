@@ -178,6 +178,13 @@ export interface TrackingPayload {
   deliveryArrival: string | null;
   /** Live driving estimate to the next stop, when both positions are known. */
   liveEta: { minutes: number; distanceKm: number; arrivalTime: string } | null;
+  /**
+   * While the order is still to be collected: driving time to the pickup the
+   * truck is heading for, or that the crew are there now. The live estimate
+   * above runs to this client's own stop, and before collection it cannot
+   * know how long the loading will take - so it is not the time to lead with.
+   */
+  collectionProgress: { arrived: boolean; minutes: number | null; arrivalTime: string | null } | null;
   nextStopName: string | null;
   /** Whether that next stop is this client's delivery or a collection first. */
   nextStopKind: "collection" | "delivery";
@@ -1061,6 +1068,24 @@ export async function getTrackingByToken(
     }
   }
 
+  // The leg the truck is on, when it ends at a pickup: the route runs from the
+  // truck through the pickups still to make, so that is the first leg.
+  let collectionProgress: TrackingPayload["collectionProgress"] = null;
+  if (collection && !collection.done && !isCompleted) {
+    const pickupLeg =
+      !collection.arrived &&
+      ON_THE_ROAD_ONWARDS.includes(dispatch?.status ?? "") &&
+      planned?.waypoints[1]?.kind === "pickup"
+        ? planned.legMinutes[0] ?? null
+        : null;
+    const minutes = pickupLeg !== null ? Math.max(1, pickupLeg) : null;
+    collectionProgress = {
+      arrived: collection.arrived,
+      minutes,
+      arrivalTime: minutes !== null ? toArrivalLabel(minutes) : null,
+    };
+  }
+
   let deliveryStatus = "Awaiting dispatch";
   if (isCompleted) deliveryStatus = "Delivery completed";
   else if (dispatch?.status === DELIVERY_STATUS.foulTrip) {
@@ -1127,6 +1152,7 @@ export async function getTrackingByToken(
     estimatedArrival: ahead.estimatedArrival,
     deliveryArrival: ahead.deliveryArrival,
     liveEta,
+    collectionProgress,
     nextStopName: ahead.name,
     nextStopKind: ahead.kind,
     plateNumber: truck?.plateNumber ?? dispatch?.partnerPlate ?? null,
