@@ -559,16 +559,6 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                   {checkingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{" "}
                   {photoLabel(Boolean(formData[activeFields.photo]))}
                 </button>
-                {/* Only a photo picked here: the report is set when one is. */}
-                {formData[activeFields.report] && !checkingPhoto && (
-                  <button
-                    type="button"
-                    onClick={handleRemovePhoto}
-                    className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-red-50 text-red-600 rounded-lg text-xs font-semibold transition-colors border border-red-200 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" /> Remove
-                  </button>
-                )}
                 <span className="text-xs text-slate-500 truncate max-w-xs" aria-live="polite">
                   {checkingPhoto
                     ? "Checking photo…"
@@ -604,6 +594,17 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                     }
                     className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   />
+                  {/* Only a photo picked here: the report is set when one is. */}
+                  {formData[activeFields.report] && !checkingPhoto && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      aria-label="Remove photo"
+                      className="absolute top-1 right-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-900/80 text-white hover:bg-red-600 transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>

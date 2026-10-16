@@ -1488,59 +1488,62 @@ export default function CrewDashboardPage({
                   <p className="text-xs text-slate-600 mb-2">
                     Scan the client&apos;s signed delivery receipt at this stop. The whole page, the signature and the receiver&apos;s name must be visible.
                   </p>
-                  {canScan ? (
-                    <button
-                      type="button"
-                      onClick={handleScanPod}
-                      disabled={isScanning || isSubmittingResponse}
-                      className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${scanProblems ? "border-red-400" : "border-blue-300"}`}
-                    >
-                      {selectedImage ? (
-                        <>
-                          <img src={selectedImage} alt="Scanned receipt" className="w-full h-full object-cover" />
-                          <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
-                            {isScanning ? "Scanning..." : "Scan again"}
-                          </span>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                          <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                          <span className="text-xs font-semibold text-blue-700">
-                            {isScanning ? "Opening scanner..." : "Tap to scan receipt"}
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  ) : (
-                    <>
-                      <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${scanProblems ? "border-red-400" : "border-blue-300"}`}>
+                  <div className="relative">
+                    {canScan ? (
+                      <button
+                        type="button"
+                        onClick={handleScanPod}
+                        disabled={isScanning || isSubmittingResponse}
+                        className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${scanProblems ? "border-red-400" : "border-blue-300"}`}
+                      >
                         {selectedImage ? (
-                          <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
+                          <>
+                            <img src={selectedImage} alt="Scanned receipt" className="w-full h-full object-cover" />
+                            <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
+                              {isScanning ? "Scanning..." : "Scan again"}
+                            </span>
+                          </>
                         ) : (
                           <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                            <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                            <span className="text-xs font-semibold text-blue-700">Tap to take photo</span>
+                            <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                            <span className="text-xs font-semibold text-blue-700">
+                              {isScanning ? "Opening scanner..." : "Tap to scan receipt"}
+                            </span>
                           </div>
                         )}
-                        <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
-                      </label>
-                      {/* An install from before the scanner. The photo is still
-                          taken, and the office is asked to check it. */}
-                      <p className="mt-2 text-xs text-amber-700">
-                        Update the Logisco app to use the receipt scanner. Until then, the office will review this photo.
-                      </p>
-                    </>
-                  )}
-                  {selectedImage && (
-                    <button
-                      type="button"
-                      onClick={handleRemovePodPhoto}
-                      disabled={isScanning || isSubmittingResponse}
-                      className="mt-2 min-h-tap sm:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-60"
-                    >
-                      <X className="w-3.5 h-3.5" /> Remove photo
-                    </button>
-                  )}
+                      </button>
+                    ) : (
+                      <>
+                        <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${scanProblems ? "border-red-400" : "border-blue-300"}`}>
+                          {selectedImage ? (
+                            <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
+                              <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                              <span className="text-xs font-semibold text-blue-700">Tap to take photo</span>
+                            </div>
+                          )}
+                          <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+                        </label>
+                        {/* An install from before the scanner. The photo is still
+                            taken, and the office is asked to check it. */}
+                        <p className="mt-2 text-xs text-amber-700">
+                          Update the Logisco app to use the receipt scanner. Until then, the office will review this photo.
+                        </p>
+                      </>
+                    )}
+                    {selectedImage && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePodPhoto}
+                        disabled={isScanning || isSubmittingResponse}
+                        aria-label="Remove photo"
+                        className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-900/80 text-white hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-60"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                   {currentScan && !scanProblems && currentScan.verdict.flags.length > 0 && (
                     <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                       <p className="text-xs font-semibold text-amber-800">You can continue. The office will check:</p>
