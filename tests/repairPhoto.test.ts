@@ -139,6 +139,13 @@ describe("what the server checks", () => {
     expect(fromFile.meta.checkStatus).toBe("unverified");
     expect(fromFile.meta.checkLabels?.notes[0]).toMatch(/file/);
 
+    // From the phone's gallery: checked, kept, but not taken just now.
+    const fromGallery = check({ report: parseRepairPhotoReport(report({ method: "gallery" })) });
+    expect(fromGallery.refusal).toBeNull();
+    expect(fromGallery.meta.captureMethod).toBe("gallery");
+    expect(fromGallery.meta.checkStatus).toBe("unverified");
+    expect(fromGallery.meta.checkLabels?.notes[0]).toMatch(/gallery/);
+
     expect(check({ report: null }).meta.checkStatus).toBe("unverified");
   });
 });

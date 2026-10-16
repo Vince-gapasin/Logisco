@@ -25,8 +25,8 @@ export interface Prediction {
 
 /** What the device sends with each photo. */
 export interface RepairPhotoReport {
-  /** "camera": taken just now in the app. "file": chosen from a PC. */
-  method: "camera" | "file";
+  /** "camera": taken just now in the app. "gallery": picked from the phone's photos. "file": chosen from a PC. */
+  method: "camera" | "gallery" | "file";
   capturedAt: string;
   model: string;
   /** false when the model could not run; the server then saves it for review. */

@@ -7,11 +7,13 @@ import {
   ChevronDown,
   Upload,
   Loader2,
+  Images,
 } from "lucide-react";
 import type { EmployeeOption, HistoryLogRecord, TruckOption } from "./types";
 import { formatInputDate } from "./dates";
 import { ImageModal } from "./ImageModal";
 import { captureMethod, checkRepairPhoto, loadRepairPhotoModel } from "./repairPhotoCheck";
+import type { RepairPhotoReport } from "@/app/lib/repairPhoto";
 
 // ==========================================
 // LOG MAINTENANCE MODAL (ADD/EDIT LOGS)
@@ -68,6 +70,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
   const [isAdditionalDropdownOpen, setIsAdditionalDropdownOpen] =
     useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   // While the picture is being looked at; saving waits for it.
   const [checkingPhoto, setCheckingPhoto] = useState(false);
 
@@ -181,7 +184,10 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
   // Every photo is looked at on this device before it can be saved: it has to
   // show a truck, a part of one, or the work on it (app/lib/repairPhoto.ts).
   // One that does not is dropped and the mechanic takes another.
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    method: RepairPhotoReport["method"] = captureMethod(),
+  ) => {
     const input = e.target;
     const file = input.files?.[0];
     // So the same picture can be picked again after a refusal.
@@ -195,7 +201,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     setCheckingPhoto(true);
     setErrors((prev) => ({ ...prev, [activeFields.photo]: "" }));
     try {
-      const checked = await checkRepairPhoto(file);
+      const checked = await checkRepairPhoto(file, method);
       if (checked.verdict?.verdict === "refused") {
         setFormData((prev) => ({ ...prev, [activeFields.photo]: "", [activeFields.report]: "" }));
         setErrors((prev) => ({ ...prev, [activeFields.photo]: checked.verdict?.reason ?? "This photo was not accepted." }));
@@ -549,7 +555,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
               <p className="text-xs sm:text-[11px] text-slate-500 mb-1">
                 A photo of the truck or the work on it. It is checked on this device before it can be saved.
               </p>
-              <div className="flex items-center gap-3 mt-1">
+              <div className="flex flex-wrap items-center gap-3 mt-1">
                 <button
                   type="button"
                   disabled={checkingPhoto}
@@ -559,6 +565,16 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                   {checkingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{" "}
                   {photoLabel(Boolean(formData[activeFields.photo]))}
                 </button>
+                {inApp && (
+                  <button
+                    type="button"
+                    disabled={checkingPhoto}
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="disabled:opacity-60 disabled:cursor-wait min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors border border-slate-300 cursor-pointer"
+                  >
+                    <Images className="w-4 h-4" /> Gallery
+                  </button>
+                )}
                 <span className="text-xs text-slate-500 truncate max-w-xs" aria-live="polite">
                   {checkingPhoto
                     ? "Checking photo…"
@@ -566,12 +582,15 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                       ? "No photo yet"
                       : !formData[activeFields.report]
                         ? "Photo on file"
-                        : formData[activeFields.report].includes('"checked":true')
+                        : formData[activeFields.report].includes('"method":"gallery"')
+                          ? "Photo from gallery attached - the office will review it"
+                          : formData[activeFields.report].includes('"checked":true')
                           ? "Photo checked and attached"
                           : "Photo attached, not checked - the office will review it"}
                 </span>
                 {/* In the app, straight from the camera: a photo taken now,
-                    at the truck, not one from the gallery. */}
+                    at the truck. The gallery is the other way in, for a photo
+                    taken earlier; it is still checked, and the office reviews it. */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -580,6 +599,15 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                   onChange={(event) => void handleFileChange(event)}
                   className="hidden"
                 />
+                {inApp && (
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => void handleFileChange(event, "gallery")}
+                    className="hidden"
+                  />
+                )}
               </div>
               {errors[activeFields.photo] && (
                 <p role="alert" className="text-red-500 text-xs sm:text-[11px] mt-1">{errors[activeFields.photo]}</p>

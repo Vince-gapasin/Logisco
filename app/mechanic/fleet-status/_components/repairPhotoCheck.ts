@@ -76,9 +76,12 @@ function toCanvas(bitmap: ImageBitmap): HTMLCanvasElement {
   return canvas;
 }
 
-export async function checkRepairPhoto(file: File): Promise<CheckedRepairPhoto> {
+/** `method` is where the picture came from; by default, the platform's own. */
+export async function checkRepairPhoto(
+  file: File,
+  method: RepairPhotoReport["method"] = captureMethod(),
+): Promise<CheckedRepairPhoto> {
   const capturedAt = new Date().toISOString();
-  const method = captureMethod();
 
   const bitmap = await createImageBitmap(file);
   try {

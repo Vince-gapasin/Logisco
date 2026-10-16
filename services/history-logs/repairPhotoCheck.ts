@@ -54,7 +54,7 @@ export function parseRepairPhotoReport(raw: unknown): RepairPhotoReport | null {
     return null;
   }
   if (!value || typeof value !== "object") return null;
-  if (value.method !== "camera" && value.method !== "file") return null;
+  if (value.method !== "camera" && value.method !== "gallery" && value.method !== "file") return null;
   const score = typeof value.score === "number" && Number.isFinite(value.score) ? Math.max(0, Math.min(1, value.score)) : 0;
   return {
     method: value.method,
@@ -122,6 +122,9 @@ export function checkRepairPhoto(input: {
     } else if (captured - now > CLOCK_SLACK_MS) {
       notes.push("The phone's clock is ahead; the capture time is not reliable.");
     }
+  } else if (report.method === "gallery") {
+    // Could be from any day: kept, and the office looks at it.
+    notes.push("Chosen from the phone's gallery, not taken with the app's camera.");
   } else {
     notes.push("Chosen from a file on a computer, not taken with the app's camera.");
   }
