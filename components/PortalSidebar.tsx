@@ -65,7 +65,7 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
             centred card, which pushed the admin links past the bottom of a
             laptop screen and made the drawer scroll. */}
         <div className="relative z-10 flex items-center gap-3 border-b border-slate-950 pl-5 pr-2 py-[clamp(0.5rem,2dvh,1.25rem)]">
-          <div className="w-10 h-10 2xl:w-11 2xl:h-11 bg-black ring-2 ring-white/10 rounded-full overflow-hidden shrink-0">
+          <div className="w-10 h-10 2xl:w-12 2xl:h-12 bg-black border border-slate-900 rounded-xl overflow-hidden shadow-inner shrink-0">
             {/* Seeded from whoever is actually signed in. It used to be a name
                 in the markup, so every portal drew the same initials. */}
             <img
@@ -77,13 +77,11 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
           <div className="min-w-0 flex-1">
             {user ? (
               <>
-                {/* As the name is written, like the header's menu. In capitals
-                    it shouted, and a long name broke into two blocky lines. */}
-                <h2 className="font-semibold text-sm leading-snug text-[#f0f4ff] line-clamp-2 wrap-break-word" title={user.name}>
-                  {user.name}
+                <h2 className="font-bold text-sm leading-tight text-[#f0f4ff] line-clamp-2 wrap-break-word" title={user.name}>
+                  {user.name.toUpperCase()}
                 </h2>
-                <p className="text-[#8ba4d5] text-xs mt-0.5 truncate">
-                  {describeRole(user.role)}
+                <p className="text-[#8ba4d5] text-[11px] font-semibold tracking-[0.2em] mt-0.5 truncate">
+                  {describeRole(user.role).toUpperCase()}
                 </p>
               </>
             ) : (
