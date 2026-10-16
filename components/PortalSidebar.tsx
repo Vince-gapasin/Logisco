@@ -49,7 +49,7 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
 
       {/* THE SIDEBAR ASIDE */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-[min(16rem,85vw)] 2xl:w-72 bg-[#000208] border-r border-slate-950 text-[#f0f4ff] flex flex-col h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)] shrink-0 transition-transform duration-300 ease-in-out overflow-hidden ${
           // The shadow only while open: shut, the drawer sits just past the
           // left edge and a 50px blur would still fall across the page.
           isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
@@ -64,8 +64,8 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
         {/* Who is signed in, as one row with the close button. It was a large
             centred card, which pushed the admin links past the bottom of a
             laptop screen and made the drawer scroll. */}
-        <div className="relative z-10 flex items-center gap-3 border-b border-slate-950 pl-5 pr-2 py-4">
-          <div className="w-11 h-11 bg-black border border-slate-900 rounded-xl overflow-hidden shadow-inner shrink-0">
+        <div className="relative z-10 flex items-center gap-3 border-b border-slate-950 pl-5 pr-2 py-[clamp(0.5rem,2dvh,1.25rem)]">
+          <div className="w-10 h-10 2xl:w-12 2xl:h-12 bg-black border border-slate-900 rounded-xl overflow-hidden shadow-inner shrink-0">
             {/* Seeded from whoever is actually signed in. It used to be a name
                 in the markup, so every portal drew the same initials. */}
             <img
@@ -102,8 +102,12 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
           </button>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="relative z-10 flex-1 px-4 py-5 space-y-1.5 overflow-y-auto">
+        {/* Navigation Menu. The spacing follows the window's height, between
+            limits: roomy on a tall screen, tight on a short laptop, so the
+            links fill the drawer instead of leaving half of it empty, and
+            still fit where there is little room. Only a phone on its side
+            is too short for them all, and there the list scrolls. */}
+        <nav className="relative z-10 flex-1 px-4 py-[clamp(0.5rem,2dvh,1.5rem)] space-y-[clamp(0.125rem,0.8dvh,0.5rem)] overflow-y-auto">
           {items.map((item) => {
             const active = isActive(pathname, item);
             const Icon = item.icon;
@@ -112,7 +116,7 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
+                className={`flex items-center px-4 py-[clamp(0.375rem,2.2dvh,1.125rem)] min-h-tap pointer-fine:min-h-0 rounded-xl text-sm 2xl:text-[15px] font-medium transition-all duration-150 ${
                   active
                     ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
                     : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
