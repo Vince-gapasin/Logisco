@@ -31,6 +31,7 @@ export default function CrewLayout({
 
           <div className="flex w-full flex-1 flex-col overflow-hidden">
             <SharedHeader
+              portal="crew"
               isOpen={isSidebarOpen}
               setIsOpen={setIsSidebarOpen}
               basePath="/crew"

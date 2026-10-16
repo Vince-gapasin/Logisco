@@ -30,6 +30,7 @@ export default function AdminLayout({
 
           <div className="flex w-full flex-1 flex-col overflow-hidden">
             <SharedHeader
+              portal="admin"
               isOpen={isSidebarOpen}
               setIsOpen={setIsSidebarOpen}
               basePath="/admindashboard"
