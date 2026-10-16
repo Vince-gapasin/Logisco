@@ -7,7 +7,7 @@ import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { announceUnverifiedProof } from "@/services/dispatch/crewUpdateService";
-import { checkPodScan, parseScanReport, sha256, type StopPlace } from "@/services/storage/podScanCheck";
+import { checkPodScan, parseScanReport, sha256, storedNumbers, type StopPlace } from "@/services/storage/podScanCheck";
 import type { PodScanReport } from "@/app/lib/podScan";
 import {
   crewNotReadyReason,
@@ -248,12 +248,12 @@ export async function POST(request: Request) {
           scan?.dHash
             ? supabase
                 .from("POD")
-                .select("imageDHash")
+                .select("imageDHash, docNumbers")
                 .or(`dispatchID.eq.${dispatchID},recordedBy.eq.${auth.employee.employeeID}`)
                 .gte("deliveredAt", since)
                 .not("imageDHash", "is", null)
                 .limit(500)
-            : Promise.resolve({ data: [] as { imageDHash: string | null }[] }),
+            : Promise.resolve({ data: [] as { imageDHash: string | null; docNumbers: string | null }[] }),
         ]);
 
         const check = checkPodScan({
@@ -261,9 +261,10 @@ export async function POST(request: Request) {
           place,
           now: Date.now(),
           sameFileUsed: (sameFile ?? []).length > 0,
-          earlierHashes: ((earlier ?? []) as { imageDHash: string | null }[])
-            .map((row) => row.imageDHash)
-            .filter((hash): hash is string => Boolean(hash)),
+          earlierScans: ((earlier ?? []) as { imageDHash: string | null; docNumbers: string | null }[]).map((row) => ({
+            dHash: row.imageDHash,
+            docNumbers: storedNumbers(row.docNumbers),
+          })),
         });
 
         if (check.refusal) {
@@ -436,6 +437,7 @@ export async function POST(request: Request) {
       captureLng: scan?.longitude ?? null,
       imageHash,
       imageDHash: scan?.dHash ?? null,
+      docNumbers: scan?.docNumbers.length ? scan.docNumbers.join(" ") : null,
     };
 
     // Only for the real stops. The departure and return steps are not places

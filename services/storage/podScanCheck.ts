@@ -16,9 +16,11 @@ import {
   BLANK_SIGNATURE,
   distanceMeters,
   hammingDistance,
+  MAX_DOC_NUMBERS,
   MIN_WORDS,
   NAME_NOT_FOUND,
   NO_SIGNATURE_SPACE,
+  numbersOverlap,
   type PodScanReport,
 } from "@/app/lib/podScan";
 
@@ -40,6 +42,34 @@ export const MAX_SCAN_AGE_MS = 20 * 60 * 1000;
 const CLOCK_SLACK_MS = 5 * 60 * 1000;
 /** Two scans of one page land within this many bits of each other. */
 export const SAME_PICTURE_BITS = 6;
+/**
+ * And share this much of their numbers. The reader misreads the odd digit
+ * between two scans of one sheet, so not all of them; a different receipt has
+ * a different DR number, date or quantities, so not most of them either.
+ */
+export const SAME_NUMBERS = 0.75;
+
+/** A proof already on file, as the duplicate check sees it. */
+export interface EarlierScan {
+  dHash: string | null;
+  docNumbers: string[];
+}
+
+/**
+ * Whether a scan is a page already used: it looks the same AND carries the
+ * same numbers. Looking the same alone is not enough - every receipt on one
+ * client's form does.
+ */
+export function samePage(report: Pick<PodScanReport, "dHash" | "docNumbers">, earlier: EarlierScan): boolean {
+  if (!report.dHash || !earlier.dHash) return false;
+  if (hammingDistance(report.dHash, earlier.dHash) > SAME_PICTURE_BITS) return false;
+  return numbersOverlap(report.docNumbers, earlier.docNumbers) >= SAME_NUMBERS;
+}
+
+/** The stored column, a space-separated list, back into numbers. */
+export function storedNumbers(value: string | null | undefined): string[] {
+  return (value ?? "").split(" ").filter(Boolean);
+}
 
 export interface StopPlace {
   latitude: number | null;
@@ -75,6 +105,11 @@ export function parseScanReport(raw: string | null): PodScanReport | null {
       signature: typeof value.signature === "boolean" ? value.signature : null,
       nameFound: value.nameFound === true,
       dHash: typeof value.dHash === "string" && /^[0-9a-f]{16}$/.test(value.dHash) ? value.dHash : null,
+      docNumbers: Array.isArray(value.docNumbers)
+        ? value.docNumbers
+            .filter((n): n is string => typeof n === "string" && /^[a-z0-9]{3,24}$/.test(n))
+            .slice(0, MAX_DOC_NUMBERS)
+        : [],
       flags: Array.isArray(value.flags) ? value.flags.filter((f): f is string => typeof f === "string").slice(0, 5) : [],
     };
   } catch {
@@ -92,7 +127,7 @@ export function checkPodScan(input: {
   place: StopPlace;
   now: number;
   /** Hamming-near fingerprints already used on other proofs. */
-  earlierHashes: string[];
+  earlierScans: EarlierScan[];
   /** Whether this exact file is already on another proof. */
   sameFileUsed: boolean;
 }): ScanCheck {
@@ -124,7 +159,7 @@ export function checkPodScan(input: {
     return { refusal: NAME_NOT_FOUND, flags };
   }
 
-  if (report.dHash && input.earlierHashes.some((hash) => hammingDistance(hash, report.dHash as string) <= SAME_PICTURE_BITS)) {
+  if (input.earlierScans.some((earlier) => samePage(report, earlier))) {
     return { refusal: "This receipt was already scanned for another stop. Scan this stop's own receipt.", flags };
   }
 

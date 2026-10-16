@@ -114,6 +114,7 @@ function scan(overrides: Record<string, unknown> = {}) {
     signature: true,
     nameFound: true,
     dHash: "0123456789abcdef",
+    docNumbers: ["0010293", "2026"],
     flags: [],
     ...overrides,
   });

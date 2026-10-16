@@ -20,6 +20,7 @@ import { compressImage } from "@/app/lib/imageCompression";
 import { grayscale } from "@/app/lib/imageHash";
 import {
   differenceHash,
+  documentNumbers,
   nameOnReceipt,
   scanFacts,
   scanVerdict,
@@ -182,6 +183,7 @@ export async function scanPod(receiverName: string): Promise<ScannedPod | null> 
       signature: facts.signature,
       nameFound: false,
       dHash: differenceHash(image),
+      docNumbers: documentNumbers(ocr.text),
       flags: [],
     },
     facts,
@@ -202,6 +204,7 @@ export async function cameraReport(): Promise<PodScanReport> {
     signature: null,
     nameFound: false,
     dHash: null,
+    docNumbers: [],
     flags: [],
   };
 }

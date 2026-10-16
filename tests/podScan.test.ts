@@ -19,6 +19,7 @@ import {
   type Rect,
 } from "@/app/lib/podScan";
 import { checkPodScan, ENFORCE_LOCATION, parseScanReport, type StopPlace } from "@/services/storage/podScanCheck";
+import { documentNumbers } from "@/app/lib/podScan";
 
 // Checking a scanned proof of delivery, without sending it anywhere.
 //
@@ -235,6 +236,14 @@ describe("distance", () => {
   });
 });
 
+describe("the numbers on a page", () => {
+  it("are its document number, dates and quantities, not its words", () => {
+    expect(documentNumbers("DR No. 0010293  Date 10/11/2026  40 bags  100 pcs  Rebar 10mm")).toEqual(
+      ["0010293", "100", "10mm", "2026"],
+    );
+  });
+});
+
 // ---- The server's half -----------------------------------------------------
 
 const NOW = Date.parse("2026-10-11T03:00:00.000Z");
@@ -252,6 +261,7 @@ function report(overrides: Record<string, unknown> = {}) {
       signature: true,
       nameFound: true,
       dHash: "0123456789abcdef",
+      docNumbers: ["0010293", "10112026", "100"],
       flags: [],
       ...overrides,
     }),
@@ -259,7 +269,7 @@ function report(overrides: Record<string, unknown> = {}) {
 }
 
 const check = (r: ReturnType<typeof report>, extra: Partial<Parameters<typeof checkPodScan>[0]> = {}) =>
-  checkPodScan({ report: r, place: STOP, now: NOW, earlierHashes: [], sameFileUsed: false, ...extra });
+  checkPodScan({ report: r, place: STOP, now: NOW, earlierScans: [], sameFileUsed: false, ...extra });
 
 describe("a real scan, taken here and now", () => {
   it("passes with nothing to flag", () => {
@@ -286,7 +296,18 @@ describe("a scan that is not real", () => {
   });
 
   it("is refused when the same page was scanned for another stop", () => {
-    expect(check(report(), { earlierHashes: ["0123456789abcdee"] }).refusal).toMatch(/already scanned/);
+    // Photographed again: one bit off, and the reader missed a digit of the date.
+    const again = { dHash: "0123456789abcdee", docNumbers: ["0010293", "1011026", "100"] };
+    const result = check(report({ docNumbers: ["0010293", "1011026", "100", "2026"] }), { earlierScans: [again] });
+    expect(result.refusal).toMatch(/already scanned/);
+  });
+
+  it("is not mistaken for another receipt on the same client's form", () => {
+    // Same layout - the picture's fingerprint barely differs - but its own DR
+    // number, date and quantities. A crew member delivering to three branches
+    // of one client scans three of these in a day.
+    const sameForm = { dHash: "0123456789abcdef", docNumbers: ["0010294", "10122026", "240"] };
+    expect(check(report(), { earlierScans: [sameForm] }).refusal).toBeNull();
   });
 
   it("is refused when the phone's own checks were skipped", () => {

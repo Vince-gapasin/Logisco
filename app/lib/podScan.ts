@@ -59,6 +59,8 @@ export interface PodScanReport {
   nameFound: boolean;
   /** 16 hex characters: a fingerprint of the picture that survives re-encoding. */
   dHash: string | null;
+  /** The numbers printed or written on the page: DR number, dates, quantities. */
+  docNumbers: string[];
   /** Things the office should look at; the stop still closes. */
   flags: string[];
 }
@@ -473,6 +475,35 @@ export function evaluateScan(input: {
       ? nameOnReceipt(input.receiverName, input.lines, input.image.width, input.image.height)
       : false;
   return scanVerdict(facts, input.receiverName, nameFound);
+}
+
+/** At most this many numbers are kept from one page. */
+export const MAX_DOC_NUMBERS = 40;
+
+/**
+ * The numbers on a page - its DR or POD number, dates, quantities - as the
+ * reader made them out. Three characters or more, so a bare "10" or "pcs"
+ * does not count.
+ *
+ * Why: two receipts on the same client's form look alike to the picture's
+ * fingerprint, which sees layout, not writing. What tells one receipt from
+ * another is its numbers, so a page counts as one already used only when the
+ * picture and the numbers both match.
+ */
+export function documentNumbers(text: string): string[] {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3 && /\d/.test(token));
+  return [...new Set(tokens)].sort().slice(0, MAX_DOC_NUMBERS);
+}
+
+/** How much two pages' numbers overlap, 0 to 1. Pages with too few to tell score 0. */
+export function numbersOverlap(a: string[], b: string[]): number {
+  if (a.length < 2 || b.length < 2) return 0;
+  const other = new Set(b);
+  const shared = a.filter((token) => other.has(token)).length;
+  return shared / new Set([...a, ...b]).size;
 }
 
 /** Metres between two points on the ground. */
