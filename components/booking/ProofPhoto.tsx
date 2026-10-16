@@ -9,7 +9,17 @@ import React, { useEffect, useState } from "react";
  * none of the office's tooling around it. The office list (StopProofList) keeps
  * its own, with download and PDF handling the customer does not need.
  */
-export default function ProofPhoto({ src, label }: { src: string; label: string }) {
+export default function ProofPhoto({
+  src,
+  label,
+  kind = "delivery",
+}: {
+  src: string;
+  label: string;
+  /** A receipt from a pickup reads as one, not as a proof of delivery. */
+  kind?: "pickup" | "delivery";
+}) {
+  const what = kind === "pickup" ? "pickup receipt" : "proof of delivery";
   const [open, setOpen] = useState(false);
   const [broken, setBroken] = useState(false);
 
@@ -26,7 +36,7 @@ export default function ProofPhoto({ src, label }: { src: string; label: string 
   // The link is signed for an hour. A page left open longer gets a dead image;
   // saying so beats a broken-image icon.
   if (broken) {
-    return <p className="text-xs text-slate-500">Refresh the page to view the proof of delivery.</p>;
+    return <p className="text-xs text-slate-500">Refresh the page to view the {what}.</p>;
   }
 
   return (
@@ -34,7 +44,7 @@ export default function ProofPhoto({ src, label }: { src: string; label: string 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`View the proof of delivery for ${label}`}
+        aria-label={`View the ${what} for ${label}`}
         className="mt-2 inline-flex min-h-tap md:pointer-fine:min-h-0 items-center gap-2 rounded-lg border border-slate-200 bg-white p-1 pr-3 text-xs font-semibold text-blue-700 hover:border-blue-400 transition-colors"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -44,14 +54,14 @@ export default function ProofPhoto({ src, label }: { src: string; label: string 
           onError={() => setBroken(true)}
           className="h-12 w-12 rounded object-cover"
         />
-        View proof of delivery
+        View {what}
       </button>
 
       {open && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Proof of delivery for ${label}`}
+          aria-label={`${what[0].toUpperCase()}${what.slice(1)} for ${label}`}
           className="fixed inset-0 z-110 flex items-center justify-center overflow-y-auto bg-slate-950/85 p-4 animate-fade-in"
           onClick={() => setOpen(false)}
         >
@@ -62,7 +72,7 @@ export default function ProofPhoto({ src, label }: { src: string; label: string 
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={src}
-              alt={`Proof of delivery for ${label}`}
+              alt={`${what[0].toUpperCase()}${what.slice(1)} for ${label}`}
               className="max-h-[75dvh] w-auto max-w-full rounded-xl border border-slate-700 bg-slate-900 object-contain"
             />
             <div className="flex flex-wrap items-center justify-center gap-3">

@@ -193,3 +193,41 @@ describe("which stop the page headlines", () => {
     expect(ahead.estimatedArrival).toBeNull();
   });
 });
+
+describe("the receipts on the timeline", () => {
+  const receipt = { url: "https://signed/pickup.jpg", label: "Calamba Warehouse", kind: "pickup" as const };
+  const stop = (over: Record<string, unknown> = {}) => ({
+    branchID: 1,
+    branchName: "SM Lipa",
+    expectedTime: null,
+    expectedDate: null,
+    status: "Pending",
+    latitude: null,
+    longitude: null,
+    arrivedAt: null,
+    deliveredAt: null,
+    receivedBy: null,
+    proofUrl: null,
+    ...over,
+  });
+  const steps = (collection: ReturnType<typeof buildCollection>, stops = [stop()]) =>
+    buildTrackingSteps("In Transit", stops, false, [], new Map(), null, [], null, null, collection);
+
+  it("shows the pickup receipt once the order is collected", () => {
+    const collected = { ...buildCollection([pickup({ stopStatus: "Successfully Delivered" })])!, proofs: [receipt] };
+    expect(steps(collected).find((step) => step.kind === "collection")?.proofs).toEqual([receipt]);
+  });
+
+  it("shows none while the collection is still to be made", () => {
+    const pending = { ...buildCollection([pickup()])!, proofs: [receipt] };
+    expect(steps(pending).find((step) => step.kind === "collection")?.proofs).toBeUndefined();
+  });
+
+  it("shows the delivery receipt on a delivered stop, and nothing on one still to come", () => {
+    const delivered = stop({ status: "Successfully Delivered", proofUrl: "https://signed/drop.jpg" });
+    const all = steps(null, [delivered, stop({ branchID: 2, branchName: "SM Tanauan" })]);
+    const [first, second] = all.filter((step) => step.kind === "stop");
+    expect(first.proofs).toEqual([{ url: "https://signed/drop.jpg", label: "SM Lipa", kind: "delivery" }]);
+    expect(second.proofs).toBeUndefined();
+  });
+});

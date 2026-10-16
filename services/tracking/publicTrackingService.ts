@@ -56,6 +56,18 @@ export interface TrackingStep {
   kind: TrackingStepKind;
   /** When it happened, for the entries that know. */
   at?: string | null;
+  /**
+   * The receipts behind a finished pickup or delivery, as links that expire.
+   * Never one the scan failed or the office rejected.
+   */
+  proofs?: TrackingProof[];
+}
+
+export interface TrackingProof {
+  url: string;
+  /** Where it was signed for. */
+  label: string;
+  kind: "pickup" | "delivery";
 }
 
 // Which audit entry records each step of a delivery. The trail has kept these
@@ -151,6 +163,8 @@ export interface TrackingCollection {
   arrived: boolean;
   /** When the last one finished, for the timeline entry. */
   at: string | null;
+  /** The receipts from the collections made, once they are all made. */
+  proofs?: TrackingProof[];
 }
 
 export interface TrackingPayload {
@@ -256,6 +270,7 @@ interface TrackedPickup {
   sequence?: number | null;
   arrivedAt?: string | null;
   completedAt?: string | null;
+  POD?: TrackedProof[] | null;
 }
 
 /**
@@ -434,6 +449,7 @@ function buildSteps(
       stage: collection.done ? "completed" : current ? "current" : "upcoming",
       kind: "collection",
       at: collection.done ? collection.at : null,
+      proofs: collection.done && collection.proofs?.length ? collection.proofs : undefined,
     });
   }
 
@@ -480,6 +496,8 @@ function buildSteps(
       stage,
       kind: "stop",
       at: stop.deliveredAt ?? (arrivedNotDone ? stop.arrivedAt : null),
+      proofs:
+        done && stop.proofUrl ? [{ url: stop.proofUrl, label: stop.branchName, kind: "delivery" }] : undefined,
     });
   }
 
@@ -881,7 +899,8 @@ export async function getTrackingByToken(
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, expectedDate, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
          POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
-       PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt ),
+       PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt,
+         POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
          Truck ( plateNumber, model ),
@@ -924,7 +943,7 @@ export async function getTrackingByToken(
 
   // The latest proof at each stop: an office correction is a newer row, and it
   // is the one that stands.
-  const latestProof = (stop: TrackedStop): TrackedProof | null =>
+  const latestProof = (stop: { POD?: TrackedProof[] | null }): TrackedProof | null =>
     [...((stop.POD as TrackedProof[] | null) ?? [])].sort((a, b) =>
       String(b.deliveredAt ?? "").localeCompare(String(a.deliveredAt ?? "")),
     )[0] ?? null;
@@ -934,7 +953,7 @@ export async function getTrackingByToken(
   // signed receipt with the receiver's name is what a customer is owed. Signed
   // here, for an hour, like every other screen - never a public link.
   const branchRows = (order.BranchStops as TrackedStop[] | null) ?? [];
-  const shownProof = (stop: TrackedStop): string | null => {
+  const shownProof = (stop: { stopStatus?: string | null; POD?: TrackedProof[] | null }): string | null => {
     const proof = latestProof(stop);
     const delivered = /complete|delivered/i.test(stop.stopStatus ?? "");
     // Not one the scan failed, and not one the office rejected.
@@ -942,7 +961,13 @@ export async function getTrackingByToken(
       ? proof.proof
       : null;
   };
-  const signedProofs = await signPodUrls(branchRows.map(shownProof));
+  // The collection's receipts too, for the timeline: the client's own goods,
+  // signed out of the warehouse.
+  const pickupProofPaths = ((order.PickupStops as TrackedPickup[] | null) ?? [])
+    .slice()
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .map((pickup) => ({ path: shownProof(pickup), name: pickup.warehouseName?.trim() || "Pickup" }));
+  const signedProofs = await signPodUrls([...branchRows.map(shownProof), ...pickupProofPaths.map((p) => p.path)]);
 
   const stops: TrackingStop[] = branchRows
     .map((stop) => {
@@ -1028,6 +1053,13 @@ export async function getTrackingByToken(
 
   const nextStop = stops.find((stop) => !isStopDone(stop.status));
   const collection = buildCollection(pickupRows);
+  if (collection) {
+    collection.proofs = [];
+    for (const { path, name } of pickupProofPaths) {
+      const url = path ? signedProofs.get(path) : undefined;
+      if (url) collection.proofs.push({ url, label: name, kind: "pickup" });
+    }
+  }
 
   // The crew have reported reaching this customer's own stop.
   //
@@ -1203,7 +1235,7 @@ export async function getTrackingVersion(token: string): Promise<string | null> 
     .select(
       `orderID, isActive,
        BranchStops ( branchID, stopStatus, arrivedAt, completedAt, POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
-       PickupStops ( pickupID, stopStatus, arrivedAt, completedAt ),
+       PickupStops ( pickupID, stopStatus, arrivedAt, completedAt, POD ( proof, validationStatus, reviewStatus ) ),
        FoulTripIncident ( dispatchID, status, resolvedAt ),
        DispatchOrder ( dispatchID, status, completedAt, truckID, driverID, subConID, partnerDriver, partnerPlate,
          DispatchHelper ( helperID, status ) )`,

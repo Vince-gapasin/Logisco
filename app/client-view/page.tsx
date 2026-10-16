@@ -920,6 +920,13 @@ function ClientTrackerView() {
                         {item.detail}
                       </p>
                       {item.at && <p className="mt-0.5 text-[11px] text-slate-500">{formatDateTime(item.at)}</p>}
+                      {item.proofs && item.proofs.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {item.proofs.map((proof) => (
+                            <ProofPhoto key={proof.url} src={proof.url} label={proof.label} kind={proof.kind} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </li>
                 );
