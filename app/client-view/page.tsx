@@ -313,8 +313,9 @@ function Card({
  *
  * The pickup is what is happening now and the delivery is what the customer
  * is waiting for, so each has its own place and its own time rather than one
- * being a grey note under the other. The delivery time is the larger: it is
- * the one they came for.
+ * being a grey note under the other. The step happening now has the larger
+ * time, as the progress steps below light the current one; once the pickup is
+ * done the delivery's estimate takes over the card.
  */
 function PickupThenDelivery({
   pickupName,
@@ -353,12 +354,12 @@ function PickupThenDelivery({
             </span>
           ) : pickup?.arrivalTime ? (
             <div className="text-left min-[400px]:text-right">
-              <p className="text-lg font-bold leading-tight tabular-nums text-blue-700">{pickup.arrivalTime}</p>
+              <p className="text-2xl sm:text-3xl font-bold leading-tight tabular-nums text-blue-700">{pickup.arrivalTime}</p>
               <p className="text-xs text-slate-600">About {pickup.minutes} min away</p>
             </div>
           ) : bookedPickup ? (
             <div className="text-left min-[400px]:text-right">
-              <p className="text-lg font-bold leading-tight tabular-nums text-slate-900">{bookedPickup}</p>
+              <p className="text-2xl sm:text-3xl font-bold leading-tight tabular-nums text-slate-900">{bookedPickup}</p>
               <p className="text-xs text-slate-600">Booked time</p>
             </div>
           ) : null}
@@ -376,7 +377,7 @@ function PickupThenDelivery({
           </div>
           {deliveryTime && (
             <div className="text-left min-[400px]:text-right">
-              <p className="text-2xl sm:text-3xl font-bold leading-tight tabular-nums text-slate-900">{deliveryTime}</p>
+              <p className="text-lg font-bold leading-tight tabular-nums text-slate-700">{deliveryTime}</p>
               <p className="text-xs text-slate-600">Booked time</p>
             </div>
           )}
@@ -691,7 +692,9 @@ function ClientTrackerView() {
             className="min-h-tap md:pointer-fine:min-h-0 shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
           >
             <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
-            Report<span className="hidden min-[480px]:inline">&nbsp;a problem</span>
+            <span>
+              Report<span className="hidden min-[480px]:inline"> a problem</span>
+            </span>
           </button>
         }
       />
