@@ -4,7 +4,9 @@
 // One sidebar for the admin, crew and mechanic portals. There used to be three
 // copies of this file that differed only in their links.
 //
-// Logging out is in the header's account menu, not here.
+// Logging out is in the header's account menu, not here. The links are in
+// labelled groups (Overview, Operations...) with a count on the ones where
+// something is waiting.
 //
 // A drawer opened from the header at every width, phones and desktops alike:
 // that is how the GUI was printed, so it stays closed until asked for.
@@ -16,6 +18,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { PORTAL_NAV, isActive, type Portal } from "@/components/portalNav";
+import { useNavBadges } from "@/components/useNavBadges";
 
 interface PortalSidebarProps {
   portal: Portal;
@@ -28,7 +31,8 @@ interface PortalSidebarProps {
 
 export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }: PortalSidebarProps) {
   const user = useSessionUser();
-  const { items } = PORTAL_NAV[portal];
+  const { groups } = PORTAL_NAV[portal];
+  const badges = useNavBadges(portal);
 
   const pathname = usePathname();
 
@@ -64,8 +68,8 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
         {/* Who is signed in, as one row with the close button. It was a large
             centred card, which pushed the admin links past the bottom of a
             laptop screen and made the drawer scroll. */}
-        <div className="relative z-10 flex items-center gap-3 border-b border-slate-950 pl-5 pr-2 py-[clamp(0.5rem,2dvh,1.25rem)]">
-          <div className="w-10 h-10 2xl:w-12 2xl:h-12 bg-black border border-slate-900 rounded-xl overflow-hidden shadow-inner shrink-0">
+        <div className="relative z-10 flex items-center gap-3 border-b border-slate-900/70 pl-5 pr-2 py-[clamp(0.5rem,2dvh,1.25rem)]">
+          <div className="w-10 h-10 2xl:w-11 2xl:h-11 bg-black ring-2 ring-white/10 rounded-full overflow-hidden shrink-0">
             {/* Seeded from whoever is actually signed in. It used to be a name
                 in the markup, so every portal drew the same initials. */}
             <img
@@ -77,11 +81,11 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
           <div className="min-w-0 flex-1">
             {user ? (
               <>
-                <h2 className="font-bold text-sm leading-tight text-[#f0f4ff] line-clamp-2 wrap-break-word" title={user.name}>
-                  {user.name.toUpperCase()}
+                <h2 className="font-semibold text-sm leading-snug text-[#f0f4ff] line-clamp-2 wrap-break-word" title={user.name}>
+                  {user.name}
                 </h2>
-                <p className="text-[#8ba4d5] text-[11px] font-semibold tracking-[0.2em] mt-0.5 truncate">
-                  {describeRole(user.role).toUpperCase()}
+                <p className="text-[#8ba4d5] text-xs mt-0.5 truncate">
+                  {describeRole(user.role)}
                 </p>
               </>
             ) : (
@@ -107,30 +111,56 @@ export default function PortalSidebar({ portal, isOpen, setIsOpen, onReselect }:
             links fill the drawer instead of leaving half of it empty, and
             still fit where there is little room. Only a phone on its side
             is too short for them all, and there the list scrolls. */}
-        <nav className="relative z-10 flex-1 px-4 py-[clamp(0.5rem,2dvh,1.5rem)] space-y-[clamp(0.125rem,0.8dvh,0.5rem)] overflow-y-auto">
-          {items.map((item) => {
-            const active = isActive(pathname, item);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`flex items-center px-4 py-[clamp(0.375rem,2.2dvh,1.125rem)] min-h-tap pointer-fine:min-h-0 rounded-xl text-sm 2xl:text-[15px] font-medium transition-all duration-150 ${
-                  active
-                    ? "bg-[#0D1A63] text-white shadow-lg shadow-[#0D1A63]/30 border border-blue-500/30 font-semibold"
-                    : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
-                }`}
-                onClick={() => {
-                  closeSidebar();
-                  if (pathname === item.href) onReselect();
-                }}
-              >
-                <Icon className="w-5 h-5 mr-3 shrink-0" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+        <nav className="relative z-10 flex-1 px-3 py-[clamp(0.25rem,1dvh,0.75rem)] overflow-y-auto">
+          {groups.map((group, g) => (
+            <div key={group.label ?? g}>
+              {group.label && (
+                <h3 className="px-4 pt-[clamp(0.25rem,1.6dvh,1rem)] pb-1 text-[11px] font-semibold tracking-[0.14em] text-[#4f6390] uppercase">
+                  {group.label}
+                </h3>
+              )}
+              <ul className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = isActive(pathname, item);
+                  const Icon = item.icon;
+                  const count = item.badge ? (badges[item.badge] ?? 0) : 0;
+                  return (
+                    <li key={item.href} className="relative">
+                      {/* A bar at the edge as well as the fill: the page on
+                          screen is found at a glance. */}
+                      {active && (
+                        <span aria-hidden="true" className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r bg-blue-500" />
+                      )}
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-3 px-4 py-[clamp(0.3rem,1.6dvh,0.8rem)] min-h-tap pointer-fine:min-h-0 rounded-xl text-sm 2xl:text-[15px] font-medium transition-colors duration-150 ${
+                          active
+                            ? "bg-[#0D1A63] text-white font-semibold"
+                            : "text-[#8ba4d5] hover:bg-blue-600/20 hover:text-white"
+                        }`}
+                        onClick={() => {
+                          closeSidebar();
+                          if (pathname === item.href) onReselect();
+                        }}
+                      >
+                        <Icon className="w-5 h-5 shrink-0" />
+                        <span className="flex-1 min-w-0 truncate">{item.label}</span>
+                        {count > 0 && (
+                          <span
+                            aria-label={`${count} waiting`}
+                            className="min-w-6 px-1.5 py-px rounded-full bg-blue-900/80 text-blue-200 text-[11px] font-semibold text-center tabular-nums"
+                          >
+                            {count > 99 ? "99+" : count}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
       </aside>
     </>
