@@ -468,17 +468,36 @@ export default function CrewDashboardPage({
     setShowSubmitConfirmModal(false);
   };
 
+  // Bumped by each new photo and by Remove, so a compression still running
+  // for a photo since replaced or removed does not bring it back.
+  const podPhotoVersion = useRef(0);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // So the same picture can be picked again after it was removed.
+    e.target.value = "";
     if (file) {
+      const version = ++podPhotoVersion.current;
       setPodRejection(null);
       setScanned(null);
+      if (selectedImage) URL.revokeObjectURL(selectedImage);
       setSelectedImage(URL.createObjectURL(file));
       // Shrink camera photos so uploads fit the server's request size limit.
       compressImage(file)
-        .then(setSelectedFile)
-        .catch(() => setSelectedFile(file));
+        .catch(() => file)
+        .then((shrunk) => {
+          if (podPhotoVersion.current === version) setSelectedFile(shrunk);
+        });
     }
+  };
+
+  const handleRemovePodPhoto = () => {
+    podPhotoVersion.current++;
+    if (selectedImage) URL.revokeObjectURL(selectedImage);
+    setSelectedImage(null);
+    setSelectedFile(null);
+    setScanned(null);
+    setPodRejection(null);
   };
 
   // The road covered so far, drawn behind the pins the way the client's
@@ -575,6 +594,7 @@ export default function CrewDashboardPage({
     try {
       const result = await scanPod(receiverName);
       if (!result) return;
+      podPhotoVersion.current++;
       if (selectedImage) URL.revokeObjectURL(selectedImage);
       setScanned(result);
       setSelectedImage(result.previewUrl);
@@ -1510,6 +1530,16 @@ export default function CrewDashboardPage({
                         Update the Logisco app to use the receipt scanner. Until then, the office will review this photo.
                       </p>
                     </>
+                  )}
+                  {selectedImage && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePodPhoto}
+                      disabled={isScanning || isSubmittingResponse}
+                      className="mt-2 min-h-tap sm:pointer-fine:min-h-0 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-60"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove photo
+                    </button>
                   )}
                   {currentScan && !scanProblems && currentScan.verdict.flags.length > 0 && (
                     <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
