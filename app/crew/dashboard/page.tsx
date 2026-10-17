@@ -1467,7 +1467,7 @@ export default function CrewDashboardPage({
               {!isCompleted(selectedDelivery.status) && hasReportedArrival && dynamicStops[currentStepIndex]?.reqPod && (
                 <div className="border border-blue-300 bg-blue-50/30 rounded-xl p-4 shadow-xs transition-colors">
                   <div className="border-b border-blue-200 pb-2 mb-4 font-semibold text-slate-900 text-sm tracking-wide flex items-center justify-between gap-2">
-                    <span className="truncate">Proof of Location / Delivery</span>
+                    <span className="truncate">Proof of Delivery</span>
                     <span className="text-xs font-semibold whitespace-nowrap shrink-0 text-red-500">
                       * Required for this location
                     </span>
