@@ -342,6 +342,8 @@ export interface LogPhotosRow {
   /** This is a Foreign Key to `HistoryLogsM.id`.<fk table='HistoryLogsM' column='id'/> */
   logID: string | null;
   phase: string;
+  /** Order within its phase, from 1. */
+  position: number;
   photoUrl: string;
   created_at: string | null;
 }
@@ -450,6 +452,28 @@ export interface PODRow {
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
+}
+
+/** One photo of a stop's proof of delivery. POD.proof is photo 1. */
+export interface PODPhotosRow {
+  /** This is a Primary Key.<pk/> */
+  photoID: string;
+  /** This is a Foreign Key to `POD.podID`.<fk table='POD' column='podID'/> */
+  podID: string;
+  position: number;
+  /** The object path in the delivery_proofs bucket. */
+  path: string;
+  fileType: string | null;
+  scanMethod: "scanner" | "camera" | null;
+  capturedAt: string | null;
+  captureLat: number | null;
+  captureLng: number | null;
+  imageHash: string | null;
+  imageDHash: string | null;
+  docNumbers: string | null;
+  validationStatus: "passed" | "failed" | "unverified" | null;
+  validationNotes: string | null;
+  created_at: string;
 }
 
 export interface PickupStopsRow {
@@ -569,6 +593,7 @@ export interface Database {
   Order: OrderRow;
   OrderDetails: OrderDetailsRow;
   POD: PODRow;
+  PODPhotos: PODPhotosRow;
   PickupStops: PickupStopsRow;
   Reports: ReportsRow;
   SubContractor: SubContractorRow;

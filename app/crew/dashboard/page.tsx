@@ -45,6 +45,17 @@ import {
   withReceiverName,
   type ScannedPod,
 } from "./_components/podScanner";
+import { MAX_POD_PHOTOS, MAX_POD_UPLOAD_BYTES } from "@/app/lib/podScan";
+
+/** One receipt photo taken at the current stop, before it is sent. */
+interface PodPhotoDraft {
+  key: number;
+  previewUrl: string;
+  /** Null while a camera photo is still being shrunk. */
+  file: File | null;
+  /** What the scanner found; null for a photo from the plain camera. */
+  scanned: ScannedPod | null;
+}
 
 // Whether the app has the scanner does not change while it runs.
 const noSubscription = () => () => {};
@@ -139,7 +150,7 @@ export default function CrewDashboardPage({
   // reason: the poll has to compare against them without being rebuilt every
   // time the crew type a character.
   const stepIndexRef = useRef(0);
-  const selectedImageRef = useRef<string | null>(null);
+  const podPhotosRef = useRef<PodPhotoDraft[]>([]);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
@@ -188,20 +199,21 @@ export default function CrewDashboardPage({
   const [isReportingArrival, setIsReportingArrival] = useState(false);
   const [driverPosition, setDriverPosition] = useState<PositionFix | null>(null);
   const [remarks, setRemarks] = useState<string>("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // The receipt photos for this stop, in the order taken. A receipt can run to
+  // more than one page, or come with a release slip; each is scanned and
+  // checked on its own.
+  const [podPhotos, setPodPhotos] = useState<PodPhotoDraft[]>([]);
 
   useEffect(() => {
     stepIndexRef.current = currentStepIndex;
-    selectedImageRef.current = selectedImage;
-  }, [currentStepIndex, selectedImage]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    podPhotosRef.current = podPhotos;
+  }, [currentStepIndex, podPhotos]);
   const [receiverName, setReceiverName] = useState<string>("");
-  // Why the server refused the last receipt photo, so the crew know what to
-  // retake. Cleared as soon as a new photo is chosen.
-  const [podRejection, setPodRejection] = useState<string[] | null>(null);
-  // The receipt as the scanner saw it, and whether this phone has a scanner:
-  // an older install of the app does not, and falls back to the camera.
-  const [scanned, setScanned] = useState<ScannedPod | null>(null);
+  // Why the server refused the last submit, and which photo it was about, so
+  // the crew know what to retake. Cleared as soon as the photos change.
+  const [podRejection, setPodRejection] = useState<{ index: number | null; reasons: string[] } | null>(null);
+  // Whether this phone has a scanner: an older install of the app does not,
+  // and falls back to the camera.
   const [isScanning, setIsScanning] = useState(false);
   const canScan = useSyncExternalStore(noSubscription, scannerAvailable, () => false);
 
@@ -274,10 +286,8 @@ export default function CrewDashboardPage({
               // would file them against the next stop instead, which is worse
               // than losing them - so it is cleared, and said out loud, because
               // a form emptying itself with no explanation reads as a crash.
-              if (selectedImageRef.current) URL.revokeObjectURL(selectedImageRef.current);
-              setSelectedImage(null);
-              setSelectedFile(null);
-              setScanned(null);
+              podPhotosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+              setPodPhotos([]);
               setPodRejection(null);
               setReceiverName("");
               setRemarks("");
@@ -468,35 +478,42 @@ export default function CrewDashboardPage({
     setShowSubmitConfirmModal(false);
   };
 
-  // Bumped by each new photo and by Remove, so a compression still running
-  // for a photo since replaced or removed does not bring it back.
-  const podPhotoVersion = useRef(0);
+  // Each photo's own key, so a compression still running for a photo since
+  // removed does not bring it back, and lands on the right photo.
+  const podPhotoKey = useRef(0);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // So the same picture can be picked again after it was removed.
     e.target.value = "";
-    if (file) {
-      const version = ++podPhotoVersion.current;
-      setPodRejection(null);
-      setScanned(null);
-      if (selectedImage) URL.revokeObjectURL(selectedImage);
-      setSelectedImage(URL.createObjectURL(file));
-      // Shrink camera photos so uploads fit the server's request size limit.
-      compressImage(file)
-        .catch(() => file)
-        .then((shrunk) => {
-          if (podPhotoVersion.current === version) setSelectedFile(shrunk);
-        });
+    if (!file) return;
+    if (podPhotos.length >= MAX_POD_PHOTOS) {
+      showToast(`A stop can have at most ${MAX_POD_PHOTOS} photos.`, "error");
+      return;
     }
+    const key = ++podPhotoKey.current;
+    setPodRejection(null);
+    setPodPhotos((photos) => [...photos, { key, previewUrl: URL.createObjectURL(file), file: null, scanned: null }]);
+    // Shrink camera photos so uploads fit the server's request size limit.
+    compressImage(file)
+      .catch(() => file)
+      .then((shrunk) => {
+        setPodPhotos((photos) => photos.map((photo) => (photo.key === key ? { ...photo, file: shrunk } : photo)));
+      });
   };
 
-  const handleRemovePodPhoto = () => {
-    podPhotoVersion.current++;
-    if (selectedImage) URL.revokeObjectURL(selectedImage);
-    setSelectedImage(null);
-    setSelectedFile(null);
-    setScanned(null);
+  const handleRemovePodPhoto = (key: number) => {
+    setPodPhotos((photos) => {
+      const gone = photos.find((photo) => photo.key === key);
+      if (gone) URL.revokeObjectURL(gone.previewUrl);
+      return photos.filter((photo) => photo.key !== key);
+    });
+    setPodRejection(null);
+  };
+
+  const clearPodPhotos = () => {
+    podPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+    setPodPhotos([]);
     setPodRejection(null);
   };
 
@@ -590,15 +607,16 @@ export default function CrewDashboardPage({
   ];
 
   const handleScanPod = async () => {
+    if (podPhotos.length >= MAX_POD_PHOTOS) {
+      showToast(`A stop can have at most ${MAX_POD_PHOTOS} photos.`, "error");
+      return;
+    }
     setIsScanning(true);
     try {
       const result = await scanPod(receiverName);
       if (!result) return;
-      podPhotoVersion.current++;
-      if (selectedImage) URL.revokeObjectURL(selectedImage);
-      setScanned(result);
-      setSelectedImage(result.previewUrl);
-      setSelectedFile(result.file);
+      const key = ++podPhotoKey.current;
+      setPodPhotos((photos) => [...photos, { key, previewUrl: result.previewUrl, file: result.file, scanned: result }]);
       setPodRejection(null);
     } catch (error) {
       showToast(`Scan failed: ${error instanceof Error ? error.message : error}`, "error");
@@ -607,11 +625,31 @@ export default function CrewDashboardPage({
     }
   };
 
-  // The scan against the name as typed now, so the name check follows edits.
-  const currentScan = scanned ? withReceiverName(scanned, receiverName) : null;
-  // What stops this stop closing: the server's last refusal, else the scan's own.
+  // Each scan against the name as typed now, so the name check follows edits.
+  const currentScans = podPhotos.map((photo) => (photo.scanned ? withReceiverName(photo.scanned, receiverName) : null));
+  // "Photo 2: ..." once there is more than one, so the crew know which to retake.
+  const namedPhoto = (index: number, text: string) => (podPhotos.length > 1 ? `Photo ${index + 1}: ${text}` : text);
+  const blockingScans = currentScans.flatMap((scan, index) =>
+    (scan?.verdict.blocking ?? []).map((reason) => namedPhoto(index, reason)),
+  );
+  const podUploadBytes = podPhotos.reduce((total, photo) => total + (photo.file?.size ?? 0), 0);
+  const podTooLarge = podUploadBytes > MAX_POD_UPLOAD_BYTES;
+  // What stops this stop closing: the server's last refusal, else the scans' own.
   const scanProblems =
-    podRejection ?? (currentScan && currentScan.verdict.blocking.length > 0 ? currentScan.verdict.blocking : null);
+    podRejection?.reasons ??
+    (blockingScans.length > 0
+      ? blockingScans
+      : podTooLarge
+        ? ["These photos are too large to send together. Remove one, or retake it."]
+        : null);
+  // Which photos to outline in red.
+  const problemPhoto = (index: number) =>
+    podRejection ? podRejection.index === index : Boolean(currentScans[index]?.verdict.blocking.length);
+  const scanFlags = currentScans.flatMap((scan, index) =>
+    (scan?.verdict.flags ?? []).map((flag) => namedPhoto(index, flag)),
+  );
+  const allScanned = podPhotos.length > 0 && currentScans.every(Boolean);
+  const podPhotosReady = podPhotos.length > 0 && podPhotos.every((photo) => photo.file);
 
   const handleUpdateStatusSubmit = async () => {
     const isPodRequiredForStop = dynamicStops[currentStepIndex]?.reqPod;
@@ -622,8 +660,12 @@ export default function CrewDashboardPage({
     }
     
     if (isPodRequiredForStop) {
-      if (!selectedFile) {
+      if (podPhotos.length === 0) {
         showToast("Proof of delivery photo is required to complete this location.", "error");
+        return;
+      }
+      if (!podPhotosReady) {
+        showToast("Wait a moment: a photo is still being prepared.", "error");
         return;
       }
       if (!receiverName.trim()) {
@@ -673,11 +715,14 @@ export default function CrewDashboardPage({
       }
       
       if (receiverName) formData.append("receiverName", receiverName);
-      if (selectedFile) {
-        formData.append("podImage", selectedFile);
-        // Where, when and how the receipt was captured, and what the phone
-        // found on it. The server checks the place, the time and reuse.
-        const report = scanned ? withReceiverName(scanned, receiverName).report : await cameraReport();
+      // Each photo with its own report beside it, in order. Where, when and
+      // how the receipt was captured, and what the phone found on it. The
+      // server checks the place, the time and reuse, photo by photo.
+      const plainCamera = podPhotos.some((photo) => !photo.scanned) ? await cameraReport() : null;
+      for (const photo of podPhotos) {
+        if (!photo.file) continue;
+        formData.append("podImage", photo.file);
+        const report = photo.scanned ? withReceiverName(photo.scanned, receiverName).report : plainCamera;
         formData.append("scan", JSON.stringify(report));
       }
 
@@ -692,7 +737,10 @@ export default function CrewDashboardPage({
         // The receipt check refused the photo. Nothing was recorded, so the
         // stop stays open with the name kept; only the photo needs retaking.
         if (response.status === 422 && Array.isArray(errData.reasons)) {
-          setPodRejection(errData.reasons as string[]);
+          setPodRejection({
+            index: typeof errData.photoIndex === "number" ? errData.photoIndex : null,
+            reasons: errData.reasons as string[],
+          });
           showToast(errData.message || "Please retake the proof of delivery photo.", "error");
           return;
         }
@@ -714,11 +762,7 @@ export default function CrewDashboardPage({
         // moves a helper on when the driver finishes a stop, was closed.
         showToast(`Done: ${dynamicStops[currentStepIndex]?.title || 'Location'}. On to the next stop.`, "success");
         setCurrentStepIndex(nextStep);
-        if (selectedImage) URL.revokeObjectURL(selectedImage);
-        setSelectedImage(null);
-        setSelectedFile(null);
-        setScanned(null);
-        setPodRejection(null);
+        clearPodPhotos();
         setRemarks("");
         setReceiverName("");
       }
@@ -1486,80 +1530,85 @@ export default function CrewDashboardPage({
                   </div>
 
                   <p className="text-xs text-slate-600 mb-2">
-                    Scan the client&apos;s signed delivery receipt at this stop. The whole page, the signature and the receiver&apos;s name must be visible.
+                    Scan the client&apos;s signed delivery receipt at this stop. The whole page, the signature and the receiver&apos;s name must be visible. A receipt of more than one page: scan each page.
                   </p>
-                  <div className="relative">
-                    {canScan ? (
-                      <button
-                        type="button"
-                        onClick={handleScanPod}
-                        disabled={isScanning || isSubmittingResponse}
-                        className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative disabled:opacity-60 ${scanProblems ? "border-red-400" : "border-blue-300"}`}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {podPhotos.map((photo, index) => (
+                      <div
+                        key={photo.key}
+                        className={`relative h-36 rounded-xl overflow-hidden border-2 bg-white ${problemPhoto(index) ? "border-red-400" : "border-blue-200"}`}
                       >
-                        {selectedImage ? (
-                          <>
-                            <img src={selectedImage} alt="Scanned receipt" className="w-full h-full object-cover" />
-                            <span className="absolute bottom-2 right-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white">
-                              {isScanning ? "Scanning..." : "Scan again"}
-                            </span>
-                          </>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                            <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                            <span className="text-xs font-semibold text-blue-700">
-                              {isScanning ? "Opening scanner..." : "Tap to scan receipt"}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    ) : (
-                      <>
-                        <label className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors overflow-hidden relative ${scanProblems ? "border-red-400" : "border-blue-300"}`}>
-                          {selectedImage ? (
-                            <img src={selectedImage} alt="POD Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                              <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
-                              <span className="text-xs font-semibold text-blue-700">Tap to take photo</span>
-                            </div>
-                          )}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photo.previewUrl} alt={`Receipt photo ${index + 1}`} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-slate-900/80 px-2 py-0.5 text-[11px] font-semibold text-white">
+                          {photo.file ? `Photo ${index + 1}` : "Preparing..."}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePodPhoto(photo.key)}
+                          disabled={isScanning || isSubmittingResponse}
+                          aria-label={`Remove photo ${index + 1}`}
+                          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-900/80 text-white hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-60"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {podPhotos.length < MAX_POD_PHOTOS &&
+                      (canScan ? (
+                        <button
+                          type="button"
+                          onClick={handleScanPod}
+                          disabled={isScanning || isSubmittingResponse}
+                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center disabled:opacity-60 ${podPhotos.length === 0 ? "col-span-2 sm:col-span-3" : ""} ${scanProblems && podPhotos.length === 0 ? "border-red-400" : "border-blue-300"}`}
+                        >
+                          <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                          <span className="text-xs font-semibold text-blue-700">
+                            {isScanning ? "Opening scanner..." : podPhotos.length === 0 ? "Tap to scan receipt" : "Scan another page"}
+                          </span>
+                        </button>
+                      ) : (
+                        <label
+                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center border-blue-300 ${podPhotos.length === 0 ? "col-span-2 sm:col-span-3" : ""}`}
+                        >
+                          <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                          <span className="text-xs font-semibold text-blue-700">
+                            {podPhotos.length === 0 ? "Tap to take photo" : "Take another photo"}
+                          </span>
                           <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
                         </label>
-                        {/* An install from before the scanner. The photo is still
-                            taken, and the office is asked to check it. */}
-                        <p className="mt-2 text-xs text-amber-700">
-                          Update the Logisco app to use the receipt scanner. Until then, the office will review this photo.
-                        </p>
-                      </>
-                    )}
-                    {selectedImage && (
-                      <button
-                        type="button"
-                        onClick={handleRemovePodPhoto}
-                        disabled={isScanning || isSubmittingResponse}
-                        aria-label="Remove photo"
-                        className="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-900/80 text-white hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-60"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+                      ))}
                   </div>
-                  {currentScan && !scanProblems && currentScan.verdict.flags.length > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    {podPhotos.length} of {MAX_POD_PHOTOS} photos
+                  </p>
+                  {/* An install from before the scanner. The photo is still
+                      taken, and the office is asked to check it. */}
+                  {!canScan && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      Update the Logisco app to use the receipt scanner. Until then, the office will review these photos.
+                    </p>
+                  )}
+                  {allScanned && !scanProblems && scanFlags.length > 0 && (
                     <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                       <p className="text-xs font-semibold text-amber-800">You can continue. The office will check:</p>
                       <ul className="mt-1 list-disc pl-4 text-xs text-amber-800">
-                        {currentScan.verdict.flags.map((flag) => (
+                        {scanFlags.map((flag) => (
                           <li key={flag}>{flag}</li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {currentScan && !scanProblems && currentScan.verdict.flags.length === 0 && (
-                    <p role="status" className="mt-3 text-xs font-semibold text-emerald-700">Receipt checked: signed, and the name matches.</p>
+                  {allScanned && !scanProblems && scanFlags.length === 0 && (
+                    <p role="status" className="mt-3 text-xs font-semibold text-emerald-700">
+                      {podPhotos.length > 1 ? "Every page checked: signed, and the name matches." : "Receipt checked: signed, and the name matches."}
+                    </p>
                   )}
                   {scanProblems && (
                     <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
-                      <p className="text-xs font-semibold text-red-700">Scan the receipt again:</p>
+                      <p className="text-xs font-semibold text-red-700">
+                        {podPhotos.length > 1 ? "Remove that photo and scan the page again:" : "Remove the photo and scan the receipt again:"}
+                      </p>
                       <ul className="mt-1 list-disc pl-4 text-xs text-red-700">
                         {scanProblems.map((reason) => (
                           <li key={reason}>{reason}</li>
@@ -1918,11 +1967,11 @@ export default function CrewDashboardPage({
             <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Location Update</h3>
             <p className="text-sm text-slate-600 mb-6">
               Confirm arrival/completion for <strong className="text-blue-600">{dynamicStops[currentStepIndex]?.title}</strong>?
-              {dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
+              {dynamicStops[currentStepIndex]?.reqPod && (podPhotos.length === 0 || !receiverName.trim()) && <span className="block mt-2 text-red-500 font-semibold">Note: Proof of Delivery photo & Receiver&apos;s Name is required.</span>}
             </p>
             <div className="flex items-center gap-3">
               <button onClick={() => setShowSubmitConfirmModal(false)} disabled={isSubmittingResponse} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!selectedImage || !receiverName.trim() || Boolean(scanProblems)))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
+              <button onClick={handleUpdateStatusSubmit} disabled={isSubmittingResponse || (dynamicStops[currentStepIndex]?.reqPod && (!podPhotosReady || !receiverName.trim() || Boolean(scanProblems)))} className="flex-1 min-h-tap sm:pointer-fine:min-h-0 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors cursor-pointer shadow-md whitespace-nowrap disabled:opacity-50 hover:bg-black">
                 {isSubmittingResponse ? "Updating..." : "Confirm Update"}
               </button>
             </div>

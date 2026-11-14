@@ -8,7 +8,7 @@ import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { announceUnverifiedProof } from "@/services/dispatch/crewUpdateService";
 import { checkPodScan, parseScanReport, sha256, storedNumbers, type StopPlace } from "@/services/storage/podScanCheck";
-import type { PodScanReport } from "@/app/lib/podScan";
+import { MAX_POD_PHOTOS, type PodScanReport } from "@/app/lib/podScan";
 import {
   crewNotReadyReason,
   crewReadinessFor,
@@ -42,6 +42,19 @@ const STARTING_OUT: string[] = [
 
 const MAX_POD_BYTES = 10 * 1024 * 1024;
 
+/** One receipt photo on its way through the checks and into the bucket. */
+interface PodPhoto {
+  file: File;
+  bytes: ArrayBuffer;
+  /** sha256 of the exact file. */
+  hash: string;
+  scan: PodScanReport | null;
+  /** What the check left for the office. */
+  flags: string[];
+  /** The object path, once uploaded. */
+  path: string;
+}
+
 // How far back a reused receipt photo is looked for, on this trip and this
 // crew member's other trips.
 const DUPLICATE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -69,7 +82,10 @@ export async function POST(request: Request) {
     const title = (formData.get("title") as string | null) || "";
     const branchIDValue = formData.get("branchID") as string | null;
     const pickupIDValue = formData.get("pickupID") as string | null;
-    const file = formData.get("podImage") as File | null;
+    // One stop may carry several receipt photos, each sent as "podImage" with
+    // its own "scan" report beside it, in the same order.
+    const files = formData.getAll("podImage").filter((value): value is File => value instanceof File && value.size > 0);
+    const scanReports = formData.getAll("scan").map((value) => (typeof value === "string" ? value : null));
 
     if (!isUuid(dispatchID) || !status) {
       return NextResponse.json({ message: "Missing or invalid dispatchID or status" }, { status: 400 });
@@ -202,7 +218,7 @@ export async function POST(request: Request) {
     // the record of that is a signed receipt. The crew app already asked for
     // one; the server did not, so a stop could still be closed on nothing.
     const isStop = branchID !== null || pickupID !== null;
-    const hasFile = Boolean(file && file.size > 0);
+    const hasFile = files.length > 0;
 
     if (isStop && !hasFile) {
       return NextResponse.json(
@@ -216,83 +232,136 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (files.length > MAX_POD_PHOTOS) {
+      return NextResponse.json(
+        { message: `A stop can have at most ${MAX_POD_PHOTOS} proof of delivery photos.` },
+        { status: 400 },
+      );
+    }
 
-    let podUrl: string | null = null;
-    let podPath: string | null = null;
-    let podFileType: string | null = null;
-    let scan: PodScanReport | null = null;
-    let scanFlags: string[] = [];
-    let imageHash: string | null = null;
+    // "Photo 2: ..." when there is more than one, so the crew know which to retake.
+    const which = (index: number, message: string) => (files.length > 1 ? `Photo ${index + 1}: ${message}` : message);
 
-    // 3. Check, then upload, the proof-of-delivery photo
-    if (file && hasFile) {
+    const photos: PodPhoto[] = [];
+
+    // 3. Check, then upload, the proof-of-delivery photos
+    for (const [index, file] of files.entries()) {
       if (!file.type.startsWith("image/")) {
-        return NextResponse.json({ message: "Proof of delivery must be an image" }, { status: 400 });
+        return NextResponse.json({ message: which(index, "Proof of delivery must be an image") }, { status: 400 });
       }
       if (file.size > MAX_POD_BYTES) {
-        return NextResponse.json({ message: "Proof of delivery image must be 10 MB or smaller" }, { status: 400 });
+        return NextResponse.json({ message: which(index, "Proof of delivery image must be 10 MB or smaller") }, { status: 400 });
+      }
+      const bytes = await file.arrayBuffer();
+      photos.push({
+        file,
+        bytes,
+        hash: sha256(bytes),
+        scan: isStop ? parseScanReport(scanReports[index] ?? null) : null,
+        flags: [],
+        path: "",
+      });
+    }
+
+    // Checked before anything is written. A refused scan leaves the stop
+    // exactly as it was - no object in the bucket, no row, no step taken -
+    // so the crew rescan that photo and send the same request.
+    //
+    // Every photo is a receipt page and is checked like the first. They are
+    // compared with proofs already on file, not with each other: the pages of
+    // one receipt share its form, its DR number and its date, and would look
+    // like the same page taken twice. The same file twice is still refused.
+    if (isStop && photos.length > 0) {
+      const seenHashes = new Set<string>();
+      for (const [index, photo] of photos.entries()) {
+        if (seenHashes.has(photo.hash)) {
+          const refusal = which(index, "This photo was added twice. Remove it, or scan the next page.");
+          return NextResponse.json({ message: refusal, reasons: [refusal], photoIndex: index }, { status: 422 });
+        }
+        seenHashes.add(photo.hash);
       }
 
-      const bytes = await file.arrayBuffer();
+      const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
+      const wantsEarlier = photos.some((photo) => photo.scan?.dHash);
+      const [{ data: sameFile }, earlierProofs] = await Promise.all([
+        supabase.from("PODPhotos").select("imageHash").in("imageHash", [...seenHashes]),
+        wantsEarlier
+          ? supabase
+              .from("POD")
+              .select("podID")
+              .or(`dispatchID.eq.${dispatchID},recordedBy.eq.${auth.employee.employeeID}`)
+              .gte("deliveredAt", since)
+              .order("deliveredAt", { ascending: false })
+              .limit(500)
+          : Promise.resolve({ data: [] as { podID: string }[] }),
+      ]);
+      const earlierIDs = ((earlierProofs.data ?? []) as { podID: string }[]).map((row) => row.podID);
+      const { data: earlier } = earlierIDs.length
+        ? await supabase
+            .from("PODPhotos")
+            .select("imageDHash, docNumbers")
+            .in("podID", earlierIDs)
+            .not("imageDHash", "is", null)
+        : { data: [] as { imageDHash: string | null; docNumbers: string | null }[] };
 
-      // Checked before anything is written. A refused scan leaves the stop
-      // exactly as it was - no object in the bucket, no row, no step taken -
-      // so the crew scan again and send the same request.
-      if (isStop) {
-        scan = parseScanReport(formData.get("scan") as string | null);
-        imageHash = sha256(bytes);
+      const usedHashes = new Set(((sameFile ?? []) as { imageHash: string | null }[]).map((row) => row.imageHash));
+      const earlierScans = ((earlier ?? []) as { imageDHash: string | null; docNumbers: string | null }[]).map((row) => ({
+        dHash: row.imageDHash,
+        docNumbers: storedNumbers(row.docNumbers),
+      }));
 
-        const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
-        const [{ data: sameFile }, { data: earlier }] = await Promise.all([
-          supabase.from("POD").select("podID").eq("imageHash", imageHash).limit(1),
-          scan?.dHash
-            ? supabase
-                .from("POD")
-                .select("imageDHash, docNumbers")
-                .or(`dispatchID.eq.${dispatchID},recordedBy.eq.${auth.employee.employeeID}`)
-                .gte("deliveredAt", since)
-                .not("imageDHash", "is", null)
-                .limit(500)
-            : Promise.resolve({ data: [] as { imageDHash: string | null; docNumbers: string | null }[] }),
-        ]);
-
+      for (const [index, photo] of photos.entries()) {
         const check = checkPodScan({
-          report: scan,
+          report: photo.scan,
           place,
           now: Date.now(),
-          sameFileUsed: (sameFile ?? []).length > 0,
-          earlierScans: ((earlier ?? []) as { imageDHash: string | null; docNumbers: string | null }[]).map((row) => ({
-            dHash: row.imageDHash,
-            docNumbers: storedNumbers(row.docNumbers),
-          })),
+          sameFileUsed: usedHashes.has(photo.hash),
+          earlierScans,
         });
-
         if (check.refusal) {
-          return NextResponse.json({ message: check.refusal, reasons: [check.refusal] }, { status: 422 });
+          const refusal = which(index, check.refusal);
+          return NextResponse.json({ message: refusal, reasons: [refusal], photoIndex: index }, { status: 422 });
         }
-        scanFlags = check.flags;
+        photo.flags = check.flags;
       }
+    }
 
-      const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "");
-      const fileName = `pod-${dispatchID}-${Date.now()}-${safeName}`;
+    // Uploaded only once every photo has passed. If one upload fails, the ones
+    // already in the bucket are taken out again, so a retry starts clean.
+    const stamp = Date.now();
+    for (const [index, photo] of photos.entries()) {
+      const safeName = photo.file.name.replace(/[^a-zA-Z0-9.]/g, "");
+      const fileName = `pod-${dispatchID}-${stamp}-${index + 1}-${safeName}`;
 
       const { error: uploadErr } = await supabase.storage
         .from(POD_BUCKET)
-        .upload(fileName, bytes, { contentType: file.type });
+        .upload(fileName, photo.bytes, { contentType: photo.file.type });
 
       if (uploadErr) {
         console.error("[Status API] Image Upload Error:", uploadErr);
+        const uploaded = photos.slice(0, index).map((earlier) => earlier.path);
+        if (uploaded.length) {
+          const { error: cleanupErr } = await supabase.storage.from(POD_BUCKET).remove(uploaded);
+          if (cleanupErr) console.error("[Status API] Could not remove the photos already uploaded:", cleanupErr.message);
+        }
         return NextResponse.json({ message: "Failed to upload Proof of Delivery image" }, { status: 502 });
       }
 
       // The object path, not a public URL: the photo is a delivery receipt
       // with a customer name on it, and getPublicUrl hands out a permanent
       // unauthenticated link to it. Screens are given a signed URL instead.
-      podPath = fileName;
-      podUrl = await signPodUrl(fileName);
-
-      podFileType = file.type || null;
+      photo.path = fileName;
     }
+
+    const first = photos[0] ?? null;
+    const podPath = first?.path || null;
+    const podUrl = podPath ? await signPodUrl(podPath) : null;
+    const podFileType = first ? first.file.type || null : null;
+    const scan: PodScanReport | null = first?.scan ?? null;
+    const imageHash = isStop ? (first?.hash ?? null) : null;
+    // What the office is told: every photo's flags, each said once, named by
+    // photo when there are several.
+    const scanFlags = [...new Set(photos.flatMap((photo, index) => photo.flags.map((flag) => which(index, flag))))];
 
     // 4. Update DispatchOrder, appending crew remarks to the existing notes
     const updatePayload: Record<string, unknown> = { status, current_step: nextStep };
@@ -415,6 +484,9 @@ export async function POST(request: Request) {
     // proof was taken" or "this stop was never reached", and the two look
     // identical. Now there is always a row, and an absent file says so in
     // missingReason - which the report already knows how to show.
+    // POD stays one row per stop. Its photo columns are photo 1, so every
+    // screen and count that reads them is unchanged; each photo, the first
+    // included, is also a PODPhotos row with what its own scan found.
     const stopProof: Record<string, unknown> = {
       dispatchID,
       branchID,
@@ -429,6 +501,8 @@ export async function POST(request: Request) {
       missingReason: podPath ? null : "No photograph was taken at this stop",
       // Passed when every check ran and found nothing; anything it could not
       // check is the office's to look at.
+      // The worst of the stop's photos: one unchecked page puts the stop in
+      // front of the office.
       validationStatus: podPath && isStop ? (scanFlags.length === 0 ? "passed" : "unverified") : null,
       validationNotes: scanFlags.length > 0 ? scanFlags.join(" ") : null,
       scanMethod: scan?.method ?? (podPath && isStop ? "camera" : null),
@@ -444,9 +518,40 @@ export async function POST(request: Request) {
     // anything is handed over, and a proof row for them would be noise in a
     // record that is meant to be auditable.
     if (branchID !== null || pickupID !== null) {
-      const { error: podInsertError } = await supabase.from("POD").insert(stopProof);
+      const { data: podRow, error: podInsertError } = await supabase
+        .from("POD")
+        .insert(stopProof)
+        .select("podID")
+        .single();
       if (podInsertError) {
         console.error("[Status API] POD Insert Error:", podInsertError.message);
+      } else if (podRow && photos.length > 0) {
+        const { error: photosInsertError } = await supabase.from("PODPhotos").insert(
+          photos.map((photo, index) => ({
+            podID: podRow.podID,
+            position: index + 1,
+            path: photo.path,
+            fileType: photo.file.type || null,
+            scanMethod: photo.scan?.method ?? (isStop ? "camera" : null),
+            capturedAt: photo.scan?.capturedAt || null,
+            captureLat: photo.scan?.latitude ?? null,
+            captureLng: photo.scan?.longitude ?? null,
+            imageHash: isStop ? photo.hash : null,
+            imageDHash: photo.scan?.dHash ?? null,
+            docNumbers: photo.scan?.docNumbers.length ? photo.scan.docNumbers.join(" ") : null,
+            validationStatus: isStop ? (photo.flags.length === 0 ? "passed" : "unverified") : null,
+            validationNotes: photo.flags.length > 0 ? photo.flags.join(" ") : null,
+          })),
+        );
+        // Photo 1 is on the POD row whatever happens here, so the stop still
+        // has its proof; the others are in the bucket under this trip's id.
+        if (photosInsertError) {
+          console.error(
+            "[Status API] PODPhotos Insert Error:",
+            photosInsertError.message,
+            photos.map((photo) => photo.path),
+          );
+        }
       }
     }
 
@@ -467,6 +572,7 @@ export async function POST(request: Request) {
         current_step: nextStep,
         stop: pickupID !== null ? { pickupID } : branchID !== null ? { branchID } : null,
         proof: Boolean(podPath),
+        proofPhotos: photos.length,
         proofCheck: podPath && isStop ? (scanFlags.length === 0 ? "passed" : "unverified") : null,
         proofFlags: scanFlags,
       },

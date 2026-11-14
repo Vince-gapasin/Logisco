@@ -35,6 +35,14 @@ export interface StopProof {
   /** The office's decision on a proof that needed a review. */
   reviewStatus?: "approved" | "rejected" | null;
   reviewNote?: string | null;
+  /** Every photo of the proof, in order; proof is the first. Absent on older responses. */
+  photos?: { url: string; fileType: string | null }[];
+}
+
+/** The proof's photos, or its one file when the photos were not sent. */
+function photosOf(pod: StopProof): { url: string; fileType: string | null }[] {
+  if (pod.photos && pod.photos.length > 0) return pod.photos;
+  return pod.proof ? [{ url: pod.proof, fileType: pod.fileType }] : [];
 }
 
 export interface ProofBearingStop {
@@ -223,13 +231,18 @@ export default function StopProofList({
                 <p className="text-xs text-amber-800">No file: {pod.missingReason}</p>
               )}
             </div>
-            {pod.proof && (
-              <Thumbnail
-                href={pod.proof}
-                fileType={pod.fileType}
-                label={stop.label}
-                onOpen={setEnlargedFor}
-              />
+            {photosOf(pod).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {photosOf(pod).map((photo, index, all) => (
+                  <Thumbnail
+                    key={photo.url}
+                    href={photo.url}
+                    fileType={photo.fileType}
+                    label={all.length > 1 ? `${stop.label}, photo ${index + 1} of ${all.length}` : stop.label}
+                    onOpen={setEnlargedFor}
+                  />
+                ))}
+              </div>
             )}
           </div>
         )),

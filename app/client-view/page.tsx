@@ -98,6 +98,8 @@ interface TrackingStop {
   receivedBy: string | null;
   /** The signed receipt, as a link that expires; only on a delivered stop. */
   proofUrl?: string | null;
+  /** Every page of it, in order; proofUrl is the first. */
+  proofUrls?: string[];
 }
 
 interface TrackingData {
@@ -1023,8 +1025,16 @@ function ClientTrackerView() {
                                   ? `Expected by ${formatTime(stop.expectedTime)}`
                                   : "Scheduled"}
                         </p>
-                        {delivered && stop.proofUrl && (
-                          <ProofPhoto src={stop.proofUrl} label={stop.branchName} />
+                        {delivered && (stop.proofUrls?.length || stop.proofUrl) && (
+                          <div className="flex flex-wrap gap-2">
+                            {(stop.proofUrls?.length ? stop.proofUrls : [stop.proofUrl as string]).map((url, index, all) => (
+                              <ProofPhoto
+                                key={url}
+                                src={url}
+                                label={all.length > 1 ? `${stop.branchName}, page ${index + 1} of ${all.length}` : stop.branchName}
+                              />
+                            ))}
+                          </div>
                         )}
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${chip.style}`}>{chip.text}</span>

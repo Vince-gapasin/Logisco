@@ -119,6 +119,22 @@ export async function PATCH(
 
     if (updateError) throw new Error(updateError.message);
 
+    // A crew proof can be several photos. The office's file replaces all of
+    // them: the screens show PODPhotos when a proof has any, and would go on
+    // showing the old pages beside, or instead of, the correction. The objects
+    // stay in the bucket and their paths go in the audit row below.
+    let replacedPhotos: string[] = [];
+    if (update.proof) {
+      const { data: oldPhotos } = await supabase.from("PODPhotos").select("path").eq("podID", podID);
+      replacedPhotos = ((oldPhotos ?? []) as { path: string }[]).map((photo) => photo.path);
+      const { error: clearError } = await supabase.from("PODPhotos").delete().eq("podID", podID);
+      if (clearError) console.error("[POD PATCH] Could not clear the old photos:", clearError.message);
+      const { error: photoError } = await supabase
+        .from("PODPhotos")
+        .insert({ podID, position: 1, path: update.proof, fileType: update.fileType ?? null });
+      if (photoError) console.error("[POD PATCH] Could not record the new photo:", photoError.message);
+    }
+
     // Against the trip, so it lands in that booking's Remarks History beside
     // everything else that happened to it.
     await recordAudit({
@@ -128,6 +144,7 @@ export async function PATCH(
       actor: auditActor(auth),
       before: {
         proof: current.proof,
+        ...(replacedPhotos.length > 1 ? { photos: replacedPhotos } : {}),
         receiverName: current.receiverName,
         remarks: current.remarks,
       },

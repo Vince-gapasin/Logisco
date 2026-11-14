@@ -21,7 +21,7 @@ import { getFeedbackInvitation, type FeedbackInvitation } from "@/services/feedb
 import { reportsForOrder, reportsStamp } from "@/services/feedback/clientReportService";
 import type { ClientReportSummary } from "@/app/lib/clientReports";
 import { liveDispatchOf } from "@/app/lib/bookingView";
-import { signPodUrls } from "@/services/storage/podService";
+import { POD_PHOTOS_EMBED, proofPhotoPaths, signPodUrls, type ProofPhotoRow } from "@/services/storage/podService";
 import { FORMER_TRUCK_COLUMNS, truckOf, type FormerTruck } from "@/app/lib/formerTruck";
 
 // Data behind the customer tracking link (Order.orderLinkToken). The link is a
@@ -136,6 +136,8 @@ export interface TrackingStop {
    * the check.
    */
   proofUrl?: string | null;
+  /** Every photo of that receipt, in order; proofUrl is the first. */
+  proofUrls?: string[];
 }
 
 /**
@@ -497,7 +499,15 @@ function buildSteps(
       kind: "stop",
       at: stop.deliveredAt ?? (arrivedNotDone ? stop.arrivedAt : null),
       proofs:
-        done && stop.proofUrl ? [{ url: stop.proofUrl, label: stop.branchName, kind: "delivery" }] : undefined,
+        done && stop.proofUrls?.length
+          ? stop.proofUrls.map((url, index, all) => ({
+              url,
+              label: all.length > 1 ? `${stop.branchName}, page ${index + 1} of ${all.length}` : stop.branchName,
+              kind: "delivery" as const,
+            }))
+          : done && stop.proofUrl
+            ? [{ url: stop.proofUrl, label: stop.branchName, kind: "delivery" }]
+            : undefined,
     });
   }
 
@@ -856,6 +866,8 @@ interface TrackedStop {
 
 interface TrackedProof {
   proof: string | null;
+  fileType?: string | null;
+  PODPhotos?: ProofPhotoRow[] | null;
   receiverName: string | null;
   deliveredAt: string | null;
   validationStatus: string | null;
@@ -898,9 +910,9 @@ export async function getTrackingByToken(
       `orderID, orderCode, createdAt, isActive, notes,
        Client ( company, emailAdd, contact ),
        BranchStops ( branchID, branchName, expectedTime, expectedDate, stopStatus, deliveryLat, deliverLong, arrivedAt, completedAt,
-         POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
+         POD ( proof, fileType, receiverName, deliveredAt, validationStatus, reviewStatus, ${POD_PHOTOS_EMBED} ) ),
        PickupStops ( pickupID, warehouseName, expectedTime, expectedDate, stopStatus, sequence, arrivedAt, completedAt,
-         POD ( proof, receiverName, deliveredAt, validationStatus, reviewStatus ) ),
+         POD ( proof, fileType, receiverName, deliveredAt, validationStatus, reviewStatus, ${POD_PHOTOS_EMBED} ) ),
        FoulTripIncident ( dispatchID, status ),
        DispatchOrder ( dispatchID, status, completedAt, subConID, partnerDriver, partnerPlate, ${FORMER_TRUCK_COLUMNS},
          Truck ( plateNumber, model ),
@@ -953,26 +965,30 @@ export async function getTrackingByToken(
   // signed receipt with the receiver's name is what a customer is owed. Signed
   // here, for an hour, like every other screen - never a public link.
   const branchRows = (order.BranchStops as TrackedStop[] | null) ?? [];
-  const shownProof = (stop: { stopStatus?: string | null; POD?: TrackedProof[] | null }): string | null => {
+  // Every page of it, in order: a receipt can run to more than one photo.
+  const shownProof = (stop: { stopStatus?: string | null; POD?: TrackedProof[] | null }): string[] => {
     const proof = latestProof(stop);
     const delivered = /complete|delivered/i.test(stop.stopStatus ?? "");
     // Not one the scan failed, and not one the office rejected.
-    return delivered && proof?.proof && proof.validationStatus !== "failed" && proof.reviewStatus !== "rejected"
-      ? proof.proof
-      : null;
+    return delivered && proof && proof.validationStatus !== "failed" && proof.reviewStatus !== "rejected"
+      ? proofPhotoPaths(proof).map((photo) => photo.path)
+      : [];
   };
   // The collection's receipts too, for the timeline: the client's own goods,
   // signed out of the warehouse.
   const pickupProofPaths = ((order.PickupStops as TrackedPickup[] | null) ?? [])
     .slice()
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .map((pickup) => ({ path: shownProof(pickup), name: pickup.warehouseName?.trim() || "Pickup" }));
-  const signedProofs = await signPodUrls([...branchRows.map(shownProof), ...pickupProofPaths.map((p) => p.path)]);
+    .map((pickup) => ({ paths: shownProof(pickup), name: pickup.warehouseName?.trim() || "Pickup" }));
+  const signedProofs = await signPodUrls([...branchRows.flatMap(shownProof), ...pickupProofPaths.flatMap((p) => p.paths)]);
 
   const stops: TrackingStop[] = branchRows
     .map((stop) => {
       const proof = latestProof(stop);
-      const proofPath = shownProof(stop);
+      const proofUrls = shownProof(stop).flatMap((path) => {
+        const url = signedProofs.get(path);
+        return url ? [url] : [];
+      });
       return {
         branchID: stop.branchID,
         branchName: stop.branchName ?? "Stop",
@@ -985,7 +1001,8 @@ export async function getTrackingByToken(
         arrivedAt: stop.arrivedAt ?? null,
         deliveredAt: proof?.deliveredAt ?? stop.completedAt ?? null,
         receivedBy: proof?.receiverName && proof.receiverName !== "N/A" ? proof.receiverName : null,
-        proofUrl: proofPath ? signedProofs.get(proofPath) ?? null : null,
+        proofUrl: proofUrls[0] ?? null,
+        proofUrls,
       };
     })
     .sort((a, b) => a.branchID - b.branchID);
@@ -1055,9 +1072,14 @@ export async function getTrackingByToken(
   const collection = buildCollection(pickupRows);
   if (collection) {
     collection.proofs = [];
-    for (const { path, name } of pickupProofPaths) {
-      const url = path ? signedProofs.get(path) : undefined;
-      if (url) collection.proofs.push({ url, label: name, kind: "pickup" });
+    for (const { paths, name } of pickupProofPaths) {
+      const urls = paths.flatMap((path) => {
+        const url = signedProofs.get(path);
+        return url ? [url] : [];
+      });
+      urls.forEach((url, index) =>
+        collection.proofs?.push({ url, label: urls.length > 1 ? `${name}, page ${index + 1} of ${urls.length}` : name, kind: "pickup" }),
+      );
     }
   }
 

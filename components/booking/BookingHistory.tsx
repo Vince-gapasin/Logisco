@@ -21,6 +21,8 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
   const [entries, setEntries] = useState<BookingHistoryEntry[] | null>(null);
   const [error, setError] = useState("");
   const [enlarged, setEnlarged] = useState<BookingHistoryEntry["proof"]>(null);
+  // Which of the proof's photos is shown large.
+  const [shownPhoto, setShownPhoto] = useState(0);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -164,6 +166,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                           type="button"
                           onClick={() => {
                             setEnlarged(entry.proof);
+                            setShownPhoto(0);
                             setEditing(false);
                             setSaveError("");
                             setReplacement(null);
@@ -175,7 +178,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                           }}
                           className="min-h-tap lg:pointer-fine:min-h-0 inline-flex items-center font-semibold text-blue-600 hover:underline"
                         >
-                          View POD
+                          {(entry.proof.photos?.length ?? 0) > 1 ? `View POD (${entry.proof.photos.length})` : "View POD"}
                         </button>
                       )
                     ) : (
@@ -195,7 +198,11 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
         </table>
       </div>
 
-      {enlarged && (
+      {enlarged && (() => {
+        const photos = enlarged.photos?.length ? enlarged.photos : [{ url: enlarged.url, isPdf: enlarged.isPdf }];
+        const shown = photos[Math.min(shownPhoto, photos.length - 1)];
+        const shownLabel = photos.length > 1 ? `${enlarged.label}, photo ${photos.indexOf(shown) + 1} of ${photos.length}` : enlarged.label;
+        return (
         <div
           className="fixed inset-0 overflow-y-auto z-110 flex items-center justify-center p-4 bg-slate-950/85 animate-fade-in"
           onClick={() => setEnlarged(null)}
@@ -205,14 +212,47 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
             onClick={(event) => event.stopPropagation()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={enlarged.url}
-              alt={`Proof of delivery from ${enlarged.label}`}
-              className="max-h-[70dvh] w-auto max-w-full rounded-xl border border-slate-700 bg-slate-900 object-contain"
-            />
+            {shown.isPdf ? (
+              <a
+                href={shown.url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-sm font-semibold text-blue-300 hover:underline"
+              >
+                View PDF
+              </a>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={shown.url}
+                alt={`Proof of delivery from ${shownLabel}`}
+                className="max-h-[70dvh] w-auto max-w-full rounded-xl border border-slate-700 bg-slate-900 object-contain"
+              />
+            )}
+            {photos.length > 1 && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {photos.map((photo, index) => (
+                  <button
+                    key={photo.url}
+                    type="button"
+                    onClick={() => setShownPhoto(index)}
+                    aria-label={`Show photo ${index + 1} of ${photos.length}`}
+                    aria-current={photo === shown}
+                    className={`rounded border-2 ${photo === shown ? "border-blue-400" : "border-slate-700 hover:border-slate-400"}`}
+                  >
+                    {photo.isPdf ? (
+                      <span className="flex h-12 w-12 items-center justify-center text-[10px] font-bold text-slate-200">PDF</span>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photo.url} alt="" className="h-12 w-12 rounded object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-center gap-3">
               <span className="text-xs font-medium text-slate-200 wrap-break-word">
-                {enlarged.label}
+                {shownLabel}
                 {enlarged.receiverName && enlarged.receiverName !== "N/A"
                   ? ` - received by ${enlarged.receiverName}`
                   : ""}
@@ -221,14 +261,14 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
                   into an attachment rather than something the browser displays.
                   No second request and no copy of the file to serve. */}
               <a
-                href={`${enlarged.url}&download=${encodeURIComponent(downloadNameFor(enlarged.label, enlarged.isPdf))}`}
+                href={`${shown.url}&download=${encodeURIComponent(downloadNameFor(shownLabel, shown.isPdf))}`}
                 className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:underline"
               >
                 <Download className="w-3.5 h-3.5 shrink-0" />
                 Download
               </a>
               <a
-                href={enlarged.url}
+                href={shown.url}
                 target="_blank"
                 rel="noreferrer"
                 className="min-h-tap md:pointer-fine:min-h-0 inline-flex items-center text-xs font-semibold text-blue-300 hover:underline"
@@ -261,7 +301,7 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Replace the photograph
+                    {photos.length > 1 ? `Replace all ${photos.length} photos with one file` : "Replace the photograph"}
                   </label>
                   <input
                     type="file"
@@ -328,7 +368,8 @@ export default function BookingHistory({ orderID, title = "7. Remarks History" }
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

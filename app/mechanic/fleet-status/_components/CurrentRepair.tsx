@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { HistoryLogRecord, TruckRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
+import { LogPhotoGrid, photosOfPhase } from "./LogPhotoGrid";
 
 // The repair a truck is in the middle of: which of its logs belong to it, who
 // is on it, and the inspection and progress sections a truck page shows for
@@ -90,7 +91,8 @@ export function CurrentRepairSections({ repair, show }: { repair: CurrentRepair;
       </div>
     ));
 
-  const combinedPhotos = progressUpdates.map((u) => u.progressPhotoUrl).filter(Boolean);
+  const combinedPhotos = progressUpdates.flatMap((u) => photosOfPhase(u, "Progress"));
+  const preliminaryPhotos = latestPreliminaryLog ? photosOfPhase(latestPreliminaryLog, "Preliminary") : [];
 
   return (
     <>
@@ -114,17 +116,12 @@ export function CurrentRepairSections({ repair, show }: { repair: CurrentRepair;
                 {latestPreliminaryLog.preliminaryRemarks || "None"}
               </div>
             </div>
-            {latestPreliminaryLog.preliminaryPhotoUrl && (
+            {preliminaryPhotos.length > 0 && (
               <div className="sm:col-span-2 mt-2">
-                <label className="block text-xs font-medium text-black mb-1">Attachment/s</label>
-                <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                  <img
-                    src={latestPreliminaryLog.preliminaryPhotoUrl}
-                    alt="Preliminary Evidence"
-                    onClick={() => setZoomedImage(latestPreliminaryLog.preliminaryPhotoUrl!)}
-                    className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                  />
-                </div>
+                <label className="block text-xs font-medium text-black mb-1">
+                  Attachment/s{preliminaryPhotos.length > 1 ? ` (${preliminaryPhotos.length})` : ""}
+                </label>
+                <LogPhotoGrid photos={preliminaryPhotos} alt="Preliminary Evidence" onOpen={setZoomedImage} showChecks={false} />
               </div>
             )}
           </div>
@@ -152,18 +149,7 @@ export function CurrentRepairSections({ repair, show }: { repair: CurrentRepair;
             {combinedPhotos.length > 0 && (
               <div className="sm:col-span-2 mt-2">
                 <label className="block text-xs font-medium text-black mb-1">Attachment/s ({combinedPhotos.length})</label>
-                <div className="flex flex-wrap gap-3">
-                  {combinedPhotos.map((url, idx) => (
-                    <div key={idx} className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                      <img
-                        src={url as string}
-                        alt={`Progress Evidence ${idx + 1}`}
-                        onClick={() => setZoomedImage(url as string)}
-                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                      />
-                    </div>
-                  ))}
-                </div>
+                <LogPhotoGrid photos={combinedPhotos} alt="Progress Evidence" onOpen={setZoomedImage} showChecks={false} />
               </div>
             )}
           </div>

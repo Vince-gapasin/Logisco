@@ -6,8 +6,9 @@ import { supabaseDouble } from "./support/supabaseDouble";
 //
 // The list a log is edited from carries no image data - only whether a phase
 // has a photo - so an edit could be saved with every photo empty. The update
-// replaced a log's photo rows wholesale, and that deleted them. A phase's photo
-// is now replaced only when the edit brings a new one.
+// replaced a log's photo rows wholesale, and that deleted them. Photos are now
+// added and removed one by one: the edit's new photos are inserted, and only
+// the ones the mechanic took off (checked by checkLogPhotos) are deleted.
 
 const db = supabaseDouble();
 vi.mock("@/app/lib/supabase", () => ({ supabase: db.client }));
@@ -21,13 +22,12 @@ beforeEach(() => {
   db.writes.length = 0;
 });
 
-/** The answers an update reads, in order: the parent, then each child table's current rows. */
-function existingLog(photos: { id: string; phase: string }[]) {
+/** The answers an update reads, in order: the parent, then the text tables' current rows. */
+function existingLog() {
   db.queue(
     { data: { id: LOG } }, // HistoryLogsM update ... select
     { data: [{ id: "mech-1" }] }, // LogMechanics
     { data: [{ id: "note-1" }] }, // LogNotes
-    { data: photos }, // LogPhotos
   );
 }
 
@@ -40,10 +40,7 @@ function deletedRows() {
 
 describe("editing a log", () => {
   it("keeps the photos when the edit sends none", async () => {
-    existingLog([
-      { id: "photo-pre", phase: "Preliminary" },
-      { id: "photo-final", phase: "Final" },
-    ]);
+    existingLog();
 
     await updateHistoryLog(LOG, {
       date: "2026-10-03",
@@ -59,32 +56,31 @@ describe("editing a log", () => {
     expect(deletedRows()).toEqual(expect.arrayContaining(["LogMechanics", "LogNotes"]));
   });
 
-  it("replaces only the phase that got a new photo", async () => {
-    existingLog([
-      { id: "photo-pre", phase: "Preliminary" },
-      { id: "photo-final", phase: "Final" },
-    ]);
+  it("adds the new photos and removes only the ones taken off", async () => {
+    existingLog();
 
     await updateHistoryLog(LOG, {
       date: "2026-10-03",
       primaryMechanicID: "m1",
       issue: "Replaced the fan belt",
-      photoUrl: "data:image/jpeg;base64,new",
+      // What checkLogPhotos leaves on the body.
+      checkedPhotos: [{ phase: "Final", photoUrl: "data:image/jpeg;base64,new", position: 2 }],
+      removedPhotoIDs: ["photo-final"],
     });
 
     const photoInsert = db.writes.find((write) => write.table === "LogPhotos" && write.chain.includes("insert"));
     expect(photoInsert?.payload).toEqual([
-      { logID: LOG, phase: "Final", photoUrl: "data:image/jpeg;base64,new" },
+      { logID: LOG, phase: "Final", photoUrl: "data:image/jpeg;base64,new", position: 2 },
     ]);
 
-    const photoDelete = db.calls.find((call) => call.table === "LogPhotos" && call.chain.includes("delete"));
-    expect(photoDelete).toBeDefined();
-    // Only the old Final photo goes; the Preliminary one stays.
-    expect(photoDelete?.chain).toContain("in");
+    const photoDeletes = db.calls.filter((call) => call.table === "LogPhotos" && call.chain.includes("delete"));
+    expect(photoDeletes).toHaveLength(1);
+    // By id, and only within this log.
+    expect(photoDeletes[0].chain).toEqual(expect.arrayContaining(["in", "eq"]));
   });
 
   it("is taken back when it fails part-way, rather than leaving two of everything", async () => {
-    existingLog([]);
+    existingLog();
     db.queue(
       { data: [{ id: "mech-new" }] }, // LogMechanics insert
       { data: null, error: { message: "down" } }, // LogNotes insert fails

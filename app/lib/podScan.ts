@@ -44,6 +44,17 @@ export interface OcrLine {
 }
 
 
+/**
+ * How many receipt photos one stop may carry: a receipt of a few pages, or a
+ * delivery receipt and a release slip. Every one is scanned and checked.
+ */
+export const MAX_POD_PHOTOS = 5;
+/**
+ * What one stop's photos may add up to. Vercel refuses a request body over
+ * 4.5 MB, and the form's other fields and the multipart wrapping need room.
+ */
+export const MAX_POD_UPLOAD_BYTES = 4 * 1024 * 1024;
+
 /** What the phone sends with the photo. */
 export interface PodScanReport {
   /** "scanner": the live document scanner. "camera": an older app without it. */

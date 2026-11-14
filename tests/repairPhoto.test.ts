@@ -186,17 +186,111 @@ describe("saving a log", () => {
       preliminaryPhotoUrlMeta: { checkStatus: "passed", imageHash: "forged" },
     });
     expect(await checkLogPhotos(body, { requirePhotos: true })).toBeNull();
-    expect(body.preliminaryPhotoUrlMeta).toMatchObject({ checkStatus: "passed", imageHash: photoHash(photo("a truck")) });
+    expect(body.preliminaryPhotoUrlMeta).toBeUndefined();
+    expect(body.checkedPhotos).toEqual([
+      expect.objectContaining({
+        phase: "Preliminary",
+        position: 1,
+        checkStatus: "passed",
+        imageHash: photoHash(photo("a truck")),
+      }),
+    ]);
   });
 
-  it("does not check again a photo an edit sends back unchanged", async () => {
+  it("does not check again a photo an older screen sends back unchanged", async () => {
     const onFile = photo("the photo already on the log");
-    db.queue({ data: [{ phase: "Preliminary", photoUrl: onFile }] });
+    db.queue(
+      { data: [{ id: "p1", phase: "Preliminary", position: 1 }] },
+      { data: [{ phase: "Preliminary", photoUrl: onFile }] },
+    );
     const body: Record<string, unknown> = inspection({ preliminaryPhotoUrl: onFile });
     expect(await checkLogPhotos(body, { requirePhotos: true, logID: "log-1" })).toBeNull();
     // Taken out, so the photo on file stays with what its check found.
     expect(body.preliminaryPhotoUrl).toBeUndefined();
-    expect(db.calls).toHaveLength(1);
+    expect(body.checkedPhotos).toEqual([]);
+    expect(db.calls).toHaveLength(2);
+  });
+});
+
+describe("several photos in a phase", () => {
+  const inspection = (over: Record<string, unknown> = {}) => ({
+    truckID: "t1",
+    date: "2026-10-13",
+    driversReport: "Brakes squeal",
+    ...over,
+  });
+  const fresh = (content: string) => ({
+    dataUrl: photo(content),
+    report: report({ capturedAt: new Date().toISOString() }),
+  });
+
+  it("checks each new photo and places it after the ones on file", async () => {
+    db.queue(
+      { data: [{ id: "p1", phase: "Preliminary", position: 1 }] }, // the log's photos
+      { data: [] }, // same file elsewhere
+      { data: [] }, // earlier fingerprints
+    );
+    const body: Record<string, unknown> = inspection({
+      newPhotos: { Preliminary: [fresh("the brake pads"), fresh("the rotor")] },
+    });
+    expect(await checkLogPhotos(body, { requirePhotos: true, logID: "log-1" })).toBeNull();
+    expect(body.newPhotos).toBeUndefined();
+    expect(body.checkedPhotos).toEqual([
+      expect.objectContaining({ phase: "Preliminary", position: 2, photoUrl: photo("the brake pads") }),
+      expect.objectContaining({ phase: "Preliminary", position: 3, photoUrl: photo("the rotor") }),
+    ]);
+  });
+
+  it("refuses more than five in a phase", async () => {
+    db.queue({
+      data: [1, 2, 3, 4].map((n) => ({ id: `p${n}`, phase: "Preliminary", position: n })),
+    });
+    const body: Record<string, unknown> = inspection({
+      newPhotos: { Preliminary: [fresh("five"), fresh("six")] },
+    });
+    expect(await checkLogPhotos(body, { requirePhotos: true, logID: "log-1" })).toEqual({
+      status: 400,
+      message: "The inspection can have at most 5 photos.",
+    });
+  });
+
+  it("lets a photo be swapped, but not the last one taken away", async () => {
+    db.queue({ data: [{ id: "p1", phase: "Preliminary", position: 1 }] });
+    const emptied: Record<string, unknown> = inspection({ removedPhotoIDs: ["p1"] });
+    expect(await checkLogPhotos(emptied, { requirePhotos: true, logID: "log-1" })).toEqual({
+      status: 400,
+      message: "Keep at least one photo on the inspection.",
+    });
+
+    db.queue({ data: [{ id: "p1", phase: "Preliminary", position: 1 }] }, { data: [] }, { data: [] });
+    const swapped: Record<string, unknown> = inspection({
+      removedPhotoIDs: ["p1"],
+      newPhotos: { Preliminary: [fresh("a better one")] },
+    });
+    expect(await checkLogPhotos(swapped, { requirePhotos: true, logID: "log-1" })).toBeNull();
+    expect(swapped.removedPhotoIDs).toEqual(["p1"]);
+  });
+
+  it("only removes the log's own photos", async () => {
+    db.queue({
+      data: [
+        { id: "p1", phase: "Preliminary", position: 1 },
+        { id: "p2", phase: "Preliminary", position: 2 },
+      ],
+    });
+    const body: Record<string, unknown> = inspection({ removedPhotoIDs: ["p2", "someone-elses"] });
+    expect(await checkLogPhotos(body, { requirePhotos: true, logID: "log-1" })).toBeNull();
+    expect(body.removedPhotoIDs).toEqual(["p2"]);
+  });
+
+  it("refuses the same photo added twice", async () => {
+    const body: Record<string, unknown> = inspection({
+      newPhotos: { Preliminary: [fresh("the same"), fresh("the same")] },
+    });
+    expect(await checkLogPhotos(body, { requirePhotos: true })).toEqual({
+      status: 422,
+      message: "The same photo was added twice. Remove one of them.",
+    });
   });
 
   it("does not make an old log get a photo when it is edited", async () => {

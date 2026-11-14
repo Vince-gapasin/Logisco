@@ -72,7 +72,34 @@ export interface HistoryLogRecord {
   preliminaryPhotoCheck?: PhotoCheckResult | null;
   progressPhotoCheck?: PhotoCheckResult | null;
   photoCheck?: PhotoCheckResult | null;
+  /** How many photos each phase has, from the list. */
+  preliminaryPhotoCount?: number;
+  progressPhotoCount?: number;
+  finalPhotoCount?: number;
+  /**
+   * Every photo of each phase, in order, once loaded. The single
+   * preliminaryPhotoUrl / progressPhotoUrl / photoUrl above are the first.
+   */
+  preliminaryPhotos?: LogPhoto[];
+  progressPhotos?: LogPhoto[];
+  finalPhotos?: LogPhoto[];
 }
+
+/** One maintenance photo as loaded for a log. */
+export interface LogPhoto {
+  id: string;
+  url: string;
+  check: PhotoCheckResult | null;
+}
+
+/** What a save changes about the phase's photos: only the new ones travel. */
+export interface LogPhotoChanges {
+  newPhotos: Record<string, { dataUrl: string; report: string }[]>;
+  removedPhotoIDs: string[];
+}
+
+/** Most photos one phase of a log may carry; the server holds the same limit. */
+export const MAX_LOG_PHOTOS = 5;
 
 export interface PhotoCheckResult {
   status: "passed" | "unverified" | string;

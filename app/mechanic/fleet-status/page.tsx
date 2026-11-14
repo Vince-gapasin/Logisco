@@ -21,7 +21,7 @@ import {
   Loader2,
   Archive as ArchiveIcon,
 } from "lucide-react";
-import type { EmployeeOption, HistoryLogRecord, TruckRecord } from "./_components/types";
+import type { EmployeeOption, HistoryLogRecord, LogPhotoChanges, TruckRecord } from "./_components/types";
 import { LogDetailView } from "./_components/LogDetailView";
 import { TruckSpecificHistoryView } from "./_components/TruckSpecificHistoryView";
 import { TruckDetailView } from "./_components/TruckDetailView";
@@ -144,7 +144,7 @@ export default function MechanicFleetStatusPage({
   // The logs with their photos, for whichever truck is on screen - see
   // useLogPhotos for why this is not a one-off fetch when a log is opened.
   const photoTruckID = selectedHistoryRecord?.truckID ?? selectedTruck?.id ?? statusConfirmTruck?.id ?? null;
-  const { logs: logsWithPhotos, seed: seedLogPhotos } = useLogPhotos(maintenanceLogs, photoTruckID);
+  const { logs: logsWithPhotos, forget: forgetLogPhotos } = useLogPhotos(maintenanceLogs, photoTruckID);
   const withPhotos = (log: HistoryLogRecord | null) =>
     log ? (logsWithPhotos.find((l) => String(l.id) === String(log.id)) ?? log) : null;
   const [mechanicsOptions, setMechanicsOptions] = useState<EmployeeOption[]>(
@@ -543,12 +543,14 @@ export default function MechanicFleetStatusPage({
     }
   };
 
-  const handleMaintenanceLogSubmit = async (formData: Record<string, string>) => {
+  const handleMaintenanceLogSubmit = async (formData: Record<string, string>, photos: LogPhotoChanges) => {
     if (isSavingLog) return; // Prevent double submission
     setIsSavingLog(true);
     try {
       const finalPayload = {
         ...formData,
+        // Only the new photos and the ones taken off; the rest stay as they are.
+        ...photos,
         // FORCE BACKEND TO SAVE IDs REGARDLESS OF SCHEMA CASING
         primary_mechanic_id: formData.primaryMechanicID,
         primaryMechanicId: formData.primaryMechanicID,
@@ -583,17 +585,11 @@ export default function MechanicFleetStatusPage({
         return;
       }
 
-      // The photos just saved show at once, from what the form holds, rather
-      // than waiting to be fetched back.
+      // The log's photos are fetched again with the list, the new ones with
+      // the ids a later edit needs to remove them.
       const saved = (await response.json().catch(() => null)) as { data?: { id?: string } } | null;
       const savedID = editingHistoryRecord?.id ?? saved?.data?.id;
-      if (savedID) {
-        seedLogPhotos(savedID, {
-          preliminary: formData.preliminaryPhotoUrl,
-          progress: formData.progressPhotoUrl,
-          final: formData.photoUrl,
-        });
-      }
+      if (savedID) forgetLogPhotos(savedID);
 
       // The log is saved; now the status change it was written for. It goes
       // with logOpened, so grounding the truck does not open a second, empty

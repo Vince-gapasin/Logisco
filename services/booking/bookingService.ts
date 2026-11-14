@@ -17,7 +17,13 @@ import {
   STOP_STATUS,
 } from "@/app/lib/enums";
 import { releaseDispatchResources } from "@/services/dispatch/dispatchService";
-import { signPodUrls } from "@/services/storage/podService";
+import {
+  POD_PHOTOS_EMBED,
+  proofPhotoPaths,
+  signPodUrls,
+  type ProofPhotoRow,
+  type SignedProofPhoto,
+} from "@/services/storage/podService";
 import type { Order, CreateOrderDto } from "@/types/booking";
 import type { UpdateOrderDto } from "@/app/schemas/booking/booking.schema";
 import { readNote, readNotesBody, setNote, setNotesBody } from "@/app/lib/bookingNotes";
@@ -59,9 +65,9 @@ const BOOKING_COLUMNS = `
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
   BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
-    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote ) ),
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
   PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
-    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote ) ),
+    POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
   DispatchOrder (
     dispatchID,
     dispatchCode,
@@ -171,6 +177,10 @@ interface DispatchLike {
 
 interface ProofLike {
   proof?: string | null;
+  fileType?: string | null;
+  PODPhotos?: ProofPhotoRow[] | null;
+  /** Every photo of the proof, signed, in order. Set here; POD.proof is the first. */
+  photos?: SignedProofPhoto[];
 }
 
 interface StopLike {
@@ -193,12 +203,12 @@ async function withSignedProofs(orders: Order[]): Promise<Order[]> {
   const stopProofs = [
     ...orders.flatMap((order) =>
       embedded((order as OrderLike).BranchStops).flatMap((stop) =>
-        embedded(stop?.POD).filter((pod) => pod?.proof),
+        embedded(stop?.POD).filter((pod) => pod?.proof || pod?.PODPhotos?.length),
       ),
     ),
     ...orders.flatMap((order) =>
       embedded((order as OrderLike).PickupStops).flatMap((stop) =>
-        embedded(stop?.POD).filter((pod) => pod?.proof),
+        embedded(stop?.POD).filter((pod) => pod?.proof || pod?.PODPhotos?.length),
       ),
     ),
   ];
@@ -208,13 +218,19 @@ async function withSignedProofs(orders: Order[]): Promise<Order[]> {
 
   const signed = await signPodUrls([
     ...withProof.map((dispatch) => dispatch.pod_url as string),
-    ...stopProofs.map((pod) => pod.proof as string),
+    ...stopProofs.flatMap((pod) => [pod.proof, ...proofPhotoPaths(pod).map((photo) => photo.path)]),
   ]);
   for (const dispatch of withProof) {
     dispatch.pod_url = signed.get(dispatch.pod_url ?? "") ?? null;
   }
   for (const pod of stopProofs) {
+    pod.photos = proofPhotoPaths(pod).flatMap((photo) => {
+      const url = signed.get(photo.path);
+      return url ? [{ url, fileType: photo.fileType }] : [];
+    });
     pod.proof = signed.get(pod.proof ?? "") ?? null;
+    // Object paths stay on the server; the screen gets the signed links.
+    delete pod.PODPhotos;
   }
 
   return orders;
@@ -417,8 +433,8 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote ) ),
-        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote ) ),
+        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
+        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
           DispatchHelper ( helperID, status, Helper:Employee!helperID ( employeeName ) ) )`,

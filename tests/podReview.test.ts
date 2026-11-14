@@ -36,7 +36,10 @@ vi.mock("@/app/lib/supabase", () => {
   };
   return { supabase: { from: chain } };
 });
-vi.mock("@/services/storage/podService", () => ({ signPodUrls: async () => new Map() }));
+vi.mock("@/services/storage/podService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/storage/podService")>()),
+  signPodUrls: async () => new Map(),
+}));
 
 const { reviewProof, ReviewError } = await import("@/services/storage/podReviewService");
 

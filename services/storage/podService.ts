@@ -92,3 +92,33 @@ export async function signPodUrls(
 
   return signed;
 }
+
+/** A stop's photos as the query brings them back: PODPhotos embedded in POD. */
+export interface ProofPhotoRow {
+  path: string;
+  fileType: string | null;
+  position: number;
+}
+
+/** A photo of a proof, signed for the screen. */
+export interface SignedProofPhoto {
+  url: string;
+  fileType: string | null;
+}
+
+/** The PODPhotos embed a select adds to POD, in order. */
+export const POD_PHOTOS_EMBED = "PODPhotos ( path, fileType, position )";
+
+/**
+ * Every photo of one proof, in order. A proof the crew took has a PODPhotos
+ * row for each; one the office or a partner uploaded has only POD.proof.
+ */
+export function proofPhotoPaths(pod: {
+  proof?: string | null;
+  fileType?: string | null;
+  PODPhotos?: ProofPhotoRow[] | null;
+}): { path: string; fileType: string | null }[] {
+  const rows = [...(pod.PODPhotos ?? [])].filter((row) => row?.path).sort((a, b) => a.position - b.position);
+  if (rows.length > 0) return rows.map((row) => ({ path: row.path, fileType: row.fileType ?? null }));
+  return pod.proof ? [{ path: pod.proof, fileType: pod.fileType ?? null }] : [];
+}

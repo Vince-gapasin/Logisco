@@ -12,7 +12,13 @@
 // rejected proof is hidden from the client's tracking page until then.
 
 import { supabase } from "@/app/lib/supabase";
-import { signPodUrls } from "@/services/storage/podService";
+import {
+  POD_PHOTOS_EMBED,
+  proofPhotoPaths,
+  signPodUrls,
+  type ProofPhotoRow,
+  type SignedProofPhoto,
+} from "@/services/storage/podService";
 
 export type ReviewQueue = "pending" | "approved" | "rejected";
 export type ReviewDecision = "approved" | "rejected";
@@ -26,6 +32,8 @@ export interface ProofForReview {
   stopName: string;
   isPickup: boolean;
   photoUrl: string | null;
+  /** Every photo of the proof, in order; photoUrl is the first. */
+  photos: SignedProofPhoto[];
   fileType: string | null;
   receiverName: string | null;
   deliveredAt: string | null;
@@ -52,6 +60,7 @@ interface PodRow {
   pickupID: number | null;
   proof: string | null;
   fileType: string | null;
+  PODPhotos?: ProofPhotoRow[] | null;
   receiverName: string | null;
   deliveredAt: string | null;
   recordedBy: string | null;
@@ -68,7 +77,8 @@ interface PodRow {
 
 const COLUMNS =
   "podID, dispatchID, branchID, pickupID, proof, fileType, receiverName, deliveredAt, recordedBy, validationNotes, " +
-  "scanMethod, capturedAt, captureLat, captureLng, reviewStatus, reviewedBy, reviewedAt, reviewNote";
+  "scanMethod, capturedAt, captureLat, captureLng, reviewStatus, reviewedBy, reviewedAt, reviewNote, " +
+  POD_PHOTOS_EMBED;
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -117,7 +127,7 @@ export async function listProofsForReview(queue: ReviewQueue): Promise<ProofForR
     employeeIDs.length
       ? supabase.from("Employee").select("employeeID, employeeName").in("employeeID", employeeIDs)
       : Promise.resolve({ data: [] }),
-    signPodUrls(rows.map((r) => r.proof)),
+    signPodUrls(rows.flatMap((r) => [r.proof, ...proofPhotoPaths(r).map((photo) => photo.path)])),
   ]);
 
   const tripBy = new Map<string, { orderCode: string | null; client: string | null }>();
@@ -143,6 +153,10 @@ export async function listProofsForReview(queue: ReviewQueue): Promise<ProofForR
         (isPickup ? "Pickup" : "Stop"),
       isPickup,
       photoUrl: row.proof ? signed.get(row.proof) ?? null : null,
+      photos: proofPhotoPaths(row).flatMap((photo) => {
+        const url = signed.get(photo.path);
+        return url ? [{ url, fileType: photo.fileType }] : [];
+      }),
       fileType: row.fileType,
       receiverName: row.receiverName && row.receiverName !== "N/A" ? row.receiverName : null,
       deliveredAt: row.deliveredAt,

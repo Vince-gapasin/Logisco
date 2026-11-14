@@ -17,6 +17,7 @@ let fileAlreadyUsed = false;
 
 const uploads: string[] = [];
 const podRows: Record<string, unknown>[] = [];
+const podPhotoRows: Record<string, unknown>[] = [];
 const dispatchUpdates: Record<string, unknown>[] = [];
 const unverifiedAnnouncements: string[] = [];
 
@@ -59,22 +60,41 @@ vi.mock("@/services/dispatch/crewUpdateService", () => ({
 vi.mock("@/app/lib/supabase", () => {
   const builder = (table: string) => {
     let pendingUpdate: Record<string, unknown> | null = null;
+    // The hashes a PODPhotos lookup asked about, answered as already used
+    // when the test says so.
+    let askedHashes: string[] = [];
+    let inserted: Record<string, unknown> | Record<string, unknown>[] | null = null;
+    const answer = () => {
+      if (table === "PODPhotos" && askedHashes.length) {
+        return { data: fileAlreadyUsed ? askedHashes.map((imageHash) => ({ imageHash })) : [], error: null };
+      }
+      if (table === "POD" && inserted) return { data: { podID: "pod-new" }, error: null };
+      return { data: [], error: null };
+    };
     const chain: Record<string, unknown> = {
       select: () => chain,
       eq: () => chain,
       or: () => chain,
       gte: () => chain,
       not: () => chain,
-      limit: async () => ({ data: table === "POD" && fileAlreadyUsed ? [{ podID: "old" }] : [] }),
+      order: () => chain,
+      in: (column: string, values: string[]) => {
+        if (column === "imageHash") askedHashes = values;
+        return chain;
+      },
+      limit: async () => ({ data: [] }),
       update: (payload: Record<string, unknown>) => {
         pendingUpdate = payload;
         if (table === "DispatchOrder") dispatchUpdates.push(payload);
         return chain;
       },
-      insert: async (row: Record<string, unknown>) => {
-        if (table === "POD") podRows.push(row);
-        return { error: null };
+      insert: (row: Record<string, unknown> | Record<string, unknown>[]) => {
+        inserted = row;
+        if (table === "POD") podRows.push(row as Record<string, unknown>);
+        if (table === "PODPhotos") podPhotoRows.push(...(Array.isArray(row) ? row : [row]));
+        return chain;
       },
+      single: async () => answer(),
       maybeSingle: async () => {
         if (table === "BranchStops" && !pendingUpdate) {
           return { data: { branchID: 5, deliveryLat: 14.5995, deliverLong: 120.9842, arrivedAt: null } };
@@ -82,7 +102,7 @@ vi.mock("@/app/lib/supabase", () => {
         if (table === "DispatchOrder") return { data: { dispatchID: TRIP } };
         return { data: null };
       },
-      then: (resolve: (v: unknown) => void) => resolve({ error: null }),
+      then: (resolve: (v: unknown) => void) => resolve(answer()),
     };
     return chain;
   };
@@ -95,6 +115,7 @@ vi.mock("@/app/lib/supabase", () => {
             uploads.push(name);
             return { error: null };
           },
+          remove: async () => ({ error: null }),
         }),
       },
     },
@@ -120,7 +141,14 @@ function scan(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function request(fields: { photo?: boolean; receiverName?: string; branchID?: string; scan?: string }) {
+function request(fields: {
+  photo?: boolean;
+  receiverName?: string;
+  branchID?: string;
+  scan?: string;
+  /** Several photos, each with its own scan; the bytes tell them apart. */
+  photos?: { bytes: number[]; scan?: string }[];
+}) {
   const form = new FormData();
   form.append("dispatchID", TRIP);
   form.append("status", "In Transit");
@@ -130,6 +158,10 @@ function request(fields: { photo?: boolean; receiverName?: string; branchID?: st
   if (fields.receiverName !== undefined) form.append("receiverName", fields.receiverName);
   if (fields.photo) form.append("podImage", new File([new Uint8Array([1, 2, 3])], "receipt.jpg", { type: "image/jpeg" }));
   if (fields.scan) form.append("scan", fields.scan);
+  for (const photo of fields.photos ?? []) {
+    form.append("podImage", new File([new Uint8Array(photo.bytes)], "receipt.jpg", { type: "image/jpeg" }));
+    form.append("scan", photo.scan ?? "");
+  }
   return new Request("http://localhost/api/crew/dispatches/status", { method: "POST", body: form });
 }
 
@@ -137,6 +169,7 @@ beforeEach(() => {
   fileAlreadyUsed = false;
   uploads.length = 0;
   podRows.length = 0;
+  podPhotoRows.length = 0;
   dispatchUpdates.length = 0;
   unverifiedAnnouncements.length = 0;
 });
@@ -218,6 +251,92 @@ describe("a receipt the scan could not fully check", () => {
     const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true }));
     expect(response.status).toBe(200);
     expect(podRows[0]).toMatchObject({ validationStatus: "unverified", scanMethod: "camera" });
+  });
+});
+
+describe("a receipt of more than one photo", () => {
+  it("checks, uploads and records every page, in order", async () => {
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photos: [
+          { bytes: [1, 2, 3], scan: scan() },
+          { bytes: [4, 5, 6], scan: scan({ dHash: "fedcba9876543210" }) },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(uploads).toHaveLength(2);
+    // The stop's row keeps photo 1, so everything that reads it is unchanged.
+    expect(podRows).toHaveLength(1);
+    expect(podRows[0]).toMatchObject({ proof: uploads[0], validationStatus: "passed", imageDHash: "0123456789abcdef" });
+    expect(podPhotoRows).toEqual([
+      expect.objectContaining({ podID: "pod-new", position: 1, path: uploads[0], validationStatus: "passed" }),
+      expect.objectContaining({ podID: "pod-new", position: 2, path: uploads[1], imageDHash: "fedcba9876543210" }),
+    ]);
+  });
+
+  it("refuses the stop when one page fails, says which, and writes nothing", async () => {
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photos: [
+          { bytes: [1, 2, 3], scan: scan() },
+          { bytes: [4, 5, 6], scan: scan({ signature: false }) },
+        ],
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.photoIndex).toBe(1);
+    expect(body.reasons[0]).toMatch(/^Photo 2: .*blank/);
+    expect(uploads).toHaveLength(0);
+    expect(podRows).toHaveLength(0);
+    expect(dispatchUpdates).toHaveLength(0);
+  });
+
+  it("refuses the same photo added twice", async () => {
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photos: [
+          { bytes: [1, 2, 3], scan: scan() },
+          { bytes: [1, 2, 3], scan: scan() },
+        ],
+      }),
+    );
+    expect(response.status).toBe(422);
+    expect((await response.json()).reasons[0]).toMatch(/added twice/);
+    expect(uploads).toHaveLength(0);
+  });
+
+  it("puts the stop in front of the office when any page needs a look", async () => {
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photos: [
+          { bytes: [1, 2, 3], scan: scan() },
+          { bytes: [4, 5, 6], scan: scan({ flags: ["The receiver's name typed by the crew was not found on the receipt."] }) },
+        ],
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(podRows[0]).toMatchObject({ validationStatus: "unverified" });
+    expect(String(podRows[0].validationNotes)).toMatch(/^Photo 2: /);
+    expect(podPhotoRows.map((row) => row.validationStatus)).toEqual(["passed", "unverified"]);
+  });
+
+  it("takes at most five", async () => {
+    const photos = [1, 2, 3, 4, 5, 6].map((n) => ({ bytes: [n], scan: scan() }));
+    const response = await POST(request({ branchID: "5", receiverName: "Juan", photos }));
+    expect(response.status).toBe(400);
+    expect(uploads).toHaveLength(0);
   });
 });
 

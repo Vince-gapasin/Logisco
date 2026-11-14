@@ -12,7 +12,7 @@ import MoreActionsMenu from "@/components/MoreActionsMenu";
 import type { HistoryLogRecord } from "./types";
 import { formatDisplayDate } from "./dates";
 import { ImageModal } from "./ImageModal";
-import { PhotoCheckBadge } from "./PhotoCheckBadge";
+import { LogPhotoGrid, photosOfPhase } from "./LogPhotoGrid";
 
 // ==========================================
 // HISTORY LOG DETAIL VIEW (Displays consolidated maintenance cycle)
@@ -126,9 +126,7 @@ export function LogDetailView({
       </div>
     ));
 
-  const combinedPhotos = sortedProgressLogs
-    .filter((u) => u.progressPhotoUrl)
-    .map((u) => ({ url: u.progressPhotoUrl as string, check: u.progressPhotoCheck }));
+  const combinedPhotos = sortedProgressLogs.flatMap((u) => photosOfPhase(u, "Progress"));
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto bg-slate-50 min-h-[100dvh] animate-fade-in">
@@ -270,22 +268,12 @@ export function LogDetailView({
                           {pLog.preliminaryRemarks || "None"}
                         </div>
                       </div>
-                      {pLog.preliminaryPhotoUrl && (
+                      {photosOfPhase(pLog, "Preliminary").length > 0 && (
                         <div className="sm:col-span-2 mt-2">
                           <label className="block text-xs font-medium text-black mb-1">
                             Attachment/s
                           </label>
-                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                            <img
-                              src={pLog.preliminaryPhotoUrl}
-                              alt="Preliminary Evidence"
-                              onClick={() =>
-                                setZoomedImage(pLog.preliminaryPhotoUrl!)
-                              }
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            />
-                          </div>
-                          <PhotoCheckBadge check={pLog.preliminaryPhotoCheck} />
+                          <LogPhotoGrid photos={photosOfPhase(pLog, "Preliminary")} alt="Preliminary Evidence" onOpen={setZoomedImage} />
                         </div>
                       )}
                     </div>
@@ -326,21 +314,7 @@ export function LogDetailView({
                     <label className="block text-xs font-medium text-black mb-1">
                       Attachment/s ({combinedPhotos.length})
                     </label>
-                    <div className="flex flex-wrap gap-3">
-                      {combinedPhotos.map(({ url, check }, idx) => (
-                        <div key={idx}>
-                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                            <img
-                              src={url}
-                              alt={`Progress Evidence ${idx + 1}`}
-                              onClick={() => setZoomedImage(url)}
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            />
-                          </div>
-                          <PhotoCheckBadge check={check} />
-                        </div>
-                      ))}
-                    </div>
+                    <LogPhotoGrid photos={combinedPhotos} alt="Progress Evidence" onOpen={setZoomedImage} />
                   </div>
                 )}
               </div>
@@ -378,20 +352,12 @@ export function LogDetailView({
                           {fLog.remarks || "None"}
                         </div>
                       </div>
-                      {fLog.photoUrl && (
+                      {photosOfPhase(fLog, "Final").length > 0 && (
                         <div className="sm:col-span-2 mt-2">
                           <label className="block text-xs font-medium text-black mb-1">
                             Attachment/s
                           </label>
-                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs">
-                            <img
-                              src={fLog.photoUrl}
-                              alt="Final Evidence"
-                              onClick={() => setZoomedImage(fLog.photoUrl!)}
-                              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                            />
-                          </div>
-                          <PhotoCheckBadge check={fLog.photoCheck} />
+                          <LogPhotoGrid photos={photosOfPhase(fLog, "Final")} alt="Final Evidence" onOpen={setZoomedImage} />
                         </div>
                       )}
                     </div>

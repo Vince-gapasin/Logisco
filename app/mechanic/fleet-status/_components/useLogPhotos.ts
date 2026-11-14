@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchLogPhotos, mergeLogPhotos } from "@/app/lib/logPhotos";
+import { fetchLogPhotos, mergeLogPhotos, type LoadedLogPhoto } from "@/app/lib/logPhotos";
 
-type PhotosByPhase = Record<string, string>;
+type PhotosByPhase = Record<string, LoadedLogPhoto[]>;
 type LogLike = { id: string | number; truckID?: string | number; hasPreliminaryPhoto?: boolean; hasProgressPhoto?: boolean; hasFinalPhoto?: boolean };
 
 /**
@@ -18,8 +18,8 @@ type LogLike = { id: string | number; truckID?: string | number; hasPreliminaryP
  * replaced the one before.
  *
  * Kept here instead: photos land in a cache that outlives a reload of the list,
- * are fetched for whichever truck is being looked at, and a log just saved can
- * be seeded with the photo the form already holds.
+ * are fetched for whichever truck is being looked at, and a log just saved is
+ * forgotten, so its photos - the new ones with their ids - are fetched again.
  */
 export function useLogPhotos<T extends LogLike>(logs: T[], truckID: string | number | null | undefined) {
   const [cache, setCache] = useState<Record<string, PhotosByPhase>>({});
@@ -60,15 +60,15 @@ export function useLogPhotos<T extends LogLike>(logs: T[], truckID: string | num
 
   const withPhotos = useMemo(() => mergeLogPhotos(logs, cache), [logs, cache]);
 
-  /** The photos a log was just saved with, so they show without a round trip. */
-  const seed = useCallback((logID: string | number, photos: { preliminary?: string; progress?: string; final?: string }) => {
-    const byPhase: PhotosByPhase = {};
-    if (photos.preliminary) byPhase.Preliminary = photos.preliminary;
-    if (photos.progress) byPhase.Progress = photos.progress;
-    if (photos.final) byPhase.Final = photos.final;
-    if (Object.keys(byPhase).length === 0) return;
-    setCache((previous) => ({ ...previous, [String(logID)]: { ...(previous[String(logID)] ?? {}), ...byPhase } }));
+  /** A log just saved: its photos are fetched again with the list. */
+  const forget = useCallback((logID: string | number) => {
+    setCache((previous) => {
+      if (!(String(logID) in previous)) return previous;
+      const next = { ...previous };
+      delete next[String(logID)];
+      return next;
+    });
   }, []);
 
-  return { logs: withPhotos, seed };
+  return { logs: withPhotos, forget };
 }

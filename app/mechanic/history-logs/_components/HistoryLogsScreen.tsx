@@ -42,13 +42,14 @@ import {
   User,
   Wrench,
 } from "lucide-react";
-import type { EmployeeOption, HistoryLogRecord, TruckRecord } from "../../fleet-status/_components/types";
+import type { EmployeeOption, HistoryLogRecord, LogPhotoChanges, TruckRecord } from "../../fleet-status/_components/types";
 import { formatDisplayDate, formatInputDate } from "../../fleet-status/_components/dates";
 import { TruckSpecificHistoryView } from "../../fleet-status/_components/TruckSpecificHistoryView";
 import { LogDetailView } from "../../fleet-status/_components/LogDetailView";
 import { LogMaintenanceModal } from "../../fleet-status/_components/LogMaintenanceModal";
 import { ImageModal } from "../../fleet-status/_components/ImageModal";
 import { useLogPhotos } from "../../fleet-status/_components/useLogPhotos";
+import { LogPhotoGrid, photosOfPhase, type ShownPhoto } from "../../fleet-status/_components/LogPhotoGrid";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -122,23 +123,23 @@ const logTime = (log: HistoryLogRecord) => {
 };
 
 /** What kind of entry a log is, by the phase it records. */
-function phaseOf(log: HistoryLogRecord): { label: string; text: string; remarks: string; photo?: string } {
+function phaseOf(log: HistoryLogRecord): { label: string; text: string; remarks: string; photos: ShownPhoto[] } {
   if (log.issue || log.remarks || log.photoUrl || log.hasFinalPhoto) {
-    return { label: "Final maintenance log", text: log.issue, remarks: log.remarks, photo: log.photoUrl };
+    return { label: "Final maintenance log", text: log.issue, remarks: log.remarks, photos: photosOfPhase(log, "Final") };
   }
   if (log.additionalIssue || log.progressRemarks || log.progressPhotoUrl || log.hasProgressPhoto) {
     return {
       label: "Maintenance update",
       text: log.additionalIssue ?? "",
       remarks: log.progressRemarks ?? "",
-      photo: log.progressPhotoUrl,
+      photos: photosOfPhase(log, "Progress"),
     };
   }
   return {
     label: "Preliminary inspection",
     text: log.driversReport ?? "",
     remarks: log.preliminaryRemarks ?? "",
-    photo: log.preliminaryPhotoUrl,
+    photos: photosOfPhase(log, "Preliminary"),
   };
 }
 
@@ -242,7 +243,7 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
     void loadAll();
   }, [loadAll]);
 
-  const { logs: logsWithPhotos, seed: seedLogPhotos } = useLogPhotos(logs, selectedTruckID);
+  const { logs: logsWithPhotos, forget: forgetLogPhotos } = useLogPhotos(logs, selectedTruckID);
 
   // The logs the mechanic and date filters let through. With either set, a
   // truck is listed only for the work that matches, and only if there is some.
@@ -341,7 +342,7 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
     return body?.message || fallback;
   };
 
-  const handleSave = async (formData: Record<string, string>) => {
+  const handleSave = async (formData: Record<string, string>, photos: LogPhotoChanges) => {
     if (!editingLog || isSaving) return;
     setIsSaving(true);
     try {
@@ -350,6 +351,8 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          // Only the new photos and the ones taken off; the rest stay as they are.
+          ...photos,
           statusBefore: editingLog.statusBefore,
           statusAfter: editingLog.statusAfter,
         }),
@@ -358,11 +361,7 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
         showToast(await failure(response, "Failed to save the log."), "error");
         return;
       }
-      seedLogPhotos(editingLog.id, {
-        preliminary: formData.preliminaryPhotoUrl,
-        progress: formData.progressPhotoUrl,
-        final: formData.photoUrl,
-      });
+      forgetLogPhotos(editingLog.id);
       await loadLogs();
       setEditingLog(null);
       showToast("Changes saved successfully.", "success");
@@ -567,17 +566,7 @@ export default function HistoryLogsScreen({ office = false }: { office?: boolean
                     {phase.remarks || "None"}
                   </div>
                 </div>
-                {phase.photo && (
-                  <button
-                    type="button"
-                    onClick={() => setZoomedImage(phase.photo ?? null)}
-                    className="block w-32 h-32 rounded-lg overflow-hidden border border-slate-300 shadow-xs cursor-pointer"
-                    aria-label="View the photo"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={phase.photo} alt="Latest update" className="w-full h-full object-cover" />
-                  </button>
-                )}
+                <LogPhotoGrid photos={phase.photos} alt="Latest update" onOpen={setZoomedImage} showChecks={false} />
 
               </div>
             ) : (

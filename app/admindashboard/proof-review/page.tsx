@@ -70,7 +70,17 @@ function ProofCard({
     >
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="shrink-0">
-          {proof.photoUrl ? (
+          {proof.photos.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {proof.photos.map((photo, index) => (
+                <ProofPhoto
+                  key={photo.url}
+                  src={photo.url}
+                  label={proof.photos.length > 1 ? `${proof.stopName}, photo ${index + 1} of ${proof.photos.length}` : proof.stopName}
+                />
+              ))}
+            </div>
+          ) : proof.photoUrl ? (
             <ProofPhoto src={proof.photoUrl} label={proof.stopName} />
           ) : (
             <p className="text-xs text-slate-500">The photo could not be loaded.</p>

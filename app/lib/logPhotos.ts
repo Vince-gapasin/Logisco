@@ -6,12 +6,28 @@ import { apiFetch } from "@/app/lib/apiClient";
 // only presence flags. These helpers pull the image data for the logs a user
 // is actually looking at and merge it into the records already in state.
 
-type PhotosByLog = Record<string, Record<string, string>>;
+/** One photo as the server sends it. */
+export interface LoadedLogPhoto {
+  id: string;
+  url: string;
+  check: {
+    status: string;
+    method: string | null;
+    topLabels: string[];
+    score: number | null;
+    notes: string[];
+  } | null;
+}
 
-const PHASE_FIELDS: Record<string, string> = {
-  Preliminary: "preliminaryPhotoUrl",
-  Progress: "progressPhotoUrl",
-  Final: "photoUrl",
+/** By log id, then phase, each phase's photos in order. */
+export type PhotosByLog = Record<string, Record<string, LoadedLogPhoto[]>>;
+
+// Where each phase's photos land on a log record: the list, and its first
+// photo in the single field the screens read before there could be several.
+const PHASE_FIELDS: Record<string, { url: string; list: string }> = {
+  Preliminary: { url: "preliminaryPhotoUrl", list: "preliminaryPhotos" },
+  Progress: { url: "progressPhotoUrl", list: "progressPhotos" },
+  Final: { url: "photoUrl", list: "finalPhotos" },
 };
 
 export async function fetchLogPhotos(logIDs: (string | number)[]): Promise<PhotosByLog> {
@@ -38,7 +54,9 @@ export function mergeLogPhotos<T extends { id: string | number }>(
 
     const merged: Record<string, unknown> = { ...log };
     for (const [phase, field] of Object.entries(PHASE_FIELDS)) {
-      if (forLog[phase]) merged[field] = forLog[phase];
+      const list = forLog[phase] ?? [];
+      merged[field.list] = list;
+      if (list[0]) merged[field.url] = list[0].url;
     }
 
     return merged as T;
@@ -50,13 +68,13 @@ export function needsPhotos(log: {
   hasPreliminaryPhoto?: boolean;
   hasProgressPhoto?: boolean;
   hasFinalPhoto?: boolean;
-  preliminaryPhotoUrl?: string | null;
-  progressPhotoUrl?: string | null;
-  photoUrl?: string | null;
+  preliminaryPhotos?: unknown[];
+  progressPhotos?: unknown[];
+  finalPhotos?: unknown[];
 }): boolean {
   return Boolean(
-    (log.hasPreliminaryPhoto && !log.preliminaryPhotoUrl) ||
-      (log.hasProgressPhoto && !log.progressPhotoUrl) ||
-      (log.hasFinalPhoto && !log.photoUrl),
+    (log.hasPreliminaryPhoto && !log.preliminaryPhotos) ||
+      (log.hasProgressPhoto && !log.progressPhotos) ||
+      (log.hasFinalPhoto && !log.finalPhotos),
   );
 }

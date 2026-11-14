@@ -21,7 +21,10 @@ vi.mock("@/services/dispatch/dispatchService", () => ({
   releaseDispatchResources: async () => undefined,
   isUuid: () => true,
 }));
-vi.mock("@/services/storage/podService", () => ({ signPodUrls: async (rows: unknown) => rows }));
+vi.mock("@/services/storage/podService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/storage/podService")>()),
+  signPodUrls: async (rows: unknown) => rows,
+}));
 
 const { createBooking, updateBooking, BookingNotPossible, BookingNeedsConfirmation } = await import(
   "@/services/booking/bookingService"

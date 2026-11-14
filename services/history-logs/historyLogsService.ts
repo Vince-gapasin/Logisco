@@ -9,8 +9,19 @@ import {
   type PhotoMeta,
 } from "@/services/history-logs/repairPhotoCheck";
 
+/** How many photos one phase of a log may carry. */
+export const MAX_PHOTOS_PER_PHASE = 5;
+
+/** A photo as the screens are given it: its row, its image, and what its check found. */
+export interface LogPhotoView {
+  id: string;
+  url: string;
+  check: ReturnType<typeof photoCheckOf>;
+}
+
 // A maintenance history log is one HistoryLogsM row plus child rows in
-// LogMechanics, LogNotes and LogPhotos (one per phase). supabase-js has no
+// LogMechanics, LogNotes and LogPhotos (up to MAX_PHOTOS_PER_PHASE per phase,
+// in order). supabase-js has no
 // transactions, so writes are ordered to never leave a log half-saved:
 // creates roll back the parent on failure, and updates insert the new
 // children before removing the old ones.
@@ -28,6 +39,7 @@ interface PhaseRow {
   findings?: string | null;
   partsUsed?: string | null;
   photoUrl?: string | null;
+  position?: number | null;
   caption?: string | null;
   checkStatus?: string | null;
   captureMethod?: string | null;
@@ -66,14 +78,12 @@ function buildChildren(logID: string, body: LogBody) {
   if (body.progressRemarks || body.additionalIssue) notes.push({ logID, phase: "Progress", issue: body.additionalIssue, remarks: body.progressRemarks });
   if (body.remarks || body.issue) notes.push({ logID, phase: "Final", issue: body.issue, remarks: body.remarks });
 
-  // A photo checked by checkLogPhotos carries what the check found; one
-  // written without it (a log the server opens itself) has none.
-  const photos = [];
-  for (const { phase, photo } of PHOTO_PHASES) {
-    if (!body[photo]) continue;
-    const meta = body[`${photo}Meta`] as PhotoMeta | undefined;
-    photos.push({ logID, phase, photoUrl: body[photo], ...(meta ?? {}) });
-  }
+  // Only the new photos checkLogPhotos passed, each with its place in its
+  // phase and what its check found. A log the server opens itself has none.
+  const photos = (Array.isArray(body.checkedPhotos) ? (body.checkedPhotos as CheckedPhoto[]) : []).map((photo) => ({
+    logID,
+    ...photo,
+  }));
 
   return { LogMechanics: mechanics, LogNotes: notes, LogPhotos: photos };
 }
@@ -100,6 +110,18 @@ export function validateHistoryLog(body: LogBody, isCreate: boolean): string | n
   return null;
 }
 
+/** A new photo that passed checkLogPhotos, ready to be written. */
+interface CheckedPhoto extends PhotoMeta {
+  phase: string;
+  photoUrl: string;
+  position: number;
+}
+
+/** In each phase's order: position, then the order they were saved in. */
+function byPosition<T extends { position?: number | null }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => (a.position ?? 1) - (b.position ?? 1));
+}
+
 /** A photo's check, as the screens show it. Null for a photo from before the check. */
 function photoCheckOf(row: PhaseRow | undefined) {
   if (!row?.checkStatus) return null;
@@ -121,7 +143,7 @@ export async function getHistoryLogs() {
       .select(
         // LogPhotos.photoUrl holds a base64 image: fetch only the phase here so
         // the list stays small, and load images through getLogPhotos on demand.
-        "id,truckID,date,statusBefore,statusAfter,created_at,plateNumber,truckType,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase,checkStatus,captureMethod,checkLabels)",
+        "id,truckID,date,statusBefore,statusAfter,created_at,plateNumber,truckType,Truck(plateNumber,truckType),LogMechanics(role,employeeID,Employee(employeeName)),LogNotes(phase,issue,remarks),LogPhotos(phase,position,checkStatus,captureMethod,checkLabels)",
       )
       .order("created_at", { ascending: false })
       .order("id")
@@ -136,9 +158,13 @@ export async function getHistoryLogs() {
     const progNote = log.LogNotes?.find((n: PhaseRow) => n.phase === "Progress");
     const finalNote = log.LogNotes?.find((n: PhaseRow) => n.phase === "Final");
 
-    const prelimPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Preliminary");
-    const progPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Progress");
-    const finalPhoto = log.LogPhotos?.find((p: PhaseRow) => p.phase === "Final");
+    const photosOf = (phase: string) => byPosition((log.LogPhotos ?? []).filter((p: PhaseRow) => p.phase === phase));
+    const prelimPhotos = photosOf("Preliminary");
+    const progPhotos = photosOf("Progress");
+    const finalPhotos = photosOf("Final");
+    const prelimPhoto = prelimPhotos[0];
+    const progPhoto = progPhotos[0];
+    const finalPhoto = finalPhotos[0];
 
     return {
       id: log.id,
@@ -166,6 +192,9 @@ export async function getHistoryLogs() {
       hasPreliminaryPhoto: Boolean(prelimPhoto),
       hasProgressPhoto: Boolean(progPhoto),
       hasFinalPhoto: Boolean(finalPhoto),
+      preliminaryPhotoCount: prelimPhotos.length,
+      progressPhotoCount: progPhotos.length,
+      finalPhotoCount: finalPhotos.length,
       // What the photo check found, per phase, for the office.
       preliminaryPhotoCheck: photoCheckOf(prelimPhoto),
       progressPhotoCheck: photoCheckOf(progPhoto),
@@ -178,39 +207,62 @@ export async function getHistoryLogs() {
 }
 
 
-// Image data for specific logs, keyed by log id then phase. Used when a log
-// is opened for viewing or editing, so the list itself stays light.
+// Image data for specific logs, keyed by log id then phase, each phase's
+// photos in order. Used when a log is opened for viewing or editing, so the
+// list itself stays light.
 export async function getLogPhotos(
   logIDs: string[],
-): Promise<Record<string, Record<string, string>>> {
+): Promise<Record<string, Record<string, LogPhotoView[]>>> {
   const ids = [...new Set(logIDs.filter(Boolean))];
   if (ids.length === 0) return {};
 
   const { data, error } = await supabase
     .from("LogPhotos")
-    .select("logID, phase, photoUrl")
+    .select("id, logID, phase, position, photoUrl, checkStatus, captureMethod, checkLabels")
     .in("logID", ids);
 
   if (error) throw new Error(`Failed to load photos: ${error.message}`);
 
-  const byLog: Record<string, Record<string, string>> = {};
-  for (const row of data ?? []) {
-    if (!row.photoUrl) continue;
+  const byLog: Record<string, Record<string, LogPhotoView[]>> = {};
+  for (const row of byPosition((data ?? []) as (PhaseRow & { id: string; logID: string })[])) {
+    if (!row.photoUrl || !row.phase) continue;
     byLog[row.logID] = byLog[row.logID] ?? {};
-    byLog[row.logID][row.phase] = row.photoUrl;
+    byLog[row.logID][row.phase] = byLog[row.logID][row.phase] ?? [];
+    byLog[row.logID][row.phase].push({ id: String(row.id), url: row.photoUrl, check: photoCheckOf(row) });
   }
 
   return byLog;
 }
 
+/** A new photo as the form sends it. */
+interface SentPhoto {
+  phase: (typeof PHOTO_PHASES)[number];
+  dataUrl: string;
+  report: unknown;
+  /** The single photo field of a screen from before several were allowed. */
+  legacy: boolean;
+}
+
 /**
  * Checks the photos a log is being saved with, before anything is written, and
- * leaves on the body what each check found for buildChildren to store.
+ * leaves on the body what is to be written: `checkedPhotos`, the new photos
+ * with what each check found and their place in their phase, and
+ * `removedPhotoIDs`, only ids of this log's own photos.
+ *
+ * The form sends only what changed, so an edit's request carries its new
+ * photos and nothing else:
+ *   newPhotos        { [phase]: [{ dataUrl, report }] }, added after the ones on file
+ *   removedPhotoIDs  [LogPhotos.id], photos the mechanic took off the log
+ * A photo on file is never removed because a request left it out - the list a
+ * log is edited from carries no image data, and an edit saved before the
+ * images had loaded once deleted every photo on the log.
+ *
+ * A screen from before several photos sends one per phase in
+ * `preliminaryPhotoUrl` / `progressPhotoUrl` / `photoUrl`; it is taken as a
+ * new photo, unless it is one already on the log being sent back unchanged.
  *
  * `requirePhotos`: every phase the log fills must have a photo - a mechanic's
- * log. `logID`: the log being edited. Its own photos are not "already used",
- * and one sent back unchanged (the edit form sends what it loaded) is taken
- * out of the body, so the photo on file stays with what its check found.
+ * log. `logID`: the log being edited.
  *
  * Null when the log may be saved; otherwise what to answer.
  */
@@ -219,35 +271,89 @@ export async function checkLogPhotos(
   { requirePhotos, logID = null }: { requirePhotos: boolean; logID?: string | null },
 ): Promise<{ status: number; message: string } | null> {
   // What a check found is the server's to write, never the caller's.
+  delete body.checkedPhotos;
   for (const { photo } of PHOTO_PHASES) delete body[`${photo}Meta`];
 
   const filled = (phase: (typeof PHOTO_PHASES)[number]) => phase.text.some((field) => body[field]);
 
-  let onFile: { phase: string; photoUrl: string | null }[] = [];
-  if (logID) {
-    const { data, error } = await supabase.from("LogPhotos").select("phase, photoUrl").eq("logID", logID);
-    if (error) throw new Error(`Failed to read the log's photos: ${error.message}`);
-    onFile = (data ?? []) as typeof onFile;
-  }
-
-  const toCheck: (typeof PHOTO_PHASES)[number][] = [];
+  // What the form sent, gathered and taken off the body.
+  const sent: SentPhoto[] = [];
+  const incoming = body.newPhotos && typeof body.newPhotos === "object" ? (body.newPhotos as Record<string, unknown>) : {};
   for (const phase of PHOTO_PHASES) {
-    const sent = typeof body[phase.photo] === "string" ? (body[phase.photo] as string) : "";
-    const kept = onFile.find((row) => row.phase === phase.phase);
-    if (sent && kept?.photoUrl === sent) {
-      delete body[phase.photo];
-      continue;
+    const list = incoming[phase.phase];
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        const dataUrl = item && typeof item === "object" ? (item as { dataUrl?: unknown }).dataUrl : null;
+        if (typeof dataUrl === "string" && dataUrl) {
+          sent.push({ phase, dataUrl, report: (item as { report?: unknown }).report, legacy: false });
+        }
+      }
     }
-    if (sent) toCheck.push(phase);
-    // An edit keeps the phase's photo when none is sent; a log that never had
-    // one (written before photos were required) is not made to get one now.
-    else if (requirePhotos && !logID && filled(phase)) {
-      return { status: 400, message: `A photo is required for the ${phase.label}.` };
+    const legacy = typeof body[phase.photo] === "string" ? (body[phase.photo] as string) : "";
+    if (legacy) sent.push({ phase, dataUrl: legacy, report: body[phase.report], legacy: true });
+    delete body[phase.photo];
+    delete body[phase.report];
+  }
+  delete body.newPhotos;
+  const askedToRemove = new Set(
+    Array.isArray(body.removedPhotoIDs) ? body.removedPhotoIDs.filter((id): id is string => typeof id === "string") : [],
+  );
+  body.removedPhotoIDs = [];
+  body.checkedPhotos = [];
+
+  let onFile: { id: string; phase: string; position: number | null }[] = [];
+  if (logID) {
+    const { data, error } = await supabase.from("LogPhotos").select("id, phase, position").eq("logID", logID);
+    if (error) throw new Error(`Failed to read the log's photos: ${error.message}`);
+    onFile = ((data ?? []) as typeof onFile).map((row) => ({ ...row, id: String(row.id) }));
+
+    // An older screen sends the photo it loaded back with every edit. That one
+    // is already on the log and stays as its check found it.
+    const legacySent = sent.filter((photo) => photo.legacy);
+    if (legacySent.length > 0) {
+      const { data: images, error: imageError } = await supabase
+        .from("LogPhotos")
+        .select("phase, photoUrl")
+        .eq("logID", logID)
+        .in("phase", legacySent.map((photo) => photo.phase.phase));
+      if (imageError) throw new Error(`Failed to read the log's photos: ${imageError.message}`);
+      const kept = new Set(((images ?? []) as { phase: string; photoUrl: string | null }[]).map((row) => `${row.phase}|${row.photoUrl}`));
+      for (let i = sent.length - 1; i >= 0; i--) {
+        if (sent[i].legacy && kept.has(`${sent[i].phase.phase}|${sent[i].dataUrl}`)) sent.splice(i, 1);
+      }
     }
   }
-  if (toCheck.length === 0) return null;
 
-  const hashes = toCheck.map((phase) => photoHash(body[phase.photo] as string));
+  // Only this log's own photos can be taken off it.
+  const removedIDs = onFile.filter((row) => askedToRemove.has(row.id)).map((row) => row.id);
+  const removed = new Set(removedIDs);
+
+  for (const phase of PHOTO_PHASES) {
+    const had = onFile.filter((row) => row.phase === phase.phase);
+    const kept = had.filter((row) => !removed.has(row.id)).length;
+    const adding = sent.filter((photo) => photo.phase === phase).length;
+    if (kept + adding > MAX_PHOTOS_PER_PHASE) {
+      return { status: 400, message: `The ${phase.label} can have at most ${MAX_PHOTOS_PER_PHASE} photos.` };
+    }
+    if (requirePhotos && filled(phase)) {
+      if (!logID && adding === 0) {
+        return { status: 400, message: `A photo is required for the ${phase.label}.` };
+      }
+      // An edit may swap photos, not leave a phase that had them with none. A
+      // log written before photos were required is not made to get one now.
+      if (logID && had.length > 0 && kept + adding === 0) {
+        return { status: 400, message: `Keep at least one photo on the ${phase.label}.` };
+      }
+    }
+  }
+  body.removedPhotoIDs = removedIDs;
+  if (sent.length === 0) return null;
+
+  const hashes = sent.map((photo) => photoHash(photo.dataUrl));
+  if (new Set(hashes).size < hashes.length) {
+    return { status: 422, message: "The same photo was added twice. Remove one of them." };
+  }
+
   let sameFileQuery = supabase.from("LogPhotos").select("imageHash").in("imageHash", hashes);
   let earlierQuery = supabase
     .from("LogPhotos")
@@ -268,18 +374,37 @@ export async function checkLogPhotos(
     .map((row) => row.imageDHash)
     .filter((hash): hash is string => Boolean(hash));
 
+  // New photos go after every one the phase has on file, removed ones
+  // included: those are deleted only once the new rows are in.
+  const nextPosition: Record<string, number> = {};
+  for (const phase of PHOTO_PHASES) {
+    nextPosition[phase.phase] =
+      Math.max(0, ...onFile.filter((row) => row.phase === phase.phase).map((row) => row.position ?? 1)) + 1;
+  }
+
   const now = Date.now();
-  for (const [i, phase] of toCheck.entries()) {
+  const checked: CheckedPhoto[] = [];
+  for (const [i, photo] of sent.entries()) {
     const check = checkRepairPhoto({
-      dataUrl: body[phase.photo] as string,
-      report: parseRepairPhotoReport(body[phase.report]),
+      dataUrl: photo.dataUrl,
+      report: parseRepairPhotoReport(photo.report),
       now,
       sameFileUsed: usedHashes.has(hashes[i]),
       earlierHashes,
     });
-    if (check.refusal) return { status: 422, message: check.refusal };
-    body[`${phase.photo}Meta`] = check.meta;
+    if (check.refusal) {
+      const several = sent.filter((other) => other.phase === photo.phase).length > 1;
+      const nth = sent.filter((other, j) => other.phase === photo.phase && j <= i).length;
+      return { status: 422, message: several ? `Photo ${nth} of the ${photo.phase.label}: ${check.refusal}` : check.refusal };
+    }
+    checked.push({
+      phase: photo.phase.phase,
+      photoUrl: photo.dataUrl,
+      position: nextPosition[photo.phase.phase]++,
+      ...check.meta,
+    });
   }
+  body.checkedPhotos = checked;
   return null;
 }
 
@@ -328,25 +453,21 @@ export async function updateHistoryLog(id: string, body: LogBody) {
   // Remember the current child rows, insert the replacements, then remove
   // the old ones - a failure part-way leaves the previous data intact.
   //
-  // Photos are the exception: a phase's photo is replaced only when the body
-  // brings a new one. The list a log is edited from carries no image data -
+  // Photos are the exception: they are added and removed one by one, never
+  // replaced wholesale. The list a log is edited from carries no image data -
   // only whether one exists - so an edit saved before the images had loaded
   // sent every photo as empty, and replacing them wholesale deleted them all.
-  // There is no way to remove a photo from the form, so a phase left empty
-  // keeps what it had.
-  const sentPhotoPhases = new Set<string>(buildChildren(id, body).LogPhotos.map((row) => row.phase));
-
-  const oldIds: Record<string, string[]> = {};
-  for (const table of CHILD_TABLES) {
-    const { data, error: readError } = await supabase
-      .from(table)
-      .select(table === "LogPhotos" ? "id, phase" : "id")
-      .eq("logID", id);
+  // The new ones are inserted; only the ones the mechanic removed, checked by
+  // checkLogPhotos to be this log's, are deleted.
+  const oldIds: Record<string, string[]> = {
+    LogPhotos: Array.isArray(body.removedPhotoIDs)
+      ? body.removedPhotoIDs.filter((photoID): photoID is string => typeof photoID === "string")
+      : [],
+  };
+  for (const table of ["LogMechanics", "LogNotes"] as const) {
+    const { data, error: readError } = await supabase.from(table).select("id").eq("logID", id);
     if (readError) throw new Error(`Failed to read ${table}: ${readError.message}`);
-    const rows = (data ?? []) as unknown as { id: string; phase?: string }[];
-    oldIds[table] = rows
-      .filter((row) => table !== "LogPhotos" || sentPhotoPhases.has(row.phase ?? ""))
-      .map((row) => row.id);
+    oldIds[table] = ((data ?? []) as { id: string }[]).map((row) => row.id);
   }
 
   // A failure part-way used to leave the replacements already written beside
@@ -366,7 +487,7 @@ export async function updateHistoryLog(id: string, body: LogBody) {
 
   for (const table of CHILD_TABLES) {
     if (oldIds[table].length === 0) continue;
-    const { error: deleteError } = await supabase.from(table).delete().in("id", oldIds[table]);
+    const { error: deleteError } = await supabase.from(table).delete().in("id", oldIds[table]).eq("logID", id);
     if (deleteError) throw new Error(`Failed to clean up ${table}: ${deleteError.message}`);
   }
 

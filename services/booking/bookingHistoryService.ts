@@ -8,7 +8,7 @@
 
 import { supabase } from "@/app/lib/supabase";
 import { formatDateTime } from "@/app/lib/datetime";
-import { signPodUrls } from "@/services/storage/podService";
+import { POD_PHOTOS_EMBED, proofPhotoPaths, signPodUrls, type ProofPhotoRow } from "@/services/storage/podService";
 
 export interface BookingHistoryEntry {
   id: string;
@@ -31,6 +31,8 @@ export interface BookingHistoryEntry {
     isPdf: boolean;
     receiverName: string;
     remarks: string;
+    /** Every photo of the proof, in order; url is the first. */
+    photos: { url: string; isPdf: boolean }[];
   } | null;
 }
 
@@ -372,7 +374,7 @@ async function proofsByStop(
     ]),
   );
 
-  const columns = "podID, proof, fileType, branchID, pickupID, deliveredAt, receiverName, remarks";
+  const columns = `podID, proof, fileType, branchID, pickupID, deliveredAt, receiverName, remarks, ${POD_PHOTOS_EMBED}`;
   const queries = [];
   if (dispatchIDs.length > 0) {
     queries.push(supabase.from("POD").select(columns).in("dispatchID", dispatchIDs));
@@ -401,6 +403,7 @@ async function proofsByStop(
     deliveredAt: string | null;
     receiverName: string | null;
     remarks: string | null;
+    PODPhotos?: ProofPhotoRow[] | null;
   }[] = [];
   const seen = new Set<string>();
 
@@ -419,7 +422,7 @@ async function proofsByStop(
   const withFile = rows.filter((row) => row.proof);
   if (withFile.length === 0) return keyed;
 
-  const signed = await signPodUrls(withFile.map((row) => row.proof));
+  const signed = await signPodUrls(withFile.flatMap((row) => [row.proof, ...proofPhotoPaths(row).map((photo) => photo.path)]));
 
   // Newest last, so the newest wins the key.
   withFile.sort((a, b) => (a.deliveredAt ?? "").localeCompare(b.deliveredAt ?? ""));
@@ -448,6 +451,12 @@ async function proofsByStop(
       isPdf: /\.pdf(\?|$)/i.test(url) || Boolean(row.fileType?.toLowerCase().includes("pdf")),
       receiverName: row.receiverName ?? "",
       remarks: row.remarks ?? "",
+      photos: proofPhotoPaths(row).flatMap((photo) => {
+        const photoUrl = signed.get(photo.path);
+        return photoUrl
+          ? [{ url: photoUrl, isPdf: /\.pdf(\?|$)/i.test(photoUrl) || Boolean(photo.fileType?.toLowerCase().includes("pdf")) }]
+          : [];
+      }),
     });
   }
 
