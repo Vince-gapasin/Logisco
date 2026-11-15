@@ -332,8 +332,8 @@ describe("a receipt of more than one photo", () => {
     expect(podPhotoRows.map((row) => row.validationStatus)).toEqual(["passed", "unverified"]);
   });
 
-  it("takes at most five", async () => {
-    const photos = [1, 2, 3, 4, 5, 6].map((n) => ({ bytes: [n], scan: scan() }));
+  it("takes at most ten", async () => {
+    const photos = Array.from({ length: 11 }, (_, n) => ({ bytes: [n], scan: scan() }));
     const response = await POST(request({ branchID: "5", receiverName: "Juan", photos }));
     expect(response.status).toBe(400);
     expect(uploads).toHaveLength(0);

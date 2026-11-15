@@ -45,10 +45,12 @@ export interface OcrLine {
 
 
 /**
- * How many receipt photos one stop may carry: a receipt of a few pages, or a
- * delivery receipt and a release slip. Every one is scanned and checked.
+ * How many receipt photos one stop may carry: a receipt of several pages, or
+ * a delivery receipt and its release slips. Every one is scanned and checked.
+ * They travel in one request, so MAX_POD_UPLOAD_BYTES is the other limit: the
+ * crew app asks for one to be removed when they add up to more.
  */
-export const MAX_POD_PHOTOS = 5;
+export const MAX_POD_PHOTOS = 10;
 /**
  * What one stop's photos may add up to. Vercel refuses a request body over
  * 4.5 MB, and the form's other fields and the multipart wrapping need room.
