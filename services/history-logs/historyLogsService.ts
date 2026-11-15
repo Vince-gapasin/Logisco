@@ -10,7 +10,7 @@ import {
 } from "@/services/history-logs/repairPhotoCheck";
 
 /** How many photos one phase of a log may carry. */
-export const MAX_PHOTOS_PER_PHASE = 5;
+export const MAX_PHOTOS_PER_PHASE = 10;
 
 /** A photo as the screens are given it: its row, its image, and what its check found. */
 export interface LogPhotoView {

@@ -241,16 +241,16 @@ describe("several photos in a phase", () => {
     ]);
   });
 
-  it("refuses more than five in a phase", async () => {
+  it("refuses more than ten in a phase", async () => {
     db.queue({
-      data: [1, 2, 3, 4].map((n) => ({ id: `p${n}`, phase: "Preliminary", position: n })),
+      data: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ id: `p${n}`, phase: "Preliminary", position: n })),
     });
     const body: Record<string, unknown> = inspection({
-      newPhotos: { Preliminary: [fresh("five"), fresh("six")] },
+      newPhotos: { Preliminary: [fresh("ten"), fresh("eleven")] },
     });
     expect(await checkLogPhotos(body, { requirePhotos: true, logID: "log-1" })).toEqual({
       status: 400,
-      message: "The inspection can have at most 5 photos.",
+      message: "The inspection can have at most 10 photos.",
     });
   });
 

@@ -99,7 +99,12 @@ export interface LogPhotoChanges {
 }
 
 /** Most photos one phase of a log may carry; the server holds the same limit. */
-export const MAX_LOG_PHOTOS = 5;
+export const MAX_LOG_PHOTOS = 10;
+/**
+ * What one save's new photos may add up to. They travel as text in one JSON
+ * request, and Vercel refuses a body over 4.5 MB; the rest of the form needs room.
+ */
+export const MAX_LOG_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export interface PhotoCheckResult {
   status: "passed" | "unverified" | string;

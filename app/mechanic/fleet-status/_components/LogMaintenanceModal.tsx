@@ -9,7 +9,7 @@ import {
   Loader2,
   Images,
 } from "lucide-react";
-import { MAX_LOG_PHOTOS, type EmployeeOption, type HistoryLogRecord, type LogPhoto, type LogPhotoChanges, type TruckOption } from "./types";
+import { MAX_LOG_PHOTOS, MAX_LOG_UPLOAD_BYTES, type EmployeeOption, type HistoryLogRecord, type LogPhoto, type LogPhotoChanges, type TruckOption } from "./types";
 import { formatInputDate } from "./dates";
 import { ImageModal } from "./ImageModal";
 import { captureMethod, checkRepairPhoto, loadRepairPhotoModel } from "./repairPhotoCheck";
@@ -120,6 +120,8 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
   // The log says it has photos the screen has not loaded yet.
   const photosLoading = Boolean(editRecord?.[activeFields.hasPhoto]) && !editRecord?.[activeFields.photos];
   const photoCount = keptPhotos.length + newPhotos.length;
+  // A data URL is plain text, so its length is what it adds to the request.
+  const newPhotosBytes = newPhotos.reduce((total, photo) => total + photo.dataUrl.length, 0);
 
   // 3. Add `today` and `loggedInMechanic` to the dependency array
   // Seeded from the log this was opened to edit.
@@ -287,6 +289,12 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
     if (!hasPhoto && !chooseMechanic) {
       newErrors[activeFields.photo] =
         onFilePhotos.length > 0 ? "Keep at least one photo." : "A photo is required.";
+    }
+    // All the new photos go up in one request. Already on the log, they cost
+    // nothing; more can be added in the next save.
+    if (newPhotosBytes > MAX_LOG_UPLOAD_BYTES) {
+      newErrors[activeFields.photo] =
+        "These new photos are too large to save together. Save with fewer, then add the rest in an update.";
     }
     if (checkingPhoto) {
       newErrors[activeFields.photo] = "Wait for the photo check to finish.";
