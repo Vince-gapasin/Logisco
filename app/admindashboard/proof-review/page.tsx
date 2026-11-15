@@ -14,6 +14,7 @@ import { formatDateTime } from "@/app/lib/datetime";
 import { useToast } from "@/components/Toast";
 import ListLoadError from "@/components/ListLoadError";
 import ProofPhoto from "@/components/booking/ProofPhoto";
+import PhotoCheckBanner from "@/components/PhotoCheckBanner";
 import type { ProofForReview, ReviewQueue } from "@/services/storage/podReviewService";
 
 const TABS: { queue: ReviewQueue; label: string }[] = [
@@ -111,7 +112,13 @@ function ProofCard({
             </p>
           )}
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-            <span>{proof.scanMethod === "scanner" ? "Taken with the receipt scanner" : "Taken with the plain camera"}</span>
+            <span>
+              {proof.scanMethod === "scanner"
+                ? "Taken with the receipt scanner"
+                : proof.scanMethod === "gallery"
+                  ? "Chosen from the phone's gallery"
+                  : "Taken with the plain camera"}
+            </span>
             {proof.capturedAt && <span>at {formatDateTime(proof.capturedAt)}</span>}
             {mapLink && (
               <a href={mapLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline">
@@ -242,6 +249,8 @@ function ProofReviewScreen() {
           Proofs of delivery the receipt scan could not fully check. Look at each photo, then approve it or reject it.
         </p>
       </div>
+
+      <PhotoCheckBanner check="podReceiptCheck" />
 
       <div role="tablist" className="mb-4 flex flex-wrap gap-2">
         {TABS.map((tab) => (

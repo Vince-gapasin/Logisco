@@ -26,6 +26,7 @@ import {
   ArrowLeft,
   Truck,
   Camera,
+  Images,
   ScanLine,
   X,
   AlertTriangle,
@@ -45,7 +46,7 @@ import {
   withReceiverName,
   type ScannedPod,
 } from "./_components/podScanner";
-import { MAX_POD_PHOTOS, MAX_POD_UPLOAD_BYTES } from "@/app/lib/podScan";
+import { MAX_POD_PHOTOS, MAX_POD_UPLOAD_BYTES, relaxVerdict } from "@/app/lib/podScan";
 
 /** One receipt photo taken at the current stop, before it is sent. */
 interface PodPhotoDraft {
@@ -53,8 +54,10 @@ interface PodPhotoDraft {
   previewUrl: string;
   /** Null while a camera photo is still being shrunk. */
   file: File | null;
-  /** What the scanner found; null for a photo from the plain camera. */
+  /** What the scanner found; null for a photo from the plain camera or the gallery. */
   scanned: ScannedPod | null;
+  /** Chosen from the phone's gallery: only offered while the receipt check is relaxed. */
+  fromGallery?: boolean;
 }
 
 // Whether the app has the scanner does not change while it runs.
@@ -482,7 +485,7 @@ export default function CrewDashboardPage({
   // removed does not bring it back, and lands on the right photo.
   const podPhotoKey = useRef(0);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, fromGallery = false) => {
     const file = e.target.files?.[0];
     // So the same picture can be picked again after it was removed.
     e.target.value = "";
@@ -493,7 +496,7 @@ export default function CrewDashboardPage({
     }
     const key = ++podPhotoKey.current;
     setPodRejection(null);
-    setPodPhotos((photos) => [...photos, { key, previewUrl: URL.createObjectURL(file), file: null, scanned: null }]);
+    setPodPhotos((photos) => [...photos, { key, previewUrl: URL.createObjectURL(file), file: null, scanned: null, fromGallery }]);
     // Shrink camera photos so uploads fit the server's request size limit.
     compressImage(file)
       .catch(() => file)
@@ -556,6 +559,24 @@ export default function CrewDashboardPage({
   }, [openDeliveryID]);
 
   usePolling(() => void loadPlannedRoute(), 120000, { enabled: Boolean(openDeliveryID) });
+
+  // The office's receipt-check switch. Relaxed, nothing about a photo stops
+  // the stop closing - the office reviews what would have - and the gallery is
+  // offered. The server decides either way; this only keeps the screen from
+  // blocking what it would accept. Strict until it says otherwise.
+  const [receiptCheck, setReceiptCheck] = useState<"strict" | "relaxed">("strict");
+  const loadReceiptCheck = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: { podReceiptCheck?: { mode?: string } } }>("/api/settings/photo-checks", {
+        cache: "no-store",
+      });
+      setReceiptCheck(res.data?.podReceiptCheck?.mode === "relaxed" ? "relaxed" : "strict");
+    } catch (error) {
+      console.error("Could not read the receipt check setting:", error);
+    }
+  }, []);
+  usePolling(() => void loadReceiptCheck(), 30000, { enabled: Boolean(openDeliveryID) });
+  const receiptRelaxed = receiptCheck === "relaxed";
 
   // The driver plus any stop with real coordinates. Stops booked before
   // addresses were geocoded have none, and are simply not plotted.
@@ -626,7 +647,11 @@ export default function CrewDashboardPage({
   };
 
   // Each scan against the name as typed now, so the name check follows edits.
-  const currentScans = podPhotos.map((photo) => (photo.scanned ? withReceiverName(photo.scanned, receiverName) : null));
+  const currentScans = podPhotos.map((photo) => {
+    if (!photo.scanned) return null;
+    const scan = withReceiverName(photo.scanned, receiverName);
+    return receiptRelaxed ? { ...scan, verdict: relaxVerdict(scan.verdict) } : scan;
+  });
   // "Photo 2: ..." once there is more than one, so the crew know which to retake.
   const namedPhoto = (index: number, text: string) => (podPhotos.length > 1 ? `Photo ${index + 1}: ${text}` : text);
   const blockingScans = currentScans.flatMap((scan, index) =>
@@ -649,6 +674,7 @@ export default function CrewDashboardPage({
     (scan?.verdict.flags ?? []).map((flag) => namedPhoto(index, flag)),
   );
   const allScanned = podPhotos.length > 0 && currentScans.every(Boolean);
+  const galleryCount = podPhotos.filter((photo) => photo.fromGallery).length;
   const podPhotosReady = podPhotos.length > 0 && podPhotos.every((photo) => photo.file);
 
   const handleUpdateStatusSubmit = async () => {
@@ -722,7 +748,11 @@ export default function CrewDashboardPage({
       for (const photo of podPhotos) {
         if (!photo.file) continue;
         formData.append("podImage", photo.file);
-        const report = photo.scanned ? withReceiverName(photo.scanned, receiverName).report : plainCamera;
+        const report = photo.scanned
+          ? withReceiverName(photo.scanned, receiverName).report
+          : plainCamera && photo.fromGallery
+            ? { ...plainCamera, method: "gallery" as const }
+            : plainCamera;
         formData.append("scan", JSON.stringify(report));
       }
 
@@ -1560,7 +1590,7 @@ export default function CrewDashboardPage({
                           type="button"
                           onClick={handleScanPod}
                           disabled={isScanning || isSubmittingResponse}
-                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center disabled:opacity-60 ${podPhotos.length === 0 ? "col-span-2 sm:col-span-3" : ""} ${scanProblems && podPhotos.length === 0 ? "border-red-400" : "border-blue-300"}`}
+                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center disabled:opacity-60 ${podPhotos.length === 0 && !receiptRelaxed ? "col-span-2 sm:col-span-3" : ""} ${scanProblems && podPhotos.length === 0 ? "border-red-400" : "border-blue-300"}`}
                         >
                           <ScanLine className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
                           <span className="text-xs font-semibold text-blue-700">
@@ -1569,24 +1599,47 @@ export default function CrewDashboardPage({
                         </button>
                       ) : (
                         <label
-                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center border-blue-300 ${podPhotos.length === 0 ? "col-span-2 sm:col-span-3" : ""}`}
+                          className={`flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center border-blue-300 ${podPhotos.length === 0 && !receiptRelaxed ? "col-span-2 sm:col-span-3" : ""}`}
                         >
                           <Camera className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
                           <span className="text-xs font-semibold text-blue-700">
                             {podPhotos.length === 0 ? "Tap to take photo" : "Take another photo"}
                           </span>
-                          <input type="file" accept="image/*" capture="environment" onChange={handleImageUpload} className="hidden" />
+                          <input type="file" accept="image/*" capture="environment" onChange={(event) => handleImageUpload(event)} className="hidden" />
                         </label>
                       ))}
+                    {receiptRelaxed && podPhotos.length < MAX_POD_PHOTOS && (
+                      <label className="flex flex-col items-center justify-center h-36 border-2 border-dashed rounded-xl cursor-pointer bg-white hover:bg-blue-50 transition-colors px-3 text-center border-blue-300">
+                        <Images className="w-8 h-8 text-blue-500 mb-2 stroke-[1.5]" />
+                        <span className="text-xs font-semibold text-blue-700">Choose from gallery</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => handleImageUpload(event, true)}
+                          disabled={isSubmittingResponse}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
                   </div>
+                  {receiptRelaxed && (
+                    <p className="mt-2 text-xs text-slate-600">
+                      The receipt check is relaxed: every photo is accepted, and the office reviews any that would not have passed.
+                    </p>
+                  )}
                   <p className="mt-1.5 text-xs text-slate-500">
                     {podPhotos.length} of {MAX_POD_PHOTOS} photos
                   </p>
                   {/* An install from before the scanner. The photo is still
                       taken, and the office is asked to check it. */}
-                  {!canScan && (
+                  {!canScan && !receiptRelaxed && (
                     <p className="mt-2 text-xs text-amber-700">
                       Update the Logisco app to use the receipt scanner. Until then, the office will review these photos.
+                    </p>
+                  )}
+                  {galleryCount > 0 && !scanProblems && (
+                    <p role="status" className="mt-3 text-xs text-amber-800">
+                      {galleryCount === 1 ? "The gallery photo" : `${galleryCount} gallery photos`} will be sent to the office for review.
                     </p>
                   )}
                   {allScanned && !scanProblems && scanFlags.length > 0 && (

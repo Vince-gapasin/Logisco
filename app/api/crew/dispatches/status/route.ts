@@ -7,7 +7,15 @@ import { forgetDispatchRoute } from "@/services/fleet/routePlanService";
 import { notify, OFFICE, tripLabel } from "@/services/notifications/notify";
 import { DELIVERY_STATUS, HELPER_STATUS, STOP_STATUS } from "@/app/lib/enums";
 import { announceUnverifiedProof } from "@/services/dispatch/crewUpdateService";
-import { checkPodScan, parseScanReport, sha256, storedNumbers, type StopPlace } from "@/services/storage/podScanCheck";
+import {
+  checkPodScan,
+  parseScanReport,
+  RELAXED_PREFIX,
+  sha256,
+  storedNumbers,
+  type StopPlace,
+} from "@/services/storage/podScanCheck";
+import { getPhotoChecks } from "@/services/settings/photoCheckSettings";
 import { MAX_POD_PHOTOS, type PodScanReport } from "@/app/lib/podScan";
 import {
   crewNotReadyReason,
@@ -271,12 +279,23 @@ export async function POST(request: Request) {
     // compared with proofs already on file, not with each other: the pages of
     // one receipt share its form, its DR number and its date, and would look
     // like the same page taken twice. The same file twice is still refused.
+    //
+    // The office's receipt-check switch decides what a failed check does:
+    // strict refuses the stop, relaxed lets it close with the reasons written
+    // on the photo, so it lands in Proof Review.
+    const checkMode = isStop && photos.length > 0 ? (await getPhotoChecks()).podReceiptCheck : "strict";
+    const addedTwice = new Set<number>();
     if (isStop && photos.length > 0) {
       const seenHashes = new Set<string>();
       for (const [index, photo] of photos.entries()) {
         if (seenHashes.has(photo.hash)) {
-          const refusal = which(index, "This photo was added twice. Remove it, or scan the next page.");
-          return NextResponse.json({ message: refusal, reasons: [refusal], photoIndex: index }, { status: 422 });
+          const reason = "This photo was added twice. Remove it, or scan the next page.";
+          if (checkMode === "relaxed") {
+            addedTwice.add(index);
+          } else {
+            const refusal = which(index, reason);
+            return NextResponse.json({ message: refusal, reasons: [refusal], photoIndex: index }, { status: 422 });
+          }
         }
         seenHashes.add(photo.hash);
       }
@@ -317,12 +336,15 @@ export async function POST(request: Request) {
           now: Date.now(),
           sameFileUsed: usedHashes.has(photo.hash),
           earlierScans,
+          mode: checkMode,
         });
         if (check.refusal) {
           const refusal = which(index, check.refusal);
           return NextResponse.json({ message: refusal, reasons: [refusal], photoIndex: index }, { status: 422 });
         }
-        photo.flags = check.flags;
+        photo.flags = addedTwice.has(index)
+          ? [`${RELAXED_PREFIX}This photo was added twice.`, ...check.flags]
+          : check.flags;
       }
     }
 
@@ -573,6 +595,7 @@ export async function POST(request: Request) {
         stop: pickupID !== null ? { pickupID } : branchID !== null ? { branchID } : null,
         proof: Boolean(podPath),
         proofPhotos: photos.length,
+        proofCheckMode: podPath && isStop ? checkMode : null,
         proofCheck: podPath && isStop ? (scanFlags.length === 0 ? "passed" : "unverified") : null,
         proofFlags: scanFlags,
       },

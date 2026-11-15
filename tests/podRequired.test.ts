@@ -43,6 +43,12 @@ vi.mock("@/services/storage/podService", () => ({
   signPodUrl: async (path: string) => `signed:${path}`,
 }));
 
+// The office's receipt-check switch, as each test sets it.
+let receiptMode: "strict" | "relaxed" = "strict";
+vi.mock("@/services/settings/photoCheckSettings", () => ({
+  getPhotoChecks: async () => ({ podReceiptCheck: receiptMode, repairPhotoCheck: "strict" }),
+}));
+
 vi.mock("@/services/audit/auditService", () => ({ auditActor: () => ({}), recordAudit: async () => {} }));
 vi.mock("@/services/fleet/routePlanService", () => ({ forgetDispatchRoute: () => {} }));
 vi.mock("@/services/notifications/notify", () => ({
@@ -166,6 +172,7 @@ function request(fields: {
 }
 
 beforeEach(() => {
+  receiptMode = "strict";
   fileAlreadyUsed = false;
   uploads.length = 0;
   podRows.length = 0;
@@ -337,6 +344,63 @@ describe("a receipt of more than one photo", () => {
     const response = await POST(request({ branchID: "5", receiverName: "Juan", photos }));
     expect(response.status).toBe(400);
     expect(uploads).toHaveLength(0);
+  });
+});
+
+describe("with the receipt check relaxed", () => {
+  it("closes the stop on an unsigned page, for the office to review", async () => {
+    receiptMode = "relaxed";
+    const response = await POST(
+      request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan({ signature: false }) }),
+    );
+    expect(response.status).toBe(200);
+    expect(uploads).toHaveLength(1);
+    expect(podRows[0]).toMatchObject({ validationStatus: "unverified" });
+    expect(String(podRows[0].validationNotes)).toMatch(/relaxed: .*blank/i);
+    expect(unverifiedAnnouncements).toEqual(["Main Branch"]);
+  });
+
+  it("accepts a photo already used for another stop, and says so", async () => {
+    receiptMode = "relaxed";
+    fileAlreadyUsed = true;
+    const response = await POST(request({ branchID: "5", receiverName: "Juan", photo: true, scan: scan() }));
+    expect(response.status).toBe(200);
+    expect(String(podRows[0].validationNotes)).toMatch(/already used/);
+    expect(podPhotoRows[0]).toMatchObject({ validationStatus: "unverified" });
+  });
+
+  it("accepts the same photo added twice, and marks the second", async () => {
+    receiptMode = "relaxed";
+    const response = await POST(
+      request({
+        branchID: "5",
+        receiverName: "Juan",
+        photos: [
+          { bytes: [1, 2, 3], scan: scan() },
+          { bytes: [1, 2, 3], scan: scan() },
+        ],
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(podPhotoRows.map((row) => row.validationStatus)).toEqual(["passed", "unverified"]);
+    expect(String(podPhotoRows[1].validationNotes)).toMatch(/added twice/);
+  });
+
+  it("takes a photo from the gallery, which strict refuses", async () => {
+    const gallery = scan({ method: "gallery", textWords: 0, signature: null, nameFound: false, dHash: null });
+    const strict = await POST(request({ branchID: "5", receiverName: "Juan", photo: true, scan: gallery }));
+    expect(strict.status).toBe(422);
+
+    receiptMode = "relaxed";
+    const relaxed = await POST(request({ branchID: "5", receiverName: "Juan", photo: true, scan: gallery }));
+    expect(relaxed.status).toBe(200);
+    expect(podRows[0]).toMatchObject({ scanMethod: "gallery", validationStatus: "unverified" });
+  });
+
+  it("still needs a photo and a receiver's name", async () => {
+    receiptMode = "relaxed";
+    expect((await POST(request({ branchID: "5", receiverName: "Juan" }))).status).toBe(400);
+    expect((await POST(request({ branchID: "5", photo: true, scan: scan() }))).status).toBe(400);
   });
 });
 

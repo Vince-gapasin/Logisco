@@ -439,7 +439,7 @@ export interface PODRow {
   fileType: string | null;
   validationStatus: "passed" | "failed" | "unverified" | null;
   validationNotes: string | null;
-  scanMethod: "scanner" | "camera" | null;
+  scanMethod: "scanner" | "camera" | "gallery" | null;
   capturedAt: string | null;
   captureLat: number | null;
   captureLng: number | null;
@@ -464,7 +464,7 @@ export interface PODPhotosRow {
   /** The object path in the delivery_proofs bucket. */
   path: string;
   fileType: string | null;
-  scanMethod: "scanner" | "camera" | null;
+  scanMethod: "scanner" | "camera" | "gallery" | null;
   capturedAt: string | null;
   captureLat: number | null;
   captureLng: number | null;

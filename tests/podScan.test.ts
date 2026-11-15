@@ -9,16 +9,25 @@ import {
   nameAppearsIn,
   nameOnReceipt,
   NAME_NOT_FOUND,
+  NO_NAME_TYPED,
   NO_SIGNATURE_SPACE,
   NO_TEXT,
   printedBoxes,
+  relaxVerdict,
   signatureInk,
   type GrayImage,
   type OcrLine,
   type OcrWord,
   type Rect,
 } from "@/app/lib/podScan";
-import { checkPodScan, ENFORCE_LOCATION, parseScanReport, type StopPlace } from "@/services/storage/podScanCheck";
+import {
+  checkPodScan,
+  ENFORCE_LOCATION,
+  GALLERY_REFUSED,
+  parseScanReport,
+  RELAXED_PREFIX,
+  type StopPlace,
+} from "@/services/storage/podScanCheck";
 import { documentNumbers } from "@/app/lib/podScan";
 
 // Checking a scanned proof of delivery, without sending it anywhere.
@@ -359,5 +368,69 @@ describe.runIf(ENFORCE_LOCATION)("where the scan was taken", () => {
 describe.runIf(!ENFORCE_LOCATION)("while the location check is off", () => {
   it("lets a scan from anywhere through, with nothing flagged", () => {
     expect(check(report({ latitude: 14.7, longitude: 121.1 }))).toEqual({ refusal: null, flags: [] });
+  });
+});
+
+// ---- With the receipt check relaxed -----------------------------------------
+//
+// The office's switch: nothing about a photo refuses it, and every reason a
+// strict check would have refused it for is written on it for Proof Review.
+
+describe("with the receipt check relaxed", () => {
+  const relaxed = (r: ReturnType<typeof report>, extra: Partial<Parameters<typeof checkPodScan>[0]> = {}) =>
+    check(r, { mode: "relaxed", ...extra });
+
+  it("accepts what strict refuses, and says why on each", () => {
+    const place = { ...STOP, arrivedAt: "2026-10-11T02:59:30.000Z" };
+    const result = relaxed(
+      report({ signature: false, nameFound: false, textWords: 3, capturedAt: "2026-10-11T02:40:00.000Z" }),
+      { sameFileUsed: true, place },
+    );
+    expect(result.refusal).toBeNull();
+    const joined = result.flags.join("\n");
+    for (const reason of [/already used/, /No receipt text/, /blank/i, /name you typed/, /before you arrived/]) {
+      expect(joined).toMatch(reason);
+    }
+    expect(result.flags.every((flag) => !/already used|No receipt text|blank|name you typed|before you arrived/.test(flag) || flag.startsWith(RELAXED_PREFIX))).toBe(true);
+  });
+
+  it("accepts a page already scanned for another stop", () => {
+    const again = { dHash: "0123456789abcdee", docNumbers: ["0010293", "10112026", "100"] };
+    const result = relaxed(report(), { earlierScans: [again] });
+    expect(result.refusal).toBeNull();
+    expect(result.flags[0]).toMatch(/already scanned for another stop/);
+  });
+
+  it("passes a good scan with nothing flagged, as strict does", () => {
+    expect(relaxed(report())).toEqual({ refusal: null, flags: [] });
+  });
+
+  it("takes a gallery photo for review, which strict refuses", () => {
+    expect(check(report({ method: "gallery" })).refusal).toBe(GALLERY_REFUSED);
+    const result = relaxed(report({ method: "gallery" }));
+    expect(result.refusal).toBeNull();
+    expect(result.flags).toEqual([expect.stringMatching(/gallery/)]);
+  });
+
+  it("does not repeat a reason the relaxed phone already sent", () => {
+    const result = relaxed(report({ signature: false, flags: [BLANK_SIGNATURE] }));
+    expect(result.flags.filter((flag) => flag.includes(BLANK_SIGNATURE))).toHaveLength(1);
+  });
+});
+
+describe("the phone's verdict, relaxed", () => {
+  it("turns what would block into warnings, but still wants the name typed", () => {
+    const verdict = relaxVerdict({
+      blocking: [BLANK_SIGNATURE, NAME_NOT_FOUND],
+      flags: [],
+      signature: false,
+      nameFound: false,
+      textWords: 30,
+    });
+    expect(verdict.blocking).toEqual([]);
+    expect(verdict.flags).toEqual([BLANK_SIGNATURE, NAME_NOT_FOUND]);
+
+    const noName = relaxVerdict({ blocking: [NO_NAME_TYPED], flags: [], signature: true, nameFound: false, textWords: 30 });
+    expect(noName.blocking).toEqual([NO_NAME_TYPED]);
   });
 });

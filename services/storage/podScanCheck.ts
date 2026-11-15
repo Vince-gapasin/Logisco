@@ -23,6 +23,7 @@ import {
   numbersOverlap,
   type PodScanReport,
 } from "@/app/lib/podScan";
+import type { PhotoCheckMode } from "@/services/settings/photoCheckSettings";
 
 /**
  * Whether a scan taken away from the stop is refused. Off for now, while the
@@ -93,7 +94,7 @@ export function parseScanReport(raw: string | null): PodScanReport | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<PodScanReport>;
-    if (value.method !== "scanner" && value.method !== "camera") return null;
+    if (value.method !== "scanner" && value.method !== "camera" && value.method !== "gallery") return null;
     const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
     return {
       method: value.method,
@@ -122,6 +123,19 @@ function hasPlace(place: StopPlace): place is StopPlace & { latitude: number; lo
   return Boolean(place.latitude) && Boolean(place.longitude);
 }
 
+/** Written before each reason a relaxed check let a photo through despite. */
+export const RELAXED_PREFIX = "Accepted with the receipt check relaxed: ";
+
+export const GALLERY_REFUSED = "Photos from the gallery are not accepted. Scan the receipt at the stop.";
+
+/**
+ * Whether a scan may close the stop, and what the office should know.
+ *
+ * `mode` is the office's receipt-check switch. Strict refuses a scan at the
+ * first thing wrong with it, as always. Relaxed refuses nothing: every check
+ * still runs, and each one that would have refused the scan becomes a flag,
+ * so the proof is saved as "unverified" with every reason on it.
+ */
 export function checkPodScan(input: {
   report: PodScanReport | null;
   place: StopPlace;
@@ -130,37 +144,63 @@ export function checkPodScan(input: {
   earlierScans: EarlierScan[];
   /** Whether this exact file is already on another proof. */
   sameFileUsed: boolean;
+  mode?: PhotoCheckMode;
 }): ScanCheck {
   const { report, place, now } = input;
+  const relaxed = input.mode === "relaxed";
   const flags: string[] = [];
+  // What a strict check would have refused it for, in the order found.
+  const letThrough: string[] = [];
+  const done = (): ScanCheck => ({ refusal: null, flags: [...letThrough, ...flags] });
+  /** Strict: the refusal. Relaxed: noted, and the checks go on. */
+  const refuse = (reason: string): ScanCheck | null => {
+    if (!relaxed) return { refusal: reason, flags };
+    letThrough.push(RELAXED_PREFIX + reason);
+    return null;
+  };
 
   if (input.sameFileUsed) {
-    return { refusal: "This photo was already used as proof for another stop. Scan this stop's receipt.", flags };
+    const stop = refuse("This photo was already used as proof for another stop. Scan this stop's receipt.");
+    if (stop) return stop;
+  }
+
+  // Chosen from the phone rather than taken at the stop: only offered when the
+  // check is relaxed, and refused when it is not.
+  if (report?.method === "gallery") {
+    if (!relaxed) return { refusal: GALLERY_REFUSED, flags };
+    flags.push("Chosen from the phone's gallery, not scanned at the stop.");
+    return done();
   }
 
   // An app from before the scanner. The photo is kept and the office told;
   // refusing it would strand every crew member who has not updated yet.
   if (!report || report.method !== "scanner") {
     flags.push("Not taken with the document scanner (the crew app needs updating).");
-    return { refusal: null, flags };
+    return done();
   }
 
-  // The phone refuses these itself; a request that skipped it is refused here.
+  // The phone refuses these itself when strict; a request that skipped it is
+  // refused here.
   if (report.textWords < MIN_WORDS) {
-    return { refusal: "No receipt text could be read. Scan the whole receipt again.", flags };
+    const stop = refuse("No receipt text could be read. Scan the whole receipt again.");
+    if (stop) return stop;
   }
   if (report.signature === null) {
-    return { refusal: NO_SIGNATURE_SPACE, flags };
+    const stop = refuse(NO_SIGNATURE_SPACE);
+    if (stop) return stop;
   }
   if (report.signature === false) {
-    return { refusal: BLANK_SIGNATURE, flags };
+    const stop = refuse(BLANK_SIGNATURE);
+    if (stop) return stop;
   }
   if (!report.nameFound) {
-    return { refusal: NAME_NOT_FOUND, flags };
+    const stop = refuse(NAME_NOT_FOUND);
+    if (stop) return stop;
   }
 
   if (input.earlierScans.some((earlier) => samePage(report, earlier))) {
-    return { refusal: "This receipt was already scanned for another stop. Scan this stop's own receipt.", flags };
+    const stop = refuse("This receipt was already scanned for another stop. Scan this stop's own receipt.");
+    if (stop) return stop;
   }
 
   // When. The phone's clock, forgiven a little drift.
@@ -169,11 +209,13 @@ export function checkPodScan(input: {
     flags.push("The scan had no capture time.");
   } else {
     if (now - captured > MAX_SCAN_AGE_MS) {
-      return { refusal: "This scan is too old. Scan the receipt again now.", flags };
+      const stop = refuse("This scan is too old. Scan the receipt again now.");
+      if (stop) return stop;
     }
     const arrived = place.arrivedAt ? Date.parse(place.arrivedAt) : NaN;
     if (!Number.isNaN(arrived) && captured < arrived - CLOCK_SLACK_MS) {
-      return { refusal: "This receipt was scanned before you arrived at this stop. Scan it again here.", flags };
+      const stop = refuse("This receipt was scanned before you arrived at this stop. Scan it again here.");
+      if (stop) return stop;
     }
   }
 
@@ -191,15 +233,15 @@ export function checkPodScan(input: {
     );
     const accuracy = report.accuracy ?? 0;
     if (distance - Math.min(accuracy, MAX_TRUSTED_ACCURACY_M) > MAX_DISTANCE_M) {
-      return {
-        refusal: `This receipt was scanned about ${Math.round(distance)} m from the stop. Scan it at the delivery address.`,
-        flags,
-      };
-    }
-    if (accuracy > MAX_TRUSTED_ACCURACY_M) {
+      const stop = refuse(`This receipt was scanned about ${Math.round(distance)} m from the stop. Scan it at the delivery address.`);
+      if (stop) return stop;
+    } else if (accuracy > MAX_TRUSTED_ACCURACY_M) {
       flags.push(`The phone's location was imprecise (±${Math.round(accuracy)} m).`);
     }
   }
 
-  return { refusal: null, flags: [...report.flags, ...flags] };
+  // The phone's own warnings, said once each. A relaxed phone also sends the
+  // reasons it would have blocked on, which the checks above have just found.
+  const phone = report.flags.filter((flag) => !letThrough.some((noted) => noted.endsWith(flag)));
+  return { refusal: null, flags: [...new Set([...letThrough, ...phone, ...flags])] };
 }

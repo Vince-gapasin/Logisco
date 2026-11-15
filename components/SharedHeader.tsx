@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, LogOut, Menu, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Menu, ShieldCheck, UserRound } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 import LogoutDialog from "@/components/LogoutDialog";
@@ -127,6 +127,19 @@ export default function SharedHeader({ portal, isOpen, setIsOpen, basePath }: Sh
                   <UserRound className="w-4 h-4 shrink-0" />
                   My Profile
                 </Link>
+                {/* The office's switches. Not in the sidebar, which has to fit
+                    without scrolling, and seldom needed. */}
+                {basePath === "/admindashboard" && (
+                  <Link
+                    href="/admindashboard/photo-checks"
+                    role="menuitem"
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`${itemClass} text-slate-700 hover:bg-slate-50 hover:text-slate-900`}
+                  >
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    Photo checks
+                  </Link>
+                )}
               </div>
 
               <div className="py-1 border-t border-slate-100">

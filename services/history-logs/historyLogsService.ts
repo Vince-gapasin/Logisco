@@ -6,8 +6,10 @@ import {
   parseRepairPhotoReport,
   photoHash,
   PHOTO_PHASES,
+  RELAXED_PREFIX,
   type PhotoMeta,
 } from "@/services/history-logs/repairPhotoCheck";
+import { getPhotoChecks } from "@/services/settings/photoCheckSettings";
 
 /** How many photos one phase of a log may carry. */
 export const MAX_PHOTOS_PER_PHASE = 10;
@@ -349,8 +351,12 @@ export async function checkLogPhotos(
   body.removedPhotoIDs = removedIDs;
   if (sent.length === 0) return null;
 
+  // The office's mechanic-photo switch: strict refuses a photo that fails its
+  // check, relaxed saves it with the reasons written beside it.
+  const mode = (await getPhotoChecks()).repairPhotoCheck;
+
   const hashes = sent.map((photo) => photoHash(photo.dataUrl));
-  if (new Set(hashes).size < hashes.length) {
+  if (new Set(hashes).size < hashes.length && mode !== "relaxed") {
     return { status: 422, message: "The same photo was added twice. Remove one of them." };
   }
 
@@ -391,7 +397,15 @@ export async function checkLogPhotos(
       now,
       sameFileUsed: usedHashes.has(hashes[i]),
       earlierHashes,
+      mode,
     });
+    // Relaxed, the same photo twice in one save is kept, and said.
+    if (mode === "relaxed" && hashes.indexOf(hashes[i]) !== i) {
+      check.meta.checkStatus = "unverified";
+      const note = `${RELAXED_PREFIX}This photo was added twice.`;
+      if (check.meta.checkLabels) check.meta.checkLabels.notes.unshift(note);
+      else check.meta.checkLabels = { score: 0, topLabels: [], notes: [note] };
+    }
     if (check.refusal) {
       const several = sent.filter((other) => other.phase === photo.phase).length > 1;
       const nth = sent.filter((other, j) => other.phase === photo.phase && j <= i).length;

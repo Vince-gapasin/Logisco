@@ -14,6 +14,7 @@ import { formatInputDate } from "./dates";
 import { ImageModal } from "./ImageModal";
 import { captureMethod, checkRepairPhoto, loadRepairPhotoModel } from "./repairPhotoCheck";
 import type { RepairPhotoReport } from "@/app/lib/repairPhoto";
+import { apiFetch } from "@/app/lib/apiClient";
 
 // ==========================================
 // LOG MAINTENANCE MODAL (ADD/EDIT LOGS)
@@ -76,6 +77,23 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
   // the time a photo is taken. A failure here is retried on the photo itself.
   useEffect(() => {
     if (isOpen) void loadRepairPhotoModel().catch(() => undefined);
+  }, [isOpen]);
+
+  // The office's mechanic-photo switch, read as the form opens. Relaxed, a
+  // photo the check would refuse is kept and marked for the office instead.
+  // The server decides either way; strict until it says otherwise.
+  const [photoCheckRelaxed, setPhotoCheckRelaxed] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    apiFetch<{ data: { repairPhotoCheck?: { mode?: string } } }>("/api/settings/photo-checks", { cache: "no-store" })
+      .then((res) => {
+        if (active) setPhotoCheckRelaxed(res.data?.repairPhotoCheck?.mode === "relaxed");
+      })
+      .catch((error) => console.error("Could not read the photo check setting:", error));
+    return () => {
+      active = false;
+    };
   }, [isOpen]);
 
   // 1. Convert to state
@@ -229,7 +247,7 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
         }
         try {
           const checked = await checkRepairPhoto(file, method);
-          if (checked.verdict?.verdict === "refused") {
+          if (checked.verdict?.verdict === "refused" && !photoCheckRelaxed) {
             problems.push(checked.verdict?.reason ?? "This photo was not accepted.");
             continue;
           }
@@ -689,11 +707,13 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                       />
                       <span className="absolute bottom-1 left-1 rounded bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        {photo.report.method === "gallery"
-                          ? "Gallery"
-                          : photo.report.checked
-                            ? "Checked"
-                            : "Not checked"}
+                        {photo.report.verdict === "refused"
+                          ? "For review"
+                          : photo.report.method === "gallery"
+                            ? "Gallery"
+                            : photo.report.checked
+                              ? "Checked"
+                              : "Not checked"}
                       </span>
                       <button
                         type="button"
@@ -707,6 +727,11 @@ export function LogMaintenanceModal({ isOpen, onClose, onSubmitSuccess, editData
                     </li>
                   ))}
                 </ul>
+              )}
+              {newPhotos.some((photo) => photo.report.verdict === "refused") && (
+                <p className="mt-1 text-xs sm:text-[11px] text-amber-700">
+                  Not accepted by the photo check. The check is relaxed, so it is kept for the office to review.
+                </p>
               )}
               {newPhotos.some((photo) => photo.report.method === "gallery" || !photo.report.checked) && (
                 <p className="mt-1 text-xs sm:text-[11px] text-slate-500">

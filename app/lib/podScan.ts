@@ -59,8 +59,11 @@ export const MAX_POD_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 /** What the phone sends with the photo. */
 export interface PodScanReport {
-  /** "scanner": the live document scanner. "camera": an older app without it. */
-  method: "scanner" | "camera";
+  /**
+   * "scanner": the live document scanner. "camera": an older app without it.
+   * "gallery": chosen from the phone, offered only when the receipt check is relaxed.
+   */
+  method: "scanner" | "camera" | "gallery";
   capturedAt: string;
   latitude: number | null;
   longitude: number | null;
@@ -473,6 +476,17 @@ export function scanVerdict(facts: ScanFacts, receiverName: string, nameFound: b
     else if (!nameFound) blocking.push(NAME_NOT_FOUND);
   }
   return { blocking, flags: [], signature: facts.signature, nameFound, textWords: facts.textWords };
+}
+
+/**
+ * The same verdict when the office has relaxed the receipt check: nothing about
+ * the photo blocks it, and each reason becomes a warning the office will see.
+ * The receiver's name still has to be typed - that is the form, not the photo.
+ */
+export function relaxVerdict(verdict: ScanVerdict): ScanVerdict {
+  const stillBlocking = verdict.blocking.filter((reason) => reason === NO_NAME_TYPED);
+  const warnings = verdict.blocking.filter((reason) => reason !== NO_NAME_TYPED);
+  return { ...verdict, blocking: stillBlocking, flags: [...new Set([...warnings, ...verdict.flags])] };
 }
 
 /** The whole check in one call, for one scan and one name. */

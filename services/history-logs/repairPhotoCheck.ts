@@ -14,6 +14,7 @@
 import { hammingDistance } from "@/app/lib/imageHash";
 import type { RepairPhotoReport } from "@/app/lib/repairPhoto";
 import { SAME_PICTURE_BITS, sha256 } from "@/services/storage/podScanCheck";
+import type { PhotoCheckMode } from "@/services/settings/photoCheckSettings";
 
 /** How old a camera photo may be when the log is saved: a long report takes a while to type. */
 export const MAX_PHOTO_AGE_MS = 60 * 60 * 1000;
@@ -78,6 +79,16 @@ export function photoHash(dataUrl: string): string {
   return sha256(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
 }
 
+/** Written before each reason a relaxed check let a photo through despite. */
+export const RELAXED_PREFIX = "Accepted with the photo check relaxed: ";
+
+/**
+ * Whether a maintenance photo may be saved, and what is kept beside it.
+ *
+ * `mode` is the office's mechanic-photo switch. Strict refuses at the first
+ * thing wrong, as always. Relaxed refuses nothing: each reason becomes a note,
+ * and the photo is saved as "unverified" so the office sees it needs a look.
+ */
 export function checkRepairPhoto(input: {
   dataUrl: string;
   report: RepairPhotoReport | null;
@@ -86,8 +97,10 @@ export function checkRepairPhoto(input: {
   sameFileUsed: boolean;
   /** Fingerprints of photos already on other logs. */
   earlierHashes: string[];
+  mode?: PhotoCheckMode;
 }): PhotoCheck {
   const { report, now } = input;
+  const relaxed = input.mode === "relaxed";
   const notes: string[] = [];
   const meta: PhotoMeta = {
     captureMethod: report?.method ?? null,
@@ -97,20 +110,35 @@ export function checkRepairPhoto(input: {
     checkStatus: "unverified",
     checkLabels: report ? { score: report.score, topLabels: report.topLabels, notes } : null,
   };
-  const refuse = (refusal: string): PhotoCheck => ({ refusal, meta });
+  /** Strict: the refusal. Relaxed: noted, and the checks go on. */
+  const refuse = (refusal: string): PhotoCheck | null => {
+    if (!relaxed) return { refusal, meta };
+    notes.push(RELAXED_PREFIX + refusal);
+    return null;
+  };
+  // A report-less photo has no checkLabels to carry its notes; one relaxed
+  // through still needs them somewhere the office will see.
+  const finish = (): PhotoCheck => {
+    if (!meta.checkLabels && notes.length > 0) meta.checkLabels = { score: 0, topLabels: [], notes };
+    return { refusal: null, meta };
+  };
 
-  if (input.sameFileUsed) return refuse("This photo is already on another maintenance log. Take a new photo of this repair.");
-  if (report?.dHash && input.earlierHashes.some((hash) => hammingDistance(hash, report.dHash as string) <= SAME_PICTURE_BITS)) {
-    return refuse("This photo was already used on another maintenance log. Take a new photo of this repair.");
+  if (input.sameFileUsed) {
+    const stop = refuse("This photo is already on another maintenance log. Take a new photo of this repair.");
+    if (stop) return stop;
+  } else if (report?.dHash && input.earlierHashes.some((hash) => hammingDistance(hash, report.dHash as string) <= SAME_PICTURE_BITS)) {
+    const stop = refuse("This photo was already used on another maintenance log. Take a new photo of this repair.");
+    if (stop) return stop;
   }
 
   if (!report) {
     // An open screen from before the check: kept, and the office told.
     notes.push("Not checked: the screen it was sent from had no photo check.");
-    return { refusal: null, meta };
+    return finish();
   }
   if (report.verdict === "refused") {
-    return refuse("This photo was not accepted as a truck or a repair. Take a photo of the truck or the work on it.");
+    const stop = refuse("This photo was not accepted as a truck or a repair. Take a photo of the truck or the work on it.");
+    if (stop) return stop;
   }
 
   if (report.method === "camera") {
@@ -118,7 +146,8 @@ export function checkRepairPhoto(input: {
     if (Number.isNaN(captured)) {
       notes.push("The photo had no capture time.");
     } else if (now - captured > MAX_PHOTO_AGE_MS) {
-      return refuse("This photo is too old. Take a new one of the repair now.");
+      const stop = refuse("This photo is too old. Take a new one of the repair now.");
+      if (stop) return stop;
     } else if (captured - now > CLOCK_SLACK_MS) {
       notes.push("The phone's clock is ahead; the capture time is not reliable.");
     }
@@ -131,9 +160,9 @@ export function checkRepairPhoto(input: {
 
   if (!report.checked) {
     notes.push("The photo checker could not run on the device.");
-    return { refusal: null, meta };
+    return finish();
   }
 
   meta.checkStatus = report.method === "camera" && notes.length === 0 ? "passed" : "unverified";
-  return { refusal: null, meta };
+  return finish();
 }

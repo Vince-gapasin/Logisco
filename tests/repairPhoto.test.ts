@@ -13,8 +13,14 @@ import { supabaseDouble } from "./support/supabaseDouble";
 const db = supabaseDouble();
 vi.mock("@/app/lib/supabase", () => ({ supabase: db.client }));
 
+// The office's mechanic-photo switch, as each test sets it.
+let repairMode: "strict" | "relaxed" = "strict";
+vi.mock("@/services/settings/photoCheckSettings", () => ({
+  getPhotoChecks: async () => ({ podReceiptCheck: "strict", repairPhotoCheck: repairMode }),
+}));
+
 const { evaluateRepairPhoto, MIN_MECHANIC_SCORE, shortLabel } = await import("@/app/lib/repairPhoto");
-const { checkRepairPhoto, parseRepairPhotoReport, photoHash, MAX_PHOTO_AGE_MS } = await import(
+const { checkRepairPhoto, parseRepairPhotoReport, photoHash, MAX_PHOTO_AGE_MS, RELAXED_PREFIX } = await import(
   "@/services/history-logs/repairPhotoCheck"
 );
 const { checkLogPhotos } = await import("@/services/history-logs/historyLogsService");
@@ -34,6 +40,7 @@ const report = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  repairMode = "strict";
   db.calls.length = 0;
   db.writes.length = 0;
 });
@@ -296,5 +303,61 @@ describe("several photos in a phase", () => {
   it("does not make an old log get a photo when it is edited", async () => {
     db.queue({ data: [] });
     expect(await checkLogPhotos(inspection(), { requirePhotos: true, logID: "old-log" })).toBeNull();
+  });
+});
+
+describe("with the mechanic photo check relaxed", () => {
+  const relaxedCheck = (over: Partial<Parameters<typeof checkRepairPhoto>[0]> = {}) =>
+    checkRepairPhoto({
+      dataUrl: photo("a truck"),
+      report: parseRepairPhotoReport(report()),
+      now: NOW,
+      sameFileUsed: false,
+      earlierHashes: [],
+      mode: "relaxed",
+      ...over,
+    });
+
+  it("keeps what strict refuses, as unverified with the reason", () => {
+    const old = new Date(NOW - MAX_PHOTO_AGE_MS - 60_000).toISOString();
+    for (const over of [
+      { sameFileUsed: true },
+      { earlierHashes: ["0f0f0f0f0f0f0f0c"] },
+      { report: parseRepairPhotoReport(report({ verdict: "refused" })) },
+      { report: parseRepairPhotoReport(report({ capturedAt: old })) },
+    ]) {
+      const result = relaxedCheck(over);
+      expect(result.refusal).toBeNull();
+      expect(result.meta.checkStatus).toBe("unverified");
+      expect(result.meta.checkLabels?.notes.some((note) => note.startsWith(RELAXED_PREFIX))).toBe(true);
+    }
+  });
+
+  it("passes a good photo as strict does", () => {
+    expect(relaxedCheck().meta.checkStatus).toBe("passed");
+  });
+
+  it("saves a log with a refused photo and the same photo twice", async () => {
+    repairMode = "relaxed";
+    db.queue({ data: [] }, { data: [] });
+    const fresh = { dataUrl: photo("not a truck"), report: report({ verdict: "refused", capturedAt: new Date().toISOString() }) };
+    const body: Record<string, unknown> = {
+      truckID: "t1",
+      date: "2026-10-13",
+      driversReport: "Brakes squeal",
+      newPhotos: { Preliminary: [fresh, fresh] },
+    };
+    expect(await checkLogPhotos(body, { requirePhotos: true })).toBeNull();
+    const saved = body.checkedPhotos as { checkStatus: string; checkLabels: { notes: string[] } }[];
+    expect(saved).toHaveLength(2);
+    expect(saved.every((photo) => photo.checkStatus === "unverified")).toBe(true);
+    expect(saved[1].checkLabels.notes[0]).toMatch(/added twice/);
+  });
+
+  it("still needs a photo, and still stops at ten", async () => {
+    repairMode = "relaxed";
+    expect(
+      await checkLogPhotos({ truckID: "t1", date: "2026-10-13", driversReport: "Brakes squeal" }, { requirePhotos: true }),
+    ).toEqual({ status: 400, message: "A photo is required for the inspection." });
   });
 });
