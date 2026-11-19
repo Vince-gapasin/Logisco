@@ -190,3 +190,74 @@ describe("moving a booking to another day", () => {
     expect(stopWrites()).toEqual([]);
   });
 });
+
+describe("making a booking with products on each stop", () => {
+  const buns = { productName: "Buns", quantity: 50, unit: "trays" as const };
+  const cake = { productName: "Cake", quantity: 20, unit: "boxes" as const };
+
+  it("writes each product against the stop it is on, and the stop's total", async () => {
+    db.queue(
+      { data: { orderID: ORDER } }, // Order
+      { data: null }, // OrderDetails
+      { data: [{ branchID: 71, sequence: 1 }] }, // BranchStops, ids back
+      { data: [{ pickupID: 81, sequence: 1 }] }, // PickupStops, ids back
+    );
+    await createBooking({
+      clientID: null,
+      deliverySchedule: "2026-10-06",
+      notes: "",
+      items: [{ productName: "Buns, Cake", productType: "General", quantity: 70, weightPerItem: 0 }],
+      pickups: [
+        { warehouseName: "Valenzuela", pickupAddress: "Valenzuela City", expectedTime: "08:00", expectedDate: "2026-10-06", items: [buns, cake] },
+      ],
+      stops: [
+        {
+          branchName: "Davao",
+          contactPerson: "Trisha",
+          contactNum: "09281112013",
+          deliveryAddress: "Davao City",
+          expectedTime: "17:00",
+          expectedDate: "2026-10-06",
+          items: [{ ...buns, quantity: 30 }],
+        },
+      ],
+      acknowledgeTightSchedule: true,
+    } as Parameters<typeof createBooking>[0]);
+
+    expect(written("PickupStops")[0]).toMatchObject({ quantity: 70 });
+    expect(written("BranchStops")[0]).toMatchObject({ quantity: 30 });
+    // The cargo is what is dropped off, a row per product, not the typed line.
+    expect(written("OrderDetails")).toEqual([
+      expect.objectContaining({ productName: "Buns", productType: "trays", quantity: 30 }),
+    ]);
+    expect(written("StopItems")).toEqual([
+      expect.objectContaining({ orderID: ORDER, branchID: 71, pickupID: null, productName: "Buns", quantity: 30, position: 1 }),
+      expect.objectContaining({ orderID: ORDER, pickupID: 81, branchID: null, productName: "Buns", quantity: 50, position: 1 }),
+      expect.objectContaining({ orderID: ORDER, pickupID: 81, branchID: null, productName: "Cake", quantity: 20, unit: "boxes", position: 2 }),
+    ]);
+  });
+
+  it("removes the half-made booking if the products cannot be saved", async () => {
+    db.queue(
+      { data: { orderID: ORDER } },
+      { data: null },
+      { data: [{ branchID: 71, sequence: 1 }] },
+      { data: [{ pickupID: 81, sequence: 1 }] },
+      { error: { message: "relation \"StopItems\" does not exist" } },
+    );
+    await expect(
+      createBooking({
+        clientID: null,
+        deliverySchedule: "2026-10-06",
+        notes: "",
+        items: [{ productName: "Buns", productType: "General", quantity: 50, weightPerItem: 0 }],
+        pickups: [{ warehouseName: "Valenzuela", pickupAddress: "Valenzuela City", expectedTime: "08:00", expectedDate: "2026-10-06", items: [buns] }],
+        stops: [
+          { branchName: "Davao", contactPerson: "Trisha", contactNum: "09281112013", deliveryAddress: "Davao City", expectedTime: "17:00", expectedDate: "2026-10-06", items: [buns] },
+        ],
+        acknowledgeTightSchedule: true,
+      } as Parameters<typeof createBooking>[0]),
+    ).rejects.toThrow("Failed to save the products on each stop");
+    expect(db.writes.some((write) => write.table === "Order" && write.chain.includes("delete"))).toBe(true);
+  });
+});

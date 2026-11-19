@@ -2,6 +2,7 @@
 
 import React from "react";
 import { CheckCircle2, Clock, Info, X } from "lucide-react";
+import { describeItem, describeItems, type StopItem } from "@/app/lib/stopItems";
 
 // A booking's pickups and deliveries, as recorded when it was made. Shown
 // read-only on the assign and re-assign screens: those only change the crew,
@@ -15,6 +16,8 @@ export interface ReadOnlyPickup {
   contactNumber?: string;
   pickupTime?: string;
   quantity?: string;
+  /** The products loaded here; absent or empty on older bookings. */
+  items?: StopItem[];
   stopStatus?: string;
 }
 export interface ReadOnlyDelivery {
@@ -24,6 +27,8 @@ export interface ReadOnlyDelivery {
   contactNumber?: string;
   deliveryTime?: string;
   quantity?: string;
+  /** The products dropped here; absent or empty on older bookings. */
+  items?: StopItem[];
   stopStatus?: string;
 }
 
@@ -60,6 +65,24 @@ function StatusBadge({ status }: { status?: string }) {
       <X className="w-3 h-3" /> {current}
     </span>
   );
+}
+
+// A stop's products, one per line; the plain quantity on bookings made before
+// products were listed per stop.
+function ProductsCell({ items, quantity }: { items?: StopItem[]; quantity?: string }) {
+  if (!items || items.length === 0) return <>{quantity || "—"}</>;
+  return (
+    <ul className="space-y-0.5 text-left">
+      {items.map((item, i) => (
+        <li key={i}>{describeItem(item)}</li>
+      ))}
+    </ul>
+  );
+}
+
+/** For the narrow card, where a cell is one line of text. */
+function productsText(items?: StopItem[], quantity?: string): string | undefined {
+  return items && items.length > 0 ? describeItems(items) : quantity;
 }
 
 function Empty({ columns, text }: { columns: number; text: string }) {
@@ -148,7 +171,7 @@ export default function BookingStopsReadOnly({
                   ["Contact Person", row.contactPerson],
                   ["Contact Number", row.contactNumber],
                   ["Pick Up Time", row.pickupTime],
-                  ["Quantity", row.quantity],
+                  [row.items?.length ? "Products" : "Quantity", productsText(row.items, row.quantity)],
                 ]}
               />
             ))
@@ -164,7 +187,7 @@ export default function BookingStopsReadOnly({
                 <th className={`${th} w-[15%]`}>Contact Person</th>
                 <th className={`${th} w-[15%]`}>Contact Number</th>
                 <th className={`${th} w-[12%]`}>Pick Up Time</th>
-                <th className={`${th} w-20 text-center`}>Quantity</th>
+                <th className={`${th} w-44`}>Products</th>
                 {showStatus && <th className="p-2.5 text-center w-[10%]">Status</th>}
               </tr>
             </thead>
@@ -180,7 +203,9 @@ export default function BookingStopsReadOnly({
                     <td className={td}>{row.contactPerson || "—"}</td>
                     <td className={td}>{row.contactNumber || "—"}</td>
                     <td className={td}>{row.pickupTime || "—"}</td>
-                    <td className={`${td} text-center`}>{row.quantity || "—"}</td>
+                    <td className={td}>
+                      <ProductsCell items={row.items} quantity={row.quantity} />
+                    </td>
                     {showStatus && (
                       <td className="p-2.5 text-center bg-slate-50 align-top">
                         <StatusBadge status={row.stopStatus} />
@@ -213,7 +238,7 @@ export default function BookingStopsReadOnly({
                   ["Contact Person", row.contactPerson],
                   ["Contact Number", row.contactNumber],
                   ["Delivery Time", row.deliveryTime],
-                  ["Quantity", row.quantity],
+                  [row.items?.length ? "Products" : "Quantity", productsText(row.items, row.quantity)],
                 ]}
               />
             ))
@@ -229,7 +254,7 @@ export default function BookingStopsReadOnly({
                 <th className={`${th} w-[15%]`}>Contact Person</th>
                 <th className={`${th} w-[15%]`}>Contact Number</th>
                 <th className={`${th} w-[12%]`}>Delivery Time</th>
-                <th className={`${th} w-20 text-center`}>Quantity</th>
+                <th className={`${th} w-44`}>Products</th>
                 {showStatus && <th className="p-2.5 text-center w-[10%]">Stop Status</th>}
               </tr>
             </thead>
@@ -245,7 +270,9 @@ export default function BookingStopsReadOnly({
                     <td className={td}>{row.contactPerson || "—"}</td>
                     <td className={td}>{row.contactNumber || "—"}</td>
                     <td className={td}>{row.deliveryTime || "—"}</td>
-                    <td className={`${td} text-center`}>{row.quantity || "—"}</td>
+                    <td className={td}>
+                      <ProductsCell items={row.items} quantity={row.quantity} />
+                    </td>
                     {showStatus && (
                       <td className="p-2.5 text-center bg-slate-50 align-top">
                         <StatusBadge status={row.stopStatus} />

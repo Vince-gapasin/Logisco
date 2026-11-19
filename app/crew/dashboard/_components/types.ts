@@ -1,3 +1,5 @@
+import type { StopItem } from "@/app/lib/stopItems";
+
 
 export interface PickupRecord {
   // Present for pickups that came from the PickupStops table. Bookings made
@@ -10,6 +12,8 @@ export interface PickupRecord {
   contactNumber: string;
   pickupTime: string;
   quantity: string;
+  /** What to load here; empty on bookings made before products were listed. */
+  items?: StopItem[];
   status?: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -23,6 +27,8 @@ export interface DeliveryDestinationRecord {
   contactNumber: string;
   deliveryTime: string;
   quantity: string;
+  /** What to drop off here; empty on bookings made before products were listed. */
+  items?: StopItem[];
   status?: string;
   latitude?: number | null;
   longitude?: number | null;

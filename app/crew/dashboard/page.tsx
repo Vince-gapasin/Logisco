@@ -79,6 +79,7 @@ import {
   stopLiveTracking,
 } from "./_components/liveTracking";
 import { formatDispatchNote, generateDynamicStops, stopName } from "./_components/stops";
+import { StopProducts } from "./_components/StopProducts";
 import NavigateButtons, { canNavigateTo, type NavigateTarget } from "./_components/NavigateButtons";
 
 
@@ -1415,7 +1416,16 @@ export default function CrewDashboardPage({
                      <div><p className="text-xs text-slate-500 font-medium">Location Name</p><p className="font-bold text-slate-900">{stopName(dynamicStops[currentStepIndex].data)}</p></div>
                      <div><p className="text-xs text-slate-500 font-medium">Address</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.address}</p></div>
                      <div><p className="text-xs text-slate-500 font-medium">Contact Person</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.contactPerson} | {dynamicStops[currentStepIndex].data.contactNumber}</p></div>
-                     <div><p className="text-xs text-slate-500 font-medium">Quantity/Load</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.quantity || selectedDelivery.quantity || 'N/A'}</p></div>
+                     {dynamicStops[currentStepIndex].data.items?.length ? (
+                       <div className="sm:col-span-2">
+                         <StopProducts
+                           items={dynamicStops[currentStepIndex].data.items}
+                           verb={dynamicStops[currentStepIndex].type === 'pickup' ? 'Load' : 'Drop off'}
+                         />
+                       </div>
+                     ) : (
+                       <div><p className="text-xs text-slate-500 font-medium">Quantity/Load</p><p className="font-semibold text-slate-800">{dynamicStops[currentStepIndex].data.quantity || selectedDelivery.quantity || 'N/A'}</p></div>
+                     )}
                    </div>
                 ) : (
                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1454,8 +1464,7 @@ export default function CrewDashboardPage({
                         <span className="text-slate-700 truncate">{pickup.address}</span>
                         <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
                         <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
-                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                        <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                        <StopProducts items={pickup.items} fallbackProduct={selectedDelivery.product} fallbackQuantity={pickup.quantity} verb="Load" />
                       </div>
                     );
                   })}
@@ -1489,8 +1498,7 @@ export default function CrewDashboardPage({
                         <span className="text-slate-700 truncate">{deliv.address}</span>
                         <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
                         <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
-                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                        <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                        <StopProducts items={deliv.items} fallbackProduct={selectedDelivery.product} fallbackQuantity={deliv.quantity} verb="Drop off" />
                       </div>
                     );
                   })}
@@ -1932,8 +1940,7 @@ export default function CrewDashboardPage({
                         <span className="text-slate-700 truncate">{pickup.address}</span>
                         <span className="text-slate-700 truncate">{pickup.contactPerson} | ({pickup.contactNumber})</span>
                         <span className="text-slate-700 truncate">Delivery Time: {pickup.pickupTime}</span>
-                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                        <span className="text-slate-700 truncate">Qty: {pickup.quantity}</span>
+                        <StopProducts items={pickup.items} fallbackProduct={selectedDelivery.product} fallbackQuantity={pickup.quantity} verb="Load" />
                       </div>
                     );
                   })}
@@ -1967,8 +1974,7 @@ export default function CrewDashboardPage({
                         <span className="text-slate-700 truncate">{deliv.address}</span>
                         <span className="text-slate-700 truncate">{deliv.contactPerson} | ({deliv.contactNumber})</span>
                         <span className="text-slate-700 truncate">Delivery Time: {deliv.deliveryTime}</span>
-                        <span className="text-slate-700 truncate">Product: {selectedDelivery.product}</span>
-                        <span className="text-slate-700 truncate">Qty: {deliv.quantity}</span>
+                        <StopProducts items={deliv.items} fallbackProduct={selectedDelivery.product} fallbackQuantity={deliv.quantity} verb="Drop off" />
                       </div>
                     );
                   })}

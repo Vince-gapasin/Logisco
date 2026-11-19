@@ -512,6 +512,23 @@ export interface ReportsRow {
   generatedAt: string | null;
 }
 
+/** One product on one stop: loaded at a pickup or dropped at a delivery. */
+export interface StopItemsRow {
+  /** This is a Primary Key.<pk/> */
+  itemID: number;
+  /** This is a Foreign Key to `Order.orderID`.<fk table='Order' column='orderID'/> */
+  orderID: string;
+  /** This is a Foreign Key to `PickupStops.pickupID`.<fk table='PickupStops' column='pickupID'/> */
+  pickupID: number | null;
+  /** This is a Foreign Key to `BranchStops.branchID`.<fk table='BranchStops' column='branchID'/> */
+  branchID: number | null;
+  productName: string;
+  quantity: number;
+  unit: "pcs" | "boxes" | "trays" | "packs" | "crates" | "bags" | "kg";
+  position: number;
+  createdAt: string;
+}
+
 export interface SubContractorRow {
   /** This is a Primary Key.<pk/> */
   subConID: string;
@@ -596,6 +613,7 @@ export interface Database {
   PODPhotos: PODPhotosRow;
   PickupStops: PickupStopsRow;
   Reports: ReportsRow;
+  StopItems: StopItemsRow;
   SubContractor: SubContractorRow;
   Truck: TruckRow;
   Warehouse: WarehouseRow;

@@ -48,6 +48,19 @@ import {
 } from "@/app/lib/stopSchedule";
 import { clockMinutes } from "@/app/lib/deliveryFeasibility";
 import { clockInManila, formatShortDay, todayInManila } from "@/app/lib/datetime";
+import {
+  cleanProductName,
+  DEFAULT_UNIT,
+  itemKey,
+  loadBalance,
+  MAX_ITEM_QUANTITY,
+  MAX_ITEMS_PER_STOP,
+  MAX_PRODUCT_NAME,
+  productTotals,
+  STOCK_UNITS,
+  type StockUnit,
+  type StopItem,
+} from "@/app/lib/stopItems";
 
 // One booking form for every way a booking starts: a registered client, an
 // on-call (walk-in) customer, or a new client. The on-call and new-client
@@ -55,6 +68,13 @@ import { clockInManila, formatShortDay, todayInManila } from "@/app/lib/datetime
 // twice and they had drifted.
 
 export type BookingFormVariant = "registered" | "on-call" | "new-client";
+
+/** One product on a stop as typed: "Buns", "50", trays. */
+export interface ItemRow {
+  productName: string;
+  quantity: string;
+  unit: StockUnit;
+}
 
 export interface PickupRow {
   warehouseID?: string | null;
@@ -65,7 +85,8 @@ export interface PickupRow {
   pickupTime: string;
   /** YYYY-MM-DD, or "" for the same day as the stop before it. */
   date: string;
-  quantity: string;
+  /** What is loaded here. */
+  items: ItemRow[];
 }
 export interface DeliveryRow {
   branchName: string;
@@ -75,7 +96,17 @@ export interface DeliveryRow {
   deliveryTime: string;
   /** YYYY-MM-DD, or "" for the same day as the stop before it. */
   date: string;
-  quantity: string;
+  /** What is dropped here. */
+  items: ItemRow[];
+}
+
+/** A stop's products as the server takes them. Only call once the form has passed its checks. */
+export function itemsOf(rows: ItemRow[]): StopItem[] {
+  return rows.map((row) => ({
+    productName: cleanProductName(row.productName),
+    quantity: parseQuantity(row.quantity) ?? 0,
+    unit: row.unit,
+  }));
 }
 
 export interface BookingFormResult {
@@ -143,6 +174,8 @@ const BADGES: Record<BookingFormVariant, string | null> = {
   "new-client": "New Client",
 };
 
+const emptyItem = (): ItemRow => ({ productName: "", quantity: "", unit: DEFAULT_UNIT });
+
 const emptyPickup = (): PickupRow => ({
   warehouseName: "",
   warehouseAddress: "",
@@ -150,7 +183,7 @@ const emptyPickup = (): PickupRow => ({
   contactNumber: "",
   pickupTime: "",
   date: "",
-  quantity: "",
+  items: [emptyItem()],
 });
 const emptyDelivery = (): DeliveryRow => ({
   branchName: "",
@@ -159,7 +192,7 @@ const emptyDelivery = (): DeliveryRow => ({
   contactNumber: "",
   deliveryTime: "",
   date: "",
-  quantity: "",
+  items: [emptyItem()],
 });
 
 // Today in Manila, the same day the server judges "in the past" by.
@@ -306,6 +339,22 @@ function BookingForm({
   const [pickupList, setPickupList] = useState<PickupRow[]>([emptyPickup()]);
   const [deliveryList, setDeliveryList] = useState<DeliveryRow[]>([emptyDelivery()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Products this client has booked before, offered as the office types one.
+  // Only a nicety: a failed load leaves the boxes as plain text.
+  const [clientProducts, setClientProducts] = useState<{ productName: string; unit: StockUnit }[]>([]);
+  useEffect(() => {
+    if (!formData.clientID) return;
+    let cancelled = false;
+    apiFetch<{ products?: { productName: string; unit: StockUnit }[] }>(`/api/clients/${formData.clientID}/products`)
+      .then((res) => {
+        if (!cancelled) setClientProducts(res.products ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.clientID]);
 
   // A refusal from the server, kept on the form rather than thrown over the
   // dashboard behind it, and whether the save is still in flight.
@@ -545,6 +594,88 @@ function BookingForm({
     setErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith("delivery_"))));
   };
 
+  // ---- Products on a stop ---------------------------------------------------
+
+  type Section = "pickup" | "delivery";
+  const setItems = (section: Section, stop: number, change: (items: ItemRow[]) => ItemRow[]) => {
+    const apply = <T extends { items: ItemRow[] }>(rows: T[]) =>
+      rows.map((row, i) => (i === stop ? { ...row, items: change(row.items) } : row));
+    if (section === "pickup") setPickupList(apply);
+    else setDeliveryList(apply);
+  };
+
+  // Errors on product lines are keyed by position, so they all go when a line
+  // is added or removed rather than landing on the wrong one.
+  const clearItemErrors = (section: Section, stop: number) =>
+    setErrors((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${section}_${stop}_item`))),
+    );
+
+  const productSuggestions = useMemo(() => {
+    const units = new Map<string, StockUnit>();
+    for (const product of clientProducts) units.set(product.productName.toLowerCase(), product.unit);
+    // Names typed on this booking come first: a drop-off is usually something
+    // the pickup above it loaded.
+    const typed = [...pickupList, ...deliveryList].flatMap((row) => row.items).filter((item) => item.productName.trim());
+    const names = new Map<string, string>();
+    for (const item of typed) {
+      const name = cleanProductName(item.productName);
+      if (!names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+      if (!units.has(name.toLowerCase())) units.set(name.toLowerCase(), item.unit);
+    }
+    for (const product of clientProducts) {
+      if (!names.has(product.productName.toLowerCase())) names.set(product.productName.toLowerCase(), product.productName);
+    }
+    return { names: [...names.values()], units };
+  }, [clientProducts, pickupList, deliveryList]);
+
+  const handleItemChange = (section: Section, stop: number, line: number, field: keyof ItemRow, value: string) => {
+    setItems(section, stop, (items) =>
+      items.map((item, i) => {
+        if (i !== line) return item;
+        if (field === "quantity") return { ...item, quantity: sanitizeQuantityInput(value) };
+        if (field === "unit") return { ...item, unit: value as StockUnit };
+        // A product booked before brings its usual unit, unless one was chosen.
+        const known = productSuggestions.units.get(cleanProductName(value).toLowerCase());
+        return { ...item, productName: value, unit: known && item.unit === DEFAULT_UNIT ? known : item.unit };
+      }),
+    );
+    clearError(`${section}_${stop}_item_${line}_${field}`);
+    clearError(`${section}_${stop}_items`);
+  };
+
+  const addItem = (section: Section, stop: number) => {
+    setItems(section, stop, (items) => (items.length >= MAX_ITEMS_PER_STOP ? items : [...items, emptyItem()]));
+    clearItemErrors(section, stop);
+  };
+
+  const removeItem = (section: Section, stop: number, line: number) => {
+    setItems(section, stop, (items) => (items.length === 1 ? [emptyItem()] : items.filter((_, i) => i !== line)));
+    clearItemErrors(section, stop);
+  };
+
+  // What the pickups load, product by product: offered on a drop-off so the
+  // office only types how many go there.
+  const pickupProducts = productTotals(
+    pickupList.map((row) => row.items.filter((item) => item.productName.trim()).map((item) => ({
+      productName: item.productName,
+      quantity: parseQuantity(item.quantity) ?? 0,
+      unit: item.unit,
+    }))),
+  );
+
+  const fillFromPickups = (stop: number) => {
+    setItems("delivery", stop, (items) => {
+      const kept = items.filter((item) => item.productName.trim());
+      const have = new Set(kept.map((item) => itemKey(item)));
+      const added = pickupProducts
+        .filter((product) => !have.has(itemKey(product)))
+        .map((product) => ({ productName: product.productName, quantity: "", unit: product.unit }));
+      return [...kept, ...added].slice(0, MAX_ITEMS_PER_STOP);
+    });
+    clearItemErrors("delivery", stop);
+  };
+
   const handleWarehouseSelect = (index: number, selectedName: string) => {
     const match = registeredWarehouses.find((w) => w.whName === selectedName);
     setPickupList((rows) =>
@@ -589,9 +720,27 @@ function BookingForm({
       if (!value.trim()) next[key] = key.includes("_") ? "Required" : "Contact number is required.";
       else if (!normalizePhone(value)) next[key] = PHONE_RULE;
     };
-    const quantity = (key: string, value: string) => {
-      if (!value.trim()) next[key] = "Required";
-      else if (parseQuantity(value) === null) next[key] = "At least 1";
+    // Every line named and counted, at least one line, no product twice.
+    const products = (prefix: string, items: ItemRow[]) => {
+      const named = items.filter((item) => item.productName.trim() || item.quantity.trim());
+      if (named.length === 0) {
+        next[`${prefix}_items`] = "Add at least one product";
+        return;
+      }
+      const seen = new Set<string>();
+      items.forEach((item, line) => {
+        const key = `${prefix}_item_${line}`;
+        if (!item.productName.trim() && !item.quantity.trim()) return; // a blank spare line
+        const name = cleanProductName(item.productName);
+        if (!name) next[`${key}_productName`] = "Required";
+        else if (name.length > MAX_PRODUCT_NAME) next[`${key}_productName`] = `Under ${MAX_PRODUCT_NAME} characters`;
+        else if (seen.has(itemKey(item))) next[`${key}_productName`] = "Listed twice on this stop";
+        seen.add(itemKey(item));
+        const amount = parseQuantity(item.quantity);
+        if (!item.quantity.trim()) next[`${key}_quantity`] = "Required";
+        else if (amount === null) next[`${key}_quantity`] = "At least 1";
+        else if (amount > MAX_ITEM_QUANTITY) next[`${key}_quantity`] = "Too large";
+      });
     };
     const clock = (key: string, value: string) => {
       if (!value.trim()) next[key] = "Required";
@@ -608,7 +757,6 @@ function BookingForm({
     else if (!isRealDate(formData.deliverySchedule)) next.deliverySchedule = "That date does not exist.";
     else if (formData.deliverySchedule < todayInManila()) next.deliverySchedule = "That date has already passed.";
     else if (isTooFarAhead(formData.deliverySchedule, todayInManila())) next.deliverySchedule = `${TOO_FAR_RULE}.`;
-    if (!formData.product.trim()) next.product = "Product description is required.";
     if (!formData.priorityLevel) next.priorityLevel = "Priority level is required.";
 
     pickupList.forEach((p, i) => {
@@ -617,7 +765,7 @@ function BookingForm({
       if (!p.contactPerson.trim()) next[`pickup_${i}_contactPerson`] = "Required";
       phone(`pickup_${i}_contactNumber`, p.contactNumber);
       clock(`pickup_${i}_pickupTime`, p.pickupTime);
-      quantity(`pickup_${i}_quantity`, p.quantity);
+      products(`pickup_${i}`, p.items);
     });
     deliveryList.forEach((d, i) => {
       if (!d.branchName.trim()) next[`delivery_${i}_branchName`] = "Required";
@@ -625,7 +773,7 @@ function BookingForm({
       if (!d.contactPerson.trim()) next[`delivery_${i}_contactPerson`] = "Required";
       phone(`delivery_${i}_contactNumber`, d.contactNumber);
       clock(`delivery_${i}_deliveryTime`, d.deliveryTime);
-      quantity(`delivery_${i}_quantity`, d.quantity);
+      products(`delivery_${i}`, d.items);
     });
 
     for (const clash of findAddressClashes(
@@ -669,8 +817,18 @@ function BookingForm({
     const helper2 = availableHelpers.find((h) => h.employeeID === formData.helper2);
     const unassigned = !isSubconMode && (!formData.truckPlate || !formData.driver);
 
+    // Blank spare lines are left out; what is left has passed the checks above.
+    const filled = (items: ItemRow[]) => items.filter((item) => item.productName.trim());
+    const cleanPickups = pickupList.map((p) => ({ ...p, items: filled(p.items) }));
+    const cleanDeliveries = deliveryList.map((d) => ({ ...d, items: filled(d.items) }));
+    // The one line the rest of the system still shows for a booking's cargo.
+    const productLine = productTotals([...cleanPickups, ...cleanDeliveries].map((row) => itemsOf(row.items)))
+      .map((item) => item.productName)
+      .join(", ");
+
     const result: BookingFormResult = {
       ...formData,
+      product: productLine,
       subconPartner: isSubconMode ? formData.subconPartner : "",
       subconPartnerName: isSubconMode
         ? (subcontractors.find((p) => p.subConID === formData.subconPartner)?.companyName ?? "")
@@ -681,12 +839,12 @@ function BookingForm({
       businessAddress: formData.businessAddress.trim() || "N/A",
       // Each stop with the day it resolved to, own or followed, so the server
       // reads a dated booking and holds it to the same rules.
-      pickupList: pickupList.map((p, i) => ({
+      pickupList: cleanPickups.map((p, i) => ({
         ...p,
         date: checked.dates[i] ?? "",
         contactNumber: normalizePhone(p.contactNumber) ?? p.contactNumber,
       })),
-      deliveryList: deliveryList.map((d, i) => ({
+      deliveryList: cleanDeliveries.map((d, i) => ({
         ...d,
         date: checked.dates[pickupCount + i] ?? "",
         contactNumber: normalizePhone(d.contactNumber) ?? d.contactNumber,
@@ -987,14 +1145,15 @@ function BookingForm({
                       />
                       <CellError message={stopError(`pickup_${idx}_pickupTime`)} />
                     </StopField>
-                    <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
-                      <QuantityInput
-                        value={row.quantity}
-                        onChange={(v) => handlePickupChange(idx, "quantity", v)}
-                        hasError={Boolean(errors[`pickup_${idx}_quantity`])}
-                      />
-                      <CellError message={errors[`pickup_${idx}_quantity`]} />
-                    </StopField>
+                    <StopProducts
+                      label="Products to load *"
+                      prefix={`pickup_${idx}`}
+                      items={row.items}
+                      errors={errors}
+                      onChange={(line, field, value) => handleItemChange("pickup", idx, line, field, value)}
+                      onAdd={() => addItem("pickup", idx)}
+                      onRemove={(line) => removeItem("pickup", idx, line)}
+                    />
                   </StopCard>
                 ))}
               </div>
@@ -1103,18 +1262,40 @@ function BookingForm({
                       />
                       <CellError message={stopError(`delivery_${idx}_deliveryTime`)} />
                     </StopField>
-                    <StopField label="Quantity *" span="min-[440px]:col-span-2 sm:col-span-2 lg:col-span-2">
-                      <QuantityInput
-                        value={row.quantity}
-                        onChange={(v) => handleDeliveryChange(idx, "quantity", v)}
-                        hasError={Boolean(errors[`delivery_${idx}_quantity`])}
-                      />
-                      <CellError message={errors[`delivery_${idx}_quantity`]} />
-                    </StopField>
+                    <StopProducts
+                      label="Products to drop off *"
+                      prefix={`delivery_${idx}`}
+                      items={row.items}
+                      errors={errors}
+                      onChange={(line, field, value) => handleItemChange("delivery", idx, line, field, value)}
+                      onAdd={() => addItem("delivery", idx)}
+                      onRemove={(line) => removeItem("delivery", idx, line)}
+                      extraAction={
+                        pickupProducts.length > 0 &&
+                        pickupProducts.some((product) => !row.items.some((item) => itemKey(item) === itemKey(product))) ? (
+                          <button
+                            type="button"
+                            onClick={() => fillFromPickups(idx)}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+                          >
+                            Add the pickup products
+                          </button>
+                        ) : null
+                      }
+                    />
                   </StopCard>
                 ))}
               </div>
+
+              <LoadBalance pickups={pickupList} deliveries={deliveryList} />
             </div>
+
+            {/* What every product box on the form suggests. */}
+            <datalist id="stop-product-suggestions">
+              {productSuggestions.names.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
 
             {/* Booking details. The booking's date is Pickup 1's date - it had a
                 second field here, the same value twice. */}
@@ -1122,18 +1303,8 @@ function BookingForm({
               <div className="border-b border-slate-200 pb-2 mb-4 font-semibold text-black text-sm tracking-wide">
                 4. Booking Details
               </div>
+              {/* The products are on each stop above; this used to be one line for the lot. */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-8 md:col-span-9">
-                  <label className="block text-xs font-medium text-black mb-1">Product To Deliver *</label>
-                  <input
-                    type="text"
-                    name="product"
-                    placeholder="e.g., 50 boxes of tile"
-                    value={formData.product}
-                    onChange={handleChange}
-                    className={`w-full border rounded-md px-3 py-2 text-xs ${errors.product ? "border-red-500" : "border-slate-300"}`}
-                  />
-                </div>
                 <div className="sm:col-span-4 md:col-span-3">
                   <label className="block text-xs font-medium text-black mb-1">Priority Level *</label>
                   <select
@@ -1361,12 +1532,177 @@ function BookingForm({
   );
 }
 
+// The products on one stop: a line each, name, how many, and in what. The
+// name box suggests what this booking and this client have used before.
+function StopProducts({
+  label,
+  prefix,
+  items,
+  errors,
+  onChange,
+  onAdd,
+  onRemove,
+  extraAction,
+}: {
+  label: string;
+  prefix: string;
+  items: ItemRow[];
+  errors: Record<string, string>;
+  onChange: (line: number, field: keyof ItemRow, value: string) => void;
+  onAdd: () => void;
+  onRemove: (line: number) => void;
+  extraAction?: React.ReactNode;
+}) {
+  const listError = errors[`${prefix}_items`];
+  const total = items.reduce((sum, item) => sum + (parseQuantity(item.quantity) ?? 0), 0);
+
+  return (
+    <div className="min-w-0 min-[440px]:col-span-2 sm:col-span-6 lg:col-span-12">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-medium text-black">{label}</span>
+        {extraAction}
+      </div>
+      <div className={`space-y-2 rounded-md border p-2 ${listError ? "border-red-500 bg-red-50/20" : "border-slate-200 bg-slate-50/60"}`}>
+        {items.map((item, line) => {
+          const key = `${prefix}_item_${line}`;
+          return (
+            <div key={line} className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_auto] sm:items-start">
+              <div className="min-w-0 col-span-2 sm:col-span-1">
+                <input
+                  type="text"
+                  list="stop-product-suggestions"
+                  aria-label={`Product ${line + 1}`}
+                  placeholder="Product, e.g. Buns"
+                  maxLength={MAX_PRODUCT_NAME}
+                  value={item.productName}
+                  onChange={(e) => onChange(line, "productName", e.target.value)}
+                  className={fieldClass(Boolean(errors[`${key}_productName`]))}
+                />
+                <CellError message={errors[`${key}_productName`]} />
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                <div className="min-w-0">
+                  <QuantityInput
+                    value={item.quantity}
+                    onChange={(v) => onChange(line, "quantity", v)}
+                    hasError={Boolean(errors[`${key}_quantity`])}
+                    label={`Quantity of product ${line + 1}`}
+                  />
+                  <CellError message={errors[`${key}_quantity`]} />
+                </div>
+                <select
+                  aria-label={`Unit of product ${line + 1}`}
+                  value={item.unit}
+                  onChange={(e) => onChange(line, "unit", e.target.value)}
+                  className={fieldClass(false)}
+                >
+                  {STOCK_UNITS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(line)}
+                aria-label={`Remove product ${line + 1}`}
+                title="Remove this product"
+                className="row-start-2 col-start-2 sm:row-start-auto sm:col-start-auto inline-flex min-h-tap min-w-tap md:pointer-fine:min-h-9 md:pointer-fine:min-w-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-red-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={items.length >= MAX_ITEMS_PER_STOP}
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 disabled:text-slate-400"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add product
+          </button>
+          {total > 0 && <span className="text-[11px] text-slate-500">Total {total.toLocaleString("en-US")} units</span>}
+        </div>
+      </div>
+      <CellError message={listError} />
+    </div>
+  );
+}
+
+// What the pickups load against what the drop-offs take, product by product.
+// A difference is pointed out, not refused: a part load, or stock already on
+// the truck, is real.
+function LoadBalance({ pickups, deliveries }: { pickups: PickupRow[]; deliveries: DeliveryRow[] }) {
+  const counted = (rows: { items: ItemRow[] }[]) =>
+    rows.map((row) =>
+      row.items
+        .filter((item) => item.productName.trim() && parseQuantity(item.quantity) !== null)
+        .map((item) => ({ productName: item.productName, quantity: parseQuantity(item.quantity) ?? 0, unit: item.unit })),
+    );
+  const rows = loadBalance(counted(pickups), counted(deliveries));
+  if (rows.length === 0) return null;
+  const off = rows.filter((row) => row.loaded !== row.dropped);
+
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+        <span className="text-xs font-semibold text-slate-900">Loaded vs dropped off</span>
+        {off.length > 0 ? (
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {off.length === 1 ? "1 product doesn't add up" : `${off.length} products don't add up`}. Check before saving.
+          </span>
+        ) : (
+          <span className="text-[11px] font-medium text-emerald-700">Everything loaded is dropped off.</span>
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-slate-500">
+              <th className="px-3 py-1.5 font-medium">Product</th>
+              <th className="px-3 py-1.5 text-right font-medium">Loaded</th>
+              <th className="px-3 py-1.5 text-right font-medium">Dropped off</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const mismatch = row.loaded !== row.dropped;
+              return (
+                <tr key={`${row.productName}|${row.unit}`} className={`border-t border-slate-100 ${mismatch ? "bg-amber-50 text-amber-900" : "text-slate-700"}`}>
+                  <td className="px-3 py-1.5">{row.productName}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{row.loaded.toLocaleString("en-US")} {row.unit}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{row.dropped.toLocaleString("en-US")} {row.unit}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Whole numbers from 1 up. The browser's own arrows stop at 1, and a minus
 // sign, decimal point or exponent cannot be typed.
-function QuantityInput({ value, onChange, hasError }: { value: string; onChange: (value: string) => void; hasError: boolean }) {
+function QuantityInput({
+  value,
+  onChange,
+  hasError,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  hasError: boolean;
+  label?: string;
+}) {
   return (
     <input
       type="number"
+      aria-label={label}
       inputMode="numeric"
       min={1}
       step={1}

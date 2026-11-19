@@ -6,6 +6,8 @@
 // checked against types/database.ts, which is generated from the database
 // itself - three of these had drifted into naming columns that do not exist.
 
+import type { StopItem } from "@/app/lib/stopItems";
+
 export interface OrderItem {
   itemID?: string;
   orderID?: string;
@@ -91,6 +93,8 @@ export interface CreateBranchStopDto {
   expectedDate?: string;
   deliveryAddress?: string;
   quantity?: number;
+  /** What is dropped here. When given, the stop's quantity is their total. */
+  items?: StopItem[];
 }
 
 export interface CreatePickupStopDto {
@@ -103,6 +107,8 @@ export interface CreatePickupStopDto {
   /** YYYY-MM-DD, or blank for the same day as the stop before it. */
   expectedDate?: string;
   quantity?: number;
+  /** What is loaded here. When given, the stop's quantity is their total. */
+  items?: StopItem[];
 }
 
 export interface CreateOrderDto {

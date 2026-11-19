@@ -39,6 +39,13 @@ export function formKeyForIssue(path: (string | number)[]): string | null {
   if (section === "deliverySchedule") return "deliverySchedule";
   if (section === "items") return "product";
   if (typeof index !== "number" || typeof field !== "string") return null;
+  // A stop's products: the list as a whole, or one cell of one line.
+  if (field === "items" && (section === "pickups" || section === "stops")) {
+    const prefix = section === "pickups" ? `pickup_${index}` : `delivery_${index}`;
+    const [, , , line, cell] = path;
+    if (typeof line === "number" && typeof cell === "string") return `${prefix}_item_${line}_${cell}`;
+    return `${prefix}_items`;
+  }
   if (section === "pickups" && PICKUP_FIELDS[field]) return `pickup_${index}_${PICKUP_FIELDS[field]}`;
   if (section === "stops" && STOP_FIELDS[field]) return `delivery_${index}_${STOP_FIELDS[field]}`;
   return null;

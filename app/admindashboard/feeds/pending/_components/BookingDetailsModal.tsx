@@ -143,6 +143,8 @@ export function BookingDetailsModal({
   // locked it. The new crew are asked to accept again.
   const isCrewConfirmed = booking.confirmationStatus === "Crew Confirmed";
   const isEditable = isAssignCrew || isPendingCrew || wasDeclined || isUnassigned || isCrewConfirmed;
+  // Products on the stops: the one-line product is their names, not edited as one.
+  const productsOnStops = [...pickupList, ...deliveryList].some((row) => (row.items?.length ?? 0) > 0);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -474,20 +476,25 @@ export function BookingDetailsModal({
               </div>
               <div className="sm:col-span-5 md:col-span-6">
                 <label className="block text-xs font-medium text-black mb-1">
-                  Product To Deliver {isEditable && "*"}
+                  Product To Deliver {isEditable && !productsOnStops && "*"}
                 </label>
+                {/* Products listed on each stop are the record; this line is only
+                    their names, so it is not edited as one. */}
                 <input
                   type="text"
                   name="product"
                   value={formData.product}
                   onChange={handleChange}
-                  readOnly={!isEditable}
+                  readOnly={!isEditable || productsOnStops}
                   className={
-                    isEditable
+                    isEditable && !productsOnStops
                       ? "w-full border border-slate-300 rounded-md px-3 py-2 text-xs"
-                      : inputClass
+                      : `w-full border border-slate-200 rounded-md px-3 py-2 text-xs bg-slate-50 text-slate-700`
                   }
                 />
+                {productsOnStops && (
+                  <p className="mt-1 text-[11px] text-slate-500">Listed per stop above.</p>
+                )}
               </div>
               <div className="sm:col-span-3 md:col-span-3">
                 <label className="block text-xs font-medium text-black mb-1">

@@ -3,6 +3,7 @@ import { authorize, CREW_ROLES } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import type {
   BranchStopsRow,
+  StopItemsRow,
   ClientRow,
   DispatchOrderRow,
   OrderRow,
@@ -18,6 +19,7 @@ import { FORMER_TRUCK_COLUMNS, truckOf } from "@/app/lib/formerTruck";
 import { describeItems, quantityOf, readPriority, totalQuantity } from "@/app/lib/crewTrip";
 import { crewNotReadyReason, crewReadinessFor } from "@/services/dispatch/dispatchService";
 import { recentTripsFilter } from "@/services/dispatch/crewDispatchVersion";
+import { readStopItems, STOP_ITEMS_EMBED } from "@/app/lib/stopItems";
 
 // Stops are read through the Order: older dispatches were created before
 // BranchStops.dispatchID was being set, so the order link is the reliable one.
@@ -31,8 +33,8 @@ const DISPATCH_SELECT = `
   dispatchNote,
   Order ( orderCode, clientID, notes, Client(company, contactName, contact, emailAdd, businessAdd),
     OrderDetails ( productName, quantity ),
-    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong ),
-    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong ) ),
+    BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, notes, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, deliveryLat, deliverLong, ${STOP_ITEMS_EMBED} ),
+    PickupStops ( pickupID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, dispatchID, pickupLat, pickupLong, ${STOP_ITEMS_EMBED} ) ),
   ${FORMER_TRUCK_COLUMNS},
   Truck ( plateNumber, model ),
   Driver:Employee!driverID ( employeeName ),
@@ -77,8 +79,8 @@ function buildTimeWindow(stops: { time?: string | null; date?: string | null }[]
 
 // The trips this route reads, with the order and stops embedded. Columns come
 // from types/database.ts; the relations arrive as the select asked for them.
-type CrewStop = Partial<BranchStopsRow> & { POD?: unknown };
-type CrewPickup = Partial<PickupStopsRow>;
+type CrewStop = Partial<BranchStopsRow> & { POD?: unknown; StopItems?: Partial<StopItemsRow>[] | null };
+type CrewPickup = Partial<PickupStopsRow> & { StopItems?: Partial<StopItemsRow>[] | null };
 
 interface CrewOrder extends Partial<OrderRow> {
   Client?: Partial<ClientRow> | Partial<ClientRow>[] | null;
@@ -297,6 +299,8 @@ export async function GET(request: Request) {
           contactNumber: pickup.contactNum || "N/A",
           pickupTime: formatStopWhen(pickup.expectedTime, pickupDate(index), scheduledDate),
           quantity: quantityOf(pickup.quantity),
+          // What to load here, product by product.
+          items: readStopItems(pickup.StopItems),
           status: pickup.stopStatus,
           latitude: Number(pickup.pickupLat) || null,
           longitude: Number(pickup.pickupLong) || null,
@@ -310,6 +314,8 @@ export async function GET(request: Request) {
           contactNumber: stop.contactNum,
           deliveryTime: formatStopWhen(stop.expectedTime, stopDate(index), scheduledDate),
           quantity: quantityOf(stop.quantity),
+          // What to drop off here, product by product.
+          items: readStopItems(stop.StopItems),
           status: stop.stopStatus,
           // 0/0 is the placeholder for a stop that was never geocoded.
           latitude: Number(stop.deliveryLat) || null,

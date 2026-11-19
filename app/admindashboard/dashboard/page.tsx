@@ -27,10 +27,10 @@ import {
 } from "@/app/lib/enums";
 import { assignableCrew } from "@/app/lib/crewEligibility";
 import { useRouter } from "next/navigation";
-import BookingFormModal, { type BookingFormResult, type BookingSubmitOutcome } from "@/components/booking/BookingFormModal";
+import BookingFormModal, { itemsOf, type BookingFormResult, type BookingSubmitOutcome } from "@/components/booking/BookingFormModal";
+import { totalUnits } from "@/app/lib/stopItems";
 import type { BookingIssue } from "@/app/lib/bookingIssues";
 import SubconTripModal from "@/components/subcon/SubconTripModal";
-import { parseQuantity } from "@/app/lib/bookingRules";
 import FoulTripDetailsModal, { attachIncident, type FoulTripRow } from "@/components/foulTrip/FoulTripDetailsModal";
 import type { IncidentView } from "@/services/foulTrip/foulTripService";
 import { useToast } from "@/components/Toast";
@@ -491,13 +491,15 @@ export default function AdminDashboardPage() {
         expectedDate: d.date || undefined,
         // Geocoded server-side so the stop shows on the tracking map.
         deliveryAddress: d.deliveryAddress || undefined,
-        quantity: parseQuantity(d.quantity) ?? undefined,
+        // What is dropped here; the server sets the stop's quantity to their total.
+        items: itemsOf(d.items),
       }));
 
       // The order's total is what is delivered across every stop. It used
-      // to be the first pickup's quantity alone.
-      const sum = (rows: { quantity: string }[]) =>
-        rows.reduce((total, row) => total + (parseQuantity(row.quantity) ?? 0), 0);
+      // to be the first pickup's quantity alone. With products on the stops
+      // the server writes the cargo from them; this is the fallback line.
+      const sum = (rows: { items: BookingFormResult["pickupList"][number]["items"] }[]) =>
+        rows.reduce((total, row) => total + totalUnits(itemsOf(row.items)), 0);
       const totalQuantity = sum(data.deliveryList) || sum(data.pickupList) || 1;
 
       const payload = {
@@ -529,7 +531,7 @@ export default function AdminDashboardPage() {
             contactNum: p.contactNumber?.trim() || undefined,
             expectedTime: p.pickupTime || undefined,
             expectedDate: p.date || undefined,
-            quantity: parseQuantity(p.quantity) ?? undefined,
+            items: itemsOf(p.items),
           })),
         acknowledgeTightSchedule: data.acknowledgeTightSchedule === true,
       };

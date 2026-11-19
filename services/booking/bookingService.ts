@@ -28,6 +28,7 @@ import type { Order, CreateOrderDto } from "@/types/booking";
 import type { UpdateOrderDto } from "@/app/schemas/booking/booking.schema";
 import { readNote, readNotesBody, setNote, setNotesBody } from "@/app/lib/bookingNotes";
 import { fingerprint } from "@/app/lib/fingerprint";
+import { orderDetailsFromStops, STOP_ITEMS_EMBED, totalUnits, type StopItem } from "@/app/lib/stopItems";
 
 // ==========================================
 // HELPERS
@@ -64,9 +65,9 @@ const BOOKING_COLUMNS = `
   clientID,
   Client ( clientID, company, contactName, contact, emailAdd, businessAdd ),
   OrderDetails ( itemID, productName, productType, quantity, weightPerItem ),
-  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID,
+  BranchStops ( branchID, branchName, deliveryAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, deliveryLat, deliverLong, dispatchID, ${STOP_ITEMS_EMBED},
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
-  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID,
+  PickupStops ( pickupID, warehouseID, warehouseName, pickupAddress, contactPerson, contactNum, expectedTime, expectedDate, quantity, sequence, stopStatus, arrivedAt, completedAt, pickupLat, pickupLong, dispatchID, ${STOP_ITEMS_EMBED},
     POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
   DispatchOrder (
     dispatchID,
@@ -415,6 +416,7 @@ export async function getDashboardVersion(): Promise<string> {
 // supabase-js has no transactions: if a later insert fails, remove what was
 // already written so a half-created order never shows up in the queues.
 async function rollbackOrder(orderID: string) {
+  await supabase.from("StopItems").delete().eq("orderID", orderID);
   await supabase.from("PickupStops").delete().eq("orderID", orderID);
   await supabase.from("BranchStops").delete().eq("orderID", orderID);
   await supabase.from("OrderDetails").delete().eq("orderID", orderID);
@@ -433,8 +435,8 @@ export async function getBookingById(orderID: string): Promise<Order | null> {
       // URL a customer tracks their delivery with, and it has no business
       // being sent to a screen that never shows it.
       `orderID, orderCode, notes, createdAt, isActive, clientID,
-        Client (*), OrderDetails (*), PickupStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
-        BranchStops ( *, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
+        Client (*), OrderDetails (*), PickupStops ( *, ${STOP_ITEMS_EMBED}, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
+        BranchStops ( *, ${STOP_ITEMS_EMBED}, POD ( podID, proof, receiverName, remarks, deliveredAt, source, missingReason, fileType, validationStatus, validationNotes, reviewStatus, reviewNote, ${POD_PHOTOS_EMBED} ) ),
         DispatchOrder ( *, Truck ( plateNumber, model ),
           Driver:Employee!driverID ( employeeName, contact ),
           DispatchHelper ( helperID, status, Helper:Employee!helperID ( employeeName ) ) )`,
@@ -700,6 +702,15 @@ export async function updateBooking(orderID: string, dto: UpdateOrderDto) {
   // Writing that line back would have to guess which item each word came
   // from, so a booking with more than one is left to the booking itself.
   if (dto.product !== undefined && dto.product !== before.product) {
+    // Products listed on the stops are the record; the line is only their
+    // names joined, and renaming it would leave the stops saying otherwise.
+    const { count: stopItemCount } = await supabase
+      .from("StopItems")
+      .select("itemID", { count: "exact", head: true })
+      .eq("orderID", orderID);
+    if ((stopItemCount ?? 0) > 0) {
+      throw new Error("This booking lists its products on each stop; they cannot be renamed as one line.");
+    }
     if (items.length !== 1) {
       throw new Error(
         items.length === 0
@@ -918,8 +929,17 @@ export async function createBooking(dto: CreateOrderDto) {
   const newOrderID = orderData.orderID;
 
   // 3. Insert the Cargo (OrderDetails)
-  if (dto.items && dto.items.length > 0) {
-    const formattedItems = dto.items.map((item) => ({
+  //
+  // With products listed on the stops, the cargo is one row per product, added
+  // up from them - the single line typed for the whole booking is no longer
+  // asked for. The screens and reports that read OrderDetails keep working.
+  const pickupItems = pickups.map((pickup) => pickup.items ?? []);
+  const deliveryItems = dto.stops.map((stop) => stop.items ?? []);
+  const listedOnStops = [...pickupItems, ...deliveryItems].some((items) => items.length > 0);
+  const cargo = listedOnStops ? orderDetailsFromStops(pickupItems, deliveryItems) : (dto.items ?? []);
+
+  if (cargo.length > 0) {
+    const formattedItems = cargo.map((item) => ({
       orderID: newOrderID,
       productName: item.productName || "Unknown Cargo",
       productType: item.productType || "General",
@@ -937,6 +957,30 @@ export async function createBooking(dto: CreateOrderDto) {
       throw new Error("Failed to insert order items");
     }
   }
+
+  // The products to write once the stops have ids, each with the stop it is on.
+  const stopItemRows: {
+    orderID: string;
+    pickupID: number | null;
+    branchID: number | null;
+    productName: string;
+    quantity: number;
+    unit: StopItem["unit"];
+    position: number;
+  }[] = [];
+  const queueItems = (items: StopItem[] | undefined, stop: { pickupID?: number; branchID?: number }) => {
+    (items ?? []).forEach((item, index) =>
+      stopItemRows.push({
+        orderID: newOrderID,
+        pickupID: stop.pickupID ?? null,
+        branchID: stop.branchID ?? null,
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit,
+        position: index + 1,
+      }),
+    );
+  };
 
   // 4. Insert the Itinerary (BranchStops)
   if (dto.stops && dto.stops.length > 0) {
@@ -962,20 +1006,28 @@ export async function createBooking(dto: CreateOrderDto) {
         deliverLong: coordinates?.longitude ?? 0,
         expectedTime: stop.expectedTime || "12:00:00",
         expectedDate: stopDate(index),
-        quantity: stop.quantity ?? null,
+        // The total of its products, when they are listed.
+        quantity: stop.items?.length ? totalUnits(stop.items) : (stop.quantity ?? null),
         sequence: index + 1,
         stopStatus: STOP_STATUS.pending,
       };
     });
 
-    const { error: stopsError } = await supabase
+    const { data: insertedStops, error: stopsError } = await supabase
       .from("BranchStops")
-      .insert(formattedStops);
+      .insert(formattedStops)
+      .select("branchID, sequence");
 
     if (stopsError) {
       console.error("BranchStops Insert Error:", stopsError);
       await rollbackOrder(newOrderID);
       throw new Error("Failed to insert delivery itinerary");
+    }
+
+    // Matched by sequence rather than by the order rows come back in.
+    for (const row of insertedStops ?? []) {
+      const stop = dto.stops[Number(row.sequence) - 1];
+      if (stop) queueItems(stop.items, { branchID: Number(row.branchID) });
     }
   }
 
@@ -994,7 +1046,7 @@ export async function createBooking(dto: CreateOrderDto) {
         contactNum: pickup.contactNum || null,
         expectedTime: normalizeTime(pickup.expectedTime),
         expectedDate: pickupDate(index),
-        quantity: pickup.quantity ?? null,
+        quantity: pickup.items?.length ? totalUnits(pickup.items) : (pickup.quantity ?? null),
         pickupLat: coordinates?.latitude ?? null,
         pickupLong: coordinates?.longitude ?? null,
         sequence: index + 1,
@@ -1002,14 +1054,30 @@ export async function createBooking(dto: CreateOrderDto) {
       };
     });
 
-    const { error: pickupError } = await supabase
+    const { data: insertedPickups, error: pickupError } = await supabase
       .from("PickupStops")
-      .insert(formattedPickups);
+      .insert(formattedPickups)
+      .select("pickupID, sequence");
 
     if (pickupError) {
       console.error("PickupStops Insert Error:", pickupError);
       await rollbackOrder(newOrderID);
       throw new Error("Failed to insert the pickup schedule");
+    }
+
+    for (const row of insertedPickups ?? []) {
+      const pickup = pickups[Number(row.sequence) - 1];
+      if (pickup) queueItems(pickup.items, { pickupID: Number(row.pickupID) });
+    }
+  }
+
+  // 6. Insert the products on each stop (StopItems)
+  if (stopItemRows.length > 0) {
+    const { error: itemsError } = await supabase.from("StopItems").insert(stopItemRows);
+    if (itemsError) {
+      console.error("StopItems Insert Error:", itemsError);
+      await rollbackOrder(newOrderID);
+      throw new Error("Failed to save the products on each stop");
     }
   }
 

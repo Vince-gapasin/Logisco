@@ -14,6 +14,14 @@ import {
   TOO_FAR_RULE,
 } from "@/app/lib/bookingRules";
 import { checkStopSchedule } from "@/app/lib/stopSchedule";
+import {
+  cleanProductName,
+  itemKey,
+  MAX_ITEM_QUANTITY,
+  MAX_ITEMS_PER_STOP,
+  MAX_PRODUCT_NAME,
+  STOCK_UNITS,
+} from "@/app/lib/stopItems";
 
 // Stored as 09XXXXXXXXX whatever spacing or +63 form was typed.
 const phone = z
@@ -105,6 +113,45 @@ const notTooFar = (value: string) => !isTooFarAhead(value, todayInManila());
 /** A day a delivery can be booked for: real, not gone, and not a year out. */
 const bookableDate = isoDate.refine(notInThePast, PAST_MESSAGE).refine(notTooFar, TOO_FAR_RULE);
 
+// One product on a stop: "Buns, 50, trays".
+const stopItemSchema = z.object({
+  productName: z
+    .string()
+    .transform(cleanProductName)
+    .pipe(
+      z
+        .string()
+        .min(1, "Product name is required")
+        .max(MAX_PRODUCT_NAME, `Keep the product name under ${MAX_PRODUCT_NAME} characters`),
+    ),
+  quantity: z.coerce
+    .number()
+    .int("Quantity must be a whole number")
+    .min(1, "Quantity must be at least 1")
+    .max(MAX_ITEM_QUANTITY, "That quantity is too large"),
+  unit: z.enum(STOCK_UNITS, { message: "Choose a unit" }),
+});
+
+// The products on one stop. Optional so anything still sending only the
+// stop's quantity keeps working; when present, the stop's quantity is their
+// total. The same product in the same unit twice on one stop is refused - it
+// is one line with the two amounts added up.
+const stopItems = z
+  .array(stopItemSchema)
+  .min(1, "Add at least one product")
+  .max(MAX_ITEMS_PER_STOP, `At most ${MAX_ITEMS_PER_STOP} products on one stop`)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      const key = itemKey(item);
+      if (seen.has(key)) {
+        ctx.addIssue({ code: "custom", message: "Listed twice on this stop", path: [index, "productName"] });
+      }
+      seen.add(key);
+    });
+  })
+  .optional();
+
 const branchStopSchema = z.object({
   branchName: z.string().min(1, "Branch/Stop name is required").trim(),
   contactPerson: z.string().min(1, "Contact person is required").trim(),
@@ -112,6 +159,7 @@ const branchStopSchema = z.object({
   expectedTime: clockTime,
   expectedDate: stopDate,
   quantity: stopQuantity,
+  items: stopItems,
 
   // Geocoded on the server so the stop can be shown on the map and routed.
   deliveryAddress: address("Delivery address"),
@@ -132,6 +180,7 @@ const pickupStopSchema = z.object({
   expectedTime: clockTime,
   expectedDate: stopDate,
   quantity: stopQuantity,
+  items: stopItems,
 });
 
 // ==========================================

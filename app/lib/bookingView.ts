@@ -3,6 +3,7 @@ import { formatDate, formatDateTime, formatStopWhen } from "@/app/lib/datetime";
 import { isRealDate } from "@/app/lib/bookingRules";
 import { effectiveStopDates } from "@/app/lib/stopSchedule";
 import { truckOf } from "@/app/lib/formerTruck";
+import { readStopItems, type StopItem } from "@/app/lib/stopItems";
 import type {
   BranchStopsRow,
   ClientRow,
@@ -13,6 +14,7 @@ import type {
   OrderRow,
   PickupStopsRow,
   PODRow,
+  StopItemsRow,
   TruckRow,
 } from "@/types/database";
 // Maps an Order row from /api/bookings into the shape the booking screens
@@ -59,6 +61,8 @@ export interface BookingStopView {
   expectedDate: string | null;
   // Units dropped or collected here; null on rows from before it was kept.
   quantity: number | null;
+  /** The products dropped here; empty on bookings made before they were listed. */
+  items: StopItem[];
   sequence: number;
   status: string;
   arrivedAt: string | null;
@@ -80,6 +84,8 @@ export interface BookingPickupView {
   expectedDate: string | null;
   // Units dropped or collected here; null on rows from before it was kept.
   quantity: number | null;
+  /** The products loaded here; empty on bookings made before they were listed. */
+  items: StopItem[];
   sequence: number;
   status: string;
   arrivedAt: string | null;
@@ -231,13 +237,18 @@ export interface DispatchWithCrew extends Partial<DispatchOrderRow> {
 
 export interface StopWithProof extends Partial<BranchStopsRow> {
   POD?: Related<Partial<PODRow>>;
+  StopItems?: Partial<StopItemsRow>[] | null;
+}
+
+export interface PickupWithItems extends Partial<PickupStopsRow> {
+  StopItems?: Partial<StopItemsRow>[] | null;
 }
 
 export interface OrderWithRelations extends Partial<OrderRow> {
   Client?: Related<Partial<ClientRow>>;
   OrderDetails?: Related<Partial<OrderDetailsRow>>;
   BranchStops?: Related<StopWithProof>;
-  PickupStops?: Related<Partial<PickupStopsRow>>;
+  PickupStops?: Related<PickupWithItems>;
   DispatchOrder?: Related<DispatchWithCrew>;
   FoulTripIncident?: Related<Partial<FoulTripIncidentRow>>;
 }
@@ -370,6 +381,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
         expectedTime: stop.expectedTime ?? null,
         expectedDate: (stop.expectedDate as string | null | undefined) ?? null,
         quantity: Number(stop.quantity) || null,
+        items: readStopItems(stop.StopItems),
         // Older stops predate the sequence column; their insert order is
         // still reflected by the identity branchID.
         sequence: Number(stop.sequence) || index + 1,
@@ -403,6 +415,7 @@ export function mapOrderToBookingView(order: OrderWithRelations): BookingView {
         expectedTime: pickup.expectedTime ?? null,
         expectedDate: (pickup.expectedDate as string | null | undefined) ?? null,
         quantity: Number(pickup.quantity) || null,
+        items: readStopItems(pickup.StopItems),
         sequence: Number(pickup.sequence) || index + 1,
         status: pickup.stopStatus || STOP_STATUS.pending,
         arrivedAt: pickup.arrivedAt ?? null,
@@ -536,6 +549,8 @@ export interface FeedStopRow {
   pickupTime?: string;
   deliveryTime?: string;
   quantity: string;
+  /** The products on the stop; empty on bookings made before they were listed. */
+  items: StopItem[];
   stopStatus: string;
 }
 
@@ -620,6 +635,7 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       pickupTime: formatStopWhen(pickup.expectedTime, pickup.expectedDate, booking.scheduledDate),
       // Older pickups have no quantity of their own; show the order's.
       quantity: pickup.quantity ? String(pickup.quantity) : booking.totalQuantity,
+      items: pickup.items,
       stopStatus: isStopDelivered(pickup.status)
         ? "Completed"
         : booking.pickupCompletedAt
@@ -640,6 +656,7 @@ function parsePickup(booking: BookingView): FeedStopRow[] {
       contactNumber: "",
       pickupTime: formatStopTime(time),
       quantity: booking.totalQuantity,
+      items: [],
       stopStatus:
         booking.pickupCompletedAt || booking.currentStep > 0 ? "Completed" : "Pending",
     },
@@ -700,6 +717,7 @@ export function toFeedBooking(booking: BookingView): FeedBooking {
       contactNumber: stop.contactNum,
       deliveryTime: formatStopWhen(stop.expectedTime, stop.expectedDate, booking.scheduledDate),
       quantity: stop.quantity ? String(stop.quantity) : "",
+      items: stop.items,
       stopStatus: stop.status,
     })),
     foulDetails: parseFoulDetails(booking),
