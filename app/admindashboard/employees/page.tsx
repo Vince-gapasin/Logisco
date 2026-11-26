@@ -348,7 +348,13 @@ export default function EmployeesPage() {
           middleName: formData.middleName || null,
           suffix: formData.suffix || null,
           role: formData.role,
-          availability: "Available",
+          // What the form shows is what is saved: On Leave or Unavailable
+          // keeps them off deliveries from their first day.
+          availability: MANUAL_AVAILABILITY.includes(
+            formData.availability as (typeof MANUAL_AVAILABILITY)[number],
+          )
+            ? formData.availability
+            : AVAILABILITY.available,
           healthStatus: formData.healthCondition,
           address: formData.address,
           contact: formData.contactNumber,
