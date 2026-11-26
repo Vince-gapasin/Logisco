@@ -107,6 +107,29 @@ describe("the employee schemas", () => {
   });
 });
 
+describe("a new employee's availability", () => {
+  const base = { employeeID: "id-2", employeeName: "QA", role: "Helper", healthStatus: "Fit", address: "x", contact: "09171234567", emailAddress: "new.helper@example.com" };
+  const saved = async (availability: unknown) => {
+    db.queue({ data: [] }, { data: { employeeID: "id-2" } });
+    await createEmployee({ ...base, availability } as Parameters<typeof createEmployee>[0]);
+    return (db.writes.at(-1)?.payload as { availability?: string }).availability;
+  };
+
+  it("keeps On Leave or Unavailable when the office picks it", async () => {
+    expect(await saved("On Leave")).toBe("On Leave");
+    expect(await saved("Unavailable")).toBe("Unavailable");
+  });
+
+  it("starts Available when nothing is picked", async () => {
+    expect(await saved(undefined)).toBe("Available");
+  });
+
+  it("never takes Booked or In Transit from the form - trips decide those", async () => {
+    expect(await saved("Booked")).toBe("Available");
+    expect(await saved("In Transit")).toBe("Available");
+  });
+});
+
 describe("an email another employee signs in with", () => {
   const dto = { employeeID: "id-1", employeeName: "QA", role: "Helper", availability: "Available", healthStatus: "Fit", address: "x", contact: "09171234567", emailAddress: "Juan_Cruz@Example.com" } as Parameters<typeof createEmployee>[0];
 

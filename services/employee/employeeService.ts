@@ -194,7 +194,11 @@ export async function createEmployee(
     .from(TABLE)
     .insert({
       ...employee,
-      availability: AVAILABILITY.available,
+      // The form offers Available, On Leave and Unavailable; keep what the
+      // office chose. Booked and In Transit come from trips, never from here.
+      availability: isManualAvailability(employee.availability)
+        ? employee.availability
+        : AVAILABILITY.available,
       isActive: true,
       auth_id: null,
       activation_sent_at: null,
