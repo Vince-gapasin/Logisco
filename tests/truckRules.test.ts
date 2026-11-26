@@ -50,6 +50,18 @@ describe("a plate number", () => {
     for (const bad of ["!!!", "ABCD", "1234", "A"]) expect(isValidPlate(bad), bad).toBe(false);
     expect(check(truck({ plateNumber: "????" }))).toBe(PLATE_RULE);
   });
+
+  it("takes the older two-letter and three-digit plates", () => {
+    expect(isValidPlate("AB 1234")).toBe(true);
+    expect(isValidPlate("qqq647")).toBe(true);
+  });
+
+  it("refuses what only has a letter and a digit somewhere in it", () => {
+    for (const bad of ["12-ZZ", "ZZ-12", "TRUCK1", "A1B2C3", "ABCD-1234", "AB-12345", "1AB-234"]) {
+      expect(isValidPlate(bad), bad).toBe(false);
+    }
+    expect(check(truck({ plateNumber: "12-ZZ" }))).toBe(PLATE_RULE);
+  });
 });
 
 describe("the rest of a truck", () => {

@@ -59,10 +59,12 @@ export function normalizePlate(value: string | null | undefined): string {
   return standard ? `${standard[1]}-${standard[2]}` : text;
 }
 
-/** Letters, digits, a hyphen or a space; at least one letter and one digit; 4 to 12 long. */
+/**
+ * A Philippine truck plate: two or three letters, then three or four digits -
+ * ABC-1234, or the older ABC-123 and AB-1234. "12-ZZ" or "TRUCK1" is not one.
+ */
 export function isValidPlate(value: string | null | undefined): boolean {
-  const plate = normalizePlate(value);
-  return /^[A-Z0-9][A-Z0-9 -]{2,10}[A-Z0-9]$/.test(plate) && /[A-Z]/.test(plate) && /\d/.test(plate);
+  return /^[A-Z]{2,3}-\d{3,4}$/.test(normalizePlate(value));
 }
 
 export function isTruckType(value: unknown): boolean {
