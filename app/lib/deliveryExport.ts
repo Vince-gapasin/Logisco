@@ -217,47 +217,82 @@ export async function exportDelivery(
 
   // Portrait, like the paperwork it is filed with. Each part of the booking
   // is a boxed panel, a label beside each value, and each stop is a panel of
-  // its own with its status as a badge - the stops were a table once, and a
-  // table that wide could not be read without cutting its cells.
-  const report = await startReport({
-    title: `Delivery Report ${record.view.orderId}`,
-    meta: [
-      `${record.view.clientName || "-"}  |  Delivery date: ${record.view.displayDate || "-"}`,
-      `Generated ${generatedAt}`,
-    ],
-  });
+  // its own with its status as a badge.
+  //
+  // The office wants this on one page. A panel per stop fits a short route,
+  // but two pickups and a drop with long addresses ran on to a second page.
+  // So the panels are tried first, and if they do not fit, the route is drawn
+  // again as one table - a row per stop, the same facts - which does.
+  const draw = async (compactRoute: boolean) => {
+    const report = await startReport({
+      title: `Delivery Report ${record.view.orderId}`,
+      meta: [
+        `${record.view.clientName || "-"}  |  Delivery date: ${record.view.displayDate || "-"}`,
+        `Generated ${generatedAt}`,
+      ],
+    });
 
-  report.figures([
-    { label: "Final status", value: record.status },
-    { label: "Priority", value: orDash(record.view.priorityLevel) },
-    { label: "Stops", value: String(record.stops.length) },
-    { label: "Quantity", value: orDash(record.view.totalQuantity) },
-  ]);
+    report.figures([
+      { label: "Final status", value: record.status },
+      { label: "Priority", value: orDash(record.view.priorityLevel) },
+      { label: "Stops", value: String(record.stops.length) },
+      { label: "Quantity", value: orDash(record.view.totalQuantity) },
+    ]);
 
-  // The notes and why it did not finish sit in the booking panel rather than
-  // under headings of their own, which is what kept this to one page.
-  report.panel("Booking", [
-    ...record.bookingDetails,
-    ...(record.reason ? [{ label: "Why it did not finish", value: record.reason, wide: true }] : []),
-    ...(record.view.plainNotes ? [{ label: "Notes", value: record.view.plainNotes, wide: true }] : []),
-  ]);
-  report.panel("Client", record.clientDetails);
-  report.panel("Truck and crew", record.crewDetails);
+    // The notes and why it did not finish sit in the booking panel rather than
+    // under headings of their own, which is what kept this to one page.
+    report.panel("Booking", [
+      ...record.bookingDetails,
+      ...(record.reason ? [{ label: "Why it did not finish", value: record.reason, wide: true }] : []),
+      ...(record.view.plainNotes ? [{ label: "Notes", value: record.view.plainNotes, wide: true }] : []),
+    ]);
+    report.panel("Client", record.clientDetails);
+    report.panel("Truck and crew", record.crewDetails);
 
-  report.section(
-    "Route",
-    `${record.stops.filter((stop) => stop.kind === "Pickup").length} pickup(s), ${record.stops.filter((stop) => stop.kind === "Delivery").length} delivery stop(s), in the order driven`,
-  );
-  if (record.stops.length === 0) {
-    report.paragraph("No stops recorded.", { muted: true });
-  }
-  for (const stop of record.stops) {
-    report.panel(`${stop.kind} ${stop.number}: ${stop.name}`, stop.details, { status: stop.status });
-  }
+    report.section(
+      "Route",
+      `${record.stops.filter((stop) => stop.kind === "Pickup").length} pickup(s), ${record.stops.filter((stop) => stop.kind === "Delivery").length} delivery stop(s), in the order driven`,
+    );
+    if (record.stops.length === 0) {
+      report.paragraph("No stops recorded.", { muted: true });
+    } else if (compactRoute) {
+      report.table(ROUTE_COLUMNS, record.stops.map(routeRow));
+    } else {
+      for (const stop of record.stops) {
+        report.panel(`${stop.kind} ${stop.number}: ${stop.name}`, stop.details, { status: stop.status });
+      }
+    }
 
-  // No history here: the office wants this on one page, and the history -
-  // a line for every step of the trip - is what ran it on to a second. It
-  // is in the CSV, and behind the History button.
+    // No history here: the office wants this on one page, and the history -
+    // a line for every step of the trip - is what ran it on to a second. It
+    // is in the CSV, and behind the History button.
+    return report;
+  };
+
+  let report = await draw(false);
+  if (report.pageCount() > 1 && record.stops.length > 0) report = await draw(true);
 
   return { filename: `${base}.pdf`, result: await report.save(`${base}.pdf`) };
+}
+
+/** The route as a table, for when a panel per stop will not fit on the page. Adds up to 180 mm. */
+const ROUTE_COLUMNS = [
+  { header: "Stop", width: 34 },
+  { header: "Address", width: 50 },
+  { header: "Status", width: 22 },
+  { header: "Expected", width: 24 },
+  { header: "Completed", width: 26 },
+  { header: "Received by", width: 24 },
+];
+
+function routeRow(stop: StopBlock): string[] {
+  const value = (label: string) => stop.details.find((item) => item.label === label)?.value ?? "-";
+  return [
+    `${stop.kind} ${stop.number}: ${stop.name}`,
+    value("Address"),
+    stop.status,
+    value("Expected"),
+    value("Completed"),
+    stop.kind === "Delivery" ? value("Received by") : "-",
+  ];
 }

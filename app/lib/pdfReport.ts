@@ -86,6 +86,8 @@ export interface ReportBuilder {
   figures(pairs: { label: string; value: string }[]): void;
   /** A table that repeats its header on every page it runs on to. Cells wrap. */
   table(columns: Column[], rows: string[][]): void;
+  /** How many pages the report has run to so far. */
+  pageCount(): number;
   /** Numbers every page and hands the file over: a download, or on the phone app, Downloads. */
   save(filename: string): Promise<SaveResult>;
 }
@@ -361,6 +363,10 @@ export async function startReport(options: ReportOptions): Promise<ReportBuilder
       }
 
       y += 4;
+    },
+
+    pageCount() {
+      return pdf.getNumberOfPages();
     },
 
     save(filename) {
