@@ -147,14 +147,16 @@ export default function NotificationsFeed({
   emptyMessage,
   assignmentIcon,
 }: NotificationsFeedProps) {
-  const { notifications, isLoading, error, markRead, markAllRead, reload } = useNotifications();
+  const { notifications, unreadCount, isLoading, error, markRead, markAllRead, reload } = useNotifications();
   const [filter, setFilter] = useState<Filter>("all");
 
   // The bell's number: events that arrived and have not been opened. A
   // standing condition - a booking with no crew yet, a truck on maintenance -
   // is listed but is not "new", and counting it would leave a number nothing
-  // could clear.
-  const newCount = notifications.filter((n) => n.isStored && !n.isRead).length;
+  // could clear. The server counts every unread event, not only the newest
+  // ones listed here, so this and the bell agree; counting the list is the
+  // fallback when that count could not be read.
+  const newCount = unreadCount ?? notifications.filter((n) => n.isStored && !n.isRead).length;
   const anyUnread = notifications.some((n) => !n.isRead);
   const shown = filter === "unread" ? notifications.filter((n) => !n.isRead) : notifications;
 

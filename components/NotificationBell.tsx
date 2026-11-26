@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { apiFetch } from "@/app/lib/apiClient";
 import { usePolling } from "@/app/lib/usePolling";
+import { NOTIFICATIONS_READ_EVENT } from "@/app/lib/useNotifications";
 
 // How many notifications this person has not opened yet, on the bell.
 //
@@ -44,6 +45,14 @@ export default function NotificationBell({ basePath }: { basePath: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
   }, [pathname, refresh]);
+
+  // Reading one on the notifications page lowers the bell as soon as the
+  // server has it, not up to half a minute later.
+  useEffect(() => {
+    const onRead = () => void refresh();
+    window.addEventListener(NOTIFICATIONS_READ_EVENT, onRead);
+    return () => window.removeEventListener(NOTIFICATIONS_READ_EVENT, onRead);
+  }, [refresh]);
 
   return (
     <Link
